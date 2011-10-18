@@ -1,6 +1,7 @@
 #! /bin/sh
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:.
+MODULE_PATH=/usr/lib/modules
 
 echo "Mounting virtual filesystems"
 mkdir -p /sys /proc /dev
@@ -9,13 +10,9 @@ mount -t usbfs none /proc/bus/usb
 mount -t debugfs debugfs /proc/sys/debug
 mount -t sysfs sys /sys
 mount -t tmpfs -o size=64k,mode=0755 tmpfs /dev
-mkdir -p /dev/pts
+mkdir -p /dev/pts /dev/snd
 mount -t devpts devpts /dev/pts
 mount -t tmpfs -o mode=01777 tmpfs /tmp
-
-echo "Starting mdev"
-echo "/sbin/stbhotplug" > /proc/sys/kernel/hotplug
-mdev -s
 
 if [ ! -z "$BASH_VERSION" ]; then
 	# Recovery from missing /dev/console (works on bash but not ash)
@@ -25,62 +22,73 @@ fi
 # Don't let SCHED_FIFO / SCHED_RR realtime threads get preempted
 echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 
-# GPLv3 warning
-if [ -e /bin/gdbserver -o -e /bin/gdb ]; then
-	echo "* WARNING: THIS STB CONTAINS GPLv3 SOFTWARE"
-	echo "* GPLv3 programs must be removed in order to enable security."
-	echo "* See: http://www.gnu.org/licenses/gpl-faq.html#Tivoization"
-fi
-
-# -small configuration: do not start any other services automatically
-if [ ! -e /bin/login ]; then
-	[ -f /root/rc.user ] && sh /root/rc.user
-	exit 0
-fi
-
 # Set up MoCA link, if present
 [ -e /dev/bmoca0 ] && mocacfg boot
 
-cmdline=`cat /proc/cmdline`
-
-if [[ "$cmdline" != *nfsroot=* ]]; then
-	# set up networking if we are not on an NFS rootfs
-	for x in `ls /sys/class/net`; do
-		echo "Configuring $x interface"
-		/sbin/ifup $x
-	done
-else
-	# just configure loopback
-	/sbin/ifup lo
-fi
-
 # Set up WLAN, if present
-if [ -e /etc/wl/rtecdc.trx -a -x /bin/bcmdl ]; then
-	bcmdl /etc/wl/rtecdc.trx
-fi
-[ -e /lib/modules/wl.ko ] && insmod /lib/modules/wl.ko
+[ -e ${MODULE_PATH}/wl_pci.ko ] && insmod ${MODULE_PATH}/wl_pci.ko
 
-# rootfs on SATA hard disk (but not sda4-less thumbdrive)
-if [ -e /dev/root -a "`readlink /dev/root`" = "sda1" -a -e /dev/sda4 ]; then
-	mount -o remount,noatime,commit=1 /
-	mount -a
-	swapon -a
+# Set up BT, if present
+[ -e ${MODULE_PATH}/btusb.ko ] && insmod ${MODULE_PATH}/btusb.ko
+[ -e ${MODULE_PATH}/bthid.ko ] && insmod ${MODULE_PATH}/bthid.ko
+
+echo "Starting mdev"
+echo "/sbin/stbhotplug" > /proc/sys/kernel/hotplug
+mdev -s
+
+# :TODO: (by kedong, this piece will eventually move into S40Network.)
+echo "Starting network configuration"
+# Network configuration.
+cmdline=`cat /proc/cmdline`
+if [[ "$cmdline" != *nfsroot=* ]]; then
+  echo -n "Creating bridge... "
+  brctl addbr br0 || exit 1
+  brctl setfd br0 1 || exit 1
+  brctl stp br0 on || exit 1
+  echo "done"
+
+  echo -n "Adding interfaces... "
+  # set up networking if we are not on an NFS rootfs
+  for x in `ls /sys/class/net`; do
+    if [ -e /sys/class/net/$x/device ]; then
+      ifdown $x;
+      echo "Configuring $x interface"
+      ifconfig $x 0.0.0.0 up
+      brctl addif br0 $x
+    fi
+  done
+  echo "done"
+
+  echo -n "Bringing up the bridge... "
+  ifup br0
+  udhcpc -i br0
+  echo "done"
+else
+  # just configure loopback
+  /sbin/ifup lo
 fi
+
+mocactl restart --rfType bandE
+# :TODO: (by kedong, don't mount usb yet. 
+#echo "Mounting USB stick"
+#sleep 2
+# mount /dev/sda1 /mnt/usb
+#sleep 2
 
 echo "Starting network services"
-portmap &
-telnetd
-
 if [ -e /sbin/dropbear ]; then
-	if [ ! -e /etc/dropbear/dropbear_rsa_host_key ]; then
-		mkdir -p /etc/dropbear
-		dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key
-		dropbearkey -t dss -f /etc/dropbear/dropbear_dss_host_key
-	fi
-	dropbear
+  [ ! -e /tmp/dropbear ] && mkdir /tmp/dropbear
+  [ ! -e /tmp/ssh_host_rsa_key ] && touch /tmp/ssh_host_rsa_key
+  [ ! -e /tmp/ssh_host_dsa_key ] && touch /tmp/ssh_host_dsa_key
+
+  if [ ! -e /etc/dropbear/dropbear_rsa_host_key ]; then
+    dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key
+    dropbearkey -t dsa -f /etc/dropbear/dropbear_dsa_host_key
+  fi
+  dropbear
 fi
 
-if [ -f /root/rc.user ]; then
-	echo "Starting user services"
-	/bin/sh /root/rc.user
-fi
+# Set up NEXUS, if present
+echo "Starting nexus"
+[ -e $(MODULE_PATH)/nexus.ko ] && insmod $(MODULE_PATH)/nexus.ko
+

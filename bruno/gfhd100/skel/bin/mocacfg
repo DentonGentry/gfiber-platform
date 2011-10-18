@@ -5,7 +5,7 @@ CFG_FILE="/etc/moca/moca.conf.${INTERFACE}"
 MOCACTL="/bin/mocactl"
 MOCAD="/bin/mocad"
 
-function parse_opts()
+parse_opts()
 {
 	PARSING_INIT=1
 	PARSING_CFG=0

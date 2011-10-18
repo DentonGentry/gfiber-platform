@@ -1,0 +1,4 @@
+Name: bruno
+Description: Bruno Platform
+Version: 1.0.0
+Cflags: CFLAGS
