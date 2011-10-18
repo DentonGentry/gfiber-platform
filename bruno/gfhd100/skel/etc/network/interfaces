@@ -1,0 +1,26 @@
+# Configure Loopback
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet manual
+
+auto eth1
+iface eth1 inet manual
+
+auto eth2
+iface eth2 inet manual
+
+auto br0
+iface br0 inet dhcp
+  pre-up ifconfig eth0 down
+  pre-up ifconfig eth1 down
+  pre-up brctl addbr br0
+  pre-up brctl addif br0 eth0
+  pre-up brctl addif br0 eth1
+  pre-up ifconfig eth0 up
+  pre-up ifconfig eth1 up
+  post-down ifconfig eth0 down
+  post-down ifconfig eth1 down
+  post-down brctl delif br0 eth0
+  post-down brctl delif br0 eth1
