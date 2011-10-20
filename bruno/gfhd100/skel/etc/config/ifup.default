@@ -1,3 +1,2 @@
 iface=$1
 ifconfig $iface 0.0.0.0 up
-udhcpc -i $iface -p /tmp/udhcpc.$iface.pid >& /dev/null &

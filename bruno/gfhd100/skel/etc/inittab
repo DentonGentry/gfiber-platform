@@ -17,8 +17,8 @@
 ::sysinit:/etc/init.d/rcS
 
 # Put a shell on the serial port
-# ttyS0::respawn:/sbin/getty -L 115200 ttyS0 vt102
-::respawn:/bin/cttyhack /bin/sh -l
+ttyS0::respawn:/sbin/getty -L 115200 ttyS0 vt102
+#::respawn:/bin/cttyhack /bin/sh -l
 
 # Stuff to do before rebooting
 null::shutdown:/bin/umount -a -r
