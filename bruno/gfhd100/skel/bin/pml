@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # set defaults
 loops=1
@@ -11,7 +11,7 @@ command=
 pm_mode=standby
 cpu_rate=1
 
-function usage
+usage ()
 {
 	echo "pml: power management script version 1.0"
 	echo "Usage: pml [-lN] [-mMODE] [-tchd] [-fX] [-sN] [-rN]"
@@ -29,7 +29,7 @@ function usage
 	echo "    -h     - show this message"
 }
 
-function failure
+failure ()
 {
 	echo "Command \"$command\" failed"
 	exit
@@ -76,7 +76,7 @@ fi
 
 pmtest tp1 $tp1
 
-function one_pass
+one_pass ()
 {
 	passnum=$1
 	totalnum=$2	

@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 set -e
 
-function tftp_fetch()
+tftp_fetch()
 {
 	if [ ! -z "$local_dir" ]; then
 		if [ -e $local_dir/$2 ]; then
@@ -24,7 +24,7 @@ function tftp_fetch()
 	return 0
 }
 
-function find_mtd_partition()
+find_mtd_partition()
 {
 	arg=$1
 	out=$2
@@ -44,7 +44,7 @@ function find_mtd_partition()
 	return 1
 }
 
-function find_thumbdrive()
+find_thumbdrive()
 {
 	thumbdrive=""
 	cd /sys/block
@@ -64,7 +64,7 @@ function find_thumbdrive()
 	return 1
 }
 
-function get_mtd_attr()
+get_mtd_attr()
 {
 	arg0=$1
 	arg1=$2
@@ -80,7 +80,7 @@ function get_mtd_attr()
 	return 0
 }
 
-function check_root()
+check_root()
 {
 	# make sure that we are not reformatting the active rootfs
 	if [ -h /dev/root ]; then
@@ -98,7 +98,7 @@ function check_root()
 }
 
 # create rootfs image at /mnt/hd
-function write_rootfs()
+write_rootfs()
 {
 	type="$1"
 
@@ -146,7 +146,7 @@ function write_rootfs()
 
 
 # Install kernel to flash
-function handle_opt_1()
+handle_opt_1()
 {
 	mtd=/dev/mtd${kernel_part}
 
@@ -171,7 +171,7 @@ function handle_opt_1()
 }
 
 # Install UBIFS rootfs to flash
-function handle_opt_2()
+handle_opt_2()
 {
 	check_root mtd ubi
 	mtd=/dev/mtd${rootfs_part}
@@ -197,7 +197,7 @@ function handle_opt_2()
 }
 
 # Install JFFS2 rootfs to flash
-function handle_opt_3()
+handle_opt_3()
 {
 	check_root mtd ubi
 	mtd=/dev/mtd${rootfs_part}
@@ -222,7 +222,7 @@ function handle_opt_3()
 }
 
 # Install SQUASHFS rootfs to flash
-function handle_opt_4()
+handle_opt_4()
 {
 	check_root mtd ubi
 	mtd=/dev/mtd${rootfs_part}
@@ -281,7 +281,7 @@ function handle_opt_4()
 }
 
 # Install rootfs to hard drive
-function handle_opt_5()
+handle_opt_5()
 {
 	check_root ${hdd_dev##*/}
 	echo "Writing partition table..."
@@ -334,7 +334,7 @@ function handle_opt_5()
 }
 
 # Update rootfs on /dev/sdX1 (don't reformat other partitions)
-function handle_opt_6()
+handle_opt_6()
 {
 	check_root ${hdd_dev##*/}
 
@@ -351,7 +351,7 @@ function handle_opt_6()
 	exit 0
 }
 
-function handle_opt_7()
+handle_opt_7()
 {
 	check_root $thumbdrive
 
@@ -377,7 +377,7 @@ function handle_opt_7()
 	exit 0
 }
 
-function usage()
+usage()
 {
 	cat << EOF
 

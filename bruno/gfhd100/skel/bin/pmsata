@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 version="0.5"
 curdir=`pwd`
 
@@ -47,7 +47,7 @@ do
 	esac
 done
 
-function check_if_sata_controller()
+check_if_sata_controller()
 {
 	fname=$1
 	is_sata_controller="no"
@@ -57,7 +57,7 @@ function check_if_sata_controller()
 
 # function generates a list of all 'power' folders found in
 # the current tree
-function gen_powerlist()
+gen_powerlist()
 {
 	devfolder=$1
 	powerlist=
@@ -71,7 +71,7 @@ function gen_powerlist()
 # in query mode - display runtime_status and control settings
 # in update mode - change runtime control mode
 
-function scan_powerlist()
+scan_powerlist()
 {
 	powerlist=$1
 	for j in $powerlist ; do

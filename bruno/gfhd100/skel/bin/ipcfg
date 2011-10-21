@@ -1,6 +1,6 @@
 #!/bin/sh
 
-function usage()
+usage()
 {
 	echo "usage: ipcfg <interface> static <ip> <netmask> [ <gateway> ]"
 	echo "       ipcfg <interface> dhcp"
