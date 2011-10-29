@@ -75,7 +75,7 @@ fi
 #sleep 2
 
 echo "Starting network services"
-if [ -e /sbin/dropbear ]; then
+if [ -e /usr/sbin/dropbear ]; then
   [ ! -e /tmp/dropbear ] && mkdir /tmp/dropbear
   [ ! -e /tmp/ssh_host_rsa_key ] && touch /tmp/ssh_host_rsa_key
   [ ! -e /tmp/ssh_host_dsa_key ] && touch /tmp/ssh_host_dsa_key
