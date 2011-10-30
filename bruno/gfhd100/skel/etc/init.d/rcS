@@ -3,89 +3,53 @@
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:.
 MODULE_PATH=/usr/lib/modules
 
-echo "Mounting virtual filesystems"
-mkdir -p /sys /proc /dev
-mount -t proc proc /proc
-mount -t usbfs none /proc/bus/usb
-mount -t debugfs debugfs /proc/sys/debug
-mount -t sysfs sys /sys
-mount -t tmpfs -o size=64k,mode=0755 tmpfs /dev
-mkdir -p /dev/pts /dev/snd
-mount -t devpts devpts /dev/pts
-mount -t tmpfs -o mode=01777 tmpfs /tmp
-
 if [ ! -z "$BASH_VERSION" ]; then
 	# Recovery from missing /dev/console (works on bash but not ash)
 	exec < /dev/console >& /dev/console
 fi
 
+# TODO(sledbetter): fix /tmp mounting so not needed
+mkdir -p /tmp/dropbear
+
+# Start all init scripts in /etc/init.d
+# executing them in numerical order.
+#
+for i in /etc/init.d/S??* ;do
+
+     # Ignore dangling symlinks (if any).
+     [ ! -f "$i" ] && continue
+
+     case "$i" in
+	*.sh)
+	    # Source shell script for speed.
+	    (
+		trap - INT QUIT TSTP
+		set start
+		. $i
+	    )
+	    ;;
+	*)
+	    # No sh extension, so fork subprocess.
+	    $i start
+	    ;;
+    esac
+done
+
+
 # Don't let SCHED_FIFO / SCHED_RR realtime threads get preempted
 echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 
-# Set up MoCA link, if present
-[ -e /dev/bmoca0 ] && mocad -D && mocacfg boot && mocactl restart --rfType bandE
-
-# Set up WLAN, if present
-[ -e ${MODULE_PATH}/wl_pci.ko ] && insmod ${MODULE_PATH}/wl_pci.ko
-
-# Set up BT, if present
-[ -e ${MODULE_PATH}/btusb.ko ] && insmod ${MODULE_PATH}/btusb.ko
-[ -e ${MODULE_PATH}/bthid.ko ] && insmod ${MODULE_PATH}/bthid.ko
 
 echo "Starting mdev"
 mdev -s
 
 echo "/sbin/stbhotplug" > /proc/sys/kernel/hotplug
 
-# :TODO: (by kedong, this piece will eventually move into S40Network.)
-echo "Starting network configuration"
-# Network configuration.
-cat /proc/cmdline | grep nfsroot=
-if [ "$?" -ne "0" ]; then
-  echo -n "Creating bridge... "
-  brctl addbr br0 || exit 1
-  brctl setfd br0 1 || exit 1
-  brctl stp br0 on || exit 1
-  echo "done"
-
-  echo "Adding interfaces... "
-  # set up networking if we are not on an NFS rootfs
-  for x in `ls /sys/class/net`; do
-    if [ -e /sys/class/net/$x/device ]; then
-      ifdown $x;
-      echo "Configuring $x interface"
-      ifup $x
-      brctl addif br0 $x
-    fi
-  done
-  echo "done"
-
-  echo -n "Bringing up the bridge... "
-  ifup br0
-  echo "done"
-else
-  # just configure loopback
-  /sbin/ifup lo
-fi
-
-# :TODO: (by kedong, don't mount usb yet. 
+# :TODO: (by kedong, don't mount usb yet.
 #echo "Mounting USB stick"
 #sleep 2
 # mount /dev/sda1 /mnt/usb
 #sleep 2
-
-echo "Starting network services"
-if [ -e /usr/sbin/dropbear ]; then
-  [ ! -e /tmp/dropbear ] && mkdir /tmp/dropbear
-  [ ! -e /tmp/ssh_host_rsa_key ] && touch /tmp/ssh_host_rsa_key
-  [ ! -e /tmp/ssh_host_dsa_key ] && touch /tmp/ssh_host_dsa_key
-
-  if [ ! -e /etc/dropbear/dropbear_rsa_host_key ]; then
-    dropbearkey -t rsa -f /etc/dropbear/dropbear_rsa_host_key
-    dropbearkey -t dsa -f /etc/dropbear/dropbear_dsa_host_key
-  fi
-  dropbear
-fi
 
 # Set up NEXUS, if present
 echo "Starting nexus"

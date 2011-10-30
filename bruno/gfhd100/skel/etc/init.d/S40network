@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# Start the network....
+#
+
+case "$1" in
+  start)
+	echo "Starting network..."
+	cmdline=$(grep nfsroot /proc/cmdline)
+	if [ $? != 0 ]; then
+		echo -n "Creating bridge... "
+		brctl setfd br0 1 || exit 1
+		brctl stp br0 on || exit 1
+		echo "done"
+
+		echo "Adding interfaces... "
+		# set up networking if we are not on an NFS rootfs
+		for x in `ls /sys/class/net`; do
+			ifdown $x
+			echo "Configuring $x interface"
+			ifup $x
+			brctl addif br0 $x
+		done
+
+		echo -n "Bringing up the bridge... "
+		ifup br0
+		echo "done"
+	else
+		# just configure loopback
+		/sbin/ifup lo
+	fi
+
+	# Set up MoCA link, if present
+	[ -e /dev/bmoca0 ] && mocad -D && mocacfg boot && mocactl restart --rfType bandE
+
+	# Set up WLAN, if present
+	[ -e ${MODULE_PATH}/wl_pci.ko ] && insmod ${MODULE_PATH}/wl_pci.ko
+
+	# Set up BT, if present
+	[ -e ${MODULE_PATH}/btusb.ko ] && insmod ${MODULE_PATH}/btusb.ko
+	[ -e ${MODULE_PATH}/bthid.ko ] && insmod ${MODULE_PATH}/bthid.ko
+
+	;;
+  stop)
+	echo -n "Stopping network..."
+	/sbin/ifdown -a
+	;;
+  restart|reload)
+	"$0" stop
+	"$0" start
+	;;
+  *)
+	echo $"Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+

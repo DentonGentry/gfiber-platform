@@ -1,4 +1,11 @@
-/dev/sda1                    /                   auto      defaults         1 1
-/dev/sda2                    swap                swap      noauto           0 0
-/dev/sda3                    /opt                auto      defaults         1 2
-/dev/sda4                    /data               auto      defaults         1 3
+# /etc/fstab: static file system information.
+#
+# <file system> <mount pt>              <type>   <options>         <dump> <pass>
+/dev/root       /                       ext2     rw,noauto         0      1
+proc            /proc                   proc     defaults          0      0
+devpts          /dev/pts                devpts   defaults,gid=5,mode=620   0      0
+# tmpfs           /dev/shm                tmpfs    mode=0777         0      0
+tmpfs           /tmp                    tmpfs    defaults          0      0
+sysfs           /sys                    sysfs    defaults          0      0
+none            /proc/bus/usb           usbfs    defaults          0      0
+none            /proc/sys/debugfs       debugfs  defaults          0      0
