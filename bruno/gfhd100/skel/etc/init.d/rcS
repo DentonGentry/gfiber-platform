@@ -36,22 +36,11 @@ for i in /etc/init.d/S??* ;do
 done
 
 
-# Don't let SCHED_FIFO / SCHED_RR realtime threads get preempted
-echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 
 
-echo "Starting mdev"
-mdev -s
-
-echo "/sbin/stbhotplug" > /proc/sys/kernel/hotplug
 
 # :TODO: (by kedong, don't mount usb yet.
 #echo "Mounting USB stick"
 #sleep 2
 # mount /dev/sda1 /mnt/usb
 #sleep 2
-
-# Set up NEXUS, if present
-echo "Starting nexus"
-[ -e ${MODULE_PATH}/nexus.ko ] && insmod ${MODULE_PATH}/nexus.ko
-
