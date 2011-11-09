@@ -1,5 +1,7 @@
 #!/bin/sh
 
+MODULE_PATH=/usr/lib/modules
+
 # Don't let SCHED_FIFO / SCHED_RR realtime threads get preempted
 echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 
@@ -12,3 +14,11 @@ echo "/sbin/stbhotplug" > /proc/sys/kernel/hotplug
 # Set up NEXUS, if present
 echo "Starting nexus"
 [ -e ${MODULE_PATH}/nexus.ko ] && insmod ${MODULE_PATH}/nexus.ko
+
+# Set up WLAN, if present
+[ -e ${MODULE_PATH}/wl_pci.ko ] && insmod ${MODULE_PATH}/wl_pci.ko
+
+# Set up BT, if present
+[ -e ${MODULE_PATH}/btusb.ko ] && insmod ${MODULE_PATH}/btusb.ko
+[ -e ${MODULE_PATH}/bthid.ko ] && insmod ${MODULE_PATH}/bthid.ko
+
