@@ -1,7 +1,6 @@
 #! /bin/sh
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:.
-MODULE_PATH=/usr/lib/modules
 
 if [ ! -z "$BASH_VERSION" ]; then
 	# Recovery from missing /dev/console (works on bash but not ash)

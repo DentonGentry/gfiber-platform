@@ -33,13 +33,6 @@ case "$1" in
 	# Set up MoCA link, if present
 	[ -e /dev/bmoca0 ] && mocad -D && mocacfg boot && mocactl restart --rfType bandE
 
-	# Set up WLAN, if present
-	[ -e ${MODULE_PATH}/wl_pci.ko ] && insmod ${MODULE_PATH}/wl_pci.ko
-
-	# Set up BT, if present
-	[ -e ${MODULE_PATH}/btusb.ko ] && insmod ${MODULE_PATH}/btusb.ko
-	[ -e ${MODULE_PATH}/bthid.ko ] && insmod ${MODULE_PATH}/bthid.ko
-
 	;;
   stop)
 	echo -n "Stopping network..."
