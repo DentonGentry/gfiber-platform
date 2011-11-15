@@ -46,8 +46,8 @@
 
 
 # MTD stuff
-/dev/mtd	c	640	0	0	90	0	0	2	4
-/dev/mtdblock	b	640	0	0	31	0	0	1	4
+/dev/mtd	c	640	0	0	90	0	0	2	10
+/dev/mtdblock	b	640	0	0	31	0	0	1	10
 
 #Tun/tap driver
 /dev/net	d	755	0	0	-	-	-	-	-
