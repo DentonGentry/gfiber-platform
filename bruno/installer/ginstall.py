@@ -9,7 +9,6 @@ __author__ = 'dgentry@google.com (Denton Gentry)'
 import optparse
 import os
 import re
-import stat
 import subprocess
 import tarfile
 
@@ -94,6 +93,7 @@ def get_file_size(f):
 
 
 def install_to_mtd(f, mtd):
+  """Write an image to an mtd device."""
   if erase_mtd(mtd):
     raise IOError("Flash erase failed.")
   mtdblockname = MTDBLOCK.format(get_mtd_num(mtd))
@@ -142,10 +142,6 @@ class TarImage(object):
   def __init__(self, tarfilename):
     self.tarfilename = tarfilename
     self.tar_f = tarfile.open(name=tarfilename)
-
-  def __del__(self):
-    self.tar_f.close()
-    self.tar_f = None
 
   def GetKernel(self):
     try:
