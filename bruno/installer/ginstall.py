@@ -10,6 +10,7 @@ import optparse
 import os
 import re
 import subprocess
+import sys
 import tarfile
 
 
@@ -18,6 +19,15 @@ FLASH_ERASE = "/usr/sbin/flash_erase"
 PROC_MTD = "/proc/mtd"
 MTDBLOCK = "/dev/mtdblock{0}"
 UBIFORMAT = "/usr/sbin/ubiformat"
+BUFSIZE = 256 * 1024
+
+# Verbosity of output
+quiet = False
+
+def verbose_print(string):
+  if not quiet:
+    sys.stdout.write(string)
+    sys.stdout.flush()
 
 
 def get_mtd_num(arg):
@@ -73,14 +83,27 @@ def erase_mtd(mtd):
 
 def write_to_file(srcfile, dstfile):
   """Copy all bytes from srcfile to dstfile."""
-  bsiz = 256 * 1024
-  buf = srcfile.read(bsiz)
+  buf = srcfile.read(BUFSIZE)
   totsize = 0
   while buf:
     totsize += len(buf)
     dstfile.write(buf)
-    buf = srcfile.read(bsiz)
+    buf = srcfile.read(BUFSIZE)
+    verbose_print('.')
   return totsize
+
+
+def read_and_verify(srcfile, dstfile):
+  """Read srcfile and dstfile. Return true if contents are identical."""
+  sbuf = srcfile.read(BUFSIZE)
+  dbuf = dstfile.read(len(sbuf))
+  while sbuf and dbuf:
+    if sbuf != dbuf:
+      return False
+    sbuf = srcfile.read(BUFSIZE)
+    dbuf = dstfile.read(len(sbuf))
+    verbose_print('.')
+  return True
 
 
 def get_file_size(f):
@@ -97,8 +120,13 @@ def install_to_mtd(f, mtd):
   if erase_mtd(mtd):
     raise IOError("Flash erase failed.")
   mtdblockname = MTDBLOCK.format(get_mtd_num(mtd))
-  with open(mtdblockname, "wb") as mtdfile:
-    return write_to_file(f, mtdfile)
+  with open(mtdblockname, "r+b") as mtdfile:
+    written = write_to_file(f, mtdfile)
+    f.seek(0, os.SEEK_SET)
+    mtdfile.seek(0, os.SEEK_SET)
+    if not read_and_verify(f, mtdfile):
+      raise IOError("Flash verify failed")
+    return written
 
 
 def install_to_ubi(f, mtd):
@@ -159,25 +187,57 @@ class TarImage(object):
       return None
 
 
+gfhd100_partitions = {"primary": ("mtd3", "mtd5"),
+                      "secondary": ("mtd4", "mtd6")}
+
 def main():
   parser = optparse.OptionParser()
-  parser.add_option('--tar', dest='tarfile',
+  parser.add_option('-t', '--tar', dest='tarfile',
                     help='tar archive containing kernel and rootfs',
                     default=None)
-  parser.add_option('--kernel', dest='kernfile',
+  parser.add_option('-k', '--kernel', dest='kernfile',
                     help='kernel image to install',
                     default=None)
-  parser.add_option('--rootfs', dest='rootfsfile',
+  parser.add_option('-r', '--rootfs', dest='rootfsfile',
                     help='rootfs UBI image to install',
                     default=None)
-  args = parser.parse_args()
-  if (args.tarfile):
-    img = TarImage(args.tarfile)
-    if args.kernfile or args.rootfsfile:
+  parser.add_option('-p', '--partition', dest='partition', metavar="PART",
+                    type="string", action="store",
+                    help='primary or secondary image partition',
+                    default=None)
+  parser.add_option('-q', '--quiet', dest='quiet', action='store_true',
+                    help="suppress unnecessary output.",
+                    default=False)
+
+  (options, args) = parser.parse_args()
+  quiet = options.quiet
+  if options.tarfile:
+    img = TarImage(options.tarfile)
+    if options.kernfile or options.rootfsfile:
       print("--tar option provided, ignoring --kernel and --rootfs")
   else:
-    img = FileImage(args.kernfile, args.rootfsfile)
+    img = FileImage(options.kernfile, options.rootfsfile)
+  if not options.partition:
+    print("A --partition option must be provided.")
+    return 1
+  if options.partition not in gfhd100_partitions:
+    print("--partition must be one of: " + str(gfhd100_partitions.keys()))
+
+  mtds = gfhd100_partitions[options.partition]
+  kern = img.GetKernel()
+  if kern:
+    verbose_print("Writing kernel to {0}".format(mtds[0]))
+    install_to_mtd(kern, mtds[0])
+    verbose_print("\n")
+
+  rootfs = img.GetRootFs()
+  if rootfs:
+    verbose_print("Writing rootfs to {0}".format(mtds[1]))
+    install_to_ubi(rootfs, mtds[1])
+    verbose_print("\n")
+
+  return 0
 
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())

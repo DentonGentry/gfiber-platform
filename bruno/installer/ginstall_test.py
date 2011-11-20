@@ -13,12 +13,32 @@ import unittest
 
 
 class ImginstTest(unittest.TestCase):
+  def setUp(self):
+    self.old_bufsize = ginstall.BUFSIZE
+    self.old_flash_erase = ginstall.FLASH_ERASE
+    self.old_mtdblock = ginstall.MTDBLOCK
+    self.old_proc_mtd = ginstall.PROC_MTD
+    self.old_ubiformat = ginstall.UBIFORMAT
+    self.files_to_remove = list()
+
+  def tearDown(self):
+    ginstall.BUFSIZE = self.old_bufsize
+    ginstall.FLASH_ERASE = self.old_flash_erase
+    ginstall.MTDBLOCK = self.old_mtdblock
+    ginstall.PROC_MTD = self.old_proc_mtd
+    ginstall.UBIFORMAT = self.old_ubiformat
+    for file in self.files_to_remove:
+      os.remove(file)
+
   def MakeTestScript(self, text):
     """Create a script in /tmp, with an output file."""
     scriptfile = tempfile.NamedTemporaryFile(mode="r+", delete=False)
     os.chmod(scriptfile.name, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
     outfile = tempfile.NamedTemporaryFile(delete=False)
     scriptfile.write(text.format(outfile.name))
+    scriptfile.close()  # Linux won't run it if text file is busy
+    self.files_to_remove.append(scriptfile.name)
+    self.files_to_remove.append(outfile.name)
     return (scriptfile, outfile)
 
   def testGetMtdNum(self):
@@ -29,7 +49,6 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(ginstall.get_mtd_num("invalid4"), False)
 
   def testGetEraseSize(self):
-    old_proc_mtd = ginstall.PROC_MTD
     ginstall.PROC_MTD = "testdata/proc/mtd"
     siz = ginstall.get_erase_size("mtd3")
     self.assertEqual(siz, 128)
@@ -41,7 +60,6 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(siz, 256)
     siz = ginstall.get_erase_size("nonexistent")
     self.assertEqual(siz, 0)
-    ginstall.PROC_MTD = old_proc_mtd
 
   def testRoundTo(self):
     self.assertEqual(ginstall.round_to(255, 256), 256)
@@ -53,17 +71,12 @@ class ImginstTest(unittest.TestCase):
   def testEraseMtd(self):
     testscript = "#!/bin/sh\necho -n $* >> {0}\n"
     (script, out) = self.MakeTestScript(testscript)
-    flash_erase = ginstall.FLASH_ERASE
     ginstall.FLASH_ERASE = script.name
-    script.close()
     ginstall.erase_mtd("mtd3")
     # Script wrote its arguments to out.name, read them in to check.
     output = out.read()
     out.close()
     self.assertEqual(output, "--quiet /dev/mtd3 0 0")
-    ginstall.FLASH_ERASE = flash_erase
-    os.remove(script.name)
-    os.remove(out.name)
 
   def testTarImage(self):
     tarimg = ginstall.TarImage("testdata/img/vmlinux.tar")
@@ -78,7 +91,7 @@ class ImginstTest(unittest.TestCase):
 
   def testFileImage(self):
     fileimg = ginstall.FileImage("testdata/img/vmlinux",
-                                "testdata/img/rootfs.ubi")
+                                 "testdata/img/rootfs.ubi")
     self.assertEqual(fileimg.GetKernel().read(), "vmlinux")
     self.assertEqual(fileimg.GetRootFs().read(), "rootfs.ubi")
 
@@ -86,19 +99,17 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(ginstall.get_file_size(open("testdata/img/vmlinux")), 7)
     self.assertEqual(ginstall.get_file_size(open("testdata/random")), 4096)
 
-  def testWriteToMtd(self):
+  def testWriteMtd(self):
     origfile = open("testdata/random", "r")
     destfile = tempfile.NamedTemporaryFile()
     origsize = os.fstat(origfile.fileno())[6]
 
     # substitute fake /dev/mtdblock and /usr/bin/flash_erase
-    oldmtdblock = ginstall.MTDBLOCK
-    oldflasherase = ginstall.FLASH_ERASE
     ginstall.MTDBLOCK = destfile.name
     s = "#!/bin/sh\necho -n $* >> {0}\nexit 0\n"
     (f_erase, eraseout) = self.MakeTestScript(s)
-    f_erase.close()
     ginstall.FLASH_ERASE = f_erase.name
+    ginstall.BUFSIZE = 1024
 
     writesize = ginstall.install_to_mtd(origfile, 4)
     self.assertEqual(writesize, origsize)
@@ -113,19 +124,32 @@ class ImginstTest(unittest.TestCase):
     copydata = destfile.read()
     self.assertEqual(origdata, copydata)
 
-    ginstall.MTDBLOCK = oldmtdblock
-    ginstall.FLASH_ERASE = oldflasherase
-    os.remove(f_erase.name)
-    os.remove(eraseout.name)
+  def testWriteMtdEraseException(self):
+    origfile = open("testdata/random", "r")
+    (f_erase, eraseout) = self.MakeTestScript("#!/bin/sh\nexit 1\n")
+    ginstall.FLASH_ERASE = f_erase.name
+    self.assertRaises(IOError, ginstall.install_to_mtd, origfile, 0)
 
-  def testWriteToUbi(self):
-    oldubiformat = ginstall.UBIFORMAT
-    oldprocmtd = ginstall.PROC_MTD
+  def testWriteMtdVerifyException(self):
+    origfile = open("testdata/random", "r")
+    destfile = open("/dev/zero", "w")
+    origsize = os.fstat(origfile.fileno())[6]
+
+    # substitute fake /dev/mtdblock and /usr/bin/flash_erase
+    ginstall.MTDBLOCK = destfile.name
+    s = "#!/bin/sh\nexit 0\n"
+    (f_erase, eraseout) = self.MakeTestScript(s)
+    ginstall.FLASH_ERASE = f_erase.name
+
+    # verify should fail, destfile will read back zero.
+    self.assertRaises(IOError, ginstall.install_to_mtd, origfile, 4)
+
+  def testWriteUbi(self):
     ginstall.PROC_MTD = "testdata/proc/mtd"
     s = "#!/bin/sh\necho $* >> {0}\nwc -c >> {0}\nexit 0"
     (ubifmt, ubiout) = self.MakeTestScript(s)
-    ubifmt.close()
     ginstall.UBIFORMAT = ubifmt.name
+    ginstall.BUFSIZE = 1024
 
     origfile = open("testdata/random", "r")
     origsize = os.fstat(origfile.fileno())[6]
@@ -139,10 +163,13 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(ubiout.readline(), "/dev/mtd9 -f - -y -q -S 2097152\n")
     self.assertEqual(ubiout.readline(), "4096\n")
 
-    ginstall.UBIFORMAT = oldubiformat
-    ginstall.PROC_MTD = oldprocmtd
-    os.remove(ubifmt.name)
-    os.remove(ubiout.name)
+  def testWriteUbiException(self):
+    ginstall.PROC_MTD = "testdata/proc/mtd"
+    (ubifmt, out) = self.MakeTestScript("#!/bin/sh\nexit 1\n")
+    ginstall.UBIFORMAT = ubifmt.name
+
+    origfile = open("testdata/random", "r")
+    self.assertRaises(IOError, ginstall.install_to_ubi, origfile, 0)
 
 
 if __name__ == '__main__':
