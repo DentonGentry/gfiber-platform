@@ -11,4 +11,4 @@ cd $1
 cp -f ${STAGING_DIR}/usr/lib/humax/loader.bin .
 gzip -9 < vmlinux > vmlinuz
 ${STAGING_DIR}/usr/lib/humax/makehdf ${STAGING_DIR}/usr/lib/bruno/lkr.cfg bruno.hdf
-
+tar czf bruno_ginstall_image.tgz vmlinuz rootfs.ubi
