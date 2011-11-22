@@ -236,6 +236,16 @@ def main():
     install_to_ubi(rootfs, mtds[1])
     verbose_print("\n")
 
+  # TODO(dgentry) set NVRAM variables automatically
+  print("To use this SW image, variables must be manually set in the bootloader.")
+  print('setenv -p BOOT "FLASH"')
+  print('setenv -p MTD_TYPE_FOR_KERNEL "mtd"')
+  if options.partition == "primary":
+    print('setenv -p ACTIVATED_KERNEL_NUM 0')
+    print('setenv -p KERNEL_OPT "ubi.mtd=5 root=ubi0:rootfs rootfstype=ubifs" (plus any ip= options)')
+  else:
+    print('setenv -p ACTIVATED_KERNEL_NUM 1')
+    print('setenv -p KERNEL_OPT "ubi.mtd=6 root=ubi0:rootfs rootfstype=ubifs" (plus any ip= options)')
   return 0
 
 
