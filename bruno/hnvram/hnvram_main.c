@@ -1,0 +1,279 @@
+// Copyright 2011 Google Inc. All Rights Reserved.
+// Author: dgentry@google.com (Denny Gentry)
+
+#define _GNU_SOURCE
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "hmx_upgrade_nvram.h"
+
+// Max length of data in an NVRAM field
+#define NVRAM_MAX_DATA  256
+
+/* To avoid modifying the HMX code, we supply dummy versions of two
+ * missing routines to satisfy the linker. These are used when writing
+ * the complete NVRAM partiton, which we do not need in this utility. */
+DRV_Error DRV_NANDFLASH_GetNvramHandle(int handle) {
+  return DRV_ERR;
+}
+DRV_Error DRV_FLASH_Write(int offset, char *data, int nDataSize) {
+  return DRV_ERR;
+}
+
+void usage(const char* progname) {
+  printf("Usage: %s [-d] [-r VARNAME] [-w VARNAME=value]\n", progname);
+  printf("\t-d : dump all NVRAM variables\n");
+  printf("\t-r VARNAME : read VARNAME from NVRAM\n");
+  printf("\t-w VARNAME=value : write value to VARNAME in NVRAM.\n");
+}
+
+// Format of data in the NVRAM
+typedef enum {
+  HNVRAM_STRING,    // NUL-terminated string
+  HNVRAM_MAC,       // 00:11:22:33:44:55
+  HNVRAM_HMXSWVERS, // 2.15
+  HNVRAM_UINT8      // a single byte, generally 0/1 for a boolean.
+} hnvram_format_e;
+
+typedef struct hnvram_field_s {
+  const char* name;
+  NVRAM_FIELD_T nvram_type;  // defined in hmx_upgrade_nvram.h
+  hnvram_format_e format;
+} hnvram_field_t;
+
+const hnvram_field_t nvram_fields[] = {
+  {"SYSTEM_ID",            NVRAM_FIELD_SYSTEM_ID,            HNVRAM_STRING},
+  {"MAC_ADDR",             NVRAM_FIELD_MAC_ADDR,             HNVRAM_MAC},
+  {"SERIAL_NO",            NVRAM_FIELD_SERIAL_NO,            HNVRAM_STRING},
+  {"LOADER_VERSION",       NVRAM_FIELD_LOADER_VERSION,       HNVRAM_HMXSWVERS},
+  {"ACTIVATED_KERNEL_NUM", NVRAM_FIELD_ACTIVATED_KERNEL_NUM, HNVRAM_UINT8},
+  {"ACTIVATED_ROOTFS_NUM", NVRAM_FIELD_ACTIVATED_ROOTFS_NUM, HNVRAM_UINT8},
+  {"MTD_TYPE_FOR_KERNEL",  NVRAM_FIELD_MTD_TYPE_FOR_KERNEL,  HNVRAM_STRING},
+  {"TYPE_OF_FILESYSTEM",   NVRAM_FIELD_TYPE_OF_FILESYSTEM,   HNVRAM_STRING},
+  {"NAME_OF_BOARD",        NVRAM_FIELD_NAME_OF_BOARD,        HNVRAM_STRING}
+};
+
+const hnvram_field_t* get_nvram_field(const char* name) {
+  int nentries = sizeof(nvram_fields) / sizeof(nvram_fields[0]);
+  int i;
+
+  for (i = 0; i < nentries; ++i) {
+    const hnvram_field_t* map = &nvram_fields[i];
+    if (strcasecmp(name, map->name) == 0) {
+      return map;
+    }
+  }
+
+  return NULL;
+}
+
+
+// ------------------ READ NVRAM -----------------------------
+
+
+void format_string(const char* data, char* output, int outlen) {
+  snprintf(output, outlen, "%s", data);
+}
+
+void format_mac(const char* data, char* output, int outlen) {
+  const unsigned char* mac = (const unsigned char*) data;
+  snprintf(output, outlen, "%02hx:%02hx:%02hx:%02hx:%02hx:%02hx",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+void format_hmxswvers(const char* data, char* output, int outlen) {
+  const unsigned char* udata = (const unsigned char*) data;
+  snprintf(output, outlen, "%hhu.%hhu", udata[0], udata[1]);
+}
+
+void format_uint8(const char* data, char* output, int outlen) {
+  const unsigned char* d = (const unsigned char*)data;
+  snprintf(output, outlen, "%u", d[0]);
+}
+
+char* format_nvram(hnvram_format_e format, const char* data,
+                   char* output, int outlen) {
+  output[0] = '\0';
+  switch(format) {
+    case HNVRAM_STRING:    format_string(data, output, outlen); break;
+    case HNVRAM_MAC:       format_mac(data, output, outlen); break;
+    case HNVRAM_HMXSWVERS: format_hmxswvers(data, output, outlen); break;
+    case HNVRAM_UINT8:     format_uint8(data, output, outlen); break;
+  }
+  return output;
+}
+
+char* read_nvram(const char* name, char* output, int outlen) {
+  const hnvram_field_t* field = get_nvram_field(name);
+  if (field == NULL) {
+    return NULL;
+  }
+
+  char data[NVRAM_MAX_DATA] = {0};
+  if (HMX_NVRAM_GetField(field->nvram_type, 0, data, sizeof(data)) != DRV_OK) {
+    return NULL;
+  }
+  char formatbuf[NVRAM_MAX_DATA * 2];
+  snprintf(output, outlen, "%s=%s", name,
+           format_nvram(field->format, data, formatbuf, sizeof(formatbuf)));
+  return output;
+}
+
+
+// ----------------- WRITE NVRAM -----------------------------
+
+
+unsigned char* parse_string(const char* input,
+                            unsigned char* output, int* outlen) {
+  int len = strlen(input);
+  if (len > *outlen) {
+    len = *outlen;
+  }
+
+  strncpy((char*)output, input, len);
+  *outlen = len;
+  return output;
+}
+
+unsigned char* parse_mac(const char* input,
+                         unsigned char* output, int* outlen) {
+  if (*outlen < 6) return NULL;
+
+  if (sscanf(input, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
+             &output[0], &output[1], &output[2],
+             &output[3], &output[4], &output[5]) != 6) {
+    return NULL;
+  }
+  *outlen = 6;
+  return output;
+}
+
+unsigned char* parse_hmxswvers(const char* input,
+                               unsigned char* output, int* outlen) {
+  if (*outlen < 2) return NULL;
+
+  if (sscanf(input, "%hhd.%hhd", &output[0], &output[1]) != 2) {
+    return NULL;
+  }
+  *outlen = 2;
+  return output;
+}
+
+unsigned char* parse_uint8(const char* input,
+                           unsigned char* output, int* outlen) {
+  if (*outlen < 1) return NULL;
+
+  output[0] = input[0] - '0';
+  *outlen = 1;
+  return output;
+}
+
+unsigned char* parse_nvram(hnvram_format_e format, const char* input,
+                           unsigned char* output, int* outlen) {
+  output[0] = '\0';
+  switch(format) {
+    case HNVRAM_STRING:
+      return parse_string(input, output, outlen);
+      break;
+    case HNVRAM_MAC:
+      return parse_mac(input, output, outlen);
+      break;
+    case HNVRAM_HMXSWVERS:
+      return parse_hmxswvers(input, output, outlen);
+      break;
+    case HNVRAM_UINT8:
+      return parse_uint8(input, output, outlen);
+      break;
+  }
+  return NULL;
+}
+
+
+int write_nvram(char* optarg) {
+  char* equal = strchr(optarg, '=');
+  if (equal == NULL) {
+    return -1;
+  }
+
+  char* name = optarg;
+  *equal = '\0';
+  char* value = ++equal;
+
+  const hnvram_field_t* field = get_nvram_field(name);
+  if (field == NULL) {
+    return -2;
+  }
+
+  unsigned char nvram_value[NVRAM_MAX_DATA];
+  int nvram_len = sizeof(nvram_value);
+  if (parse_nvram(field->format, value, nvram_value, &nvram_len) == NULL) {
+    return -3;
+  }
+
+  if (HMX_NVRAM_SetField(field->nvram_type, 0,
+                         nvram_value, nvram_len) != DRV_OK) {
+    return -4;
+  }
+
+  return 0;
+}
+
+int hnvram_main(int argc, char * const argv[]) {
+  DRV_Error err;
+
+  if ((err = HMX_NVRAM_Init()) != DRV_OK) {
+    fprintf(stderr, "NVRAM Init failed: %d\n", err);
+    exit(1);
+  }
+
+  int d_flag = 0;  // dump all NVRAM variables
+  char* duparg;
+  char output[NVRAM_MAX_DATA];
+  int c;
+  while ((c = getopt(argc, argv, "dr:w:")) != -1) {
+    switch(c) {
+      case 'd':
+        d_flag = 1;
+        break;
+      case 'r':
+        duparg = strdup(optarg);
+        if (read_nvram(duparg, output, sizeof(output)) == NULL) {
+          fprintf(stderr, "Unable to read %s\n", duparg);
+          exit(1);
+        }
+        puts(output);
+        free(duparg);
+        break;
+      case 'w':
+        duparg = strdup(optarg);
+        if (write_nvram(duparg) != 0) {
+          fprintf(stderr, "Unable to write %s\n", duparg);
+          exit(1);
+        }
+        free(duparg);
+        break;
+      default:
+        usage(argv[0]);
+        exit(1);
+        break;
+    }
+  }
+
+  // dump NVRAM at the end, after all writes have been done.
+  if (d_flag) {
+    if ((err = HMX_NVRAM_Dir()) != DRV_OK) {
+      fprintf(stderr, "Unable to dump variables, HMX_NVRAM_Dir=%d\n", err);
+    }
+  }
+
+  exit(0);
+}
+
+#ifndef TEST_MAIN
+int main(int argc, char * const argv[]) {
+  return hnvram_main(argc, argv);
+}
+#endif  // TEST_MAIN
