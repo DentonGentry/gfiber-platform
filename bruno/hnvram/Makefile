@@ -9,7 +9,8 @@ AR:=$(CROSS_PREFIX)ar
 RANLIB:=$(CROSS_PREFIX)ranlib
 STRIP:=$(CROSS_PREFIX)strip
 
-CFLAGS = -g -Os
+HUMAX_UPGRADE_DIR ?= ../../../../humax/misc/libupgrade
+CFLAGS = -g -Os -I$(HUMAX_UPGRADE_DIR) -L$(HUMAX_UPGRADE_DIR)
 
 ALL: hnvram
 SRCS = hnvram_main.c
