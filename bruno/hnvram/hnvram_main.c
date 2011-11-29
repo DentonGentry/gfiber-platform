@@ -224,6 +224,8 @@ int write_nvram(char* optarg) {
 int hnvram_main(int argc, char * const argv[]) {
   DRV_Error err;
 
+  libupgrade_verbose = 0;
+
   if ((err = HMX_NVRAM_Init()) != DRV_OK) {
     fprintf(stderr, "NVRAM Init failed: %d\n", err);
     exit(1);
