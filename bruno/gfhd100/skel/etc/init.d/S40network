@@ -32,7 +32,7 @@ case "$1" in
 	fi
 
 	# Set up MoCA link, if present
-	[ -e /dev/bmoca0 ] && mocad -D && mocacfg boot && mocactl restart --rfType bandE
+	[ -e /dev/bmoca0 ] && mocacfg boot
 
 	;;
   stop)
@@ -49,4 +49,3 @@ case "$1" in
 esac
 
 exit $?
-
