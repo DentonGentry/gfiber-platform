@@ -9,6 +9,7 @@ case "$1" in
 	cmdline=$(grep nfsroot /proc/cmdline)
 	if [ $? != 0 ]; then
 		echo -n "Creating bridge... "
+		brctl addbr br0 || exit 1
 		brctl setfd br0 1 || exit 1
 		brctl stp br0 on || exit 1
 		echo "done"
