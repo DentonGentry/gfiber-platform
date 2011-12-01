@@ -73,7 +73,7 @@ TEST_F(HnvramTest, TestFormat) {
   EXPECT_STREQ("254", format_nvram(HNVRAM_UINT8, in254, out, sizeof(out)));
 
   const char vers[] = {0x02, 0x01};
-  EXPECT_STREQ("2.1", format_nvram(HNVRAM_HMXSWVERS, vers, out, sizeof(out)));
+  EXPECT_STREQ("1.2", format_nvram(HNVRAM_HMXSWVERS, vers, out, sizeof(out)));
 }
 
 TEST_F(HnvramTest, TestGetNvramField) {
@@ -116,7 +116,7 @@ TEST_F(HnvramTest, TestParse) {
   EXPECT_EQ(output[0], 9);
 
   outlen = sizeof(output);
-  const char vers[] = {0x02, 0x01};
+  const char vers[] = {0x01, 0x02};
   snprintf(input, sizeof(input), "2.1");
   EXPECT_TRUE(NULL != parse_nvram(HNVRAM_HMXSWVERS, input, output, &outlen));
   EXPECT_EQ(2, outlen);

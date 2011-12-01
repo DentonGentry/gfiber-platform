@@ -86,7 +86,7 @@ void format_mac(const char* data, char* output, int outlen) {
 
 void format_hmxswvers(const char* data, char* output, int outlen) {
   const unsigned char* udata = (const unsigned char*) data;
-  snprintf(output, outlen, "%hhu.%hhu", udata[0], udata[1]);
+  snprintf(output, outlen, "%hhu.%hhu", udata[1], udata[0]);
 }
 
 void format_uint8(const char* data, char* output, int outlen) {
@@ -155,7 +155,7 @@ unsigned char* parse_hmxswvers(const char* input,
                                unsigned char* output, int* outlen) {
   if (*outlen < 2) return NULL;
 
-  if (sscanf(input, "%hhd.%hhd", &output[0], &output[1]) != 2) {
+  if (sscanf(input, "%hhd.%hhd", &output[1], &output[0]) != 2) {
     return NULL;
   }
   *outlen = 2;
