@@ -1,0 +1,19 @@
+#!/bin/sh
+
+case "$1" in
+  start)
+	ntpd -s
+	;;
+  stop)
+	killall ntpd
+	;;
+
+  restart)
+	$0 stop; sleep 2; $0 start
+	;;
+  *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

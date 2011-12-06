@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# NTP server handling
+case $reason in
+  BOUND|RENEW|REBIND|REBOOT)
+    if [ "$new_ntp_servers" = "$old_ntp_servers" ]; then
+      return
+    fi
+
+    if [ -z "$new_ntp_servers" ]; then
+      /etc/init.d/S99ntpd restart
+      return
+    fi
+
+    (for server in $new_ntp_servers; do
+      echo "server $server"
+    done) >/tmp/ntpd.conf
+
+    /etc/init.d/S99ntpd restart
+    ;;
+
+  EXPIRE|FAIL|RELEASE|STOP)
+    /etc/init.d/S99ntpd stop
+    ;;
+esac
