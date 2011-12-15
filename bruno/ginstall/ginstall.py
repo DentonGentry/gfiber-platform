@@ -173,18 +173,21 @@ class TarImage(object):
 
   def GetKernel(self):
     try:
-      return self.tar_f.extractfile("vmlinuz")
+      return self.tar_f.extractfile("vmlinuz.ubi")
     except KeyError:
       try:
-        return self.tar_f.extractfile("vmlinux")
+        return self.tar_f.extractfile("vmlinux.ubi")
       except KeyError:
         return None
 
   def GetRootFs(self):
     try:
-      return self.tar_f.extractfile("rootfs.ubi")
+      return self.tar_f.extractfile("rootfs.squashfs_ubi")
     except KeyError:
-      return None
+      try:
+        return self.tar_f.extractfile("rootfs.ubi")
+      except KeyError:
+        return None
 
 
 gfhd100_partitions = {"primary": ("mtd3", "mtd5"),
@@ -227,7 +230,7 @@ def main():
   kern = img.GetKernel()
   if kern:
     verbose_print("Writing kernel to {0}".format(mtds[0]))
-    install_to_mtd(kern, mtds[0])
+    install_to_ubi(kern, mtds[0])
     verbose_print("\n")
 
   rootfs = img.GetRootFs()
