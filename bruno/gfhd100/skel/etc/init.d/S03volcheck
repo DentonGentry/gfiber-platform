@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Volume check service
+#
+
+check_volume_and_mount () {
+  num_vol=`ubinfo --devn=${1} | grep "Volumes count" | awk -F':' '{print $2}'`
+  if [[ $num_vol = '0' ]]; then
+    ubimkvol /dev/ubi${1} -N ${2} -m
+  fi
+  mount -t ubifs ubi${1}:${2} /${2}
+}
+
+case "$1" in
+  start)
+    echo -n "Starting volume check: "
+    ubiattach -m 6 -d 0 /dev/ubi_ctrl
+    ubiattach -m 7 -d 1 /dev/ubi_ctrl
+    check_volume_and_mount 0 user
+    check_volume_and_mount 1 config
+    [[ ! -d /user/rw ]] && mkdir -p /user/rw
+    echo "OK"
+    ;;
+  stop)
+    echo -n "Stopping volume check: "
+    umount /user
+    umount /config
+    sleep 1
+    ubidetach -d 0 /dev/ubi_ctrl
+    ubidetach -d 1 /dev/ubi_ctrl
+    echo "OK"
+    ;;
+  restart|reload)
+    ;;
+  *)
+    echo $"Usage: $0 {start|stop|restart}"
+    exit 1
+esac
+
+exit $?

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+MODULE_PATH=/usr/lib/modules
+
+# Don't let SCHED_FIFO / SCHED_RR realtime threads get preempted
+echo -1 > /proc/sys/kernel/sched_rt_runtime_us
+
+# Set up NEXUS first since it applies PINMUX.
+echo "Starting nexus"
+[ -e ${MODULE_PATH}/nexus.ko ] && insmod ${MODULE_PATH}/nexus.ko
