@@ -26,9 +26,14 @@ case "$1" in
 		echo -n "Bringing up the bridge... "
 		ifup br0
 		echo "done"
+		# Start ISC DHCP client on bridge
+		/usr/sbin/dhclient br0
 	else
 		# just configure loopback
 		/sbin/ifup lo
+
+		# Start ISC DHCP client only on eth0
+		/usr/sbin/dhclient eth0
 	fi
 
 	# Set up MoCA link, if present
@@ -38,6 +43,7 @@ case "$1" in
   stop)
 	echo -n "Stopping network..."
 	/sbin/ifdown -a
+        /usr/sbin/dhclient -r
 	;;
   restart|reload)
 	"$0" stop

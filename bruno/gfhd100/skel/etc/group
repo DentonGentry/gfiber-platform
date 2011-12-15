@@ -13,6 +13,7 @@ lock::54:
 nobody::99:
 users::100:
 rpcuser:x:29:
+_ntp:x:30:
 nfsnobody:x:65534:
 utmp:x:22:
 video:x:200:video
