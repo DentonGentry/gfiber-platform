@@ -1,3 +1,6 @@
 iface=$1
-ifconfig $iface 0.0.0.0 up
-udhcpc -i $iface -p /tmp/udhcpc.$iface.pid >& /dev/null &
+ifconfig $iface up
+/usr/sbin/dhclient $iface -pf /var/run/dhclient.$iface.pid -lf \
+	/var/run/dhclient.$iface.lease >& /dev/null &
+/usr/sbin/dhclient $iface -6 -pf /var/run/dhclient-v6.$iface.pid -lf \
+	/var/run/dhclient-v6.$iface.lease >& /dev/null &

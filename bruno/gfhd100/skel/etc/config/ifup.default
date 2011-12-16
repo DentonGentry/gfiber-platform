@@ -1,2 +1,2 @@
 iface=$1
-ifconfig $iface 0.0.0.0 up
+ifconfig $iface up
