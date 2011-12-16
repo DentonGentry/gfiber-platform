@@ -1,1 +1,2 @@
 INIT_TIME="--rfType bandE"
+MOCAD_PARAMS="-wD -l /user/moca"

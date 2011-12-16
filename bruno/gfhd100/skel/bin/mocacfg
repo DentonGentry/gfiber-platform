@@ -10,10 +10,12 @@ parse_opts()
 	PARSING_INIT=1
 	PARSING_CFG=0
 	PARSING_TRACE=0
+	PARSING_MOCAD_PARAMS=0
 
 	INIT_TIME=""
 	ANY_TIME=""
 	TRACE=""
+	MOCAD_PARAMS=""
 
 	while [ ! -z "$1" ]; do
 		case "$1" in
@@ -21,16 +23,25 @@ parse_opts()
 				PARSING_CFG=1
 				PARSING_INIT=0
 				PARSING_TRACE=0
+				PARSING_MOCAD_PARAMS=0
 				;;
 			-t)
 				PARSING_TRACE=1
 				PARSING_CFG=0
 				PARSING_INIT=0
+				PARSING_MOCAD_PARAMS=0
 				;;
 			-i)
 				PARSING_TRACE=0
 				PARSING_CFG=0
 				PARSING_INIT=1
+				PARSING_MOCAD_PARAMS=0
+                                ;;
+			-p)
+				PARSING_TRACE=0
+				PARSING_CFG=0
+				PARSING_INIT=0
+				PARSING_MOCAD_PARAMS=1
 				;;
 			*)
 				if [ $PARSING_CFG -eq 1 ]; then
@@ -39,6 +50,8 @@ parse_opts()
 					INIT_TIME="${INIT_TIME}$1 " 
 				elif [ $PARSING_TRACE -eq 1 ]; then
 					TRACE="${TRACE}$1 "
+				elif [ $PARSING_MOCAD_PARAMS -eq 1 ]; then
+					TRACE="${MOCAD_PARAMS}$1 "
 				fi
 				;;
 		esac
@@ -47,6 +60,7 @@ parse_opts()
 	echo "INIT_TIME=\"${INIT_TIME% }\"" > $CFG_FILE
 	echo "ANY_TIME=\"${ANY_TIME% }\"" >> $CFG_FILE
 	echo "TRACE=\"${TRACE% }\"" >> $CFG_FILE
+	echo "MOCAD_PARAMS=\"${MOCAD_PARAMS% }\"" >> $CFG_FILE
 	sync
 }
 
@@ -57,6 +71,7 @@ parse_opts()
 INIT_TIME=""
 ANY_TIME=""
 TRACE=""
+MOCAD_PARAMS=""
 [ -e $CFG_FILE ] && source $CFG_FILE
 
 cmd="$1"
@@ -77,12 +92,13 @@ case "$cmd" in
 		echo "INIT_TIME: $INIT_TIME"
 		echo "ANY_TIME: $ANY_TIME"
 		echo "TRACE: $TRACE"
+		echo "MOCAD_PARAMS: $MOCAD_PARAMS"
 		exit 0
 		;;
 	
 	boot)
 		echo "Starting mocad"
-		$MOCAD -wD
+		$MOCAD $MOCAD_PARAMS
 		$MOCACTL restore_defaults
 		$MOCACTL trace $TRACE
 		$MOCACTL config $ANY_TIME
@@ -120,7 +136,7 @@ case "$cmd" in
 esac
 
 echo "usage:"
-echo "  mocacfg set [<init_options>] [-c <config_options>] [-t <trace_options>]"
+echo "  mocacfg set [<init_options>] [-c <config_options>] [-t <trace_options>] [-p <mocad_params>]"
 echo "  mocacfg show"
 echo "  mocacfg { start | restart | stop }"
 echo "  mocacfg { boot | kill }"

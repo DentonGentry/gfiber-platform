@@ -19,6 +19,7 @@ case "$1" in
     check_volume_and_mount 0 user
     check_volume_and_mount 1 config
     [[ ! -d /user/rw ]] && mkdir -p /user/rw
+    [[ ! -d /user/moca ]] && mkdir -p /user/moca
     echo "OK"
     ;;
   stop)
