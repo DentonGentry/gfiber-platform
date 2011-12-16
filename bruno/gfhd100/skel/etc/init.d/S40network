@@ -20,7 +20,9 @@ case "$1" in
 			ifdown $x
 			echo "Configuring $x interface"
 			ifup $x
-			brctl addif br0 $x
+			if [ -e /sys/class/net/$x/device ]; then
+				brctl addif br0 $x
+			fi
 		done
 
 		echo -n "Bringing up the bridge... "
@@ -43,7 +45,10 @@ case "$1" in
   stop)
 	echo -n "Stopping network..."
 	/sbin/ifdown -a
-        /usr/sbin/dhclient -r
+	if ifconfig br0 >& /dev/null; then
+		brctl delbr br0
+	fi
+	/usr/sbin/dhclient -r
 	;;
   restart|reload)
 	"$0" stop
