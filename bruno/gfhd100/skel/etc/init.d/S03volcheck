@@ -20,6 +20,7 @@ case "$1" in
     check_volume_and_mount 1 config
     [[ ! -d /user/rw ]] && mkdir -p /user/rw
     [[ ! -d /user/moca ]] && mkdir -p /user/moca
+    [[ ! -d /user/bsa ]] && mkdir -p /user/bsa
     echo "OK"
     ;;
   stop)

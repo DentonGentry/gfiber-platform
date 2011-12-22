@@ -1,0 +1,32 @@
+#!/bin/sh
+
+mkdir -p /var/lock/subsys
+
+RETVAL=0
+
+case "$1" in
+  start)
+	echo -n "Starting Bluetooth service: "
+	cd /user/bsa
+	/usr/bin/bsa_server -d /dev/bthid 2>& 1 >> /var/log/bsa.log &
+	RETVAL=$?
+	[ $RETVAL -eq 0 ] && touch /var/lock/subsys/bsa
+	echo "done"
+	;;
+  stop)
+	echo -n "Shutting down Bluetooth service: "
+	killall bsa_server
+	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/bsa
+	echo "done"
+	return $RETVAL
+	;;
+
+  restart)
+	$0 stop; sleep 2; $0 start
+	;;
+  *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?
