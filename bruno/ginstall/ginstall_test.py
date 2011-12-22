@@ -16,6 +16,7 @@ class ImginstTest(unittest.TestCase):
   def setUp(self):
     self.old_bufsize = ginstall.BUFSIZE
     self.old_flash_erase = ginstall.FLASH_ERASE
+    self.old_hnvram = ginstall.HNVRAM
     self.old_mtdblock = ginstall.MTDBLOCK
     self.old_proc_mtd = ginstall.PROC_MTD
     self.old_ubiformat = ginstall.UBIFORMAT
@@ -24,6 +25,7 @@ class ImginstTest(unittest.TestCase):
   def tearDown(self):
     ginstall.BUFSIZE = self.old_bufsize
     ginstall.FLASH_ERASE = self.old_flash_erase
+    ginstall.HNVRAM = self.old_hnvram
     ginstall.MTDBLOCK = self.old_mtdblock
     ginstall.PROC_MTD = self.old_proc_mtd
     ginstall.UBIFORMAT = self.old_ubiformat
@@ -61,6 +63,13 @@ class ImginstTest(unittest.TestCase):
     siz = ginstall.get_erase_size("nonexistent")
     self.assertEqual(siz, 0)
 
+  def testGetMtdDevForPartition(self):
+    ginstall.PROC_MTD = "testdata/proc/mtd"
+    self.assertEqual(ginstall.get_mtd_dev_for_partition("foo1"), "mtd1")
+    self.assertEqual(ginstall.get_mtd_dev_for_partition("foo2"), "mtd2")
+    self.assertEqual(ginstall.get_mtd_dev_for_partition("foo9"), "mtd9")
+    self.assertEqual(ginstall.get_mtd_dev_for_partition("nonexistant"), None)
+
   def testRoundTo(self):
     self.assertEqual(ginstall.round_to(255, 256), 256)
     self.assertEqual(ginstall.round_to(1, 256), 256)
@@ -81,13 +90,13 @@ class ImginstTest(unittest.TestCase):
   def testTarImage(self):
     tarimg = ginstall.TarImage("testdata/img/vmlinux.tar")
     self.assertEqual(tarimg.GetKernel().read(), "vmlinux")
-    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.ubi")
+    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs_ubi")
     tarimg = ginstall.TarImage("testdata/img/vmlinuz.tar")
     self.assertEqual(tarimg.GetKernel().read(), "vmlinuz")
-    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.ubi")
+    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs_ubi")
     tarimg = ginstall.TarImage("testdata/img/vmboth.tar")
     self.assertEqual(tarimg.GetKernel().read(), "vmlinuz")
-    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.ubi")
+    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs_ubi")
 
   def testFileImage(self):
     fileimg = ginstall.FileImage("testdata/img/vmlinux",
@@ -170,6 +179,26 @@ class ImginstTest(unittest.TestCase):
 
     origfile = open("testdata/random", "r")
     self.assertRaises(IOError, ginstall.install_to_ubi, origfile, 0)
+
+  def testSetBootPartition0(self):
+    s = "#!/bin/sh\necho $* >> {0}\nexit 0"
+    (hnvram, nvout) = self.MakeTestScript(s)
+    ginstall.HNVRAM = hnvram.name
+
+    ginstall.set_boot_partition(0)
+    nvout.seek(0, os.SEEK_SET)
+    self.assertEqual(nvout.readline(),
+                     '-w MTD_TYPE_FOR_KERNEL=RAW -w ACTIVATED_KERNEL_NAME=kernel0 -w EXTRA_KERNEL_OPT=ubi.mtd=rootfs0 root=mtdblock:rootfs rootfstype=squashfs\n')
+
+  def testSetBootPartition1(self):
+    s = "#!/bin/sh\necho $* >> {0}\nexit 0"
+    (hnvram, nvout) = self.MakeTestScript(s)
+    ginstall.HNVRAM = hnvram.name
+
+    ginstall.set_boot_partition(1)
+    nvout.seek(0, os.SEEK_SET)
+    self.assertEqual(nvout.readline(),
+                     '-w MTD_TYPE_FOR_KERNEL=RAW -w ACTIVATED_KERNEL_NAME=kernel1 -w EXTRA_KERNEL_OPT=ubi.mtd=rootfs1 root=mtdblock:rootfs rootfstype=squashfs\n')
 
 
 if __name__ == '__main__':
