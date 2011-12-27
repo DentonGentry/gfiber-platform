@@ -19,6 +19,7 @@ class ImginstTest(unittest.TestCase):
     self.old_hnvram = ginstall.HNVRAM
     self.old_mtdblock = ginstall.MTDBLOCK
     self.old_proc_mtd = ginstall.PROC_MTD
+    self.old_sys_ubi0 = ginstall.SYS_UBI0
     self.old_ubiformat = ginstall.UBIFORMAT
     self.files_to_remove = list()
 
@@ -28,6 +29,7 @@ class ImginstTest(unittest.TestCase):
     ginstall.HNVRAM = self.old_hnvram
     ginstall.MTDBLOCK = self.old_mtdblock
     ginstall.PROC_MTD = self.old_proc_mtd
+    ginstall.SYS_UBI0 = self.old_sys_ubi0
     ginstall.UBIFORMAT = self.old_ubiformat
     for file in self.files_to_remove:
       os.remove(file)
@@ -179,6 +181,19 @@ class ImginstTest(unittest.TestCase):
 
     origfile = open("testdata/random", "r")
     self.assertRaises(IOError, ginstall.install_to_ubi, origfile, 0)
+
+  def testBootedPartition(self):
+    ginstall.PROC_MTD = "testdata/proc/mtd.bruno"
+    ginstall.SYS_UBI0 = "/path/to/nonexistant/file"
+    self.assertEqual(ginstall.booted_partition(), None)
+    ginstall.SYS_UBI0 = "testdata/sys/class/ubi/ubi0.primary"
+    self.assertEqual(ginstall.booted_partition(), "primary")
+    ginstall.SYS_UBI0 = "testdata/sys/class/ubi/ubi0.secondary"
+    self.assertEqual(ginstall.booted_partition(), "secondary")
+
+  def testOtherPartition(self):
+    self.assertEqual(ginstall.get_other_partition("primary"), "secondary")
+    self.assertEqual(ginstall.get_other_partition("secondary"), "primary")
 
   def testSetBootPartition0(self):
     s = "#!/bin/sh\necho $* >> {0}\nexit 0"

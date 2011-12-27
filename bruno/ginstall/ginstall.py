@@ -20,10 +20,15 @@ FLASH_ERASE = "/usr/sbin/flash_erase"
 HNVRAM = "/usr/bin/hnvram"
 MTDBLOCK = "/dev/mtdblock{0}"
 PROC_MTD = "/proc/mtd"
+SYS_UBI0 = "/sys/class/ubi/ubi0/mtd_num"
 UBIFORMAT = "/usr/sbin/ubiformat"
 
 # Verbosity of output
 quiet = False
+
+# Partitions supported
+gfhd100_partitions = {"primary": 0, "secondary": 1}
+
 
 def verbose_print(string):
   if not quiet:
@@ -39,6 +44,30 @@ def set_boot_partition(partition):
          '-w', 'EXTRA_KERNEL_OPT={0}'.format(extra)]
   devnull = open('/dev/null', 'w')
   return subprocess.call(cmd, stdout=devnull, stderr=devnull)
+
+
+def get_booted_partition():
+  """Return "primary" or "secondary" boot partition, or None if not booted from flash."""
+  try:
+    f = open(SYS_UBI0)
+    line = f.readline().strip()
+  except IOError:
+    return None
+  booted_mtd = "mtd" + str(int(line))
+  for (pname, pnum) in gfhd100_partitions.items():
+    rootfs = "rootfs" + str(pnum)
+    mtd = get_mtd_dev_for_partition(rootfs)
+    if booted_mtd == mtd:
+      return pname
+  return None
+
+
+def get_other_partition(partition):
+  """Returns the name of the other partition. If partion=primary, will return 'secondary'"""
+  for (pname, pnum) in gfhd100_partitions.items():
+    if pname != partition:
+      return pname
+  return None
 
 
 def get_mtd_num(arg):
@@ -67,7 +96,7 @@ def get_erase_size(mtd):
   f = open(PROC_MTD)
   for line in f:
     fields = splt.split(line.strip())
-    if len(fields) >= 2 and fields[0] == mtd:
+    if len(fields) >= 3 and fields[0] == mtd:
       return int(fields[2], 16)
   return 0
 
@@ -231,8 +260,6 @@ class TarImage(object):
       return None
 
 
-gfhd100_partitions = {"primary": 0, "secondary": 1}
-
 def main():
   parser = optparse.OptionParser()
   parser.add_option('-t', '--tar', dest='tarfile',
@@ -249,7 +276,7 @@ def main():
                     default=None)
   parser.add_option('-p', '--partition', dest='partition', metavar="PART",
                     type="string", action="store",
-                    help='primary or secondary image partition',
+                    help='primary or secondary image partition, or "other"',
                     default=None)
   parser.add_option('-q', '--quiet', dest='quiet', action='store_true',
                     help="suppress unnecessary output.",
@@ -268,11 +295,24 @@ def main():
     verbose_print("Writing loader to {0}".format(mtd))
     install_to_mtd(loader, mtd)
 
+  if options.partition:
+    if options.partition == "other":
+      boot = get_booted_partition()
+      if boot is None:
+        # Policy decision: if we're booted from NFS, install to secondary
+        partition = "secondary"
+      else:
+        partition = get_other_partition(boot)
+    else:
+      partition = options.partition
+  else:
+    partition = None
+
   if options.tarfile or options.kernfile or options.rootfsfile:
-    if not options.partition:
+    if not partition:
       print("A --partition option must be provided.")
       return 1
-    if options.partition not in gfhd100_partitions:
+    if partition not in gfhd100_partitions:
       print("--partition must be one of: " + str(gfhd100_partitions.keys()))
 
     if options.tarfile:
@@ -282,7 +322,7 @@ def main():
     else:
       img = FileImage(options.kernfile, options.rootfsfile)
 
-    pnum = gfhd100_partitions[options.partition]
+    pnum = gfhd100_partitions[partition]
     kern = img.GetKernel()
     if kern is not None:
       mtd = get_mtd_dev_for_partition("kernel" + str(pnum))
@@ -297,8 +337,8 @@ def main():
       install_to_ubi(rootfs, mtd)
       verbose_print("\n")
 
-  if options.partition:
-    pnum = gfhd100_partitions[options.partition]
+  if partition:
+    pnum = gfhd100_partitions[partition]
     verbose_print("Setting boot partition to kernel{0}\n".format(pnum))
     set_boot_partition(pnum)
 
