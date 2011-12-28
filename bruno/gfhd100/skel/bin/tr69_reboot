@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+# TODO pause until we think the user is not watching TV.
+
+# TODO signal the miniclient to display a message?
+
+/sbin/reboot
