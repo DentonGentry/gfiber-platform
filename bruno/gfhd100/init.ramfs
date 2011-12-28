@@ -1,0 +1,42 @@
+#!/bin/sh
+# devtmpfs does not get automounted for initramfs
+
+/bin/mount -t devtmpfs devtmpfs /dev
+exec 0</dev/console
+exec 1>/dev/console
+exec 2>/dev/console
+
+echo "Mounting virtual filesystems"
+/bin/mount -o remount,rw / # REMOUNT_ROOTFS_RW
+/bin/mount -a
+/bin/hostname -F /etc/hostname
+
+# TODO: (by kedong) temporarily detect the usb for installation
+if [[ "$(ls -A /proc/scsi/usb-storage)" != "" ]]; then
+	/bin/echo "Skip the rest of boot process for debug."
+	/bin/echo "Mounting USB stick"
+	/bin/mkdir -p /tmp/usb
+	/bin/sleep 5
+	/bin/mount /dev/sda1 /tmp/usb
+	/bin/sleep 1
+	[[ -e /tmp/usb/loader.bin ]] && ginstall.py --loader=/tmp/usb/loader.bin
+	[[ -e /tmp/usb/bruno_ginstall_image.tgz ]] && ginstall.py \
+		--tar=/tmp/usb/bruno_ginstall_image.tgz --partition=primary
+	/bin/echo "Please take the usb storage out and reboot..."
+	sleep 30
+	exit 0
+fi
+
+. /etc/init.d/rc.sysinit
+
+ROOT=/rootfs
+cd ${ROOT}
+/bin/echo "Switching Root: mypid-$$"
+mount --move /tmp ${ROOT}/tmp
+mount --move /config ${ROOT}/config
+mount --move /user ${ROOT}/user
+exec switch_root . /sbin/init 1 </dev/console >/dev/console 2>&1
+
+echo Failed. Starting shell....
+/bin/sh
+# We can put some rescue logic here also

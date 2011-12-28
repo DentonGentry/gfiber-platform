@@ -3,7 +3,7 @@
 MODULE_PATH=/usr/lib/modules
 
 # Set up WLAN, if present
-[ -e ${MODULE_PATH}/wl_pci.ko ] && insmod ${MODULE_PATH}/wl_pci.ko
+[ -e ${MODULE_PATH}/wl.ko ] && insmod ${MODULE_PATH}/wl.ko
 
 # Set up BT, if present
 [ -e ${MODULE_PATH}/btusb.ko ] && insmod ${MODULE_PATH}/btusb.ko

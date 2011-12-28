@@ -2,15 +2,10 @@
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:.
 
-mount -o remount,rw / # REMOUNT_ROOTFS_RW
-
-# TODO(sledbetter): fix /tmp mounting so not needed
-mkdir -p /tmp/dropbear
-
 # Start all init scripts in /etc/init.d
 # executing them in numerical order.
 #
-for i in /etc/init.d/S[56789]?* ;do
+for i in /etc/init.d/S[01234]?* ;do
 
      # Ignore dangling symlinks (if any).
      [[ ! -f "$i" ]] && continue

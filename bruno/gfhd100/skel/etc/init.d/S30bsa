@@ -1,5 +1,6 @@
 #!/bin/sh
-
+# :TODO: (by kedong, temporarily move bt service after switch root since it is
+# tied with alsa which is not enabled in initramfs)
 mkdir -p /var/lock/subsys
 
 RETVAL=0
