@@ -1,0 +1,48 @@
+Date: 2011/10/16
+
+1) diagApisHostCmd.h - List the command/rsp defintions
+2) diagMoca.h        - List the data structures to be returned when issue the corresponding command 
+                       ex. 
+                       When issue a "DIAGD_CMD_GET_MOCA_CONFIG" - 
+                       The packet format -
+                       typedef struct {
+                          /* refer to DIAGD_MSG_HEAD_MARKER */
+                          unsigned long headerMarker;
+
+                          /* The length of the diagd message in bytes, not including header. */
+                          unsigned short len;
+
+                          /* refer to diagd_cmd_rsp_types_t */
+                          unsigned short MsgType;
+
+                        } diag_msg_header_t;
+
+                        /* TODO 2011/10/16 - 
+                         *    TBD: the packet size 
+                         */
+                        #define DIAGD_MSG_MAX_SDU_SIZE    2048
+
+                        /* Diagd SDU message header. */
+                        typedef struct {
+                            diag_msg_header_t   header;
+
+                            /* The diagd SDU. */
+                            char payload[DIAGD_MSG_MAX_SDU_SIZE];
+
+                        } diag_msg_t;
+
+3) Packet format:                        
+    CMD packet (from Frank's GUI) - headerMarker + len + msg type
+                                  - "DIag" + 0000 + DIAGD_CMD_GET_MOCA_CONFIG
+    CMD RSP packet (to Frank's GUI) - headerMarker + len + msg type + MoCA_CONFIG_PARAMS structure (in diagMOca.h)
+                                    - "DIag" + sizeof(MoCA_CONFIG_PARAMS) + DIAGD_RSP_GET_MOCA_CONFIG + (data of MoCA_CONFIG_PARAMS structure)
+
+4) Issue DIAGD_CMD_GET_MOCA_CONFIG - the payload in diag_msg_t is DIAGD_RSP_GET_MOCA_CONFIG (in diagMOca.h)          
+
+5) Issue DIAGD_CMD_GET_MOCA_INIT_PARAMS - the payload in diag_msg_t is MoCA_INITIALIZATION_PARMS (in diagMOca.h)          
+
+6) Issue DIAGD_CMD_GET_MOCA_STATUS - the payload in diag_msg_t is MoCA_STATUS (in diagMOca.h)          
+
+7) Issue DIAGD_CMD_GET_MOCA_CONN_NODESTATUS - the payload in diag_msg_t is MoCA_NODE_STATUS_ENTRY[noOfConnectedNode] (in diagMOca.h)          
+                                              noOfConnectedNode is retruned in the DIAGD_CMD_GET_MOCA_STATUS command
+8) Let's not to work on the DIAGD_CMD_GET_MOCA_CONN_NODE_BITLOADING

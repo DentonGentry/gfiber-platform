@@ -1,0 +1,52 @@
+dtoken=1 dact=log msglvl=3 dkmsg=moca_m2m_xfer: DMA interrupt timed out, status @@@
+dtoken=1 dact=log msglvl=3 dkmsg=moca_m2m_xfer: bad status @@@ bad status @@@)
+dtoken=1 dact=log msglvl=3 dkmsg=moca_write_mem: copy past end of cntl memory: @@@
+dtoken=1 dact=log msglvl=3 dkmsg=moca_read_mem: copy past end of cntl memory: @@@
+dtoken=1 dact=log msglvl=3 dkmsg=moca_get_pages: get_user_pages returned @@@, "expecting @@@
+dtoken=0 dact=log msglvl=3 dkmsg=moca_write_img: chunk ack timed out
+dtoken=0 dact=log msglvl=3 dkmsg=moca_recvmsg: dropping long message
+dtoken=0 dact=log msglvl=3 dkmsg=moca_recvmsg: IE is not a multiple of 4 bytes
+dtoken=0 dact=log msglvl=3 dkmsg=moca_recvmsg: no entries left on core_msg_free_list
+dtoken=0 dact=log msglvl=3 dkmsg=moca_recvmsg: core_req overwritten by assertion
+dtoken=0 dact=log msglvl=3 dkmsg=moca_recvmsg: Core ack buffer overflowed
+dtoken=0 dact=log msglvl=3 dkmsg=moca_wdt: no entries left on core_msg_free_list
+dtoken=0 dact=log msglvl=3 dkmsg=moca_get_mbx_offset: can't get mailbox base
+dtoken=0 dact=log msglvl=3 dkmsg=moca_file_read: moca_recvmsg assert failed
+dtoken=0 dact=log msglvl=3 dkmsg=moca_file_read: moca_recvmsg core_req failed
+dtoken=0 dact=log msglvl=3 dkmsg=moca_file_read: moca_recvmsg host_resp failed
+dtoken=0 dact=log msglvl=3 dkmsg=moca_probe: can't request interrupt
+dtoken=0 dact=log msglvl=3 dkmsg=bmoca: can't register class device
+
+----> bad message from bcmgenet
+dtoken=0 dact=log msglvl=3 dkmsg=Droping fragmented packet!
+
+mtd/nand
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+dtoken=0 dact=hwerr msglvl=3 dkmsg=nand_bbt: ECC error while reading bad block table
+dtoken=0 dact=hwerr msglvl=3 dkmsg=nand_bbt: ECC error while reading block for writing bad block table
+dtoken=1 dact=hwerr msglvl=3 dkmsg=nand_bbt: Error while writing bad block table @@@
+dtoken=1 dact=hwerr msglvl=1 dkmsg=@@@ EDU RBUS error at addr @@@
+dtoken=1 dact=hwerr msglvl=1 dkmsg=@@@ uncorrectable error at @@@
+
+
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+
+
+
+

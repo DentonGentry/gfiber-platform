@@ -1,0 +1,62 @@
+dtoken=0 dact=hwerr msglvl=1 dkmsg=moca_probe: out of memory
+dtoken=0 dact=hwerr msglvl=1 dkmsg=moca_probe: can't allocate minor device
+dtoken=0 dact=hwerr msglvl=1 dkmsg=moca_probe: can't get resources
+dtoken=0 dact=hwerr msglvl=1 dkmsg=bmoca: can't register major
+dtoken=0 dact=hwerr msglvl=1 dkmsg=bmoca: can't create device class
+dtoken=0 dact=hwerr msglvl=1 dkmsg=bmoca: can't register platform_driver
+dtoken=0 dact=log msglvl=3 dkmsg=bcmumac_power_down polling wol mode timeout
+dtoken=1 dact=hwerr msglvl=1 dkmsg=can't request IRQ @@@
+dtoken=1 dact=log msglvl=2 dkmsg=Ring @@@ is not enabled
+dtoken=1 dact=log msglvl=2 dkmsg=bcmgenet_alloc_txring_skb:@@@  queue stopped!!
+dtoken=1 dact=log msglvl=2 dkmsg=bcmgenet_xmit: tx ring @@@ full when queue awake
+dtoken=0 dact=log msglvl=1 dkmsg=bcmgenet_xmit: Tx DMA map failed
+dtoken=0 dact=log msglvl=1 dkmsg=no enough headroom for TSB (head=@@@)
+dtoken=0 dact=log msglvl=1 dkmsg= failed to allocate skb for rx
+dtoken=0 dact=log msglvl=1 dkmsg= Failed to assign rx buffers
+dtoken=0 dact=log msglvl=1 dkmsg=no unused filter available!s
+dtoken=0 dact=log msglvl=1 dkmsg=bcmgenet_update_hfb: : Malloc faild
+dtoken=1 dact=log msglvl=1 dkmsg=Failed to copy user data: src=@@@, dst=@@@
+dtoken=0 dact=log msglvl=1 dkmsg=Failed to get user data
+dtoken=0 dact=hwerr msglvl=1 dkmsg=bcmgenet_drv_probe: can't get resources
+dtoken=1 dact=hwerr msglvl=1 dkmsg=bcmgenet: can't request mem region: start: @@@ size: @@@
+dtoken=0 dact=hwerr msglvl=1 dkmsg=bcmgenet_drv_probe: can't ioremap
+dtoken=0 dact=hwerr msglvl=1 dkmsg=bcmgenet: can't allocate net device
+dtoken=1 dact=hwerr msglvl=1 dkmsg=No PHY detected, not registering interface:@@@
+dtoken=1 dact=hwerr msglvl=1 dkmsg=unknown phy_type : @@@
+
+mtd/nand
+dtoken=0 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't request memory region
+dtoken=1 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't allocate IRQ @@@ error @@@
+dtoken=1 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't register platform driver (error @@@)
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No space left to write bad block table
+dtoken=0 dact=hwerr msglvl=1 dkmsg=nand_scan_bbt: Out of memory
+dtoken=0 dact=hwerr msglvl=1 dkmsg=nand_bbt: Can't scan flash and build the RAM-based BBT
+dtoken=0 dact=hwerr msglvl=1 dkmsg=nand_bbt: Out of memory
+dtoken=0 dact=hwerr msglvl=1 dkmsg=nand_update_bbt: Out of memory
+dtoken=0 dact=hwerr msglvl=1 dkmsg=nand_create_default_bbt_descr: Out of memory
+dtoken=0 dact=hwerr msglvl=1 dkmsg=uncorrectable error : 
+
+
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=No NAND device found.
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't allocate IRQ @@@ error @@@
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't allocate IRQ @@@ error @@@
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't allocate IRQ @@@ error @@@
+
+dtoken=0 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't allocate IRQ @@@ error @@@
+
+
+
+
+
+
+
+
+
+
+
+
+
