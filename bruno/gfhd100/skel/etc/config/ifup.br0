@@ -1,6 +1,19 @@
 iface=$1
-ifconfig $iface up
-/usr/sbin/dhclient $iface -pf /var/run/dhclient.$iface.pid -lf \
-	/var/run/dhclient.$iface.lease >& /dev/null &
-/usr/sbin/dhclient $iface -6 -pf /var/run/dhclient-v6.$iface.pid -lf \
-	/var/run/dhclient-v6.$iface.lease >& /dev/null &
+ifconfig ${iface} up
+lock=/var/run/dhclient.${iface}.lock
+lockfile-create ${lock}
+pidfile=/var/run/dhclient.${iface}.pid
+if [[ -e ${pidfile} ]]; then
+	kill $(cat ${pidfile}) 2> /dev/null
+	rm -f ${pidfile}
+fi
+/usr/sbin/dhclient ${iface} -nw -pf ${pidfile} -lf \
+	/var/run/dhclient.${iface}.lease >& /dev/null &
+pidfile=/var/run/dhclient-v6.${iface}.pid
+if [[ -e ${pidfile} ]]; then
+	kill $(cat ${pidfile}) 2> /dev/null
+	rm -f ${pidfile}
+fi
+/usr/sbin/dhclient ${iface} -6 -N -nw -pf ${pidfile} -lf \
+	/var/run/dhclient-v6.${iface}.lease >& /dev/null &
+lockfile-remove ${lock}

@@ -28,6 +28,8 @@ if [[ "$(ls -A /proc/scsi/usb-storage)" != "" ]]; then
 fi
 
 . /etc/init.d/rc.sysinit
+# :TODO: (by kedong) need to figure out a way to avoid stopping the network.
+/etc/init.d/S40network stop
 
 ROOT=/rootfs
 cd ${ROOT}

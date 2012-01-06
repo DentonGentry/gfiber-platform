@@ -16,7 +16,7 @@ case "$1" in
 
 		echo "Adding interfaces... "
 		# set up networking if we are not on an NFS rootfs
-		for x in `ls /sys/class/net`; do
+		for x in $(ls /sys/class/net); do
 			ifdown $x
 			echo "Configuring $x interface"
 			ifup $x
@@ -24,7 +24,7 @@ case "$1" in
 				brctl addif br0 $x
 			fi
 		done
-
+		sleep 1
 		echo -n "Bringing up the bridge... "
 		ifup br0
 		echo "done"
@@ -39,7 +39,13 @@ case "$1" in
 	;;
   stop)
 	echo -n "Stopping network..."
-	/sbin/ifdown -a
+        for x in $(ls /sys/class/net); do
+		ifdown $x
+		echo "Configuring $x interface"
+		if [ -e /sys/class/net/$x/device ]; then
+			brctl delif br0 $x
+		fi
+	done
 	if ifconfig br0 >& /dev/null; then
 		brctl delbr br0
 	fi
