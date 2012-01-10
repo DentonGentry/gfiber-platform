@@ -47,13 +47,13 @@ static const int kMaxLogLineSize = 1024 - 60;
 #include <iomanip>
 #include <vector>
 
-#include "talk/base/logging.h"
-#include "talk/base/stream.h"
-#include "talk/base/stringencode.h"
-#include "talk/base/stringutils.h"
-#include "talk/base/time.h"
+#include "logging.h"
+#include "stream.h"
+#include "stringencode.h"
+#include "stringutils.h"
+#include "time.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 /////////////////////////////////////////////////////////////////////////////
 // Constant Labels
@@ -609,4 +609,4 @@ void LogMultiline(LoggingSeverity level, const char* label, bool input,
 
 //////////////////////////////////////////////////////////////////////
 
-}  // namespace talk_base
+}  // namespace bruno_base

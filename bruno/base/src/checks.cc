@@ -29,8 +29,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#include "talk/base/checks.h"
-#include "talk/base/logging.h"
+#include "checks.h"
+#include "logging.h"
 
 void Fatal(const char* file, int line, const char* format, ...) {
   char msg[256];

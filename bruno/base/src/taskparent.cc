@@ -27,12 +27,12 @@
 
 #include <algorithm>
 
-#include "talk/base/taskparent.h"
+#include "taskparent.h"
 
-#include "talk/base/task.h"
-#include "talk/base/taskrunner.h"
+#include "task.h"
+#include "taskrunner.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 TaskParent::TaskParent(Task* derived_instance, TaskParent *parent)
     : parent_(parent) {
@@ -109,4 +109,4 @@ void TaskParent::OnChildStopped(Task *child) {
   children_->erase(child);
 }
 
-} // namespace talk_base
+} // namespace bruno_base

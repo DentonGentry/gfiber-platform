@@ -25,16 +25,16 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_TASKRUNNER_H__
-#define TALK_BASE_TASKRUNNER_H__
+#ifndef BRUNO_BASE_TASKRUNNER_H__
+#define BRUNO_BASE_TASKRUNNER_H__
 
 #include <vector>
 
-#include "talk/base/basictypes.h"
-#include "talk/base/sigslot.h"
-#include "talk/base/taskparent.h"
+#include "basictypes.h"
+#include "sigslot.h"
+#include "taskparent.h"
 
-namespace talk_base {
+namespace bruno_base {
 class Task;
 
 const int64 kSecToMsec = 1000;
@@ -112,6 +112,6 @@ class TaskRunner : public TaskParent, public sigslot::has_slots<> {
   void RecalcNextTimeout(Task *exclude_task);
 };
 
-} // namespace talk_base
+} // namespace bruno_base
 
 #endif  // TASK_BASE_TASKRUNNER_H__

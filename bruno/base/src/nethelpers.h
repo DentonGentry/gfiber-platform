@@ -25,8 +25,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_NETHELPERS_H_
-#define TALK_BASE_NETHELPERS_H_
+#ifndef BRUNO_BASE_NETHELPERS_H_
+#define BRUNO_BASE_NETHELPERS_H_
 
 #ifdef POSIX
 #include <netdb.h>
@@ -37,11 +37,11 @@
 
 #include <list>
 
-#include "talk/base/signalthread.h"
-#include "talk/base/sigslot.h"
-#include "talk/base/socketaddress.h"
+#include "signalthread.h"
+#include "sigslot.h"
+#include "socketaddress.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 // AsyncResolver will perform async DNS resolution, signaling the result on
 // the inherited SignalWorkDone when the operation completes.
@@ -71,6 +71,6 @@ class AsyncResolver : public SignalThread {
 hostent* SafeGetHostByName(const char* hostname, int* herrno);
 void FreeHostEnt(hostent* host);
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_NETHELPERS_H_
+#endif  // BRUNO_BASE_NETHELPERS_H_

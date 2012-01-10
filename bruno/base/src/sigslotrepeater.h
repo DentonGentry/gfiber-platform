@@ -25,8 +25,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_SIGSLOTREPEATER_H__
-#define TALK_BASE_SIGSLOTREPEATER_H__
+#ifndef BRUNO_BASE_SIGSLOTREPEATER_H__
+#define BRUNO_BASE_SIGSLOTREPEATER_H__
 
 // repeaters are both signals and slots, which are designed as intermediate
 // pass-throughs for signals and slots which don't know about each other (for
@@ -35,7 +35,7 @@
 // to the originating signal using the 'repeat' method.  When the repeated
 // signal fires, the repeater will also fire.
 
-#include "talk/base/sigslot.h"
+#include "sigslot.h"
 
 namespace sigslot {
 
@@ -104,4 +104,4 @@ namespace sigslot {
 
 }  // namespace sigslot
 
-#endif  // TALK_BASE_SIGSLOTREPEATER_H__
+#endif  // BRUNO_BASE_SIGSLOTREPEATER_H__

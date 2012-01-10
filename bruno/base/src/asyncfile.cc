@@ -25,9 +25,9 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "talk/base/asyncfile.h"
+#include "asyncfile.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 AsyncFile::AsyncFile() {
 }
@@ -35,4 +35,4 @@ AsyncFile::AsyncFile() {
 AsyncFile::~AsyncFile() {
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base

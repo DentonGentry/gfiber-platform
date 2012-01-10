@@ -25,14 +25,14 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_TASK_H__
-#define TALK_BASE_TASK_H__
+#ifndef BRUNO_BASE_TASK_H__
+#define BRUNO_BASE_TASK_H__
 
 #include <string>
-#include "talk/base/basictypes.h"
-#include "talk/base/scoped_ptr.h"
-#include "talk/base/sigslot.h"
-#include "talk/base/taskparent.h"
+#include "basictypes.h"
+#include "scoped_ptr.h"
+#include "sigslot.h"
+#include "taskparent.h"
 
 /////////////////////////////////////////////////////////////////////
 //
@@ -104,7 +104,7 @@
 // yet in the STATE_DONE state.
 //
 
-namespace talk_base {
+namespace bruno_base {
 
 // Executes a sequence of steps
 class Task : public TaskParent {
@@ -189,6 +189,6 @@ class Task : public TaskParent {
   static int32 unique_id_seed_;
 };
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_TASK_H__
+#endif  // BRUNO_BASE_TASK_H__

@@ -25,10 +25,10 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_COMMON_H_
-#define TALK_BASE_COMMON_H_
+#ifndef BRUNO_BASE_COMMON_H_
+#define BRUNO_BASE_COMMON_H_
 
-#include "talk/base/constructormagic.h"
+#include "constructormagic.h"
 
 #if defined(_MSC_VER)
 // warning C4355: 'this' : used in base member initializer list
@@ -56,7 +56,7 @@ inline void Unused(const void *) { }
 // NOMINMAX must be defined where we include <windows.h>.
 #define stdmax(x,y) std::max(x,y)
 #else
-#define stdmax(x,y) talk_base::_max(x,y)
+#define stdmax(x,y) bruno_base::_max(x,y)
 #endif
 
 
@@ -72,7 +72,7 @@ inline void Unused(const void *) { }
 
 #if ENABLE_DEBUG
 
-namespace talk_base {
+namespace bruno_base {
 
 // Break causes the debugger to stop executing, or the program to abort
 void Break();
@@ -91,34 +91,34 @@ inline bool Assert(bool result, const char * function, const char * file,
   return true;
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
 #if defined(_MSC_VER) && _MSC_VER < 1300
 #define __FUNCTION__ ""
 #endif
 
 #ifndef ASSERT
-#define ASSERT(x) (void)talk_base::Assert((x),__FUNCTION__,__FILE__,__LINE__,#x)
+#define ASSERT(x) (void)bruno_base::Assert((x),__FUNCTION__,__FILE__,__LINE__,#x)
 #endif
 
 #ifndef VERIFY
-#define VERIFY(x) talk_base::Assert((x),__FUNCTION__,__FILE__,__LINE__,#x)
+#define VERIFY(x) bruno_base::Assert((x),__FUNCTION__,__FILE__,__LINE__,#x)
 #endif
 
 #else // !ENABLE_DEBUG
 
-namespace talk_base {
+namespace bruno_base {
 
 inline bool ImplicitCastToBool(bool result) { return result; }
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
 #ifndef ASSERT
 #define ASSERT(x) (void)0
 #endif
 
 #ifndef VERIFY
-#define VERIFY(x) talk_base::ImplicitCastToBool(x)
+#define VERIFY(x) bruno_base::ImplicitCastToBool(x)
 #endif
 
 #endif // !ENABLE_DEBUG
@@ -137,4 +137,4 @@ inline bool ImplicitCastToBool(bool result) { return result; }
 #define FORCE_INLINE
 #endif
 
-#endif // TALK_BASE_COMMON_H_
+#endif // BRUNO_BASE_COMMON_H_

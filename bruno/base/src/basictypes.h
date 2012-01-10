@@ -25,8 +25,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_BASICTYPES_H__
-#define TALK_BASE_BASICTYPES_H__
+#ifndef BRUNO_BASE_BASICTYPES_H__
+#define BRUNO_BASE_BASICTYPES_H__
 
 #include <stddef.h>  // for NULL, size_t
 
@@ -38,7 +38,7 @@
 #include "config.h"
 #endif
 
-#include "talk/base/constructormagic.h"
+#include "constructormagic.h"
 
 #ifndef INT_TYPES_DEFINED
 #define INT_TYPES_DEFINED
@@ -87,7 +87,7 @@ typedef char int8;
 typedef int socklen_t;
 #endif
 
-namespace talk_base {
+namespace bruno_base {
   template<class T> inline T _min(T a, T b) { return (a > b) ? b : a; }
   template<class T> inline T _max(T a, T b) { return (a < b) ? b : a; }
 
@@ -127,4 +127,4 @@ inline void Unused(const void *) { }
 #define GCC_ATTR(x)
 #endif  // !__GNUC__
 
-#endif // TALK_BASE_BASICTYPES_H__
+#endif // BRUNO_BASE_BASICTYPES_H__

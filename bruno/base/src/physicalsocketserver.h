@@ -25,21 +25,21 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_PHYSICALSOCKETSERVER_H__
-#define TALK_BASE_PHYSICALSOCKETSERVER_H__
+#ifndef BRUNO_BASE_PHYSICALSOCKETSERVER_H__
+#define BRUNO_BASE_PHYSICALSOCKETSERVER_H__
 
 #include <vector>
 
-#include "talk/base/asyncfile.h"
-#include "talk/base/scoped_ptr.h"
-#include "talk/base/socketserver.h"
-#include "talk/base/criticalsection.h"
+#include "asyncfile.h"
+#include "scoped_ptr.h"
+#include "socketserver.h"
+#include "criticalsection.h"
 
 #ifdef POSIX
 typedef int SOCKET;
 #endif // POSIX
 
-namespace talk_base {
+namespace bruno_base {
 
 // Event constants for the Dispatcher class.
 enum DispatcherEvent {
@@ -128,6 +128,6 @@ private:
 #endif
 };
 
-} // namespace talk_base
+} // namespace bruno_base
 
-#endif // TALK_BASE_PHYSICALSOCKETSERVER_H__
+#endif // BRUNO_BASE_PHYSICALSOCKETSERVER_H__

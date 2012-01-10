@@ -25,8 +25,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_BYTEORDER_H__
-#define TALK_BASE_BYTEORDER_H__
+#ifndef BRUNO_BASE_BYTEORDER_H__
+#define BRUNO_BASE_BYTEORDER_H__
 
 #ifdef POSIX
 #include <arpa/inet.h>
@@ -36,9 +36,9 @@
 #include <winsock2.h>
 #endif
 
-#include "talk/base/basictypes.h"
+#include "basictypes.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 // Reading and writing of little and big-endian numbers from memory
 // TODO: Add HostEndian #defines (HE)
@@ -167,6 +167,6 @@ inline uint64 NetworkToHost64(uint64 n) {
   return IsHostBigEndian() ? n : GetBE64(&n);
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_BYTEORDER_H__
+#endif  // BRUNO_BASE_BYTEORDER_H__

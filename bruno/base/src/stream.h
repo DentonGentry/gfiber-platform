@@ -25,17 +25,17 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_STREAM_H__
-#define TALK_BASE_STREAM_H__
+#ifndef BRUNO_BASE_STREAM_H__
+#define BRUNO_BASE_STREAM_H__
 
-#include "talk/base/basictypes.h"
-#include "talk/base/criticalsection.h"
-#include "talk/base/logging.h"
-#include "talk/base/messagehandler.h"
-#include "talk/base/scoped_ptr.h"
-#include "talk/base/sigslot.h"
+#include "basictypes.h"
+#include "criticalsection.h"
+#include "logging.h"
+#include "messagehandler.h"
+#include "scoped_ptr.h"
+#include "sigslot.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 ///////////////////////////////////////////////////////////////////////////////
 // StreamInterface is a generic asynchronous stream interface, supporting read,
@@ -741,6 +741,6 @@ StreamResult Flow(StreamInterface* source,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_STREAM_H__
+#endif  // BRUNO_BASE_STREAM_H__

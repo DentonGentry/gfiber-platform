@@ -25,14 +25,14 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_ASYNCSOCKET_H_
-#define TALK_BASE_ASYNCSOCKET_H_
+#ifndef BRUNO_BASE_ASYNCSOCKET_H_
+#define BRUNO_BASE_ASYNCSOCKET_H_
 
-#include "talk/base/common.h"
-#include "talk/base/sigslot.h"
-#include "talk/base/socket.h"
+#include "common.h"
+#include "sigslot.h"
+#include "socket.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 // TODO: Remove Socket and rename AsyncSocket to Socket.
 
@@ -128,6 +128,6 @@ class AsyncSocketAdapter : public AsyncSocket, public sigslot::has_slots<> {
   AsyncSocket* socket_;
 };
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_ASYNCSOCKET_H_
+#endif  // BRUNO_BASE_ASYNCSOCKET_H_

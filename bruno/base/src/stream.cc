@@ -32,20 +32,20 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <string>
-#include "talk/base/basictypes.h"
-#include "talk/base/common.h"
-#include "talk/base/messagequeue.h"
-#include "talk/base/stream.h"
-#include "talk/base/stringencode.h"
-#include "talk/base/stringutils.h"
-#include "talk/base/thread.h"
+#include "basictypes.h"
+#include "common.h"
+#include "messagequeue.h"
+#include "stream.h"
+#include "stringencode.h"
+#include "stringutils.h"
+#include "thread.h"
 
 #ifdef WIN32
-#include "talk/base/win32.h"
+#include "win32.h"
 #define fileno _fileno
 #endif
 
-namespace talk_base {
+namespace bruno_base {
 
 ///////////////////////////////////////////////////////////////////////////////
 // StreamInterface
@@ -1169,4 +1169,4 @@ StreamResult Flow(StreamInterface* source,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-} // namespace talk_base
+} // namespace bruno_base

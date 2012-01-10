@@ -25,16 +25,16 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_TIME_H__
-#define TALK_BASE_TIME_H__
+#ifndef BRUNO_BASE_TIME_H__
+#define BRUNO_BASE_TIME_H__
 
 #ifndef WIN32
 #include_next <time.h>
 #endif
 
-#include "talk/base/basictypes.h"
+#include "basictypes.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 typedef uint32 TimeStamp;
 
@@ -76,6 +76,6 @@ inline int32 TimeUntil(uint32 later) {
   return TimeDiff(later, Time());
 }
 
-} // namespace talk_base
+} // namespace bruno_base
 
-#endif // TALK_BASE_TIME_H__
+#endif // BRUNO_BASE_TIME_H__

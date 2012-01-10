@@ -37,11 +37,11 @@
 
 #include <sstream>
 
-#include "talk/base/byteorder.h"
-#include "talk/base/common.h"
-#include "talk/base/logging.h"
-#include "talk/base/nethelpers.h"
-#include "talk/base/socketaddress.h"
+#include "byteorder.h"
+#include "common.h"
+#include "logging.h"
+#include "nethelpers.h"
+#include "socketaddress.h"
 
 #ifdef WIN32
 // Win32 doesn't provide inet_aton, so we add our own version here.
@@ -55,7 +55,7 @@ int inet_aton(const char* cp, struct in_addr* inp) {
 }
 #endif  // WIN32
 
-namespace talk_base {
+namespace bruno_base {
 
 SocketAddress::SocketAddress() {
   Clear();
@@ -355,4 +355,4 @@ bool SocketAddress::GetLocalIPs(std::vector<uint32>& ips) {
   return false;
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base

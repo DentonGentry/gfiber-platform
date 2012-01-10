@@ -33,13 +33,13 @@
 #include <sys/time.h>
 #endif
 
-#include "talk/base/common.h"
-#include "talk/base/logging.h"
-#include "talk/base/messagequeue.h"
-#include "talk/base/physicalsocketserver.h"
+#include "common.h"
+#include "logging.h"
+#include "messagequeue.h"
+#include "physicalsocketserver.h"
 
 
-namespace talk_base {
+namespace bruno_base {
 
 const uint32 kMaxMsgLatency = 150;  // 150 ms
 
@@ -380,4 +380,4 @@ void MessageQueue::EnsureActive() {
   }
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base

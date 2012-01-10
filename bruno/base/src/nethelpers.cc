@@ -25,12 +25,12 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "talk/base/nethelpers.h"
+#include "nethelpers.h"
 
-#include "talk/base/byteorder.h"
-#include "talk/base/signalthread.h"
+#include "byteorder.h"
+#include "signalthread.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 #if defined(LINUX) || defined(ANDROID)
 static const size_t kInitHostentLen = 1024;
@@ -186,4 +186,4 @@ void FreeHostEnt(hostent* host) {
 #endif
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base

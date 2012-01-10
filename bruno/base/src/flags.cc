@@ -31,11 +31,11 @@
 
 
 #ifdef WIN32
-#include "talk/base/win32.h"
+#include "win32.h"
 #include <shellapi.h>
 #endif
 
-#include "talk/base/flags.h"
+#include "flags.h"
 
 
 // -----------------------------------------------------------------------------
@@ -321,4 +321,3 @@ WindowsCommandLineArguments::~WindowsCommandLineArguments() {
   delete[] argv_;
 }
 #endif  // WIN32
-

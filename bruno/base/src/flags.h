@@ -34,13 +34,13 @@
 // The implementation only relies and basic C++ functionality
 // and needs no special library or STL support.
 
-#ifndef TALK_BASE_FLAGS_H__
-#define TALK_BASE_FLAGS_H__
+#ifndef BRUNO_BASE_FLAGS_H__
+#define BRUNO_BASE_FLAGS_H__
 
 #include <assert.h>
 
-#include "talk/base/checks.h"
-#include "talk/base/common.h"
+#include "checks.h"
+#include "common.h"
 
 // Internal use only.
 union FlagValue {

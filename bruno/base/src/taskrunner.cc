@@ -27,14 +27,14 @@
 
 #include <algorithm>
 
-#include "talk/base/taskrunner.h"
+#include "taskrunner.h"
 
-#include "talk/base/common.h"
-#include "talk/base/scoped_ptr.h"
-#include "talk/base/task.h"
-#include "talk/base/logging.h"
+#include "common.h"
+#include "scoped_ptr.h"
+#include "task.h"
+#include "logging.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 TaskRunner::TaskRunner()
   : TaskParent(this),
@@ -238,4 +238,4 @@ void TaskRunner::CheckForTimeoutChange(int64 previous_timeout_time) {
   }
 }
 
-} // namespace talk_base
+} // namespace bruno_base

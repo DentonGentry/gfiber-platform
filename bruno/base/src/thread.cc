@@ -25,7 +25,7 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "talk/base/thread.h"
+#include "thread.h"
 
 #if defined(WIN32)
 #include <comdef.h>
@@ -33,20 +33,20 @@
 #include <time.h>
 #endif
 
-#include "talk/base/common.h"
-#include "talk/base/logging.h"
-#include "talk/base/stringutils.h"
-#include "talk/base/time.h"
+#include "common.h"
+#include "logging.h"
+#include "stringutils.h"
+#include "time.h"
 
 #ifdef USE_COCOA_THREADING
 #if !defined(OSX) && !defined(IOS)
 #error USE_COCOA_THREADING is defined but not OSX nor IOS
 #endif
-#include "talk/base/maccocoathreadhelper.h"
-#include "talk/base/scoped_autorelease_pool.h"
+#include "maccocoathreadhelper.h"
+#include "scoped_autorelease_pool.h"
 #endif
 
-namespace talk_base {
+namespace bruno_base {
 
 ThreadManager g_thmgr;
 
@@ -565,4 +565,4 @@ void ComThread::Run() {
 }
 #endif
 
-}  // namespace talk_base
+}  // namespace bruno_base

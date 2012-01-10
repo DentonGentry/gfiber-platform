@@ -25,13 +25,13 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "talk/base/messagehandler.h"
-#include "talk/base/messagequeue.h"
+#include "messagehandler.h"
+#include "messagequeue.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 MessageHandler::~MessageHandler() {
   MessageQueueManager::Instance()->Clear(this);
 }
 
-} // namespace talk_base
+} // namespace bruno_base

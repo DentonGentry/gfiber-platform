@@ -22,19 +22,19 @@
 //  release() added in by Google. Use this to conditionally
 //  transfer ownership of a heap-allocated object to the caller, usually on
 //  method success.
-#ifndef TALK_BASE_SCOPED_PTR_H__
-#define TALK_BASE_SCOPED_PTR_H__
+#ifndef BRUNO_BASE_SCOPED_PTR_H__
+#define BRUNO_BASE_SCOPED_PTR_H__
 
 #include <cstddef>             // for std::ptrdiff_t
 #include <stdlib.h>            // for free() decl
 
-#include "talk/base/common.h"  // for ASSERT
+#include "common.h"  // for ASSERT
 
 #ifdef _WIN32
 namespace std { using ::ptrdiff_t; };
 #endif // _WIN32
 
-namespace talk_base {
+namespace bruno_base {
 
 template <typename T>
 class scoped_ptr {
@@ -253,6 +253,6 @@ void swap(scoped_ptr_malloc<T,FF>& a, scoped_ptr_malloc<T,FF>& b) {
   a.swap(b);
 }
 
-} // namespace talk_base
+} // namespace bruno_base
 
-#endif  // #ifndef TALK_BASE_SCOPED_PTR_H__
+#endif  // #ifndef BRUNO_BASE_SCOPED_PTR_H__

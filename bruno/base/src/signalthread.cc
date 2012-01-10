@@ -25,11 +25,11 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "talk/base/signalthread.h"
+#include "signalthread.h"
 
-#include "talk/base/common.h"
+#include "common.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 ///////////////////////////////////////////////////////////////////////////////
 // SignalThread
@@ -163,4 +163,4 @@ void SignalThread::OnMainThreadDestroyed() {
   main_ = NULL;
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base

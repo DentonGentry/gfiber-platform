@@ -25,12 +25,12 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_MESSAGEHANDLER_H_
-#define TALK_BASE_MESSAGEHANDLER_H_
+#ifndef BRUNO_BASE_MESSAGEHANDLER_H_
+#define BRUNO_BASE_MESSAGEHANDLER_H_
 
-#include "talk/base/constructormagic.h"
+#include "constructormagic.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 struct Message;
 
@@ -49,6 +49,6 @@ class MessageHandler {
   DISALLOW_COPY_AND_ASSIGN(MessageHandler);
 };
 
-} // namespace talk_base
+} // namespace bruno_base
 
-#endif // TALK_BASE_MESSAGEHANDLER_H_
+#endif // BRUNO_BASE_MESSAGEHANDLER_H_

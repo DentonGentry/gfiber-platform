@@ -25,11 +25,11 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_CRITICALSECTION_H__
-#define TALK_BASE_CRITICALSECTION_H__
+#ifndef BRUNO_BASE_CRITICALSECTION_H__
+#define BRUNO_BASE_CRITICALSECTION_H__
 
 #ifdef WIN32
-#include "talk/base/win32.h"
+#include "win32.h"
 #endif
 
 #ifdef POSIX
@@ -46,7 +46,7 @@
 #define TRACK_OWNER(x)
 #endif  // !CS_TRACK_OWNER
 
-namespace talk_base {
+namespace bruno_base {
 
 #ifdef WIN32
 class CriticalSection {
@@ -165,6 +165,6 @@ class AtomicOps {
 #endif
 };
 
-} // namespace talk_base
+} // namespace bruno_base
 
-#endif // TALK_BASE_CRITICALSECTION_H__
+#endif // BRUNO_BASE_CRITICALSECTION_H__

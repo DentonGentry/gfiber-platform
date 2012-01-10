@@ -25,8 +25,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_MESSAGEQUEUE_H_
-#define TALK_BASE_MESSAGEQUEUE_H_
+#ifndef BRUNO_BASE_MESSAGEQUEUE_H_
+#define BRUNO_BASE_MESSAGEQUEUE_H_
 
 #include <algorithm>
 #include <cstring>
@@ -34,16 +34,16 @@
 #include <queue>
 #include <vector>
 
-#include "talk/base/basictypes.h"
-#include "talk/base/constructormagic.h"
-#include "talk/base/criticalsection.h"
-#include "talk/base/messagehandler.h"
-#include "talk/base/scoped_ptr.h"
-#include "talk/base/sigslot.h"
-#include "talk/base/socketserver.h"
-#include "talk/base/time.h"
+#include "basictypes.h"
+#include "constructormagic.h"
+#include "criticalsection.h"
+#include "messagehandler.h"
+#include "scoped_ptr.h"
+#include "sigslot.h"
+#include "socketserver.h"
+#include "time.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 struct Message;
 class MessageQueue;
@@ -244,6 +244,6 @@ class MessageQueue {
   DISALLOW_COPY_AND_ASSIGN(MessageQueue);
 };
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_MESSAGEQUEUE_H_
+#endif  // BRUNO_BASE_MESSAGEQUEUE_H_

@@ -75,8 +75,8 @@
 //
 //
 
-#ifndef TALK_BASE_SIGSLOT_H__
-#define TALK_BASE_SIGSLOT_H__
+#ifndef BRUNO_BASE_SIGSLOT_H__
+#define BRUNO_BASE_SIGSLOT_H__
 
 #include <list>
 #include <set>
@@ -105,7 +105,7 @@
 #	endif
 #endif
 
-// TODO: change this namespace to talk_base?
+// TODO: change this namespace to bruno_base?
 namespace sigslot {
 
 	class single_threaded
@@ -2814,4 +2814,4 @@ namespace sigslot {
 
 }; // namespace sigslot
 
-#endif // TALK_BASE_SIGSLOT_H__
+#endif // BRUNO_BASE_SIGSLOT_H__

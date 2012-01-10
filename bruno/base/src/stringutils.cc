@@ -25,10 +25,10 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "talk/base/stringutils.h"
-#include "talk/base/common.h"
+#include "stringutils.h"
+#include "common.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 bool memory_check(const void* memory, int c, size_t count) {
   const char* char_memory = static_cast<const char*>(memory);
@@ -147,4 +147,4 @@ std::string string_trim(const std::string& s) {
   return s.substr(first, last - first + 1);
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base

@@ -25,11 +25,11 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "talk/base/task.h"
-#include "talk/base/common.h"
-#include "talk/base/taskrunner.h"
+#include "task.h"
+#include "common.h"
+#include "taskrunner.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 int32 Task::unique_id_seed_ = 0;
 
@@ -293,4 +293,4 @@ void Task::ResumeTimeout() {
   }
 }
 
-} // namespace talk_base
+} // namespace bruno_base

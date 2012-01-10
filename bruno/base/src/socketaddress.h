@@ -25,18 +25,18 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_SOCKETADDRESS_H_
-#define TALK_BASE_SOCKETADDRESS_H_
+#ifndef BRUNO_BASE_SOCKETADDRESS_H_
+#define BRUNO_BASE_SOCKETADDRESS_H_
 
 #include <string>
 #include <vector>
 #include <iosfwd>
-#include "talk/base/basictypes.h"
+#include "basictypes.h"
 #undef SetPort
 
 struct sockaddr_in;
 
-namespace talk_base {
+namespace bruno_base {
 
 // Records an IP address and port, which are 32 and 16 bit integers,
 // respectively, both in <b>host byte-order</b>.
@@ -186,6 +186,6 @@ class SocketAddress {
   uint16 port_;
 };
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_SOCKETADDRESS_H_
+#endif  // BRUNO_BASE_SOCKETADDRESS_H_

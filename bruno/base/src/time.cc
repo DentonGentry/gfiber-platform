@@ -34,12 +34,12 @@
 #include <windows.h>
 #endif
 
-#include "talk/base/common.h"
-#include "talk/base/time.h"
+#include "common.h"
+#include "time.h"
 
 #define EFFICIENT_IMPLEMENTATION 1
 
-namespace talk_base {
+namespace bruno_base {
 
 const uint32 LAST = 0xFFFFFFFF;
 const uint32 HALF = 0x80000000;
@@ -122,4 +122,4 @@ int32 TimeDiff(uint32 later, uint32 earlier) {
 #endif
 }
 
-} // namespace talk_base
+} // namespace bruno_base

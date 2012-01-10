@@ -25,16 +25,16 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_SIGNALTHREAD_H_
-#define TALK_BASE_SIGNALTHREAD_H_
+#ifndef BRUNO_BASE_SIGNALTHREAD_H_
+#define BRUNO_BASE_SIGNALTHREAD_H_
 
 #include <string>
 
-#include "talk/base/constructormagic.h"
-#include "talk/base/thread.h"
-#include "talk/base/sigslot.h"
+#include "constructormagic.h"
+#include "thread.h"
+#include "sigslot.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 ///////////////////////////////////////////////////////////////////////////////
 // SignalThread - Base class for worker threads.  The main thread should call
@@ -165,6 +165,6 @@ class SignalThread : public sigslot::has_slots<>, protected MessageHandler {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_SIGNALTHREAD_H_
+#endif  // BRUNO_BASE_SIGNALTHREAD_H_

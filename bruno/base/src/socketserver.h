@@ -25,12 +25,12 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_SOCKETSERVER_H_
-#define TALK_BASE_SOCKETSERVER_H_
+#ifndef BRUNO_BASE_SOCKETSERVER_H_
+#define BRUNO_BASE_SOCKETSERVER_H_
 
-#include "talk/base/socketfactory.h"
+#include "socketfactory.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 class MessageQueue;
 
@@ -56,6 +56,6 @@ class SocketServer : public SocketFactory {
   virtual void WakeUp() = 0;
 };
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_SOCKETSERVER_H_
+#endif  // BRUNO_BASE_SOCKETSERVER_H_

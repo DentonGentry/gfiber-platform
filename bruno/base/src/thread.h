@@ -25,8 +25,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_THREAD_H_
-#define TALK_BASE_THREAD_H_
+#ifndef BRUNO_BASE_THREAD_H_
+#define BRUNO_BASE_THREAD_H_
 
 #include <algorithm>
 #include <list>
@@ -37,14 +37,14 @@
 #include <pthread.h>
 #endif
 
-#include "talk/base/constructormagic.h"
-#include "talk/base/messagequeue.h"
+#include "constructormagic.h"
+#include "messagequeue.h"
 
 #ifdef WIN32
-#include "talk/base/win32.h"
+#include "win32.h"
 #endif
 
-namespace talk_base {
+namespace bruno_base {
 
 class Thread;
 
@@ -200,7 +200,7 @@ class Thread : public MessageQueue {
 #endif
 
   // This method should be called when thread is created using non standard
-  // method, like derived implementation of talk_base::Thread and it can not be
+  // method, like derived implementation of bruno_base::Thread and it can not be
   // started by calling Start(). This will set started flag to true and
   // owned to false. This must be called from the current thread.
   // NOTE: These methods should be used by the derived classes only, added here
@@ -281,6 +281,6 @@ class SocketServerScope {
   DISALLOW_IMPLICIT_CONSTRUCTORS(SocketServerScope);
 };
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_THREAD_H_
+#endif  // BRUNO_BASE_THREAD_H_

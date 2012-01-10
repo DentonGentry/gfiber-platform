@@ -25,14 +25,14 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_STRINGENCODE_H__
-#define TALK_BASE_STRINGENCODE_H__
+#ifndef BRUNO_BASE_STRINGENCODE_H__
+#define BRUNO_BASE_STRINGENCODE_H__
 
 #include <string>
 #include <sstream>
 #include <vector>
 
-namespace talk_base {
+namespace bruno_base {
 
 //////////////////////////////////////////////////////////////////////
 // String Encoding Utilities
@@ -193,6 +193,6 @@ char make_char_safe_for_filename(char c);
 
 //////////////////////////////////////////////////////////////////////
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_STRINGENCODE_H__
+#endif  // BRUNO_BASE_STRINGENCODE_H__

@@ -58,8 +58,8 @@
 //     to output logging data at the desired level.
 // Lastly, PLOG(sev, err) is an alias for LOG_ERR_EX.
 
-#ifndef TALK_BASE_LOGGING_H_
-#define TALK_BASE_LOGGING_H_
+#ifndef BRUNO_BASE_LOGGING_H_
+#define BRUNO_BASE_LOGGING_H_
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"  // NOLINT
@@ -69,10 +69,10 @@
 #include <sstream>
 #include <string>
 #include <utility>
-#include "talk/base/basictypes.h"
-#include "talk/base/criticalsection.h"
+#include "basictypes.h"
+#include "criticalsection.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 class StreamInterface;
 
@@ -285,19 +285,19 @@ class LogMessageVoidify {
 };
 
 #define LOG_SEVERITY_PRECONDITION(sev) \
-  !(talk_base::LogMessage::Loggable(sev)) \
+  !(bruno_base::LogMessage::Loggable(sev)) \
     ? (void) 0 \
-    : talk_base::LogMessageVoidify() &
+    : bruno_base::LogMessageVoidify() &
 
 #define LOG(sev) \
-  LOG_SEVERITY_PRECONDITION(talk_base::sev) \
-    talk_base::LogMessage(__FILE__, __LINE__, talk_base::sev).stream()
+  LOG_SEVERITY_PRECONDITION(bruno_base::sev) \
+    bruno_base::LogMessage(__FILE__, __LINE__, bruno_base::sev).stream()
 
 // The _V version is for when a variable is passed in.  It doesn't do the
 // namespace concatination.
 #define LOG_V(sev) \
   LOG_SEVERITY_PRECONDITION(sev) \
-    talk_base::LogMessage(__FILE__, __LINE__, sev).stream()
+    bruno_base::LogMessage(__FILE__, __LINE__, sev).stream()
 
 // The _F version prefixes the message with the current function name.
 #if defined(__GNUC__) && defined(_DEBUG)
@@ -307,17 +307,17 @@ class LogMessageVoidify {
 #endif
 
 #define LOG_CHECK_LEVEL(sev) \
-  talk_base::LogCheckLevel(talk_base::sev)
+  bruno_base::LogCheckLevel(bruno_base::sev)
 #define LOG_CHECK_LEVEL_V(sev) \
-  talk_base::LogCheckLevel(sev)
+  bruno_base::LogCheckLevel(sev)
 inline bool LogCheckLevel(LoggingSeverity sev) {
   return (LogMessage::GetMinLogSeverity() <= sev);
 }
 
 #define LOG_E(sev, ctx, err, ...) \
-  LOG_SEVERITY_PRECONDITION(talk_base::sev) \
-    talk_base::LogMessage(__FILE__, __LINE__, talk_base::sev, \
-                          talk_base::ERRCTX_ ## ctx, err , ##__VA_ARGS__) \
+  LOG_SEVERITY_PRECONDITION(bruno_base::sev) \
+    bruno_base::LogMessage(__FILE__, __LINE__, bruno_base::sev, \
+                          bruno_base::ERRCTX_ ## ctx, err , ##__VA_ARGS__) \
         .stream()
 
 #else  // !LOGGING
@@ -326,9 +326,9 @@ inline bool LogCheckLevel(LoggingSeverity sev) {
 // Note: syntax of "1 ? (void)0 : LogMessage" was causing errors in g++,
 //   converted to "while (false)"
 #define LOG(sev) \
-  while (false)talk_base:: LogMessage(NULL, 0, talk_base::sev).stream()
+  while (false)bruno_base:: LogMessage(NULL, 0, bruno_base::sev).stream()
 #define LOG_V(sev) \
-  while (false) talk_base::LogMessage(NULL, 0, sev).stream()
+  while (false) bruno_base::LogMessage(NULL, 0, sev).stream()
 #define LOG_F(sev) LOG(sev) << __FUNCTION__ << ": "
 #define LOG_CHECK_LEVEL(sev) \
   false
@@ -336,8 +336,8 @@ inline bool LogCheckLevel(LoggingSeverity sev) {
   false
 
 #define LOG_E(sev, ctx, err, ...) \
-  while (false) talk_base::LogMessage(__FILE__, __LINE__, talk_base::sev, \
-                          talk_base::ERRCTX_ ## ctx, err , ##__VA_ARGS__) \
+  while (false) bruno_base::LogMessage(__FILE__, __LINE__, bruno_base::sev, \
+                          bruno_base::ERRCTX_ ## ctx, err , ##__VA_ARGS__) \
       .stream()
 
 #endif  // !LOGGING
@@ -376,6 +376,6 @@ inline bool LogCheckLevel(LoggingSeverity sev) {
 
 #endif  // LOG
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_LOGGING_H_
+#endif  // BRUNO_BASE_LOGGING_H_

@@ -25,13 +25,13 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_SOCKETFACTORY_H__
-#define TALK_BASE_SOCKETFACTORY_H__
+#ifndef BRUNO_BASE_SOCKETFACTORY_H__
+#define BRUNO_BASE_SOCKETFACTORY_H__
 
-#include "talk/base/socket.h"
-#include "talk/base/asyncsocket.h"
+#include "socket.h"
+#include "asyncsocket.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 class SocketFactory {
 public:
@@ -46,6 +46,6 @@ public:
   virtual AsyncSocket* CreateAsyncSocket(int type) = 0;
 };
 
-} // namespace talk_base
+} // namespace bruno_base
 
-#endif // TALK_BASE_SOCKETFACTORY_H__
+#endif // BRUNO_BASE_SOCKETFACTORY_H__

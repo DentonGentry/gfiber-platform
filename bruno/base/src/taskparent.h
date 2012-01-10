@@ -25,15 +25,15 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_TASKPARENT_H__
-#define TALK_BASE_TASKPARENT_H__
+#ifndef BRUNO_BASE_TASKPARENT_H__
+#define BRUNO_BASE_TASKPARENT_H__
 
 #include <set>
 
-#include "talk/base/basictypes.h"
-#include "talk/base/scoped_ptr.h"
+#include "basictypes.h"
+#include "scoped_ptr.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 class Task;
 class TaskRunner;
@@ -74,6 +74,6 @@ class TaskParent {
 };
 
 
-} // namespace talk_base
+} // namespace bruno_base
 
-#endif  // TALK_BASE_TASKPARENT_H__
+#endif  // BRUNO_BASE_TASKPARENT_H__

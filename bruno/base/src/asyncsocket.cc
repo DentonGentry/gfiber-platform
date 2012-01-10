@@ -25,9 +25,9 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "talk/base/asyncsocket.h"
+#include "asyncsocket.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 AsyncSocket::AsyncSocket() {
 }
@@ -58,4 +58,4 @@ void AsyncSocketAdapter::Attach(AsyncSocket* socket) {
   }
 }
 
-}  // namespace talk_base
+}  // namespace bruno_base

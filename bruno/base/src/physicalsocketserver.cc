@@ -51,15 +51,17 @@
 #include <algorithm>
 #include <map>
 
-#include "talk/base/basictypes.h"
-#include "talk/base/byteorder.h"
-#include "talk/base/common.h"
-#include "talk/base/logging.h"
-#include "talk/base/nethelpers.h"
-#include "talk/base/physicalsocketserver.h"
-#include "talk/base/time.h"
-#include "talk/base/winping.h"
-#include "talk/base/win32socketinit.h"
+#include "basictypes.h"
+#include "byteorder.h"
+#include "common.h"
+#include "logging.h"
+#include "nethelpers.h"
+#include "physicalsocketserver.h"
+#include "time.h"
+#ifdef WIN32
+#include "winping.h"
+#include "win32socketinit.h"
+#endif
 
 // stm: this will tell us if we are on OSX
 #ifdef HAVE_CONFIG_H
@@ -76,7 +78,7 @@ typedef void* SockOptArg;
 typedef char* SockOptArg;
 #endif
 
-namespace talk_base {
+namespace bruno_base {
 
 // Standard MTUs, from RFC 1191
 const uint16 PACKET_MAXIMUMS[] = {
@@ -1617,4 +1619,4 @@ bool PhysicalSocketServer::Wait(int cmsWait, bool process_io) {
 }
 #endif  // WIN32
 
-}  // namespace talk_base
+}  // namespace bruno_base

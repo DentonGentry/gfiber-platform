@@ -39,14 +39,14 @@
 #endif  // OSX
 
 #include <algorithm>
-#include "talk/base/common.h"
-#include "talk/base/logging.h"
+#include "common.h"
+#include "logging.h"
 
 //////////////////////////////////////////////////////////////////////
 // Assertions
 //////////////////////////////////////////////////////////////////////
 
-namespace talk_base {
+namespace bruno_base {
 
 void Break() {
 #if WIN32
@@ -68,4 +68,4 @@ void LogAssert(const char * function, const char * file, int line,
                 << expression << " @ " << function;
 }
 
-} // namespace talk_base
+} // namespace bruno_base

@@ -25,12 +25,12 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TALK_BASE_ASYNCFILE_H__
-#define TALK_BASE_ASYNCFILE_H__
+#ifndef BRUNO_BASE_ASYNCFILE_H__
+#define BRUNO_BASE_ASYNCFILE_H__
 
-#include "talk/base/sigslot.h"
+#include "sigslot.h"
 
-namespace talk_base {
+namespace bruno_base {
 
 // Provides the ability to perform file I/O asynchronously.
 // TODO: Create a common base class with AsyncSocket.
@@ -52,6 +52,6 @@ class AsyncFile {
   sigslot::signal2<AsyncFile*, int> SignalCloseEvent;
 };
 
-}  // namespace talk_base
+}  // namespace bruno_base
 
-#endif  // TALK_BASE_ASYNCFILE_H__
+#endif  // BRUNO_BASE_ASYNCFILE_H__
