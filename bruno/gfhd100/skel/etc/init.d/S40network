@@ -39,13 +39,16 @@ case "$1" in
 	;;
   stop)
 	echo -n "Stopping network..."
-        for x in $(ls /sys/class/net); do
-		ifdown $x
-		echo "Configuring $x interface"
-		if [ -e /sys/class/net/$x/device ]; then
-			brctl delif br0 $x
-		fi
-	done
+	cmdline=$(grep nfsroot /proc/cmdline)
+	if [ $? != 0 ]; then
+		for x in $(ls /sys/class/net); do
+			ifdown $x
+			echo "Configuring $x interface"
+			if [ -e /sys/class/net/$x/device ]; then
+				brctl delif br0 $x
+			fi
+		done
+	fi
 	if ifconfig br0 >& /dev/null; then
 		brctl delbr br0
 	fi
