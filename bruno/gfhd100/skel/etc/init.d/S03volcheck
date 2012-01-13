@@ -3,33 +3,38 @@
 # Volume check service
 #
 
-BOOT_TYPE="release"
 ROOTFS_TYPE="squashfs"
-ROOTFS_MTD_NO=11
+ROOTFS_MTD_NO=9
 ROOTFS_LOCATION=""
 KERNEL_OPTS=$(cat /proc/cmdline)
 
 check_volume_and_mount () {
-  num_vol=`ubinfo --devn=${1} | grep "Volumes count" | awk -F':' '{print $2}'`
-  if [[ $num_vol = '0' ]]; then
-    ubimkvol /dev/ubi${1} -N ${2} -m
+  ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
+  if [ $? -eq '0' ]; then
+    num_vol=$(ubinfo --devn=${2} | grep "Volumes count" | awk -F':' '{print $2}')
+    if [[ ${num_vol} = '0' ]]; then
+      echo "No volume associated with mtd${1} (dev:${2}), formatting..."
+      ubidetach -m ${1} /dev/ubi_ctrl
+      flash_eraseall /dev/mtd${1}
+      ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
+      ubimkvol /dev/ubi${2} -N ${3} -m
+    fi
+    mount -t ${5} ubi${2}:${3} /${4}
+  else
+    echo "Failed to attach mtd${1} to ${2}, formatting..."
+    flash_eraseall /dev/mtd${1}
+    ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
+    ubimkvol /dev/ubi${2} -N ${3} -m
   fi
-  mount -t ${4} ubi${1}:${2} /${3}
 }
 
 find_rootfs () {
   for i in ${KERNEL_OPTS};
   do
-    KERNEL_OPT_TYPE=`echo $i | cut -d'=' -f1`
-    KERNEL_OPT_VAL=`echo $i | cut -d'=' -f2`
+    KERNEL_OPT_TYPE=$(echo $i | cut -d'=' -f1)
+    KERNEL_OPT_VAL=$(echo $i | cut -d'=' -f2)
     if [ ${KERNEL_OPT_TYPE} = "root.type" ]; then
       ROOTFS_TYPE=${KERNEL_OPT_VAL}
-    elif [ ${KERNEL_OPT_TYPE} = "ubi.mtd" ]; then
-      if [ ${KERNEL_OPT_VAL} = "rootfs0" ]; then
-        ROOTFS_MTD_NO=4
-      elif [ ${KERNEL_OPT_VAL} = "rootfs1" ]; then
-        ROOTFS_MTD_NO=5
-      fi
     elif [ ${KERNEL_OPT_TYPE} = "nfs.path" ]; then
       ROOTFS_LOCATION=${KERNEL_OPT_VAL}
     fi
@@ -38,7 +43,8 @@ find_rootfs () {
 
 mount_rootfs() {
   if [[ ${ROOTFS_TYPE} = "squashfs" ]]; then
-    ROOTFS_LOCATION="/dev/mtdblock$((${ROOTFS_MTD_NO}+7))"
+    cat /proc/mtd
+    ROOTFS_LOCATION="/dev/mtdblock${ROOTFS_MTD_NO}"
   elif [[ ${ROOTFS_TYPE} = "nfs" ]]; then
     mount -t ${ROOTFS_TYPE} ${ROOTFS_LOCATION} /rootfs
     [[ ! -d /user/rw ]] && mkdir -p /user/rw /rootfs/user/rw
@@ -61,11 +67,9 @@ mount_rootfs
 case "$1" in
   start)
     echo -n "Starting volume check: "
-    ubiattach -m 6 -d 1 /dev/ubi_ctrl
-    ubiattach -m 7 -d 2 /dev/ubi_ctrl
     mount -t squashfs ${ROOTFS_LOCATION} /rootfs
-    check_volume_and_mount 1 user user ubifs
-    check_volume_and_mount 2 config config ubifs
+    check_volume_and_mount 6 1 user user ubifs
+    check_volume_and_mount 7 2 config config ubifs
     [[ ! -d /user/rw ]] && mkdir -p /user/rw
     [[ ! -d /user/moca ]] && mkdir -p /user/moca
     [[ ! -d /user/bsa ]] && mkdir -p /user/bsa
