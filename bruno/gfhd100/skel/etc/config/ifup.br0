@@ -8,12 +8,14 @@ if [[ -e ${pidfile} ]]; then
 	rm -f ${pidfile}
 fi
 /usr/sbin/dhclient ${iface} -nw -pf ${pidfile} -lf \
-	/var/run/dhclient.${iface}.lease >& /dev/null &
+	/var/run/dhclient.${iface}.lease \
+	-cf /etc/dhclient.conf >& /dev/null &
 pidfile=/var/run/dhclient-v6.${iface}.pid
 if [[ -e ${pidfile} ]]; then
 	kill $(cat ${pidfile}) 2> /dev/null
 	rm -f ${pidfile}
 fi
 /usr/sbin/dhclient ${iface} -6 -N -nw -pf ${pidfile} -lf \
-	/var/run/dhclient-v6.${iface}.lease >& /dev/null &
+	/var/run/dhclient-v6.${iface}.lease \
+	-cf /etc/dhclient6.conf >& /dev/null &
 lockfile-remove ${lock}
