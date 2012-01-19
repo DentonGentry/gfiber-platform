@@ -1,0 +1,19 @@
+#!/bin/sh
+
+case "$1" in
+  start)
+	/bin/catawampus >/dev/null 2>&1 &
+	;;
+  stop)
+	pkill catawampus
+	;;
+
+  restart)
+	$0 stop; sleep 2; $0 start
+	;;
+  *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

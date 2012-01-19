@@ -1,0 +1,11 @@
+#!/bin/sh
+
+mkdir /tmp/cwmp
+# dhclient populates the ACS_URL in /tmp/cwmp/acs_url
+CWMP="/usr/bin/python /usr/catawampus/runserver.py --acs-url-file=/tmp/cwmp/acl_url --platform=gfmedia"
+DELAY=60
+
+until ${CWMP}; do
+  echo "Catawampus crashed with exit code $?.  Respawning in ${DELAY} seconds." >&2
+  sleep ${DELAY}
+done
