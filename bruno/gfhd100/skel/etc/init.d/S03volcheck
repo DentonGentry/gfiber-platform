@@ -46,7 +46,7 @@ mount_rootfs() {
     cat /proc/mtd
     ROOTFS_LOCATION="/dev/mtdblock${ROOTFS_MTD_NO}"
   elif [[ ${ROOTFS_TYPE} = "nfs" ]]; then
-    mount -t ${ROOTFS_TYPE} ${ROOTFS_LOCATION} /rootfs
+    mount -t ${ROOTFS_TYPE} -o nolock ${ROOTFS_LOCATION} /rootfs
     [[ ! -d /user/rw ]] && mkdir -p /user/rw /rootfs/user/rw
     [[ ! -d /user/moca ]] && mkdir -p /user/moca /rootfs/user/moca
     [[ ! -d /user/bsa ]] && mkdir -p /user/bsa /rootfs/user/bsa
