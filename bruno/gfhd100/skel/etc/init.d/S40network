@@ -17,10 +17,10 @@ case "$1" in
 		echo "Adding interfaces... "
 		# set up networking if we are not on an NFS rootfs
 		for x in $(ls /sys/class/net); do
-			ifdown $x
-			echo "Configuring $x interface"
-			ifup $x
 			if [ -e /sys/class/net/$x/device ]; then
+				ifdown $x
+				echo "Configuring $x interface"
+				ifup $x
 				brctl addif br0 $x
 			fi
 		done
@@ -42,12 +42,13 @@ case "$1" in
 	cmdline=$(grep nfsroot /proc/cmdline)
 	if [ $? != 0 ]; then
 		for x in $(ls /sys/class/net); do
-			ifdown $x
-			echo "Configuring $x interface"
 			if [ -e /sys/class/net/$x/device ]; then
+				ifdown $x
+				echo "Configuring $x interface"
 				brctl delif br0 $x
 			fi
 		done
+	ifdown br0
 	fi
 	if ifconfig br0 >& /dev/null; then
 		brctl delbr br0
