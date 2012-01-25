@@ -1,0 +1,27 @@
+#!/bin/sh
+
+if [ $# -gt 2 -o "$1" == "-h" ]; then
+   echo "Get registers "
+   echo "Usage: $0 <-l> <-d>"
+   echo "    -l: List all register data in the output data file"
+   echo "    -d: print debugging messages on stdout"
+   exit 1
+fi
+
+board="B0"
+
+bcm_7425_reg_list="regListFiles/bruno_7425_reg_list_$board.txt"
+bcm_7425_data_file="dataFiles/bruno_7425_reg_result_$board.dat"
+echo $bcm_7425_reg_list
+
+bcm_gnetphy_reg_list="regListFiles/bruno_genet_phy_reg_list.txt"
+bcm_gnetphy_data_file="dataFiles/bruno_genet_phy_reg_result_$board.dat"
+echo "Reading registers....."
+# Access 7425 registers
+reg_access.py $1 $2 -r 7425Regs -f $bcm_7425_reg_list -o $bcm_7425_data_file
+
+# Access Genet phy registers
+reg_access.py $1 $2 -r GenetPhy -f $bcm_gnetphy_reg_list -o $bcm_gnetphy_data_file
+
+echo "Finish......"
+
