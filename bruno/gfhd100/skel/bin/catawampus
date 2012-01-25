@@ -2,7 +2,7 @@
 
 mkdir /tmp/cwmp
 # dhclient populates the ACS_URL in /tmp/cwmp/acs_url
-CWMP="/usr/bin/python /usr/catawampus/runserver.py --acs-url-file=/tmp/cwmp/acl_url --platform=gfmedia"
+CWMP="/usr/bin/python /usr/catawampus/runserver.py --acs-url-file=/tmp/cwmp/acs_url --platform=gfmedia"
 DELAY=60
 
 until ${CWMP}; do
