@@ -11,13 +11,17 @@ echo "Mounting virtual filesystems"
 /bin/mount -a
 /bin/hostname -F /etc/hostname
 
-# TODO: (by kedong) temporarily detect the usb for installation
-if [[ "$(ls -A /proc/scsi/usb-storage)" != "" ]]; then
+# Detect the USB device for installation
+if [[ -e /proc/scsi/usb-storage ]]; then
 	/bin/echo "Skip the rest of boot process for debug."
+
+	# Start udev daemon
+	/etc/init.d/S10udev start
+
 	/bin/echo "Mounting USB stick"
 	/bin/mkdir -p /tmp/usb
 	/bin/sleep 5
-	/bin/mount /dev/sda1 /tmp/usb
+	/bin/mount /dev/usb /tmp/usb
 	/bin/sleep 1
 	[[ -e /tmp/usb/loader.bin ]] && ginstall.py --loader=/tmp/usb/loader.bin
 	[[ -e /tmp/usb/bruno_ginstall_image.tgz ]] && ginstall.py \
@@ -37,8 +41,10 @@ cd ${ROOT}
 mount --move /tmp ${ROOT}/tmp
 mount --move /config ${ROOT}/config
 mount --move /user ${ROOT}/user
+
 exec switch_root . /sbin/init 1 </dev/console >/dev/console 2>&1
 
 echo Failed. Starting shell....
 /bin/sh
 # We can put some rescue logic here also
+

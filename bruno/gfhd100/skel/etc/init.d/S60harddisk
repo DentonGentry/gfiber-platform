@@ -1,0 +1,35 @@
+#!/bin/sh
+
+SATA_DEVICE=/sys/bus/scsi/devices/0:0:0:0
+SATA_HOST=/sys/class/scsi_host/host0
+
+# After switch-root, reinstall udev daemon to support USB hot-plug
+#
+# Stop udev daemon
+pkill udevd
+
+# Start udev daemon
+/sbin/udevd -d
+
+# Rescan SATA device to support auto-mount during system booting
+#
+if [[ -L ${SATA_DEVICE} ]]; then
+  echo "Scanning SATA device"
+  # Remove SATA device
+  #echo "Remove SATA device at ${SATA_DEVICE}"
+  echo x > ${SATA_DEVICE}/delete
+  sleep 1
+
+  # Force a rescan on SCSI bus
+  #echo "Rescan SATA device at ${SATA_HOST}"
+  echo "0 0 0" > ${SATA_HOST}/scan
+  sleep 5
+
+  # Mount SATA device
+  if [[ -L /dev/sata ]]; then
+    echo "Mounting SATA device"
+    mount /dev/sata /var/media
+    sleep 1
+  fi
+fi
+
