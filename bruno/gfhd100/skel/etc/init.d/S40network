@@ -6,6 +6,8 @@
 case "$1" in
   start)
 	echo "Starting network..."
+	# configure loopback
+	/sbin/ifup lo
 	cmdline=$(grep nfsroot /proc/cmdline)
 	if [ $? != 0 ]; then
 		echo -n "Creating bridge... "
@@ -28,9 +30,6 @@ case "$1" in
 		echo -n "Bringing up the bridge... "
 		ifup br0
 		echo "done"
-	else
-		# just configure loopback
-		/sbin/ifup lo
 	fi
 
 	# Set up MoCA link, if present
