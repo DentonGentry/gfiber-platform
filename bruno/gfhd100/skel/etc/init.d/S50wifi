@@ -1,0 +1,29 @@
+#!/bin/sh
+
+case "$1" in
+  start)
+	echo -n "Initializing Wifi service: "
+
+	wifi="eth2"
+	wifimac=$(cat /sys/class/net/${wifi}/address)
+
+	if [ x"${wifimac}" != "x" ] ; then
+	  /usr/bin/wl ap 1
+	  /usr/bin/wl radio off
+	  /usr/bin/wl bssid ${wifimac}
+	fi
+
+	echo "done"
+	;;
+  stop)
+	;;
+
+  restart)
+	$0 stop; sleep 2; $0 start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit 0
