@@ -13,7 +13,4 @@ echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 # Set up NEXUS first since it applies PINMUX.
 echo "Starting nexus"
 [ -e ${MODULE_PATH}/nexus.ko ] && insmod ${MODULE_PATH}/nexus.ko
-if [ -e ${MODULE_PATH}/bcmdriver.ko ]; then
-  insmod ${MODULE_PATH}/bcmdriver.ko 
-  mknod /dev/brcm0 c 30 0
-fi
+[ -e ${MODULE_PATH}/bcmdriver.ko ] && insmod ${MODULE_PATH}/bcmdriver.ko
