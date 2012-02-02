@@ -11,7 +11,7 @@ case "$1" in
 	cd /user/bsa
 	/usr/bin/bsa_server -d /dev/bthid 2>& 1 >> /var/log/bsa.log &
 	RETVAL=$?
-	[ $RETVAL -eq 0 ] && touch /var/lock/subsys/bsa
+	[ $RETVAL -eq 0 ] && echo '' > /var/lock/subsys/bsa
 	echo "done"
 	;;
   stop)

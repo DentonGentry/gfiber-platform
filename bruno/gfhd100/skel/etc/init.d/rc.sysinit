@@ -8,7 +8,7 @@ export PATH=/bin:/sbin:/usr/bin:/usr/sbin:.
 for i in /etc/init.d/S[01234]?* ;do
 
      # Ignore dangling symlinks (if any).
-     [[ ! -f "$i" ]] && continue
+     [ ! -f "$i" ] && continue
 
      case "$i" in
 	*.sh)

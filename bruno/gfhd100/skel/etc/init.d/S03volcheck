@@ -10,9 +10,9 @@ KERNEL_OPTS=$(cat /proc/cmdline)
 
 check_volume_and_mount () {
   ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
-  if [ $? -eq '0' ]; then
-    num_vol=$(ubinfo --devn=${2} | grep "Volumes count" | awk -F':' '{print $2}')
-    if [[ ${num_vol} = '0' ]]; then
+  if [ $? -eq 0 ]; then
+    num_vol=$(ubinfo --devn=${2} | python -c "import sys;[sys.stdout.write(l.split(':')[1].strip()) for l in sys.stdin if 'Volumes count' in l]")
+    if [ x${num_vol} = x'0' ] || [ x${num_vol} = x ]; then
       echo "No volume associated with mtd${1} (dev:${2}), formatting..."
       ubidetach -m ${1} /dev/ubi_ctrl
       flash_eraseall /dev/mtd${1}
@@ -31,29 +31,29 @@ check_volume_and_mount () {
 find_rootfs () {
   for i in ${KERNEL_OPTS};
   do
-    KERNEL_OPT_TYPE=$(echo $i | cut -d'=' -f1)
-    KERNEL_OPT_VAL=$(echo $i | cut -d'=' -f2)
-    if [ ${KERNEL_OPT_TYPE} = "root.type" ]; then
+    KERNEL_OPT_TYPE=${i%=*}
+    KERNEL_OPT_VAL=${i#*=}
+    if [ "${KERNEL_OPT_TYPE}" = "root.type" ]; then
       ROOTFS_TYPE=${KERNEL_OPT_VAL}
-    elif [ ${KERNEL_OPT_TYPE} = "nfs.path" ]; then
+    elif [ "${KERNEL_OPT_TYPE}" = "nfs.path" ]; then
       ROOTFS_LOCATION=${KERNEL_OPT_VAL}
     fi
   done
 }
 
 mount_rootfs() {
-  if [[ ${ROOTFS_TYPE} = "squashfs" ]]; then
+  if [ "${ROOTFS_TYPE}" = "squashfs" ]; then
     cat /proc/mtd
     ROOTFS_LOCATION="/dev/mtdblock${ROOTFS_MTD_NO}"
-  elif [[ ${ROOTFS_TYPE} = "nfs" ]]; then
+  elif [ "${ROOTFS_TYPE}" = "nfs" ]; then
     mount -t ${ROOTFS_TYPE} -o nolock ${ROOTFS_LOCATION} /rootfs
-    [[ ! -d /user/rw ]] && mkdir -p /user/rw /rootfs/user/rw
-    [[ ! -d /user/moca ]] && mkdir -p /user/moca /rootfs/user/moca
-    [[ ! -d /user/bsa ]] && mkdir -p /user/bsa /rootfs/user/bsa
+    [ ! -d /user/rw ] && mkdir -p /user/rw /rootfs/user/rw
+    [ ! -d /user/moca ] && mkdir -p /user/moca /rootfs/user/moca
+    [ ! -d /user/bsa ] && mkdir -p /user/bsa /rootfs/user/bsa
     echo "Skip volume check since rootfs is nfs"
     exit 0
   fi
-  if [[ "${ROOTFS_LOCATION}" != "" ]]; then
+  if [ "${ROOTFS_LOCATION}" != "" ]; then
     echo "Rootfs found: ${ROOTFS_LOCATION}"
   else
     echo "Rootfs not found: ${ROOTFS_LOCATION} ${KERNEL_OPTS}"
@@ -70,9 +70,9 @@ case "$1" in
     mount -t squashfs ${ROOTFS_LOCATION} /rootfs
     check_volume_and_mount 6 1 user user ubifs
     check_volume_and_mount 7 2 config config ubifs
-    [[ ! -d /user/rw ]] && mkdir -p /user/rw
-    [[ ! -d /user/moca ]] && mkdir -p /user/moca
-    [[ ! -d /user/bsa ]] && mkdir -p /user/bsa
+    [ ! -d /user/rw ] && mkdir -p /user/rw
+    [ ! -d /user/moca ] && mkdir -p /user/moca
+    [ ! -d /user/bsa ] && mkdir -p /user/bsa
     echo "OK"
     ;;
   stop)

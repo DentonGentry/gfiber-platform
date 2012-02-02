@@ -13,7 +13,7 @@ mkdir -p /tmp/dropbear
 for i in /etc/init.d/S[56789]?* ;do
 
      # Ignore dangling symlinks (if any).
-     [[ ! -f "$i" ]] && continue
+     [ ! -f "$i" ] && continue
 
      case "$i" in
 	*.sh)

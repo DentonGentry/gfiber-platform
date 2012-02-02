@@ -3,7 +3,8 @@
 MODULE_PATH=/usr/lib/modules
 
 # Populate the platform ID
-echo $(hnvram -r PLATFORM_NAME | cut -d'=' -f 2) > /etc/platform
+PLAT=$(hnvram -r PLATFORM_NAME)
+echo ${PLAT#PLATFORM_NAME=} > /etc/platform
 chmod 444 /etc/platform
 
 # Don't let SCHED_FIFO / SCHED_RR realtime threads get preempted
