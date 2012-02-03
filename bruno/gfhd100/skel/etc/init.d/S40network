@@ -34,18 +34,18 @@ case "$1" in
 	fi
 
 	# Set up MoCA link -
-	# 1) if present and mocad is running, issue "mocacfg restart"
-	# 2) if present and mocad is not started, issue "mocacfg boot"
+	# 1) Kill mocad and mocactl
+	# 2) Issue "mocacfg boot"
 	if [ -e /dev/bmoca0 ]; then
-		if [ -z "$(pgrep $SERVICE)" ]; then
-			echo -n "mocacfg boot "
-			mocacfg boot
-			echo "done"
-		else
-			echo -n "mocacfg restart "
-			mocacfg restart
-			echo "done"
-		fi
+		echo -n "mocacfg kill"
+		mocacfg kill
+		echo "done"
+		echo "move the IRQ handling for Moca to the 2nd core"
+		echo 2 > /proc/irq/31/smp_affinity
+		echo "done"
+		echo -n "mocacfg boot "
+		mocacfg boot
+		echo "done"
 	fi
 
 	;;
@@ -60,7 +60,13 @@ case "$1" in
 				brctl delif br0 $x
 			fi
 		done
-	ifdown br0
+		ifdown br0
+		# Kill mocad and mocactl
+		if [ -e /dev/bmoca0 ]; then
+			echo -n "mocacfg kill"
+			mocacfg kill
+			echo "done"
+		fi
 	fi
 	if ifconfig br0 >& /dev/null; then
 		brctl delbr br0
