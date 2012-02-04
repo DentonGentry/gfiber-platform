@@ -8,4 +8,4 @@ devpts          /dev/pts                devpts   defaults,gid=5,mode=620   0    
 tmpfs           /tmp                    tmpfs    defaults          0      0
 sysfs           /sys                    sysfs    defaults          0      0
 none            /proc/bus/usb           usbfs    defaults          0      0
-none            /proc/sys/debugfs       debugfs  defaults          0      0
+none            /sys/kernel/debug       debugfs  defaults          0      0
