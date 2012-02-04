@@ -20,10 +20,13 @@ case "$1" in
 		echo "Adding interfaces... "
 		# set up networking if we are not on an NFS rootfs
 		for x in $(ls /sys/class/net); do
-			if [ -e /sys/class/net/$x/device ]; then
+			# Avoid bouncing bridge interface.
+			if [ -n /sys/class/net/$x/bridge ]; then
 				ifdown $x
 				echo "Configuring $x interface"
 				ifup $x
+			fi
+			if [ -e /sys/class/net/$x/device ]; then
 				brctl addif br0 $x
 			fi
 		done
@@ -54,9 +57,11 @@ case "$1" in
 	cmdline=$(grep nfsroot /proc/cmdline)
 	if [ $? != 0 ]; then
 		for x in $(ls /sys/class/net); do
-			if [ -e /sys/class/net/$x/device ]; then
+			if [ -n /sys/class/net/$x/bridge ]; then
 				ifdown $x
-				echo "Configuring $x interface"
+				echo "Shutting down $x interface"
+			fi
+			if [ -e /sys/class/net/$x/device ]; then
 				brctl delif br0 $x
 			fi
 		done
