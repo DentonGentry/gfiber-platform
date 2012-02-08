@@ -19,6 +19,7 @@ class GpIoConfig {
     GPIO_LED_BLUE,
     GPIO_FAN_CONTROL,
     GPIO_FAN_SPEED,
+    GPIO_UNMUTE,
     GPIO_FACTORY_RESET,
     GPIO_MAX_NUM
   };

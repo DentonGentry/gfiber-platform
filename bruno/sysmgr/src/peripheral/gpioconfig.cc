@@ -34,6 +34,10 @@ const GpIoConfig GpIoConfig::kTable[] = {
   GpIoConfig("LED Fan Speed",
              NEXUS_GpioType_eStandard, 98, NEXUS_GpioMode_eInput,
              NEXUS_GpioInterrupt_eFallingEdge, NEXUS_GpioValue_eMax),
+  // GPIO_UNMUTE
+  GpIoConfig("Unmute",
+             NEXUS_GpioType_eStandard, 74, NEXUS_GpioMode_eOutputPushPull,
+             NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eHigh),
   // GPIO_FACTORY_RESET
   GpIoConfig("LED Factory Reset",
              NEXUS_GpioType_eAonStandard, 4, NEXUS_GpioMode_eInput,

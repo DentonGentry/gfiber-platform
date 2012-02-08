@@ -13,6 +13,7 @@
 #include "ledstatus.h"
 #include "factoryresetbutton.h"
 #include "fancontrol.h"
+#include "unmute.h"
 #include "tempmonitor.h"
 #include "peripheralmon.h"
 #include "platform_peripheral_api.h"
@@ -39,6 +40,7 @@ bool PlatformPeripheral::Init(unsigned int monitor_interval) {
   kInstance_->factory_reset_button_->Init(kInstance_->mgr_thread_);
   kInstance_->temp_monitor_->Init();
   kInstance_->peripheral_mon_->Init(kInstance_->mgr_thread_, monitor_interval);
+  kInstance_->unmute_->Init();
 
   return true;
 }
@@ -58,6 +60,7 @@ bool PlatformPeripheral::Terminate(void) {
     kInstance_->factory_reset_button_->Terminate();
     kInstance_->temp_monitor_->Terminate();
     kInstance_->peripheral_mon_->Terminate();
+    kInstance_->unmute_->Terminate();
     delete kInstance_;
     kInstance_ = NULL;
   }
@@ -101,7 +104,8 @@ PlatformPeripheral::PlatformPeripheral()
     led_status_(new LedStatus()),
     factory_reset_button_(new FactoryResetButton()),
     temp_monitor_(new TempMonitor(0, new FanControl(0))),
-    peripheral_mon_(new PeripheralMon(new GpIoFanSpeed())) {
+    peripheral_mon_(new PeripheralMon(new GpIoFanSpeed())),
+    unmute_(new Unmute()) {
 }
 
 PlatformPeripheral::~PlatformPeripheral() {
