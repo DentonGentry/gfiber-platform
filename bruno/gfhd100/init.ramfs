@@ -26,6 +26,23 @@ if [[ -e /proc/scsi/usb-storage ]]; then
 	[[ -e /tmp/usb/loader.bin ]] && ginstall.py --loader=/tmp/usb/loader.bin
 	[[ -e /tmp/usb/bruno_ginstall_image.tgz ]] && ginstall.py \
 		--tar=/tmp/usb/bruno_ginstall_image.tgz --partition=primary
+
+	# Install new sageserver tarball if exists
+	if [[ -e /tmp/usb/sagetv_server.tar.gz ]]; then
+		# Mount filesystems
+		/etc/init.d/S03volcheck start
+		# hack...
+		ubiattach -m 4 -d 0 /dev/ubi_ctrl
+		mount -t squashfs /dev/mtdblock11 /rootfs
+		echo "Installing new sagetv_server tarball"
+		rm -rf /user/rw/app/sage
+		mkdir -p /user/rw/app/sage
+		cp -a /rootfs/app/sage/* /user/rw/app/sage
+		gunzip -c /tmp/usb/sagetv_server.tar.gz | tar -C /user/rw/app/sage -xf -
+		[ -e /user/rw/app/sage/version ] && echo "Installed sagetv_server $(cat /user/rw/app/sage/version)"
+		umount /rootfs
+		/etc/init.d/S03volcheck stop
+	fi
 	/bin/echo "Please take the usb storage out and reboot..."
 	sleep 30
 	exit 0
@@ -47,4 +64,3 @@ exec switch_root . /sbin/init 1 </dev/console >/dev/console 2>&1
 echo Failed. Starting shell....
 /bin/sh
 # We can put some rescue logic here also
-
