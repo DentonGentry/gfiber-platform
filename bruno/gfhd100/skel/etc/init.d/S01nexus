@@ -19,4 +19,4 @@ if [ -e ${MODULE_PATH}/bcmdriver.ko ]; then
 fi
 
 # enhance the memory threshold to reclaim the memory earlier.
-echo 350000 > /proc/sys/vm/min_free_kbytes
+echo 16000 > /proc/sys/vm/min_free_kbytes

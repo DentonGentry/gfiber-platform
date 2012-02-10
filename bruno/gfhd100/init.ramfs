@@ -11,6 +11,12 @@ echo "Mounting virtual filesystems"
 /bin/mount -a
 /bin/hostname -F /etc/hostname
 
+# Reset BVN
+/bin/echo -n "Reset BVN... "
+/sbin/devmem 0x10404318 32 0x100
+/sbin/devmem 0x1040431c 32 0x100
+/bin/echo "done"
+
 # Detect the USB device for installation
 if [[ -e /proc/scsi/usb-storage ]]; then
 	/bin/echo "Skip the rest of boot process for debug."
