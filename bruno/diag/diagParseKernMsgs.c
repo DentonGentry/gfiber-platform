@@ -3,8 +3,8 @@
  *
  * This file provides parsing dmsg and monitoring kernel message.
  * If any error or warning messaged matched in either
- * 1) /var/log/diagd/diag_kern_err_msgs.tx
- * 2) or /var/log/diagd/diag_kern_warn_msgs.txt
+ * 1) /user/diag/diag_kern_err_msgs.tx
+ * 2) or /user/diag/diag_kern_warn_msgs.txt
  *
  * For the formate of the above two files, please refer to 
  * HOWTO_create_kern_msg.txt
@@ -31,10 +31,10 @@
 
 
 /* Lists of kernel critical/error messages to be monitoring. */
-#define KERN_ERR_MSGS_FILE    "/var/log/diagd/diag_kern_err_msgs.txt"
+#define KERN_ERR_MSGS_FILE    "/user/diag/diag_kern_err_msgs.txt"
 
 /* Lists of kernel warning messages to be monitoring. */
-#define KERN_WARN_MSGS_FILE   "/var/log/diagd/diag_kern_warn_msgs.txt"
+#define KERN_WARN_MSGS_FILE   "/user/diag/diag_kern_warn_msgs.txt"
 
 /* monitoring kernel message from /proc/kmsg */
 #define KERN_PROC_KMSG_FS     "/proc/kmsg"

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Google Inc. All Rights Reserved.
+ * Copyright 2011 - 2012 Google Inc. All Rights Reserved.
  *
  * This file provides MoCA diagnostics related data structures and definitions.
  */
@@ -291,6 +291,22 @@ typedef struct _diag_moca_perf_status_t {
   diag_moca_nodestatus_t        nodeStatus;
 } diag_moca_perf_status_t;
 
+
+
+/*
+ * Declare diagMoca related global variables
+ */
+
+/* Reference PHY rates of connection quality per number of connected nodes */
+extern diag_moca_connt_qlty_ref_t diagMoca_connQltyTbl;
+
+/*
+ * A reference table of MoCA node service performance.
+ * 1) The current data in the table is temp data.
+ * 2) HW engineer provides measure data which is read from "diag_ref_data.txt"
+ *    in during init time 
+ */
+extern diag_moca_ref_tbl_t diagMocaPerfReferenceTable[DIAG_MOCA_PERF_LVL_MAX];
 
 
 /*

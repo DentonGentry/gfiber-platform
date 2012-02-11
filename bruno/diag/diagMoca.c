@@ -23,7 +23,7 @@
  */
 
 /* Reference PHY rates of connection quality per number of connected nodes */
-const diag_moca_connt_qlty_ref_t diagMoca_connQltyTbl = {
+diag_moca_connt_qlty_ref_t diagMoca_connQltyTbl = {
   {100000000,        /* connected nodes - 1 */
    100000000,        /* connected nodes - 2 */
    100000000,        /* connected nodes - 3 */
@@ -50,7 +50,7 @@ const diag_moca_connt_qlty_ref_t diagMoca_connQltyTbl = {
  * 1) The current data in the table is temp data.
  * 2) Later, we need HW engineer to provide measure data.
  */
-const diag_moca_ref_tbl_t diagMocaPerfReferenceTable[DIAG_MOCA_PERF_LVL_MAX] = {
+diag_moca_ref_tbl_t diagMocaPerfReferenceTable[DIAG_MOCA_PERF_LVL_MAX] = {
 
   /* Reference node data of DIAG_MOCA_PERF_LVL_GOOD */
   {180000000,                 /* rxUcPhyRate */
@@ -463,11 +463,6 @@ static void diagMoca_FmrResponseCb(void *ctx, struct moca_fmr_response *in)
       for (j = 0; j < MoCA_MAX_NODES; j++, pRxNodePhyInfo++) {
         /* Get nBas */
         pRxNodePhyInfo->rxUcPhyRate = pFmrinfoNode[j] & 0x7FF;
-        /* Get rxUcPhyRate - For Bruno, we don't use turbo mode */
-        pRxNodePhyInfo->rxUcPhyRate = moca_phy_rate(
-                                      pRxNodePhyInfo->rxUcPhyRate,
-                                      (unsigned long)pRxNodePhyInfo->cp,
-                                      (unsigned long)0);
         /* Get GAP */
         pRxNodePhyInfo->cp = pFmrinfoNode[j] >> 11;
         /* Get CP if GAP is non-zero */
@@ -475,6 +470,11 @@ static void diagMoca_FmrResponseCb(void *ctx, struct moca_fmr_response *in)
           /* CP = (GAP * 2) + 10 */
           pRxNodePhyInfo->cp = (pRxNodePhyInfo->cp * 2) + 10;
         }
+        /* Get rxUcPhyRate - For Bruno, we don't use turbo mode */
+        pRxNodePhyInfo->rxUcPhyRate = moca_phy_rate(
+                                      pRxNodePhyInfo->rxUcPhyRate,
+                                      (unsigned long)pRxNodePhyInfo->cp,
+                                      (unsigned long)0);
       } /* end of for (MoCA_MAX_NODES) */
 
       node++;
@@ -608,12 +608,10 @@ int diagMoca_GetStats(diag_moca_stats_t *pStats)
  * DIAGD_RC_OK  -    OK
  * DIAGD_RC_ERR -    failed
  */
-int diagMoca_GetConfig(diag_moca_config_t  *pCfg)
+int diagMoca_GetConfig(diag_moca_config_t *pCfg)
 {
   int   rtn = DIAGD_RC_ERR;
   CmsRet nRet = CMSRET_SUCCESS;
-
-
   MoCA_INITIALIZATION_PARMS mocaInit;
 
   do {
@@ -1180,7 +1178,7 @@ int diagMoca_MonErrorCounts(void)
                   pDelta->inUnKnownPkts;
     DIAG_CHK_ERR_THLD(totalPkts,
                       discardPkts,
-                      DIAG_THLD_PCT_MOCA_TX_DISCARD_PKTS,
+                      diagMocaThld_pctTxDiscardPkts,
                       err);
     DIAGD_TRACE("%s: Total Tx Pkts=%u  Discard Tx Pkts=%u",
                 __func__, totalPkts, discardPkts);
@@ -1188,7 +1186,7 @@ int diagMoca_MonErrorCounts(void)
       /* The discard Tx packets exceeds the threshold. Log the information */
       DIAGD_LOG_WARN("MoCA: Excessive Tx discard packets in %d secs  "
                      "[Total Tx Pkts=%u  Discard Tx Pkts=%u]",
-                     DIAG_WAIT_TIME_MOCA_MON_ERR_CNTS, totalPkts, discardPkts);
+                     diagWaitTime_MocaChkErrs, totalPkts, discardPkts);
       /* indciate to log */
       txDiscardTooManyMsg = DIAG_MOCA_LOG_EXCESSIVE_TX_DISCARD_PKTS;
     }
@@ -1209,7 +1207,7 @@ int diagMoca_MonErrorCounts(void)
 
     DIAG_CHK_ERR_THLD(totalPkts,
                       discardPkts,
-                      DIAG_THLD_PCT_MOCA_RX_DISCARD_PKTS,
+                      diagMocaThld_pctRxDiscardPkts,
                       err);
     DIAGD_TRACE("%s: Total Rx Pkts=%u  Discard Rx Pkts=%u",
                 __func__, totalPkts, discardPkts);
@@ -1218,7 +1216,7 @@ int diagMoca_MonErrorCounts(void)
       /* The discard Tx packets exceeds the threshold. Log the information */
       DIAGD_LOG_WARN("MoCA: Excessive Rx discard packets in %d secs  "
                      "[Total Rx Pkts=%u  Discard Rx Pkts=%u]",
-                     DIAG_WAIT_TIME_MOCA_MON_ERR_CNTS, totalPkts, discardPkts);
+                     diagWaitTime_MocaChkErrs, totalPkts, discardPkts);
       /* indicate to log */
       rxDiscardTooManyMsg = DIAG_MOCA_LOG_EXCESSIVE_RX_DISCARD_PKTS;
     }

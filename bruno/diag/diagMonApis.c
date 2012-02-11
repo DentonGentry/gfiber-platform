@@ -44,6 +44,37 @@ time_t diagStartTm_moca_monErrCnts = 0;
 bool   diag_moca_monServicePerf_firstRun = true;
 time_t diagStartTm_moca_monServicePerf = 0;
 
+/* 
+ * Monitoring thresholds
+ * Definitions of the threshold of error counters occurred during elapsed time.
+ * - If a counter reach/over the threshold, it is possible caused by the
+ *   faulty hardware (faulty cable, equipments, or component on bruno)
+ * - The thresholds can be changed via diag_ref_data.txt in diagd initialization.
+*/
+/* net statistics related thresholds */
+uint32_t  diagNetThld_pctRxCrcErrs = DIAG_NET_THLD_PCT_RX_CRC_ERRS;
+uint32_t  diagNetThld_pctRxFrameErrs = DIAG_NET_THLD_PCT_RX_FRAME_ERRS;
+uint32_t  diagNetThld_pctRxLenErrs = DIAG_NET_THLD_PCT_RX_LEN_ERRS;
+
+/* MoCA related thresholds */
+uint32_t  diagMocaThld_pctTxDiscardPkts = DIAG_THLD_PCT_MOCA_TX_DISCARD_PKTS;
+uint32_t  diagMocaThld_pctRxDiscardPkts = DIAG_THLD_PCT_MOCA_RX_DISCARD_PKTS;
+
+/* net interface link up/down count */
+uint32_t  diagNetlinkThld_linkCnts  = DIAG_THLD_LINK_STATE_CNTS;
+
+/* 
+ * Monitoring intervals (wait times in seconds) 
+ * */
+/*  Wait time of getting net statistices (include checking net link counts) */
+time_t  diagWaitTime_getNetStats = DIAG_WAIT_TIME_RUN_GET_NET_STATS;
+/* Wait time of checking kernel messages */
+time_t  diagWaitTime_chkKernMsgs = DIAG_WAIT_TIME_RUN_CHK_KMSG;
+/* Wait time of monitoring MoCA error counts via mocad */
+time_t  diagWaitTime_MocaChkErrs = DIAG_WAIT_TIME_MOCA_MON_ERR_CNTS;
+/* Wait time of monitoring MoCA performance */
+time_t  diagWaitTime_MocaMonPerf = DIAG_WAIT_TIME_MOCA_MON_SERVICE_PERF;
+
 
 /* -------------------------------------------------------------------------
  *
@@ -86,19 +117,19 @@ bool checkIfTimeout(int diagdApiIdx)
   do {
     if (diagdApiIdx == DIAG_API_IDX_GET_NET_STATS) {
       startTime   = diagStartTm_getStats;
-      maxWaitTime = DIAG_WAIT_TIME_RUN_GET_NET_STATS;
+      maxWaitTime = diagWaitTime_getNetStats;
     }
     else if (diagdApiIdx == DIAG_API_IDX_GET_CHK_KERN_KMSG) {
       startTime   = diagStartTm_chkKernMsg;
-      maxWaitTime = DIAG_WAIT_TIME_RUN_CHK_KMSG;
+      maxWaitTime = diagWaitTime_chkKernMsgs;
     }
     else if (diagdApiIdx == DIAG_API_IDX_MOCA_MON_ERR_CNTS) {
       startTime   = diagStartTm_moca_monErrCnts;
-      maxWaitTime = DIAG_WAIT_TIME_MOCA_MON_ERR_CNTS;
+      maxWaitTime = diagWaitTime_MocaChkErrs;
     }
     else if (diagdApiIdx == DIAG_API_IDX_MOCA_MON_SERVICE_PERF) {
       startTime   = diagStartTm_moca_monServicePerf;
-      maxWaitTime = DIAG_WAIT_TIME_MOCA_MON_SERVICE_PERF;
+      maxWaitTime = diagWaitTime_MocaMonPerf;
     }
     else {
       break;    /* Bad API index (Shouldn't get here). Exit */
@@ -188,7 +219,7 @@ int diag_Check_NetLinkUpDownCounts()
        * 1) If MoCA and GENET interfaces are using same thresholds???
        * 2) Let's use the same threshold for now.
        */
-      if (pStatsDelta->link_downs >= DIAG_THLD_LINK_STATE_CNTS) {
+      if (pStatsDelta->link_downs >= diagNetlinkThld_linkCnts) {
         DIAGD_LOG_WARN("%s: Excessive Link State Changed in %u secs.  [linkStat=%s  "
                        "link_ups=%lu  link_downs=%lu  delta_ups=%lu  delta_downs=%lu]",
           pNetIf->name, DIAG_WAIT_TIME_RUN_GET_NET_STATS,

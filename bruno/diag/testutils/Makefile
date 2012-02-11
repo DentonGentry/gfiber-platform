@@ -1,9 +1,9 @@
-CROSS		:= mipsel-linux-
-CC		:= $(CROSS)gcc
-AR		:= $(CROSS)ar
-RANLIB		:= $(CROSS)ranlib
+CROSS_COMPILE	:=
+CC		:= $(CROSS_COMPILE)gcc
+AR		:= $(CROSS_COMPILE)ar
+RANLIB		:= $(CROSS_COMPILE)ranlib
 
-CFLAGS		:= -Os -Wall -fno-strict-aliasing -I../../BCM_Moca_Src/include -I../../BCM_Moca_Src/include/dslcompat -I../include
+CFLAGS		:= -Os -Wall -fno-strict-aliasing -I../../moca/include -I../../moca/include/dslcompat -I../include -DDIAG_TEST_UTIL
 #CFLAGS		:= -Os -Wall -fno-strict-aliasing -I../include
 LDFLAGS		:= -L../Diag -L.
 

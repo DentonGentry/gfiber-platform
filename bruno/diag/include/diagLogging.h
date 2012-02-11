@@ -11,22 +11,12 @@
 
 /*
  * diagd logging macros and definitions
- *
- * TODO-2011/11/08
- * Due to the current filesystem of kernel image is read-only,
- * temporarily, log file move to under /tmp folder.
+ * - Log files need to be persistent data
  */
-#if DIAGD_TODO
- #define DIAGD_LOG_DIR            "/var/log/diagd"
- #define DIAGD_LOG_FILE           "/var/log/diagd/diagd.log"
- #define DIAGD_TEST_RESULTS_FILE  "/var/log/diagd/diagd_test_results.log"
- #define DIAGD_MOCA_LOG_FILE      "/var/log/diagd/diagd_MoCA.log"
-#else
- #define DIAGD_LOG_DIR            "/tmp/diagd"
- #define DIAGD_LOG_FILE           "/tmp/diagd/diagd.log"
- #define DIAGD_TEST_RESULTS_FILE  "/tmp/diagd/diagd_test_results.log"
- #define DIAGD_MOCA_LOG_FILE      "/tmp/diagd/diagd_MoCA.log"
-#endif
+#define DIAGD_LOG_DIR            "/user/diag/log"
+#define DIAGD_LOG_FILE           "/user/diag/log/diagd.log"
+#define DIAGD_TEST_RESULTS_FILE  "/user/diag/log/diagd_test_results.log"
+#define DIAGD_MOCA_LOG_FILE      "/user/diag/log/diagd_MoCA.log"
 
 
 /* If defined, log the message into the diagd log file */
