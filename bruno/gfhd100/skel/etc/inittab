@@ -4,17 +4,14 @@
 # Buildroot's default inittab for Busybox.
 id:1:initdefault:
 
-run1:1:wait:/etc/init.d/rcS
+run1:1:wait:/etc/init.d/rcS start
 # TEST_AGETTY
 
 # Stuff to do for the 3-finger salute
 rebo::ctrlaltdel:/sbin/reboot
 
 # Stuff to do before reboot/shutdown
-sklo:06:wait:/usr/bin/killall klogd
-ssys:06:wait:/usr/bin/killall syslogd
-umou:06:wait:/bin/umount -a -r
-swap:06:wait:/sbin/swapoff -a
+run6:6:wait:/etc/init.d/rcS stop
 
 # Actually reboot/shutdown
 rebf:6:wait:/sbin/reboot -f

@@ -10,7 +10,16 @@ mkdir -p /tmp/dropbear
 # Start all init scripts in /etc/init.d
 # executing them in numerical order.
 #
-for i in /etc/init.d/S[56789]?* ;do
+case "$1" in
+     start)
+     SCRIPTS=/etc/init.d/S[56789]?*
+     ;;
+     stop)
+     SCRIPTS=/etc/init.d/K*
+     ;;
+esac
+
+for i in ${SCRIPTS}; do
 
      # Ignore dangling symlinks (if any).
      [ ! -f "$i" ] && continue
@@ -20,13 +29,13 @@ for i in /etc/init.d/S[56789]?* ;do
 	    # Source shell script for speed.
 	    (
 		trap - INT QUIT TSTP
-		set start
+		set $1
 		. $i
 	    )
 	    ;;
 	*)
 	    # No sh extension, so fork subprocess.
-	    $i start
+	    $i $1
 	    ;;
     esac
 done
