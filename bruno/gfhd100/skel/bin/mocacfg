@@ -72,7 +72,7 @@ INIT_TIME=""
 ANY_TIME=""
 TRACE=""
 MOCAD_PARAMS=""
-[ -e $CFG_FILE ] && source $CFG_FILE
+[ -e $CFG_FILE ] && . $CFG_FILE
 
 cmd="$1"
 shift

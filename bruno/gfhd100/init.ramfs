@@ -18,7 +18,7 @@ echo "Mounting virtual filesystems"
 /bin/echo "done"
 
 # Detect the USB device for installation
-if [[ -e /proc/scsi/usb-storage ]]; then
+if [ -e /proc/scsi/usb-storage ]; then
 	/bin/echo "Skip the rest of boot process for debug."
 
 	# Start udev daemon
@@ -29,12 +29,12 @@ if [[ -e /proc/scsi/usb-storage ]]; then
 	/bin/sleep 5
 	/bin/mount /dev/usb /tmp/usb
 	/bin/sleep 1
-	[[ -e /tmp/usb/loader.bin ]] && ginstall.py --loader=/tmp/usb/loader.bin
-	[[ -e /tmp/usb/bruno_ginstall_image.tgz ]] && ginstall.py \
+	[ -e /tmp/usb/loader.bin ] && ginstall.py --loader=/tmp/usb/loader.bin
+	[ -e /tmp/usb/bruno_ginstall_image.tgz ] && ginstall.py \
 		--tar=/tmp/usb/bruno_ginstall_image.tgz --partition=primary
 
 	# Install new sageserver tarball if exists
-	if [[ -e /tmp/usb/sagetv_server.tar.gz ]]; then
+	if [ -e /tmp/usb/sagetv_server.tar.gz ]; then
 		# Mount filesystems
 		/etc/init.d/S03volcheck start
 		# hack...

@@ -1,13 +1,13 @@
 iface=$1
 pidfile=/var/run/dhclient.${iface}.pid
 if [ -e ${pidfile} ]; then
-	kill $(cat ${pidfile}) 2> /dev/null
+	kill $(cat ${pidfile}) 2>&1 > /dev/null
 	rm -f ${pidfile}
 fi
 pidfile=/var/run/dhclient-v6.${iface}.pid
 if [ -e ${pidfile} ]; then
-	kill $(cat ${pidfile}) 2> /dev/null
+	kill $(cat ${pidfile}) 2>&1 > /dev/null
 	rm -f ${pidfile}
 fi
-ifconfig ${iface}:0 0.0.0.0 2> /dev/null
+ifconfig ${iface}:0 0.0.0.0 2>&1 > /dev/null
 ifconfig ${iface} down
