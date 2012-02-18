@@ -16,7 +16,7 @@ case "$1" in
 	;;
   stop)
 	echo -n "Shutting down Bluetooth service: "
-	killall bsa_server
+	pkill bsa_server
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/bsa
 	echo "done"
 	return $RETVAL

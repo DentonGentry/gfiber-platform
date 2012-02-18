@@ -107,7 +107,7 @@ case "$cmd" in
 		;;
 
 	kill)
-		killall mocad >& /dev/null
+		pkill mocad
 		sleep 1
 		exit 0
 		;;

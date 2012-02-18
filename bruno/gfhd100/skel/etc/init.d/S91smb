@@ -27,37 +27,37 @@ start() {
 	[ $RETVAL -eq 0 -a $RETVAL2 -eq 0 ] && echo '' > /var/lock/subsys/smb || \
 	   RETVAL=1
 	return $RETVAL
-}	
+}
 
 stop() {
 	echo -n "Shutting down SMB services: "
-	kill -9 `pidof smbd`
+	pkill -9 smbd
 	RETVAL=$?
 	rm -f /var/run/smbd.pid
 	echo "done"
 
 	echo -n "Shutting down NMB services: "
-	kill -9 `pidof nmbd`
+	pkill -9 nmbd
 	RETVAL2=$?
 	rm -f /var/run/nmbd.pid
 
 	[ $RETVAL -eq 0 -a $RETVAL2 -eq 0 ] && rm -f /var/lock/subsys/smb
 	echo "done"
 	return $RETVAL
-}	
+}
 
 restart() {
 	stop
 	start
-}	
+}
 
 reload() {
         echo -n "Reloading smb.conf file: "
-	kill -HUP `pidof smbd`
+	pkill -HUP smbd
 	RETVAL=$?
 	echo "done"
 	return $RETVAL
-}	
+}
 
 case "$1" in
   start)
