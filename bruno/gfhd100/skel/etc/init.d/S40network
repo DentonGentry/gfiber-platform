@@ -73,7 +73,7 @@ case "$1" in
 			echo "done"
 		fi
 	fi
-	if ifconfig br0 2>&1 > /dev/null; then
+	if ip link show dev br0 2>&1 > /dev/null; then
 		brctl delbr br0
 	fi
 	;;

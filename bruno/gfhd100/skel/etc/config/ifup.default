@@ -1,2 +1,2 @@
 iface=$1
-ifconfig ${iface} up
+ip link set dev ${iface} up

@@ -286,7 +286,7 @@ int diagd_Loopback_Test(char *pNetIf_name, uint8_t loopbackType)
      * For the time being, shutdown br0 w/o any checking.
      * After loopback test, bruno should be reboot.
      */
-    system("ifconfig br0 down");
+    system("ip link set dev br0 down");
 
     /* Set to loopback mode */
     if (diag_SetLoopbackMode(pNetIf_name, loopbackType) != DIAGD_RC_OK) {

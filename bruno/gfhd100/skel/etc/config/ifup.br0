@@ -1,5 +1,5 @@
 iface=$1
-ifconfig ${iface} up
+ip link set dev ${iface} up
 lock=/var/run/dhclient.${iface}.lock
 lockfile-create ${lock}
 pidfile=/var/run/dhclient.${iface}.pid
