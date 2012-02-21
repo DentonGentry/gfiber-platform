@@ -62,6 +62,7 @@ mount_rootfs() {
     [ ! -d /user/moca ] && mkdir -p /user/moca /rootfs/user/moca
     [ ! -d /user/bsa ] && mkdir -p /user/bsa /rootfs/user/bsa
     [ ! -d /user/netflix ] && mkdir -p /user/netflix /rootfs/user/netflix
+    [ ! -d /user/drm ] && mkdir -p /user/drm /rootfs/user/drm
     echo "Skip volume check since rootfs is nfs"
     exit 0
   fi
@@ -89,6 +90,7 @@ case "$1" in
     [ ! -d /user/moca ] && mkdir -p /user/moca
     [ ! -d /user/bsa ] && mkdir -p /user/bsa
     [ ! -d /user/netflix ] && mkdir -p /user/netflix
+    [ ! -d /user/drm ] && mkdir -p /user/drm
     echo "OK"
     ;;
   stop)
