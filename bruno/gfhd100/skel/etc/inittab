@@ -4,13 +4,8 @@
 # Buildroot's default inittab for Busybox.
 id:1:initdefault:
 
-rwmo::sysinit:/bin/mount -o remount,rw / # REMOUNT_ROOTFS_RW
-dpts::sysinit:/bin/mkdir -p /dev/pts /dev/snd
-moun::sysinit:/bin/mount -a
-host::sysinit:/bin/hostname -F /etc/hostname
-
 run1:1:wait:/etc/init.d/rcS
-S0:1:respawn:/sbin/getty -L ttyS0 115200 vt100 # GENERIC_SERIAL
+S0:1:respawn:/sbin/agetty -L ttyS0 115200 vt100 # GENERIC_SERIAL
 
 # Stuff to do for the 3-finger salute
 rebo::ctrlaltdel:/sbin/reboot

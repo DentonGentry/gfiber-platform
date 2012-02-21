@@ -1,34 +1,39 @@
 #!/bin/sh
 # devtmpfs does not get automounted for initramfs
 
-/bin/mount -t devtmpfs devtmpfs /dev
+mount -t devtmpfs devtmpfs /dev
 exec 0</dev/console
 exec 1>/dev/console
 exec 2>/dev/console
 
 echo "Mounting virtual filesystems"
-/bin/mount -o remount,rw / # REMOUNT_ROOTFS_RW
-/bin/mount -a
-/bin/hostname -F /etc/hostname
+mount -o remount,rw / / # REMOUNT_ROOTFS_RW
+mkdir -p /dev/pts /dev/snd
+mount -t proc proc /proc
+mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /tmp
+mount -t sysfs sysfs /sys
+mount -t usbfs usbfs /proc/bus/usb
+mount -t debugfs debugfs /sys/kernel/debug
 
 # Reset BVN
-/bin/echo -n "Reset BVN... "
-/sbin/devmem 0x10404318 32 0x100
-/sbin/devmem 0x1040431c 32 0x100
-/bin/echo "done"
+echo -n "Reset BVN... "
+devmem 0x10404318 32 0x100
+devmem 0x1040431c 32 0x100
+echo "done"
 
 # Detect the USB device for installation
 if [ -e /proc/scsi/usb-storage ]; then
-	/bin/echo "Skip the rest of boot process for debug."
+	echo "Skip the rest of boot process for debug."
 
 	# Start udev daemon
 	/etc/init.d/S10udev start
 
-	/bin/echo "Mounting USB stick"
-	/bin/mkdir -p /tmp/usb
-	/bin/sleep 5
-	/bin/mount /dev/usb /tmp/usb
-	/bin/sleep 1
+	echo "Mounting USB stick"
+	mkdir -p /tmp/usb
+	sleep 5
+	mount -t vfat /dev/usb /tmp/usb
+	sleep 1
 	[ -e /tmp/usb/loader.bin ] && ginstall.py --loader=/tmp/usb/loader.bin
 	[ -e /tmp/usb/bruno_ginstall_image.tgz ] && ginstall.py \
 		--tar=/tmp/usb/bruno_ginstall_image.tgz --partition=primary
@@ -49,7 +54,7 @@ if [ -e /proc/scsi/usb-storage ]; then
 		umount /rootfs
 		/etc/init.d/S03volcheck stop
 	fi
-	/bin/echo "Please take the usb storage out and reboot..."
+	echo "Please take the usb storage out and reboot..."
 	sleep 30
 	exit 0
 fi
@@ -60,10 +65,10 @@ fi
 
 ROOT=/rootfs
 cd ${ROOT}
-/bin/echo "Switching Root: mypid-$$"
-mount --move /tmp ${ROOT}/tmp
-mount --move /config ${ROOT}/config
-mount --move /user ${ROOT}/user
+echo "Switching Root: mypid-$$"
+mount -o move /tmp ${ROOT}/tmp
+mount -o move /config ${ROOT}/config
+mount -o move /user ${ROOT}/user
 
 exec switch_root . /sbin/init 1 </dev/console >/dev/console 2>&1
 
