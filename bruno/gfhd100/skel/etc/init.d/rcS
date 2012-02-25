@@ -2,7 +2,7 @@
 
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:.
 
-mount -o remount,rw / # REMOUNT_ROOTFS_RW
+mount -o remount,rw / / # REMOUNT_ROOTFS_RW
 
 # TODO(sledbetter): fix /tmp mounting so not needed
 mkdir -p /tmp/dropbear

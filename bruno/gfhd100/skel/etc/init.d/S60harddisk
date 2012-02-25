@@ -28,7 +28,7 @@ if [[ -L ${SATA_DEVICE} ]]; then
   # Mount SATA device
   if [[ -L /dev/sata ]]; then
     echo "Mounting SATA device"
-    mount -t ext4 /dev/sata /var/media -o noatime,barrier=0,data=writeback
+    mount -o noatime,barrier=0,data=writeback -t ext4 /dev/sata /var/media
     sleep 1
   fi
 fi
