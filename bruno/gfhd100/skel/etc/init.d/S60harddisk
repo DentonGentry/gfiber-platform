@@ -13,7 +13,7 @@ pkill udevd
 
 # Rescan SATA device to support auto-mount during system booting
 #
-if [[ -L ${SATA_DEVICE} ]]; then
+if [ -h ${SATA_DEVICE} ]; then
   echo "Scanning SATA device"
   # Remove SATA device
   #echo "Remove SATA device at ${SATA_DEVICE}"
@@ -26,7 +26,7 @@ if [[ -L ${SATA_DEVICE} ]]; then
   sleep 5
 
   # Mount SATA device
-  if [[ -L /dev/sata ]]; then
+  if [ -h /dev/sata ]; then
     echo "Mounting SATA device"
     mount -o noatime,barrier=0,data=writeback -t ext4 /dev/sata /var/media
     sleep 1
