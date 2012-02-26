@@ -3,14 +3,6 @@
 SATA_DEVICE=/sys/bus/scsi/devices/0:0:0:0
 SATA_HOST=/sys/class/scsi_host/host0
 
-# After switch-root, reinstall udev daemon to support USB hot-plug
-#
-# Stop udev daemon
-pkill udevd
-
-# Start udev daemon
-/sbin/udevd -d
-
 # Rescan SATA device to support auto-mount during system booting
 #
 if [ -h ${SATA_DEVICE} ]; then
@@ -32,4 +24,3 @@ if [ -h ${SATA_DEVICE} ]; then
     sleep 1
   fi
 fi
-
