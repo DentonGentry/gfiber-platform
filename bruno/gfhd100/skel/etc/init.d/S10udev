@@ -35,7 +35,7 @@ case "$1" in
     stop)
         # Stop execution of events
         udevadm control --stop-exec-queue
-        killall udevd
+        pkill -x udevd
         ;;
     *)
         echo "Usage: $0 {start|stop}"
