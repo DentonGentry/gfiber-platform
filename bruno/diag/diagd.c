@@ -88,11 +88,9 @@ void diagd_HwMon_Handler()
       looping = 0;    /* Failed. Exit */
     }
 
-#if 0   /* TODO 20111114: incomplete. comment out in this version */
-    if (Diag_Mon_ParseExame_KernMsg() != DIAGD_RC_OK) {
+    if (Diag_Mon_ParseExamine_KernMsg() != DIAGD_RC_OK) {
       looping = 0;    /* Failed. Exit */
     }
-#endif
 
     /* Monitor MoCA Tx/Rx discard packets counts */
 //    Diag_MonMoca_Err_Counts();
@@ -146,4 +144,3 @@ int main()
 
   return (0);
 }
-

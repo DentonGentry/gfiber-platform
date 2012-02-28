@@ -109,7 +109,7 @@
 /* Index of hardware monitor APIs - Use in checkIfTimeout() */
 typedef enum {
   DIAG_API_IDX_GET_NET_STATS = 0,           /* Diag_MonNet_GetNetIfStatistics() */
-  DIAG_API_IDX_GET_CHK_KERN_KMSG = 1,       /* Diag_Mon_ParseExame_KernMsg()    */
+  DIAG_API_IDX_GET_CHK_KERN_KMSG = 1,       /* Diag_Mon_ParseExamine_KernMsg()  */
   DIAG_API_IDX_MOCA_MON_ERR_CNTS = 2,       /* Diag_MonMoca_Err_Counts()        */
   DIAG_API_IDX_MOCA_MON_SERVICE_PERF = 3,   /* Diag_MonMoca_ServicePerf()       */
   DIAG_APIS_MAX_VALUE
@@ -274,7 +274,7 @@ typedef struct _diag_info_blk {
 extern bool   diag_getStats_firstRun;
 extern time_t diagStartTm_getStats;
 
-/* Start time of Diag_Mon_ParseExame_KernMsg() */
+/* Start time of Diag_Mon_ParseExamine_KernMsg() */
 extern bool   diag_chkKernMsg_firstRun;
 extern time_t diagStartTm_chkKernMsg;
 

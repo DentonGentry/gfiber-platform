@@ -123,6 +123,6 @@ extern int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLeve
  * Prototypes
  */
 
-int Diag_Mon_ParseExame_KernMsg(void);
+int Diag_Mon_ParseExamine_KernMsg(void);
 
 #endif /* end of _DIAG_PARSE_KERN_MSGS_H_ */

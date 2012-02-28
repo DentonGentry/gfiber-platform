@@ -39,6 +39,16 @@
 /* monitoring kernel message from /proc/kmsg */
 #define KERN_PROC_KMSG_FS     "/proc/kmsg"
 
+/* Instead of using /proc/kmsg, monitor the one defined in "/etc/syslog.conf".
+ * Currently for the kernel messages of priority level from warning to critical,
+ * it is directing to  "/var/log/kern.log". For the priority level from
+ * alert and above, it is directing to "/var/log/kern0.log".
+ */
+#define KERN_SYSLOG_KMSG_FS           "/var/log/kern.log"
+#define KERN_SYSLOG_PRECEDING_STR     "kernel:"
+#define KERN_SYSLOG_PRECEDING_STR_SZ  strlen(KERN_SYSLOG_PRECEDING_STR)
+
+
 /* Log message level in string.
  * NOTE - Must sync up to the definition of diag_log_msg_err_levels.
  */
@@ -49,7 +59,6 @@ const char *diagd_logmsg_lvl[] = {
   DIAGD_WARN_MSG, 
   DIAGD_INFO_MSG
 };
-
 
 /*
  * This routine splits input string which read from
@@ -201,7 +210,7 @@ int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, char
 /*
  * This routine does as follows:
  * 1) Read monitored (KERN_WARN or KERN_ERR) kernel messages 
- * 2) Compare to the input message which read from /proc/kmsg
+ * 2) Compare to the input message which read from /var/log/kern.log
  * 3) If the input kernel msg is a monitored msg, 
  *
  * If it is a monitored message, inform calling routine.
@@ -234,7 +243,7 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
   do 
   {
 
-    ifp =fopen(pFileName, "r");
+    ifp = fopen(pFileName, "r");
     if (ifp == NULL) {
         /* TODO 2011/10/O3 - 
          *  TBD - log the error message.
@@ -347,7 +356,7 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
 
 
 /*
- * 1) Read kernel messages from a /proc/kmsg
+ * 1) Read kernel messages from a /var/log/kern.log
  * 2) If a kernel message level is KERN_EMERG or KERN_ALERT, (TBD) system issue
  * 3) If a kernel message level is KERN_CRIT or KERN_ERR, (TBD) compare to
  *    the list if it is HW related issues. 
@@ -359,7 +368,7 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
  * DIAGD_RC_OK  -    OK
  * DIAGD_RC_ERR -    failed
  */
-int Diag_Mon_ParseExame_KernMsg(void)
+int Diag_Mon_ParseExamine_KernMsg(void)
 {
   FILE *ifp = NULL;
   int   fd;
@@ -367,7 +376,10 @@ int Diag_Mon_ParseExame_KernMsg(void)
   char  kmsgMsg[DIAG_MSG_MAXLINELEN];
   int   rtn = DIAGD_RC_OK;
   bool  msgFound = false;
-  char  kernMsgErrLevel;
+  char  kernMsgErrLevel = DIAG_KERN_MSG_MAX;
+  char  *kMsgPtr = NULL;
+  long  currentFilePos = (long) 0;
+  static long filePosPrevRun = (long) 0;
 
   DIAGD_TRACE("%s: enter", __func__);
 
@@ -386,15 +398,15 @@ int Diag_Mon_ParseExame_KernMsg(void)
     /* Update the starting time of the api */
     time(&diagStartTm_chkKernMsg);
 
-    ifp =fopen(KERN_PROC_KMSG_FS, "r");
+    ifp = fopen(KERN_SYSLOG_KMSG_FS, "r");
     if (ifp == NULL) {
-        DIAGD_DEBUG("Can not open the %s file", KERN_ERR_MSGS_FILE);
+        DIAGD_DEBUG("Can not open the %s file", KERN_SYSLOG_KMSG_FS);
         rtn = DIAGD_RC_ERR;
         break;
     }
 
     /* 
-     * /proc/kmsg is opened OK.
+     * /var/log/kern.log is opened OK.
      * fgets() is default to be "blocking". To prevent fgets blocks when the
      * kmsg doesn't have no new message, set the fp to be non-blocking.
      */
@@ -403,6 +415,12 @@ int Diag_Mon_ParseExame_KernMsg(void)
     flags |= O_NONBLOCK;
     fcntl(fd, F_SETFL, flags);
 
+    if (filePosPrevRun) {
+       if (fseek(ifp, filePosPrevRun, SEEK_SET) != 0) {
+          DIAGD_DEBUG("Can not fseek the %s file to position %ld", KERN_SYSLOG_KMSG_FS, filePosPrevRun);
+       }
+    }
+
     while (1) {
       /* 
        * If there is no message available, fgets will return NULL with errno set
@@ -410,7 +428,8 @@ int Diag_Mon_ParseExame_KernMsg(void)
        */
       if (fgets(kmsgMsg, DIAG_MSG_MAXLINELEN, ifp) == NULL) 
       {
-        /* No message available in /proc/kmsg. Exit. */
+        /* No message available in /var/log/kern.log. Exit. */
+        DIAGD_DEBUG("No new kernel message available in the %s file", KERN_SYSLOG_KMSG_FS);
         break;
       }
 
@@ -418,22 +437,28 @@ int Diag_Mon_ParseExame_KernMsg(void)
       if (kmsgMsg[0] == '\0') {
           continue;
       }
-
-      /* Got a kernel message and check what is the kernel message level. 
-       * An valid kernel message is "<msglevel>kernel message...."
-       * ie. "<2>eth0 Link UP."
-       */
-      if (kmsgMsg[0] == '<' && kmsgMsg[2] == '>') {
-        kernMsgErrLevel = kmsgMsg[1] - '0';
-      }
       else {
-        /* 
-         * Not a valid kernel message (We shouldn't get here.)
-         */
-        kernMsgErrLevel = DIAG_KERN_MSG_MAX;
+         kMsgPtr = &kmsgMsg[0];
+         /* set priority level to warning since the priority level of
+          * logged kernel messages in kern.log is from warning to critical
+          */
+         kernMsgErrLevel = DIAG_KERN_WARNING;
+
+         /* skip "kernel:" and space or tab to advance index to the beginning of main kernel message */
+         if ((kMsgPtr = strstr(kMsgPtr, KERN_SYSLOG_PRECEDING_STR)) != NULL) {
+            kMsgPtr+= KERN_SYSLOG_PRECEDING_STR_SZ;
+            while(*kMsgPtr == ' ' || *kMsgPtr == '\t') {kMsgPtr++;}
+         }
+         else {
+         /* Cannot locate main kernel message. Should not happen */
+            DIAGD_TRACE("Cannot find \"kernel:\" in the kernel message:%s", kmsgMsg);
+            kernMsgErrLevel = DIAG_KERN_MSG_MAX;
+         }
       }
-      
-      DIAGD_TRACE("kernMsgErrLevel=%d, pKernMsg: %s", kernMsgErrLevel, &kmsgMsg[3]);
+
+      if (kernMsgErrLevel != DIAG_KERN_MSG_MAX) {
+         DIAGD_TRACE("kernMsgErrLevel=%d, pKernMsg: %s", kernMsgErrLevel, kMsgPtr);
+      }
 
       switch (kernMsgErrLevel) {
         case DIAG_KERN_EMERG:
@@ -448,19 +473,15 @@ int Diag_Mon_ParseExame_KernMsg(void)
 
         case DIAG_KERN_CRIT:
         case DIAG_KERN_ERR:
-          /* TODO: 2011/10/03
-           * If it is a monitored kernel error message, handle it based on the
-           * dact setting.
-           */
-          msgFound = diag_parse_cmp_dkmsg(&kmsgMsg[3], KERN_ERR_MSGS_FILE);
-          break;
-
         case DIAG_KERN_WARNING:
-          /* TODO: 2011/10/03
-           * If it is a monitored kernel error message, handle it based on the
+          /* 
+           * If it is a monitored kernel error, warning messages, handle it based on the
            * dact setting.
            */
-          msgFound = diag_parse_cmp_dkmsg(&kmsgMsg[3], KERN_WARN_MSGS_FILE);
+          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE);
+          if (msgFound == false) {
+             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE);
+          }
           break;
 
         default:
@@ -470,16 +491,23 @@ int Diag_Mon_ParseExame_KernMsg(void)
       DIAGD_TRACE("errmsg: %s", kmsgMsg);
     }
 
-  } while (0);
+  } while (0); /* TODO 03092012 remove while(0) later */ 
 
-  if (ifp != NULL)
+  if (ifp != NULL) {
+    if ((currentFilePos = ftell(ifp)) < 0) {
+       DIAGD_DEBUG("ftell failed to get current position of the %s file", KERN_SYSLOG_KMSG_FS);
+    }
+    else {
+       filePosPrevRun = currentFilePos;
+    }
     fclose(ifp);
+  }
 
   DIAGD_TRACE("%s: exit", __func__);
 
   return(rtn);
 
-} /* end of Diag_Mon_ParseExame_KernMsg */
+} /* end of Diag_Mon_ParseExamine_KernMsg */
 
 
 
@@ -516,7 +544,7 @@ int main(void)
 
 #if 0
     looping = 1;
-    Diag_Mon_ParseExame_KernMsg();
+    Diag_Mon_ParseExamine_KernMsg();
     printf("sleep 5sec.....\n");
     sleep(5);
 #endif 
@@ -543,4 +571,3 @@ int main(void)
 
 #endif
 /* ======================================================================= */
-
