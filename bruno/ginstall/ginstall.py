@@ -43,7 +43,7 @@ def set_boot_partition(partition):
          '-w', 'ACTIVATED_KERNEL_NAME=kernel{0}'.format(partition),
          '-w', 'EXTRA_KERNEL_OPT={0}'.format(extra)]
   devnull = open('/dev/null', 'w')
-  return subprocess.call(cmd, stdout=devnull, stderr=devnull)
+  return subprocess.call(cmd, stdout=devnull)
 
 
 def get_booted_partition():
@@ -145,7 +145,7 @@ def erase_mtd(mtd):
   devmtd = "/dev/mtd" + str(get_mtd_num(mtd))
   cmd = [FLASH_ERASE, "--quiet", devmtd, "0", "0"]
   devnull = open('/dev/null', 'w')
-  return subprocess.call(cmd, stdout=devnull, stderr=devnull)
+  return subprocess.call(cmd, stdout=devnull)
 
 
 def write_to_file(srcfile, dstfile):
@@ -210,7 +210,7 @@ def install_to_ubi(f, mtd):
   devmtd = "/dev/mtd" + str(get_mtd_num(mtd))
   cmd = [UBIFORMAT, devmtd, "-f", "-", "-y", "-q", "-S", str(writesize)]
   null = open('/dev/null', 'w')
-  ub = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=null, stderr=null)
+  ub = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=null)
   siz = write_to_file(f, ub.stdin)
   ub.stdin.close()  # send EOF to UBIFORMAT
   rc = ub.wait()
