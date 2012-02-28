@@ -16,12 +16,6 @@ mount -t sysfs sysfs /sys
 mount -t usbfs usbfs /proc/bus/usb
 mount -t debugfs debugfs /sys/kernel/debug
 
-# Reset BVN
-echo -n "Reset BVN... "
-devmem 0x10404318 32 0x100
-devmem 0x1040431c 32 0x100
-echo "done"
-
 # Detect the USB device for installation
 if [ -e /proc/scsi/usb-storage ]; then
 	echo "Skip the rest of boot process for debug."
