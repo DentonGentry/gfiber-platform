@@ -9,8 +9,7 @@ case "$1" in
 	echo "Starting network..."
 	# configure loopback
 	/sbin/ifup lo
-	cmdline=$(grep nfsroot /proc/cmdline)
-	if [ $? != 0 ]; then
+	if [ ! -e /tmp/NFS ]; then
 		echo -n "Creating bridge... "
 		brctl addbr br0 || exit 1
 		brctl setfd br0 1 || exit 1
@@ -54,8 +53,7 @@ case "$1" in
 	;;
   stop)
 	echo -n "Stopping network..."
-	cmdline=$(grep nfsroot /proc/cmdline)
-	if [ $? != 0 ]; then
+	if [ ! -e /tmp/NFS ]; then
 		for x in $(ls /sys/class/net); do
 			if [ -n /sys/class/net/$x/bridge ]; then
 				ifdown $x
