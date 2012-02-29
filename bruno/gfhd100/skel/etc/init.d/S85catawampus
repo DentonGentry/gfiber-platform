@@ -5,7 +5,7 @@ case "$1" in
 	/bin/catawampus >/dev/null 2>&1 &
 	;;
   stop)
-	pkill catawampus
+	pkill -x catawampus
 	;;
 
   restart)

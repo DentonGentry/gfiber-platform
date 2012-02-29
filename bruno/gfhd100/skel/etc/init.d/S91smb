@@ -31,13 +31,13 @@ start() {
 
 stop() {
 	echo -n "Shutting down SMB services: "
-	pkill -9 smbd
+	pkill -9 -x smbd
 	RETVAL=$?
 	rm -f /var/run/smbd.pid
 	echo "done"
 
 	echo -n "Shutting down NMB services: "
-	pkill -9 nmbd
+	pkill -9 -x nmbd
 	RETVAL2=$?
 	rm -f /var/run/nmbd.pid
 
@@ -53,7 +53,7 @@ restart() {
 
 reload() {
         echo -n "Reloading smb.conf file: "
-	pkill -HUP smbd
+	pkill -HUP -x smbd
 	RETVAL=$?
 	echo "done"
 	return $RETVAL

@@ -5,7 +5,7 @@ case "$1" in
 	ntpd -s
 	;;
   stop)
-	pkill ntpd
+	pkill -x ntpd
 	;;
 
   restart)
