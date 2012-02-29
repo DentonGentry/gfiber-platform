@@ -7,6 +7,8 @@
 namespace bruno_platform_peripheral {
 
 const unsigned int FanControl::kPwmFreq50Khz = 0x7900;
+const unsigned int FanControl::kPwmFreq26Khz = 0x4000;
+const unsigned int FanControl::kPwmFreq206hz = 0x0080;
 
 FanControl::~FanControl() {
   Terminate();
@@ -33,7 +35,6 @@ void FanControl::Terminate(void) {
 
 bool FanControl::InitPwm() {
   NEXUS_Error ret_code = NEXUS_SUCCESS;
-  unsigned cword;
 
   /*
    * Use constant frequency mode
@@ -50,13 +51,20 @@ bool FanControl::InitPwm() {
     return false;
   }
 
-  /*
-   * Set Period register so that the dutycycle = on / (period + 1)
-   * On register would then be equal to the duty cycle value
-   */
-  ret_code = NEXUS_Pwm_SetPeriodInterval(pwm_handle_, 254);
+  ret_code = NEXUS_Pwm_SetPeriodInterval(pwm_handle_, period_);
   if (NEXUS_SUCCESS != ret_code) {
     LOG(LS_ERROR) << "NEXUS_Pwm_SetPeriodInterval failed - " << ret_code;
+    return false;
+  }
+
+  ret_code = NEXUS_Pwm_Start(pwm_handle_);
+  if (NEXUS_SUCCESS != ret_code) {
+    LOG(LS_ERROR) << "NEXUS_Pwm_Start failed - " << ret_code;
+    return false;
+  }
+
+  if (!DrivePwm(0)) {
+    LOG(LS_ERROR) << "FanControl::DrivePwm failed";
     return false;
   }
 
@@ -81,9 +89,9 @@ bool FanControl::SelfStart() {
   return ret;
 }
 
-bool FanControl::AdjustSpeed(uint8_t avg_temp) {
+bool FanControl::AdjustSpeed(uint32_t avg_temp) {
   bool ret = true;
-  uint8_t new_duty_cycle_pwm;
+  uint16_t new_duty_cycle_pwm;
 
   ComputeDutyCycle(avg_temp, &new_duty_cycle_pwm);
 
@@ -98,7 +106,7 @@ bool FanControl::AdjustSpeed(uint8_t avg_temp) {
   return true;
 }
 
-bool FanControl::DrivePwm(uint8_t duty_cycle) {
+bool FanControl::DrivePwm(uint16_t duty_cycle) {
   NEXUS_Error ret_code=NEXUS_SUCCESS;
 
   LOG(LS_INFO) << "DrivePwm 0x" << std::hex << duty_cycle;
@@ -108,14 +116,9 @@ bool FanControl::DrivePwm(uint8_t duty_cycle) {
     LOG(LS_ERROR) << "NEXUS_Pwm_SetOnInterval failed - " << ret_code;
     return false;
   }
-  ret_code = NEXUS_Pwm_Start(pwm_handle_);
-  if (NEXUS_SUCCESS != ret_code) {
-    LOG(LS_ERROR) << "NEXUS_Pwm_Start failed - " << ret_code;
-    return false;
-  }
   if (duty_cycle == 0) {
     state_ = OFF;
-  } else if (duty_cycle == 0xff) {
+  } else if (duty_cycle == period_) {
     state_ = FULL_SPEED;
   } else {
     state_ = VAR_SPEED;
@@ -124,8 +127,8 @@ bool FanControl::DrivePwm(uint8_t duty_cycle) {
   return true;
 }
 
-void FanControl::ComputeDutyCycle(uint8_t avg_temp, uint8_t *new_duty_cycle_pwm) {
-  uint8_t     compute_duty_cycle, diff;
+void FanControl::ComputeDutyCycle(uint32_t avg_temp, uint16_t *new_duty_cycle_pwm) {
+  uint16_t     compute_duty_cycle, diff;
 
   LOG(LS_INFO) << "FanControl::ComputeDutyCycle - current dutycycle = 0x" << std::hex << duty_cycle_pwm_;
 

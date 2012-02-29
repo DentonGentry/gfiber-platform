@@ -2,6 +2,8 @@
 // Author: kedong@google.com (Ke Dong)
 
 #include "base/logging.h"
+#include "gpioconfig.h"
+#include "gpio.h"
 #include "fancontrol.h"
 #include "tempmonitor.h"
 
