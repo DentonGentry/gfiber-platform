@@ -274,6 +274,9 @@ def main():
   parser.add_option('--loader', dest='loaderfile',
                     help='bootloader to install',
                     default=None)
+  parser.add_option('--drm', dest='drmfile',
+                    help='drm blob to install',
+                    default=None)
   parser.add_option('-p', '--partition', dest='partition', metavar="PART",
                     type="string", action="store",
                     help='primary or secondary image partition, or "other"',
@@ -294,6 +297,25 @@ def main():
     mtd = get_mtd_dev_for_partition("cfe")
     verbose_print("Writing loader to {0}".format(mtd))
     install_to_mtd(loader, mtd)
+    verbose_print("\n")
+
+  if options.drmfile is not None:
+    print("DO NOT INTERRUPT OR POWER CYCLE, or you will lose drm capability.");
+    try:
+      drm = open(options.drmfile, "rb")
+    except IOError:
+      print("unable to open drm file %s" % options.drmfile)
+      return 1
+    mtd = get_mtd_dev_for_partition("drmregion0")
+    verbose_print("Writing drm to {0}".format(mtd))
+    install_to_mtd(drm, mtd)
+    verbose_print("\n")
+
+    drm.seek(0)
+    mtd = get_mtd_dev_for_partition("drmregion1")
+    verbose_print("Writing drm to {0}".format(mtd))
+    install_to_mtd(drm, mtd)
+    verbose_print("\n")
 
   if options.partition:
     if options.partition == "other":

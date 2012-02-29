@@ -34,6 +34,7 @@ if [ -e /proc/scsi/usb-storage ]; then
 	sleep 5
 	mount -t vfat /dev/usb /tmp/usb
 	sleep 1
+	[ -e /tmp/usb/drm.bin ] && ginstall.py --drm=/tmp/usb/drm.bin
 	[ -e /tmp/usb/loader.bin ] && ginstall.py --loader=/tmp/usb/loader.bin
 	[ -e /tmp/usb/bruno_ginstall_image.tgz ] && ginstall.py \
 		--tar=/tmp/usb/bruno_ginstall_image.tgz --partition=primary
@@ -43,8 +44,8 @@ if [ -e /proc/scsi/usb-storage ]; then
 		# Mount filesystems
 		/etc/init.d/S04volcheck start
 		# hack...
-		ubiattach -m 4 -d 0 /dev/ubi_ctrl
-		mount -t squashfs /dev/mtdblock11 /rootfs
+		ubiattach -m 12 -d 0 /dev/ubi_ctrl
+		mount -t squashfs /dev/mtdblock17 /rootfs
 		echo "Installing new sagetv_server tarball"
 		rm -rf /user/rw/app/sage
 		mkdir -p /user/rw/app/sage

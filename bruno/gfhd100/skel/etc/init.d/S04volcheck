@@ -4,7 +4,7 @@
 #
 
 ROOTFS_TYPE="squashfs"
-ROOTFS_MTD_NO=9
+ROOTFS_MTD_NO=17
 ROOTFS_LOCATION=""
 KERNEL_OPTS=$(cat /proc/cmdline)
 
@@ -85,8 +85,8 @@ case "$1" in
     if [ $? -ne 0 ]; then
       echo "Failed to mount rootfs, need to invoke TR-069 download"
     fi
-    check_volume_and_mount 6 1 user user ubifs
-    check_volume_and_mount 7 2 config config ubifs
+    check_volume_and_mount 14 1 user user ubifs
+    check_volume_and_mount 15 2 config config ubifs
     [ ! -d /user/rw ] && mkdir -p /user/rw
     [ ! -d /user/moca ] && mkdir -p /user/moca
     [ ! -d /user/bsa ] && mkdir -p /user/bsa
