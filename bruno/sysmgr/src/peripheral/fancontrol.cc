@@ -54,9 +54,9 @@ bool FanControl::InitPwm() {
    * Set Period register so that the dutycycle = on / (period + 1)
    * On register would then be equal to the duty cycle value
    */
-  ret_code = NEXUS_Pwm_SetOnInterval(pwm_handle_, 254);
+  ret_code = NEXUS_Pwm_SetPeriodInterval(pwm_handle_, 254);
   if (NEXUS_SUCCESS != ret_code) {
-    LOG(LS_ERROR) << "NEXUS_Pwm_SetOnInterval failed - " << ret_code;
+    LOG(LS_ERROR) << "NEXUS_Pwm_SetPeriodInterval failed - " << ret_code;
     return false;
   }
 

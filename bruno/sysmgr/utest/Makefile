@@ -10,7 +10,7 @@ EXES:=$(addprefix ../build/,$(SRCS:.cc=))
 all: $(EXES)
 
 CFLAGS:=-Wall -Wimplicit -Wno-unknown-pragmas -W
-CPPFLAGS=-I../include $(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase nexus)))
+CPPFLAGS=-I../include -I../src/peripheral $(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase nexus)))
 LDFLAGS=-L../build -lbrunoperipheral $(shell $(PKG_CONFIG) --libs brunobase nexus)
 
 ../build/% : %.cc

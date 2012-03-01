@@ -40,7 +40,6 @@ int main(int argc, char** argv) {
   platform_settings.openFrontend = false;
   NEXUS_Platform_Init(&platform_settings);
 
-  const int cnt = 100;
   for (int i=0; i<FLAG_count; ++i) {
     NEXUS_AvsStatus avsStatus;
     NEXUS_GetAvsStatus(&avsStatus);
