@@ -26,5 +26,4 @@ echo 16000 > /proc/sys/vm/min_free_kbytes
 PLATFORM=${PLAT#PLATFORM_NAME=}
 if [ "$PLATFORM" = "GFMS100" ]; then
   /home/test/test_fan --percent 55 --count 0
-  devmem 0x10408508 32 0x11FFF10F
 fi
