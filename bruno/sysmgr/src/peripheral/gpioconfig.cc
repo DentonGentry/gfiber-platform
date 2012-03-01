@@ -28,7 +28,7 @@ const GpIoConfig GpIoConfig::kTable[] = {
              NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eMax),
   // GPIO_FAN_CONTROL
   GpIoConfig("LED Fan Control",
-             NEXUS_GpioType_eStandard, 89, NEXUS_GpioMode_eOutputPushPull,
+             NEXUS_GpioType_eStandard, 99, NEXUS_GpioMode_eOutputPushPull,
              NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eLow),
   // GPIO_FAN_SPEED
   GpIoConfig("LED Fan Speed",
