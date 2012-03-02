@@ -20,10 +20,3 @@ fi
 
 # enhance the memory threshold to reclaim the memory earlier.
 echo 16000 > /proc/sys/vm/min_free_kbytes
-
-# :TODO: (kedong) remove this once the TWM issues is resolved.
-# this is just to fix the fan speed to 55% of the maximum.
-PLATFORM=${PLAT#PLATFORM_NAME=}
-if [ "$PLATFORM" = "GFMS100" ]; then
-  /home/test/test_fan --percent 55 --count 0
-fi
