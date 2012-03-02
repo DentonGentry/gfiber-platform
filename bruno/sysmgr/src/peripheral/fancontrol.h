@@ -9,7 +9,7 @@
 
 namespace bruno_platform_peripheral {
 
-class FanControl : public GpIo {
+class FanControl {
  public:
   enum StateType {
     OFF,
