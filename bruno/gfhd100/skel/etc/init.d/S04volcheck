@@ -75,6 +75,12 @@ mount_rootfs() {
   fi
 }
 
+netflix_sanity_check() {
+  if [ -e /user/rw/netflix.run ]; then
+    rm -rf /user/drm/* /user/netflix/*
+    rm -f /user/rw/netflix.run
+  fi
+}
 
 case "$1" in
   start)
@@ -92,6 +98,7 @@ case "$1" in
     [ ! -d /user/bsa ] && mkdir -p /user/bsa
     [ ! -d /user/netflix ] && mkdir -p /user/netflix
     [ ! -d /user/drm ] && mkdir -p /user/drm
+    netflix_sanity_check
     echo "OK"
     ;;
   stop)
