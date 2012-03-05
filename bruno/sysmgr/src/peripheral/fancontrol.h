@@ -31,6 +31,8 @@ class FanControl {
   static const unsigned int kPwmFreq50Khz;
   static const unsigned int kPwmFreq26Khz;
   static const unsigned int kPwmFreq206hz;
+  static const unsigned int kPwmDefaultTemperatureScale;
+  static const unsigned int kPwmDefaultDutyCycleScale;
 
   explicit FanControl(uint32_t channel)
       : pwm_channel_(channel),
@@ -40,20 +42,22 @@ class FanControl {
         var_speed_on_(false),
         lut_enabled_(true),
         self_start_enabled_(false),
-        duty_cycle_min_(0x59),
-        duty_cycle_max_(0xbf),
+        duty_cycle_scale_(kPwmDefaultDutyCycleScale),
+        duty_cycle_min_(0x33),
+        duty_cycle_max_(0xcc),
         duty_cycle_regulated_(0x00),
         duty_cycle_pwm_(0x00),
         duty_cycle_startup_(0x87),
-        duty_cycle_slope_(0x16),
-        duty_cycle_intercept_(0x0a),
+        temperature_scale_(kPwmDefaultTemperatureScale),
+        temperature_min_(0x33),
+        temperature_max_(0xcc),
         period_(0xfe),
-        diff_max_(0x02),
-        diff_min_(0x05) {}
+        step_(0x02),
+        threshold_(0x05) {}
 
   virtual ~FanControl();
 
-  bool Init(void);
+  bool Init(uint8_t min_temp=0, uint8_t max_temp=0, uint8_t n_levels=0);
   void Terminate(void);
   bool SelfStart(void);
   bool AdjustSpeed(uint32_t avg_temp);
@@ -79,13 +83,15 @@ class FanControl {
   bool var_speed_on_;
   bool lut_enabled_;
   bool self_start_enabled_;
-  uint16_t duty_cycle_min_;
-  uint16_t duty_cycle_max_;
-  uint16_t duty_cycle_regulated_;
-  uint16_t duty_cycle_pwm_;
-  uint16_t duty_cycle_startup_;
-  uint16_t duty_cycle_slope_;
-  uint16_t duty_cycle_intercept_;
+  uint16_t duty_cycle_scale_;  /* duty cycle scale */
+  uint16_t duty_cycle_min_;  /* minimum duty cycle */
+  uint16_t duty_cycle_max_;  /* maximum duty cycle */
+  uint16_t duty_cycle_regulated_;  /* current regulated duty cycle */
+  uint16_t duty_cycle_pwm_;  /* current pwm duty cycle */
+  uint16_t duty_cycle_startup_;  /* initial duty cycle */
+  uint16_t temperature_scale_;  /* temperature scale */
+  uint16_t temperature_min_;  /* minimum temperature */
+  uint16_t temperature_max_;  /* maximum temperature */
   /*
    * Period = period_ + 1 where period_ is the register value in chip.
    * (I have no idea why BRCM need it to be one short...), in this class, the
@@ -95,8 +101,8 @@ class FanControl {
    * Period a.k.a period_+1.
    */
   uint16_t period_;
-  uint16_t diff_max_;
-  uint16_t diff_min_;
+  uint16_t step_; /* The amount of change to increment/decrement per duty cycle change */
+  uint16_t threshold_; /* The threshold to affect duty cycle change */
 
   DISALLOW_COPY_AND_ASSIGN(FanControl);
 };

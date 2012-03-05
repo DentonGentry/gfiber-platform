@@ -13,8 +13,10 @@ namespace bruno_platform_peripheral {
 class GpIoFanSpeed;
 class PeripheralMon : public bruno_base::MessageHandler {
  public:
-  PeripheralMon(GpIoFanSpeed* fan_speed, unsigned int interval = 5000)
-      : fan_speed_(fan_speed), interval_(interval), last_time_(0), mgr_thread_(NULL) {
+  PeripheralMon(FanControl* fan_control, GpIoFanSpeed* fan_speed,
+                unsigned int interval = 5000)
+      : fan_speed_(fan_speed), fan_control_(fan_control),
+      interval_(interval), last_time_(0), mgr_thread_(NULL) {
   }
   virtual ~PeripheralMon();
 
@@ -31,6 +33,7 @@ class PeripheralMon : public bruno_base::MessageHandler {
   void Probe(void);
 
   bruno_base::scoped_ptr<GpIoFanSpeed> fan_speed_;
+  bruno_base::scoped_ptr<FanControl> fan_control_;
   unsigned int interval_;
   bruno_base::TimeStamp last_time_;
   bruno_base::Thread* mgr_thread_;
