@@ -8,7 +8,7 @@ case $reason in
     fi
 
     if [ -z "$new_ntp_servers" ]; then
-      /etc/init.d/S99ntpd restart
+      /etc/init.d/S75ntpd restart
       return
     fi
 
@@ -16,10 +16,10 @@ case $reason in
       echo "server $server"
     done) >/tmp/ntpd.conf
 
-    /etc/init.d/S99ntpd restart
+    /etc/init.d/S75ntpd restart
     ;;
 
   EXPIRE|FAIL|RELEASE|STOP)
-    /etc/init.d/S99ntpd stop
+    /etc/init.d/S75ntpd stop
     ;;
 esac
