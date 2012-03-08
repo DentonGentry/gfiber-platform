@@ -1,0 +1,112 @@
+#!/usr/bin/python
+# Copyright 2011 Google Inc. All Rights Reserved.
+#
+"""A command-line tool for uploading to gfiber-dropbox.appspot.com."""
+
+__author__ = 'apenwarr@google.com (Avery Pennarun)'
+
+import httplib
+import os.path
+import sys
+import time
+import urllib
+import zlib
+import options
+
+
+optspec = """
+upload-logs [options...] <filenames...>
+--
+s,server=          The server URL [https://gfiber-dropbox.appspot.com]
+k,key=             Add a key/value pair (format "-k key=value")
+"""
+
+
+class HttpError(Exception):
+  def __init__(self, result):
+    self.status = result.status
+    self.reason = result.reason
+    Exception.__init__(self, str(self))
+
+  def __str__(self):
+    return 'http status %d: %s' % (self.status, self.reason)
+
+
+def UrlSplit(url):
+  proto, rest = urllib.splittype(url)
+  hostport, rest = urllib.splithost(rest)
+  path, query = urllib.splitquery(rest)
+  return proto, hostport, path, query
+
+
+def HttpDo(method, url, content, headers):
+  """Make an HTTP request and return the result."""
+  proto, hostport, path, query = UrlSplit(url)
+  assert proto.lower() in ('http', 'https')
+  connection = httplib.HTTPConnection(hostport)
+  if query:
+    path += '?' + query
+  print 'Request: %r (q=%r)' % (path, query)
+  connection.request(method, path, content, headers)
+  result = connection.getresponse()
+  if result.status != 200:
+    raise HttpError(result)
+  print repr((result.status, result.reason))
+  return result.read()
+
+
+def UploadFile(url, filename, keys):
+  """Actually upload the given file to the server."""
+  while filename.startswith('/'):
+    filename = filename[1:]
+  start_url = os.path.join(url, 'upload', filename)
+  if keys:
+    start_url += '?' + urllib.urlencode(keys)
+  upload_url = HttpDo('GET', start_url, None, headers={})
+
+  splitter = 'foo-splitter-%f' % time.time()
+  content_type = 'multipart/form-data; boundary=%s' % splitter
+
+  basecontent = zlib.compress(open(filename).read())
+  attachment = ('--%(splitter)s\r\n'
+                'Content-Disposition: form-data; name="file";'
+                '  filename="%(filename)s"\r\n'
+                '\r\n'
+                '%(data)s'
+                '\r\n'
+                '--%(splitter)s--\r\n'
+                '\r\n'
+                % dict(splitter=splitter,
+                       filename=os.path.abspath(filename),
+                       data=basecontent))
+
+  try:
+    HttpDo('POST', upload_url, attachment,
+           headers={'Content-Type': content_type,
+                    'Content-Length': len(attachment)})
+  except HttpError, e:
+    if e.status == 302:
+      pass
+    else:
+      raise
+  else:
+    raise Exception('expected http response code 302')
+
+
+def main():
+  o = options.Options(optspec)
+  (opt, flags, extra) = o.parse(sys.argv[1:])  #pylint: disable-msg=W0612
+  if not extra:
+    o.fatal('at least one filename expected')
+  keys = []
+  for k, v in flags:
+    print k, v
+    if k in ('-k', '--key'):
+      keys.append(tuple(v.split('=', 1)))
+
+  for filename in extra:
+    UploadFile(opt.server, filename, keys)
+
+
+if __name__ == '__main__':
+  main()
