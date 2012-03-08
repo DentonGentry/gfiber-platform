@@ -1,0 +1,10 @@
+#!/bin/sh
+exec >&2
+{ read email; read pass; } <<EOF
+$(cat $HOME/.iou-appengine-pass)
+EOF
+"$HOME/src/google_appengine/appcfg.py" update . \
+    --email "$email" \
+    --passin <<EOF
+$pass
+EOF

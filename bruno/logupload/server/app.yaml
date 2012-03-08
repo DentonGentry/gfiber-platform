@@ -1,0 +1,13 @@
+application: gfiber-dropbox
+version: 1
+runtime: python27
+api_version: 1
+threadsafe: true
+
+handlers:
+- url: /upload/.*
+  script: app.wsgi_app
+
+- url: /.*
+  script: app.wsgi_app
+  login: required

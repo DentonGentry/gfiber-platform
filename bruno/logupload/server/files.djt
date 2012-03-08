@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>GFiber Logbox</title>
+
+<style>
+  .filetime {
+    color: #888;
+    margin-left: 0.5em;
+  }
+</style>
+
+</head>
+
+<body>
+
+<form method='GET' action='/'>
+Search: <input name='q' value='{{query}}' id='q'></input>
+</form>
+
+{% if query %}
+  Matching files:
+{% else %}
+  Available Files:
+{% endif %}
+
+<ul>
+{% if files %}
+  {% for file in files %}
+   <li>
+     <a href="/{{file.key}}/{{file.name}}"
+       >{{file.name}}{% for meta in file.meta %}
+       {{meta}}
+     {% endfor %}</a>
+     <span class="filetime">{{file.nice_create_time}}</span>
+   </li>
+  {% endfor %}
+{% else %}
+  <li>None.</li>
+{% endif %}
+</ul>
+
+<script>
+document.getElementById('q').focus();
+</script>
+
+</body>
+</html>
