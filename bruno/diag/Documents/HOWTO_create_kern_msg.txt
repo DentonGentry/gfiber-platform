@@ -22,10 +22,10 @@ Each line format in the files:
           2 - software error
           3 - warning
           4 - info
+ code   - indicate error code and its value is 4 digits of hex number.
  dkmsg  - follw by the kernel string to be compared.
 
 Examples:
 
- dtoken=0 dact=log msglvl=2 dkmsg=eth0: out of resource.
- dtoken=1 dact=hwerr msglvl=2 dkmsg=moca_probe: can't get mailbox @@@ base.
-
+ dtoken=0 dact=hwerr msglvl=1 code=0001 dkmsg=moca_probe: can't get resources
+ dtoken=1 dact=log msglvl=2 code=0101 dkmsg=bcmgenet_xmit: tx ring @@@ full when queue awake

@@ -8,7 +8,7 @@ SRCS		:= diagd.c diagTest.c
 OBJS		:= diagd diagTest
 
 # It is the diag core files
-CORE_OBJS	:= diagParseKernMsgs.o diagMonApis.o diagNetworkTests.o diagApis.o diagLogging.o diagSubs.o diagMoca.o diagParseRefData.o
+CORE_OBJS	:= diagParseKernMsgs.o diagMonApis.o diagNetworkTests.o diagApis.o diagLogging.o diagSubs.o diagMoca.o diagParseRefData.o diagError.o
 
 
 .PHONY: all

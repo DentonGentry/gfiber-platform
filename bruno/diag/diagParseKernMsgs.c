@@ -48,6 +48,20 @@
 #define KERN_SYSLOG_PRECEDING_STR     "kernel:"
 #define KERN_SYSLOG_PRECEDING_STR_SZ  strlen(KERN_SYSLOG_PRECEDING_STR)
 
+#define DIAGD_DB_FS                   "/var/log/diagd/diagdb.bin"
+#define NUMBYTES                      (1024)
+#define FILESIZE                      (NUMBYTES * sizeof(char))
+#define DEFAULT_UTC_TS                "Jan  1 1970 00:00:00"
+#define DEFAULT_UTC_TS_SZ             strlen(DEFAULT_UTC_TS)
+#define DIAGD_FILE_POS_INDEX          (DEFAULT_UTC_TS_SZ +1)
+
+/* "Mmm dd hh:mm:ss" is the timestamp format in the very beginning of
+ * a kernel error/warning message.
+ */
+#define KERN_SYSLOG_TS_FORMAT         "Mmm dd hh:mm:ss"
+#define KERN_SYSLOG_TS_SZ             strlen(KERN_SYSLOG_TS_FORMAT)
+#define KERN_SYSLOG_TS_INDEX          KERN_SYSLOG_TS_SZ
+
 
 /* Log message level in string.
  * NOTE - Must sync up to the definition of diag_log_msg_err_levels.
@@ -75,6 +89,7 @@ const char *diagd_logmsg_lvl[] = {
 static int diag_parse_dkmsg_split(char *pMsg, diag_dkmsg_t *pDkmsgInfo)
 {
   char *str_ptr = NULL;
+  char *tmpPtr = NULL;
   char *pMsgTmp = pMsg;
   int   rtn = DIAGD_RC_ERR;
   int   tokenLen;
@@ -133,6 +148,26 @@ static int diag_parse_dkmsg_split(char *pMsg, diag_dkmsg_t *pDkmsgInfo)
 
     pMsgTmp = str_ptr;
 
+    /* Parse "code" token setting */
+    if ((str_ptr = strstr(pMsgTmp, DIAG_PARSE_MSG_CODE_STR)) != NULL) {
+      str_ptr += DIAG_PARSE_MSG_CODE_STR_LEN;
+      tokenLen = DIAG_PARSE_MSG_CODE_STR_LEN;
+      if ((tmpPtr = strchr(str_ptr, ' ')) != NULL) {
+         tmpPtr[0] = '\0';
+         sscanf(str_ptr, "%4x", (unsigned int *) &(pDkmsgInfo->code));
+         tmpPtr[0] = ' ';
+      }
+      else {
+         break;            /* Bad. Couldn't find the space after "code" token */
+      }
+    }
+    else {
+      break;            /* Bad. Couldn't find the token */
+    }
+
+    /* Same reason. Move the pointer to the end of "code" token */
+    pMsgTmp = str_ptr + tokenLen;
+
     /* Parse "pDkmsg" token to get the monitored message */
     str_ptr = strstr(pMsgTmp, DELIM_DKMSG);
     if (str_ptr == NULL)
@@ -145,9 +180,9 @@ static int diag_parse_dkmsg_split(char *pMsg, diag_dkmsg_t *pDkmsgInfo)
 
   } while (0);
 
-  DIAGD_TRACE("%s: rtn=%d, dtoken=%d, dact=%d, msglvl=%d, pDkmsg=%s", 
+  DIAGD_TRACE("%s: rtn=%d, dtoken=%d, dact=%d, msglvl=%d, code =%4x, pDkmsg=%s",
               __func__, rtn, pDkmsgInfo->dtoken, pDkmsgInfo->dact, 
-              pDkmsgInfo->msglvl, pDkmsgInfo->pDkmsg);
+              pDkmsgInfo->msglvl, pDkmsgInfo->code, pDkmsgInfo->pDkmsg);
 
   if (rtn != DIAGD_RC_OK) {
 /* ==> TODO 2011/10/06 Log as an SW error to indicate bad string in the file */
@@ -169,7 +204,7 @@ static int diag_parse_dkmsg_split(char *pMsg, diag_dkmsg_t *pDkmsgInfo)
  * DIAGD_RC_OK  -    OK
  * DIAGD_RC_ERR -    failed
  */
-int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, char *pDkmsg)
+int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char kmsgErrLevel, unsigned short code, char *pDkmsg)
 {
   int   rtn = DIAGD_RC_OK;
 
@@ -195,8 +230,8 @@ int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, char
     }
 
     if (pDkmsg != NULL) {
-      /* Log the message to the diagd log file */
-      DIAGD_LOG("%s %s", diagd_logmsg_lvl[kmsgErrLevel], pDkmsg);
+      /* Log the message with timestamp to the diagd log file */
+      DIAGD_LOG_W_TS("%s %s %4x %s", timestamp, diagd_logmsg_lvl[kmsgErrLevel], code, pDkmsg);
     }
   } while (0);
 
@@ -227,7 +262,7 @@ int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, char
  * true   - found a matched message in file.
  * false  - no message matched.
  */
-bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
+bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName, char *timestamp)
 {
   FILE         *ifp;
   char          monitoredKernMsg[DIAG_MSG_MAXLINELEN];
@@ -342,8 +377,13 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
   /* If found a matched message, log the kernel message and handle per the dact setting */
   if (msgMatched == true) {
     DIAGD_LOG_ALERT_HANDLER(dkmsgInfo.dact, 
+                            timestamp,
                             dkmsgInfo.msglvl, 
+                            dkmsgInfo.code,
                             pKernMsg);
+    
+    /* update diag Error or Warning Count */
+    diagUpdateErrorCount(timestamp, dkmsgInfo.code);
   }
 
 
@@ -354,6 +394,88 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
 
 } /* end of diag_parse_cmp_dkmsg */
 
+
+int get_diagDb_mmap(char **mapPtr)
+{
+    int result;
+    int fd;
+    char *map = (char *) NULL;
+    long *filePos = (long *) NULL;
+    bool isNewFile = false;
+
+    /* Open diagd database file for read and write.
+     *  - Creating the file if it doesn't exist.
+     *
+     */
+    if (access(DIAGD_DB_FS, F_OK) != 0) {
+       /* file does not exist then create */
+       fd = open(DIAGD_DB_FS, O_RDWR | O_CREAT, (mode_t)0644);
+       if (fd == -1) {
+          DIAGD_TRACE("Error create and open file %s for read and write!", DIAGD_DB_FS);
+          return(-1);
+       }
+
+    /* Stretch the file size to the size of the (mmapped) array of ints
+     */
+
+       result = lseek(fd, FILESIZE-1, SEEK_SET);
+       if (result == -1) {
+          close(fd);
+          DIAGD_TRACE("Error calling lseek() to stretch the file %s", DIAGD_DB_FS);
+          return(-1);
+       }
+
+    /* Something needs to be written at the end of the file to
+     * have the file actually have the new size.
+     * Just writing an empty string or actually '\0'
+     * at the current file position will do.
+     *
+     */
+       result = write(fd, "", 1);
+       if (result != 1) {
+          close(fd);
+          DIAGD_TRACE("Error writing last byte of the file %s", DIAGD_DB_FS);
+          return(-1);
+       }
+       
+       isNewFile = true;
+    }
+    else {
+    /* diagd database file already exist. Open this file for read and write */
+       fd = open(DIAGD_DB_FS, O_RDWR, (mode_t)0644);
+       if (fd == -1) {
+          DIAGD_TRACE("Error opening file %s for writing", DIAGD_DB_FS);
+          return(-1);
+       }
+    }
+
+
+
+    /* Now the file is ready to be mmapped.
+     */
+    map = mmap(0, FILESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (map == MAP_FAILED) {
+        close(fd);
+        DIAGD_TRACE("Error mmapping the file %s", DIAGD_DB_FS);
+        return(-1);
+    }
+
+    if (isNewFile) {
+       /* 
+        * write default data to diagd database:
+        *    timestamp "Jan  1 1970 00:00:00"
+        *    filePosPrevRun = 0
+        */ 
+        strcpy(map, DEFAULT_UTC_TS);
+        map[DEFAULT_UTC_TS_SZ] = '\0'; 
+        filePos = (long *) &(map[DIAGD_FILE_POS_INDEX]); 
+        *filePos = (long) 0L;
+    }
+
+    *mapPtr = map;
+
+    return fd;
+}
 
 /*
  * 1) Read kernel messages from a /var/log/kern.log
@@ -378,8 +500,14 @@ int Diag_Mon_ParseExamine_KernMsg(void)
   bool  msgFound = false;
   char  kernMsgErrLevel = DIAG_KERN_MSG_MAX;
   char  *kMsgPtr = NULL;
-  long  currentFilePos = (long) 0;
-  static long filePosPrevRun = (long) 0;
+  long  currentFilePos = (long) 0L;
+  long  *filePosPrevRun = (long *) NULL;
+  char   newtimeStr[24];
+  time_t now, newtime, diagdTimeStamp;
+  struct tm tm, *ptm, diagdTm;
+  static int    thisYear;
+  int    diagdFd = 0;
+  char   *diagdMap = NULL;
 
   DIAGD_TRACE("%s: enter", __func__);
 
@@ -392,7 +520,27 @@ int Diag_Mon_ParseExamine_KernMsg(void)
     }
     else {
       /* It is first time running routine after power-up. */
-      diag_chkKernMsg_firstRun = false;     /* Clear the flag. */
+       diag_chkKernMsg_firstRun = false;     /* Clear the flag. */
+
+       /*
+       * get current year since year is missing in the timestamp
+       * of syslog kernel messages.
+       */
+       time(&now);
+       ptm = localtime(&now);
+       thisYear = ptm->tm_year;
+    }
+
+    /* get mmap of diag databse file */
+    if ((diagdFd = get_diagDb_mmap(&diagdMap)) < 0) {
+       DIAGD_DEBUG("get_diagDb_mmap failed");
+       break;
+    }
+    /* read in timestamp and file position in the previous run from DIAGD_DB_FS */
+    else {
+       strptime(diagdMap, "%b %d %Y %T", &diagdTm);
+       diagdTimeStamp = mktime(&diagdTm);
+       filePosPrevRun  = (long *) &diagdMap[DIAGD_FILE_POS_INDEX];
     }
 
     /* Update the starting time of the api */
@@ -415,13 +563,14 @@ int Diag_Mon_ParseExamine_KernMsg(void)
     flags |= O_NONBLOCK;
     fcntl(fd, F_SETFL, flags);
 
-    if (filePosPrevRun) {
-       if (fseek(ifp, filePosPrevRun, SEEK_SET) != 0) {
-          DIAGD_DEBUG("Can not fseek the %s file to position %ld", KERN_SYSLOG_KMSG_FS, filePosPrevRun);
+    if (*filePosPrevRun) {
+       if (fseek(ifp, *filePosPrevRun, SEEK_SET) != 0) {
+          /* fail to fseek may be caused by log file rotation happens or file is corrupted */
+          DIAGD_DEBUG("Can not fseek  the %s file to position %ld", KERN_SYSLOG_KMSG_FS, *filePosPrevRun);
        }
     }
 
-    while (1) {
+    while (true) {
       /* 
        * If there is no message available, fgets will return NULL with errno set
        * to EWOULDBLCOK.
@@ -438,6 +587,27 @@ int Diag_Mon_ParseExamine_KernMsg(void)
           continue;
       }
       else {
+         
+         /* read in timestamp within the kernel message  */
+         kmsgMsg[KERN_SYSLOG_TS_INDEX]='\0';
+         strptime(kmsgMsg, "%b %d %T", &tm);
+         DIAGD_TRACE("original  timestamp:%s", kmsgMsg);
+         tm.tm_year = thisYear;
+
+         strftime(newtimeStr, sizeof(newtimeStr), "%b %d %Y %T", &tm);
+         DIAGD_TRACE("converted timestamp:%s", newtimeStr);
+         kmsgMsg[KERN_SYSLOG_TS_INDEX] = ' ';
+
+         /* timestamp of this to-be-processed
+          * kernel message is older than diagdTimeStamp.
+          * No need to parse this kernel message.
+          * Save the current file position and continue.
+          */
+         if (difftime(diagdTimeStamp, (newtime = mktime(&tm))) > 0) {
+            goto saveFilePos;
+         }
+
+         
          kMsgPtr = &kmsgMsg[0];
          /* set priority level to warning since the priority level of
           * logged kernel messages in kern.log is from warning to critical
@@ -478,9 +648,9 @@ int Diag_Mon_ParseExamine_KernMsg(void)
            * If it is a monitored kernel error, warning messages, handle it based on the
            * dact setting.
            */
-          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE);
-          if (msgFound == false) {
-             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE);
+          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE, newtimeStr);
+          if (msgFound == false) {  
+             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE, newtimeStr);
           }
           break;
 
@@ -489,18 +659,37 @@ int Diag_Mon_ParseExamine_KernMsg(void)
       }
       
       DIAGD_TRACE("errmsg: %s", kmsgMsg);
+
+      /* save new timestamp */
+      diagdTimeStamp = newtime; 
+      strcpy(diagdMap, newtimeStr);
+      diagdMap[strlen(newtimeStr)] = '\0'; 
+
+saveFilePos:
+      if ((currentFilePos = ftell(ifp)) < 0) {
+         DIAGD_DEBUG("ftell failed to get current position of the %s file", KERN_SYSLOG_KMSG_FS);
+         break;
+      }
+      else {
+         /* save  file position to DIAGD_DB_FS */
+         *filePosPrevRun = currentFilePos;
+      }
     }
 
   } while (0); /* TODO 03092012 remove while(0) later */ 
 
   if (ifp != NULL) {
-    if ((currentFilePos = ftell(ifp)) < 0) {
-       DIAGD_DEBUG("ftell failed to get current position of the %s file", KERN_SYSLOG_KMSG_FS);
-    }
-    else {
-       filePosPrevRun = currentFilePos;
-    }
     fclose(ifp);
+  }
+
+  if (diagdFd > 0) {
+     close(diagdFd);
+
+    /*  unmap the mapped virtual memory address space of the diag database file
+     */
+     if (munmap(diagdMap, FILESIZE) == -1) {
+        DIAGD_TRACE("Error un-mmapping the file");
+     }
   }
 
   DIAGD_TRACE("%s: exit", __func__);
@@ -551,7 +740,7 @@ int main(void)
 
 #if 1
     diag_parse_cmp_dkmsg("moca_m2m_xfer: DMA interrupt timed out, status 3344", 
-                         KERN_WARN_MSGS_FILE);
+                         KERN_WARN_MSGS_FILE, "");
 #endif /* end of 0 */
 
 #if 0
@@ -568,6 +757,5 @@ int main(void)
   diagtOpenEventLogFile();
   return 0;
 }
-
 #endif
 /* ======================================================================= */
