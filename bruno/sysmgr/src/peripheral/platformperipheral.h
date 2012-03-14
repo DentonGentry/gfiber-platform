@@ -36,7 +36,6 @@ class PlatformPeripheral {
   bruno_base::scoped_ptr<LedStandby> led_standby_;
   bruno_base::scoped_ptr<LedStatus> led_status_;
   bruno_base::scoped_ptr<FactoryResetButton> factory_reset_button_;
-  bruno_base::scoped_ptr<TempMonitor> temp_monitor_;
   bruno_base::scoped_ptr<PeripheralMon> peripheral_mon_;
   bruno_base::scoped_ptr<Unmute> unmute_;
 

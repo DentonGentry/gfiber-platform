@@ -6,6 +6,7 @@
 #include "gpioconfig.h"
 #include "gpio.h"
 #include "gpiofanspeed.h"
+#include "fancontrol.h"
 #include "peripheralmon.h"
 #include <stdio.h>
 
@@ -27,6 +28,7 @@ void PeripheralMon::Probe(void) {
                  << " temperature:" << avsStatus.temperature/1000.0
                  << " fanspeed:" << fan_speed_->ResetCounter()*1000.0/(now - last_time_);
   }
+  fan_control_->DrivePwm((uint16_t)(avsStatus.temperature/1000));
   last_time_ = now;
   mgr_thread_->PostDelayed(interval_, this, static_cast<uint32>(EVENT_TIMEOUT));
 }
@@ -34,6 +36,7 @@ void PeripheralMon::Probe(void) {
 void PeripheralMon::Init(bruno_base::Thread* mgr_thread, unsigned int interval) {
   interval_ = interval;
   mgr_thread_ = mgr_thread;
+  fan_control_->Init(50, 120, 10);
   fan_speed_->Init();
   Probe();
 }

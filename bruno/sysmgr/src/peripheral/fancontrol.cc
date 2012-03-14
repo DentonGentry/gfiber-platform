@@ -9,12 +9,14 @@ namespace bruno_platform_peripheral {
 const unsigned int FanControl::kPwmFreq50Khz = 0x7900;
 const unsigned int FanControl::kPwmFreq26Khz = 0x4000;
 const unsigned int FanControl::kPwmFreq206hz = 0x0080;
+const unsigned int FanControl::kPwmDefaultTemperatureScale = 0x11;
+const unsigned int FanControl::kPwmDefaultDutyCycleScale = 0x11;
 
 FanControl::~FanControl() {
   Terminate();
 }
 
-bool FanControl::Init() {
+bool FanControl::Init(uint8_t min_temp, uint8_t max_temp, uint8_t n_levels) {
   NEXUS_PwmChannelSettings pwm_channel_settings;
   NEXUS_Pwm_GetDefaultChannelSettings(&pwm_channel_settings);
   pwm_channel_settings.eFreqMode = NEXUS_PwmFreqModeType_eConstant;
@@ -23,6 +25,39 @@ bool FanControl::Init() {
     LOG(LS_ERROR) << "NEXUS_Pwm_OpenChannel failed";
     return false;
   }
+  if (max_temp < min_temp) {
+    LOG(LS_ERROR) << "Maximum temperature " << max_temp << " is less than"
+                  << " minimum temperature" << min_temp;
+    return false;
+  }
+  if (max_temp == min_temp || n_levels == 0) {
+    duty_cycle_scale_ = 0;
+    temperature_scale_ = 0;
+    duty_cycle_pwm_ = duty_cycle_startup_;
+  } else {
+    temperature_max_ = max_temp;
+    temperature_min_ = min_temp;
+    temperature_scale_ = (max_temp-min_temp)/(n_levels-1);
+    duty_cycle_scale_ = (duty_cycle_max_-duty_cycle_min_)/(n_levels-1);
+    if ((max_temp-min_temp)%temperature_scale_) {
+      LOG(LS_WARNING) << "Maximum temperature is rounded to "
+                      <<  min_temp*(n_levels-1)*temperature_scale_
+                      << ", original maximum temperature " << max_temp
+                      << ", minimum temperature " << min_temp
+                      << ", number of levels " << n_levels
+                      << ". To avoid this, set the differential between "
+                      << "maximum and minimum temperatures as a multiple "
+                      << "of number of levels";
+    }
+    threshold_ = duty_cycle_scale_/4;
+    threshold_ = threshold_<2?2:threshold_;
+    step_ = duty_cycle_scale_/2;
+    step_ = step_<4?4:step_;
+  }
+  LOG(LS_INFO) << "Maximum temperature" << temperature_max_
+                << ", minimum temperature" << temperature_min_
+                << ", threshold" << threshold_
+                << ", step" << step_;
   return InitPwm();
 }
 
@@ -63,7 +98,7 @@ bool FanControl::InitPwm() {
     return false;
   }
 
-  if (!DrivePwm(0)) {
+  if (!DrivePwm(duty_cycle_pwm_)) {
     LOG(LS_ERROR) << "FanControl::DrivePwm failed";
     return false;
   }
@@ -75,7 +110,7 @@ bool FanControl::SelfStart() {
   bool ret = true;
   if (self_start_enabled_){
     /*
-     * Drive the fan with fancontrol_dutyCycleStartup for 1 second
+     * Drive the fan with duty_cycle_startup_ for 1 second
      */
     ret = DrivePwm(duty_cycle_startup_);
     if (!ret) {
@@ -118,7 +153,7 @@ bool FanControl::DrivePwm(uint16_t duty_cycle) {
   }
   if (duty_cycle == 0) {
     state_ = OFF;
-  } else if (duty_cycle == period_) {
+  } else if (duty_cycle == period_+1) {
     state_ = FULL_SPEED;
   } else {
     state_ = VAR_SPEED;
@@ -134,13 +169,17 @@ void FanControl::ComputeDutyCycle(uint32_t avg_temp, uint16_t *new_duty_cycle_pw
 
   *new_duty_cycle_pwm = duty_cycle_pwm_; /* initialize it to current value */
 
-  /*
-   * Compute duty cyle: y = mx + b
-   */
-  /* TODO: Multiply the slope, integer and fraction parts */
+  if (duty_cycle_scale_ == 0 || temperature_scale_ == 0) {
+    return;
+  }
 
-  compute_duty_cycle = avg_temp * duty_cycle_slope_;
-  compute_duty_cycle += duty_cycle_intercept_;
+  if (avg_temp < temperature_min_){
+    LOG(LS_INFO) << "Set dutycycle to minimum 0x" << std::hex << duty_cycle_min_;
+    *new_duty_cycle_pwm = duty_cycle_min_;
+    return;
+  }
+
+  compute_duty_cycle = duty_cycle_min_ + (avg_temp-temperature_min_)*duty_cycle_scale_/temperature_scale_;
 
   LOG(LS_INFO) << "FanControl::ComputeDutyCycle - compute_duty_cycle = 0x" << std::hex << compute_duty_cycle;
 
@@ -171,11 +210,11 @@ void FanControl::ComputeDutyCycle(uint32_t avg_temp, uint16_t *new_duty_cycle_pw
       /* rise in temp */
       diff = compute_duty_cycle - duty_cycle_regulated_;
       /*
-       * Difference must be greater than the min diff to affect a change
+       * Difference must be greater than the threshold to affect a change
        * in duty cycle
        */
-      if (diff >= diff_min_) {
-        duty_cycle_regulated_ += diff_max_;    /* maximum step change */
+      if (diff >= threshold_) {
+        duty_cycle_regulated_ += step_;    /* maximum step change */
         if (duty_cycle_regulated_>duty_cycle_max_) {
           duty_cycle_regulated_ = duty_cycle_max_;
         }
@@ -186,11 +225,11 @@ void FanControl::ComputeDutyCycle(uint32_t avg_temp, uint16_t *new_duty_cycle_pw
       /* decreasing temp */
       diff = duty_cycle_regulated_ - compute_duty_cycle;
       /*
-       * Difference must be greater than the min diff to affect a change
+       * Difference must be greater than the threshold to affect a change
        * in duty cycle
        */
-      if (diff >= diff_min_) {
-        duty_cycle_regulated_ -= diff_max_;    /* maximum step change */
+      if (diff >= threshold_) {
+        duty_cycle_regulated_ -= step_;    /* maximum step change */
         if (duty_cycle_regulated_<duty_cycle_min_) {
           duty_cycle_regulated_ = duty_cycle_min_;
         }
