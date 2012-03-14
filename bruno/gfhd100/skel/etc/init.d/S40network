@@ -7,6 +7,7 @@ SERVICE='mocad'
 case "$1" in
   start)
 	echo "Starting network..."
+	PLATFORM=$(cat /etc/platform)
 	# configure loopback
 	/sbin/ifup lo
 	if [ ! -e /tmp/NFS ]; then
@@ -32,6 +33,11 @@ case "$1" in
 				brctl addif br0 $x
 			fi
 		done
+		if [ "$PLATFORM" = "GFHD100" ]; then
+			echo "Setting Ethernet to 10/100."
+			# 10/100 only, to avoid overwhelming MoCA.
+			ethtool -s eth0 advertise 0x01f
+		fi
 		sleep 1
 		echo -n "Bringing up the bridge... "
 		ifup br0
