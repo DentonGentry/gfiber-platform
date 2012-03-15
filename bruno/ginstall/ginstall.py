@@ -220,20 +220,39 @@ def install_to_ubi(f, mtd):
 
 
 class FileImage(object):
-  """A system image packaged as separate kernel and rootfs files."""
-  def __init__(self, kernelfile, rootfsfile):
+  """A system image packaged as separate kernel, rootfs and loader files."""
+  def __init__(self, kernelfile, rootfs, loader):
     self.kernelfile = kernelfile
-    self.rootfsfile = rootfsfile
+    self.rootfs = rootfs
+    self.loader = loader
+
+  def GetLoader(self):
+    if self.loader:
+      try:
+        return open(self.loader, "rb")
+      except IOError:
+        print("unable to open loader file %s" % self.loader)
+        return None
+    else:
+      return None
 
   def GetKernel(self):
     if self.kernelfile:
-      return open(self.kernelfile, "rb")
+      try:
+        return open(self.kernelfile, "rb")
+      except IOError:
+        print("unable to open kernel file %s" % self.kernelfile)
+        return None
     else:
       return None
 
   def GetRootFs(self):
-    if self.rootfsfile:
-      return open(self.rootfsfile, "rb")
+    if self.rootfs:
+      try:
+        return open(self.rootfs, "rb")
+      except IOError:
+        print("unable to open rootfs file %s" % self.rootfs)
+        return None
     else:
       return None
 
@@ -259,19 +278,25 @@ class TarImage(object):
     except KeyError:
       return None
 
+  def GetLoader(self):
+    try:
+      return self.tar_f.extractfile("loader.bin")
+    except KeyError:
+      return None
+
 
 def main():
   parser = optparse.OptionParser()
-  parser.add_option('-t', '--tar', dest='tarfile',
+  parser.add_option('-t', '--tar', dest='tar',
                     help='tar archive containing kernel and rootfs',
                     default=None)
-  parser.add_option('-k', '--kernel', dest='kernfile',
+  parser.add_option('-k', '--kernel', dest='kern',
                     help='kernel image to install',
                     default=None)
-  parser.add_option('-r', '--rootfs', dest='rootfsfile',
+  parser.add_option('-r', '--rootfs', dest='rootfs',
                     help='rootfs UBI image to install',
                     default=None)
-  parser.add_option('--loader', dest='loaderfile',
+  parser.add_option('--loader', dest='loader',
                     help='bootloader to install',
                     default=None)
   parser.add_option('--drm', dest='drmfile',
@@ -287,18 +312,6 @@ def main():
 
   (options, args) = parser.parse_args()
   quiet = options.quiet
-  if options.loaderfile is not None:
-    print("DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.");
-    try:
-      loader = open(options.loaderfile, "rb")
-    except IOError:
-      print("unable to open loader file %s" % options.loaderfile)
-      return 1
-    mtd = get_mtd_dev_for_partition("cfe")
-    verbose_print("Writing loader to {0}".format(mtd))
-    install_to_mtd(loader, mtd)
-    verbose_print("\n")
-
   if options.drmfile is not None:
     print("DO NOT INTERRUPT OR POWER CYCLE, or you will lose drm capability.");
     try:
@@ -330,19 +343,20 @@ def main():
   else:
     partition = None
 
-  if options.tarfile or options.kernfile or options.rootfsfile:
+  if options.tar or options.kern or options.rootfs or options.loader:
     if not partition:
-      print("A --partition option must be provided.")
+      print("A --partition option must be provided. Even for just loader, a"
+            " a dummy partition number is still needed.")
       return 1
     if partition not in gfhd100_partitions:
       print("--partition must be one of: " + str(gfhd100_partitions.keys()))
 
-    if options.tarfile:
-      img = TarImage(options.tarfile)
-      if options.kernfile or options.rootfsfile:
-        print("--tar option provided, ignoring --kernel and --rootfs")
+    if options.tar:
+      img = TarImage(options.tar)
+      if options.kern or options.rootfs or options.loader:
+        print("--tar option provided, ignoring --kernel, --rootfs and --loader")
     else:
-      img = FileImage(options.kernfile, options.rootfsfile)
+      img = FileImage(options.kern, options.rootfs, options.loader)
 
     pnum = gfhd100_partitions[partition]
     kern = img.GetKernel()
@@ -357,6 +371,14 @@ def main():
       mtd = get_mtd_dev_for_partition("rootfs" + str(pnum))
       verbose_print("Writing rootfs to {0}".format(mtd))
       install_to_ubi(rootfs, mtd)
+      verbose_print("\n")
+
+    loader = img.GetLoader()
+    if loader is not None:
+      print("DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.");
+      mtd = get_mtd_dev_for_partition("cfe" + str(pnum))
+      verbose_print("Writing loader to {0}".format(mtd))
+      install_to_mtd(loader, mtd)
       verbose_print("\n")
 
   if partition:

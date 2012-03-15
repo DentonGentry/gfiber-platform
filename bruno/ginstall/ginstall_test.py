@@ -93,18 +93,22 @@ class ImginstTest(unittest.TestCase):
     tarimg = ginstall.TarImage("testdata/img/vmlinux.tar")
     self.assertEqual(tarimg.GetKernel().read(), "vmlinux")
     self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs_ubi")
+    self.assertEqual(tarimg.GetLoader().read(), "loader.bin")
     tarimg = ginstall.TarImage("testdata/img/vmlinuz.tar")
     self.assertEqual(tarimg.GetKernel().read(), "vmlinuz")
     self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs_ubi")
+    self.assertEqual(tarimg.GetLoader().read(), "loader.bin")
     tarimg = ginstall.TarImage("testdata/img/vmboth.tar")
     self.assertEqual(tarimg.GetKernel().read(), "vmlinuz")
     self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs_ubi")
 
   def testFileImage(self):
     fileimg = ginstall.FileImage("testdata/img/vmlinux",
-                                 "testdata/img/rootfs.ubi")
+                                 "testdata/img/rootfs.ubi",
+                                 "testdata/img/loader.bin")
     self.assertEqual(fileimg.GetKernel().read(), "vmlinux")
     self.assertEqual(fileimg.GetRootFs().read(), "rootfs.ubi")
+    self.assertEqual(fileimg.GetLoader().read(), "loader.bin")
 
   def testGetFileSize(self):
     self.assertEqual(ginstall.get_file_size(open("testdata/img/vmlinux")), 7)
@@ -185,11 +189,11 @@ class ImginstTest(unittest.TestCase):
   def testBootedPartition(self):
     ginstall.PROC_MTD = "testdata/proc/mtd.bruno"
     ginstall.SYS_UBI0 = "/path/to/nonexistant/file"
-    self.assertEqual(ginstall.booted_partition(), None)
+    self.assertEqual(ginstall.get_booted_partition(), None)
     ginstall.SYS_UBI0 = "testdata/sys/class/ubi/ubi0.primary"
-    self.assertEqual(ginstall.booted_partition(), "primary")
+    self.assertEqual(ginstall.get_booted_partition(), "primary")
     ginstall.SYS_UBI0 = "testdata/sys/class/ubi/ubi0.secondary"
-    self.assertEqual(ginstall.booted_partition(), "secondary")
+    self.assertEqual(ginstall.get_booted_partition(), "secondary")
 
   def testOtherPartition(self):
     self.assertEqual(ginstall.get_other_partition("primary"), "secondary")
