@@ -30,7 +30,7 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 bool   diag_getStats_firstRun = true;
 time_t diagStartTm_getStats = 0;
 
-/* Start time of Diag_Mon_ParseExame_KernMsg() */
+/* Start time of Diag_Mon_ParseExamine_KernMsg() */
 bool   diag_chkKernMsg_firstRun = true;
 time_t diagStartTm_chkKernMsg = 0;
 

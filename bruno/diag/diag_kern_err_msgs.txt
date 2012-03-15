@@ -48,7 +48,10 @@ dtoken=0 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't allocate IRQ @@@ err
 
 dtoken=0 dact=hwerr msglvl=1 dkmsg=brcmstb_nand_init: can't allocate IRQ @@@ error @@@
 
-
+mm
+dtoken=1 dact=log msglvl=1 dkmsg=MCE @@@: Killing @@@ early due to hardware memory corruption
+dtoken=1 dact=log msglvl=1 dkmsg=MCE: Out of memory while machine check handling
+dtoken=1 dact=log msglvl=1 dkmsg=MCE @@@: already hardware poisoned
 
 
 
