@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Google Inc. All Rights Reserved.
+ * Copyright 2011 - 2012 Google Inc. All Rights Reserved.
  *
  * This file provides diagnostics monitoring related functions
  *
@@ -45,17 +45,22 @@
 #include "diagdDefs.h"
 #include "diagMonApis.h"
 #include "diagParseKernMsgs.h"
-#include "diagSubs.h"
 
-#include "moca/dslcompat/devctl_moca.h"
+#ifdef DIAG_TEST_UTIL
+ #include "devctl_moca.h"
+ #include "mocalib.h"
+#else
+ #include "moca/dslcompat/devctl_moca.h"
+ #include "moca/mocalib.h"
+#endif /* DIAG_TEST_TUILE */
 
-#include "moca/mocalib.h"
 #include "diagMoca.h"
+#include "diagSubs.h"
 #include "diagNetworkTests.h"
 #include "diagApisHostCmd.h"
 #include "diagLogging.h"
 #include "diagApis.h"
-
+#include "diagParseRefData.h"
 
 #define MOD_NAME  "diagd\0"
 

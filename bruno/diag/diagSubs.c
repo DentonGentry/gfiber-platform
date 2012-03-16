@@ -793,7 +793,7 @@ void diag_Check_netStatistics(diag_netIf_info_t *pNetIf)
      */
     DIAG_CHK_ERR_THLD(pDelta->rx_packets,
                       pDelta->rx_crc_errors,
-                      DIAG_NET_THLD_PCT_RX_CRC_ERRS,
+                      diagNetThld_pctRxCrcErrs,
                       err);
     if (err == true) {
       /* The crc errors exceeds the error threshold */
@@ -810,7 +810,7 @@ void diag_Check_netStatistics(diag_netIf_info_t *pNetIf)
      */
     DIAG_CHK_ERR_THLD(pDelta->rx_packets,
                       pDelta->rx_frame_errors,
-                      DIAG_NET_THLD_PCT_RX_FRAME_ERRS,
+                      diagNetThld_pctRxFrameErrs,
                       err);
     if (err == true) {
       /* The frame errors exceeds the error threshold */
@@ -827,7 +827,7 @@ void diag_Check_netStatistics(diag_netIf_info_t *pNetIf)
      */
     DIAG_CHK_ERR_THLD(pDelta->rx_packets,
                       pDelta->rx_length_errors,
-                      DIAG_NET_THLD_PCT_RX_LEN_ERRS,
+                      diagNetThld_pctRxLenErrs,
                       err);
     if (err == true) {
       /* The frame errors exceeds the error threshold */
@@ -1063,6 +1063,9 @@ int diagd_Init(void)
       DIAGD_DEBUG("%s: failed to init diagMoCA module....", __func__);
       break;
     }
+
+    /* Parse the reference data */
+    diagReadDiagDataFile(DIAGD_REF_DATA_FILE);
 
     DIAGD_TRACE("%s - rtn=0x%X", __func__, rtn);
 

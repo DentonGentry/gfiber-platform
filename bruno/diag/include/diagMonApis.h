@@ -28,19 +28,18 @@
 #define DIAG_WAIT_TIME_RUN_GET_NET_STATS  \
     (DIAG_WAIT_TIME_GET_NET_STATS_MINS * DIAG_SECS_PER_MIN)
 /* Wait time of running parsing kernel messages (printk) */
-#define DIAG_THLD_LINK_STATE_CNTS_MINS      1
+#define DIAG_WAIT_TIME_CHECK_KERN_MSGS_MINS 1
 #define DIAG_WAIT_TIME_RUN_CHK_KMSG       \
-    (DIAG_THLD_LINK_STATE_CNTS_MINS * DIAG_SECS_PER_MIN)
-
+    (DIAG_WAIT_TIME_CHECK_KERN_MSGS_MINS * DIAG_SECS_PER_MIN) 
 /* Wait time of monitoring MoCA discard pkts cnts (error counters) */
-#define DIAG_MOCA_MON_MON_ERR_CNTS      1
+#define DIAG_MOCA_MON_ERR_CNTS      1
 #define DIAG_WAIT_TIME_MOCA_MON_ERR_CNTS  \
-    (DIAG_MOCA_MON_MON_ERR_CNTS * DIAG_SECS_PER_MIN)
+    (DIAG_MOCA_MON_ERR_CNTS * DIAG_SECS_PER_MIN)
 
 /* Wait time of monitoring MoCA discard pkts cnts (error counters) */
-#define DIAG_MOCA_MON_MON_SERVICE_PERF  1
+#define DIAG_MOCA_MON_SERVICE_PERF  1
 #define DIAG_WAIT_TIME_MOCA_MON_SERVICE_PERF  \
-    (DIAG_MOCA_MON_MON_SERVICE_PERF * DIAG_SECS_PER_MIN)
+    (DIAG_MOCA_MON_SERVICE_PERF * DIAG_SECS_PER_MIN)
 
 
 /*
@@ -57,8 +56,7 @@
 /* The threshold of rx length error in percentage */
 #define DIAG_NET_THLD_PCT_RX_LEN_ERRS     3
 
-// #define DIAG_THLD_LINK_STATE_CNTS_MIN     20    /* Link stat check per mins */
-#define DIAG_THLD_LINK_STATE_CNTS_MIN     5    /* Link stat check per mins */
+#define DIAG_THLD_LINK_STATE_CNTS_MIN     5     /* Link stat check per mins */
 #define DIAG_THLD_LINK_STATE_CNTS   \
     (DIAG_THLD_LINK_STATE_CNTS_MIN * DIAG_WAIT_TIME_GET_NET_STATS_MINS)
 
@@ -265,8 +263,9 @@ typedef struct _diag_info_blk {
 
 
 /*
- * Declare global data
+ * Declare diagMonApis related global variables
  */
+
 /*
  * Timestamp of starting time of a hardware monitoring APis
  */
@@ -280,12 +279,37 @@ extern time_t diagStartTm_chkKernMsg;
 
 extern pthread_mutex_t lock;
 
+/* 
+ * Monitoring thresholds 
+ */
+/* net statistics releated thresholds */
+extern uint32_t  diagNetThld_pctRxCrcErrs;
+extern uint32_t  diagNetThld_pctRxFrameErrs;
+extern uint32_t  diagNetThld_pctRxLenErrs;
+
+/* MoCA related thresholds */
+extern uint32_t  diagMocaThld_pctTxDiscardPkts;
+extern uint32_t  diagMocaThld_pctRxDiscardPkts;
+
+/* Net interface link up/down cnts */
+extern uint32_t  diagNetlinkThld_linkCnts;
+
+/* 
+ * Monitoring intervals (wait times in seconds) 
+ * */
+/*  Wait time of getting net statistices (include net link counts) */
+extern time_t  diagWaitTime_getNetStats;
+/* Wait time of checking kernel messages */
+extern time_t  diagWaitTime_chkKernMsgs;
+/* Wait time of monitoring MoCA error counts via mocad */
+extern time_t  diagWaitTime_MocaChkErrs;
+/* Wait time of monitoring MoCA performance */
+extern time_t  diagWaitTime_MocaMonPerf;
 
 /*
  * Prototypes
  */
 bool checkIfTimeout(int diagdApiIdx);
-int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode);
 int Diag_MonNet_GetNetIfStatistics();
 void diagd_Rd_Netlink_Msgs();
 int Diag_MonMoca_Err_Counts();

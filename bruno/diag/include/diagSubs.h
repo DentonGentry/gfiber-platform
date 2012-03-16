@@ -106,8 +106,10 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode);
 
 int diagd_Init(void);
 
-int diag_CmdHanlder_Init(void);
-void diag_CmdHanlder_Uninit(void);
+int diag_CmdHandler_Init(void);
+void diag_CmdHandler_Uninit(void);
+
+int diagMoca_GetConfig(diag_moca_config_t *pCfg);
 
 void diag_CloseFileDesc(int *pFd);
 
