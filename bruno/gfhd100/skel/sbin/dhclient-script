@@ -187,6 +187,7 @@ if [ x$reason = xBOUND ] || [ x$reason = xRENEW ] || \
   fi
   make_resolv_conf
   make_cwmp_files
+  [ ! -x /usr/bin/upload-crash-log ] || upload-crash-log
   exit_with_hooks 0
 fi
 

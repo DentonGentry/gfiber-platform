@@ -1,0 +1,94 @@
+#!/usr/bin/python
+# Copyright 2012 Google Inc. All Rights Reserved.
+#
+"""A command-line tool for uploading to gfiber-dropbox.appspot.com."""
+
+__author__ = 'apenwarr@google.com (Avery Pennarun)'
+
+import errno
+import os
+import re
+import subprocess
+import sys
+
+
+class SubprocError(Exception):
+  pass
+
+
+def ReadPipe(argv, **kwargs):
+  p = subprocess.Popen(argv, stdout=subprocess.PIPE, **kwargs)
+  data = p.stdout.read()
+  retval = p.wait()
+  if retval:
+    raise SubprocError('%r returned exit code %d' % (argv, retval))
+  return data
+
+
+def TryReadPipe(argv, **kwargs):
+  try:
+    return ReadPipe(argv, **kwargs)
+  except SubprocError:
+    return ''
+  except OSError, e:
+    if e.errno == errno.ENOENT:
+      return ''
+    else:
+      raise
+
+
+def ReFind(regex, key, data):
+  matches = re.findall(regex, data)
+  return ['%s=%s' % (key, i) for i in matches]
+
+
+def IfconfigData(ifcname):
+  """Returns a list of key/value pairs for the given network interface."""
+  data = TryReadPipe(['ip', 'addr', 'show', ifcname])
+  out = []
+  out += ReFind(r'inet ([\d.]+/\d+)', 'ip', data)
+  out += ReFind(r'inet6 ([\da-fA-F:/.]+/\d+)', 'ip6', data)
+  out += ReFind(r'link/ether ([\da-fA-F:]+)', 'hw', data)
+  return out
+
+
+def NvramData():
+  """Returns a list of key/value pairs based on NVRAM contents."""
+  data = TryReadPipe(['hnvram', '-r', '1ST_SERIAL_NUMBER'])
+  out = []
+  out += ReFind(r'(?:1ST_SERIAL_NUMBER=)?(.+)', 'serial', data)
+  return out
+
+
+def main():
+  p = subprocess.Popen(['dmesg'], stdout=subprocess.PIPE)
+  dmesg = p.stdout.read()
+  retval = p.wait()
+  if retval:
+    raise Exception('dmesg returned exit code %d' % retval)
+
+  bits = re.split(re.compile(r'^((?:\[[^\]]+\] )?'
+                             r'Linux version.*gcc version.*$)', re.M), dmesg)
+
+  # the last two entries are what happened during this boot;
+  # not interested in that until later (klogd will see it, or we'll catch it
+  # next time we crash)
+  bits[-2:] = []
+
+  crashmsg = ''.join(bits).strip()
+  if crashmsg:
+    keys = set(IfconfigData('br0') + IfconfigData('eth0') + NvramData())
+    os.environ['PATH'] += ':.'  # make sure PWD is searched for upload-logs
+    p = subprocess.Popen(['upload-logs', '--stdin', 'crashlog'] +
+                         ['-k%s' % i for i in keys],
+                         stdin=subprocess.PIPE)
+    p.stdin.write(crashmsg)
+    p.stdin.close()
+    retval = p.wait()
+    if retval:
+      raise Exception('upload-logs returned exit code %d' % retval)
+  else:
+    sys.stderr.write('No interesting crash log messages.\n')
+
+if __name__ == '__main__':
+  main()

@@ -19,6 +19,7 @@ upload-logs [options...] <filenames...>
 --
 s,server=          The server URL [https://gfiber-dropbox.appspot.com]
 k,key=             Add a key/value pair (format "-k key=value")
+stdin=             Also upload stdin, with the given virtual filename
 """
 
 
@@ -55,7 +56,7 @@ def HttpDo(method, url, content, headers):
   return result.read()
 
 
-def UploadFile(url, filename, keys):
+def UploadFile(url, filename, fileobj, keys):
   """Actually upload the given file to the server."""
   while filename.startswith('/'):
     filename = filename[1:]
@@ -67,7 +68,7 @@ def UploadFile(url, filename, keys):
   splitter = 'foo-splitter-%f' % time.time()
   content_type = 'multipart/form-data; boundary=%s' % splitter
 
-  basecontent = zlib.compress(open(filename).read())
+  basecontent = zlib.compress(fileobj.read())
   attachment = ('--%(splitter)s\r\n'
                 'Content-Disposition: form-data; name="file";'
                 '  filename="%(filename)s"\r\n'
@@ -77,7 +78,7 @@ def UploadFile(url, filename, keys):
                 '--%(splitter)s--\r\n'
                 '\r\n'
                 % dict(splitter=splitter,
-                       filename=os.path.abspath(filename),
+                       filename=filename,
                        data=basecontent))
 
   try:
@@ -96,16 +97,18 @@ def UploadFile(url, filename, keys):
 def main():
   o = options.Options(optspec)
   (opt, flags, extra) = o.parse(sys.argv[1:])  #pylint: disable-msg=W0612
-  if not extra:
-    o.fatal('at least one filename expected')
+  if not extra and not opt.stdin:
+    o.fatal('at least one filename and/or --stdin expected')
   keys = []
   for k, v in flags:
     print k, v
     if k in ('-k', '--key'):
       keys.append(tuple(v.split('=', 1)))
 
+  if opt.stdin:
+    UploadFile(opt.server, opt.stdin, sys.stdin, keys)
   for filename in extra:
-    UploadFile(opt.server, filename, keys)
+    UploadFile(opt.server, filename, open(filename), keys)
 
 
 if __name__ == '__main__':
