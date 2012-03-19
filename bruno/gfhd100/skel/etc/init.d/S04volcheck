@@ -4,38 +4,74 @@
 #
 
 ROOTFS_TYPE="squashfs"
-ROOTFS_MTD_NO=17
+UBIFS_MTD_NO=14
+ROOTFS_MTD_NO=15
 ROOTFS_LOCATION=""
 KERNEL_OPTS=$(cat /proc/cmdline)
 
+mount_volume() {
+  #echo "Mounting UBI volumes..."
+
+  # Mount user volume
+  mount -t ubifs ubi${1}:user /user
+  if [ $? -ne 0 ]; then
+    return 1
+  fi
+
+  # Mount config volume
+  mount -t ubifs ubi${1}:config /config
+  if [ $? -ne 0 ]; then
+    return 1
+  fi
+
+  return 0
+}
+
 recover_volume() {
+  # Detach UBI from MTD device
   ubidetach -m ${1} /dev/ubi_ctrl
+
+  # Format MTD device
   flash_erase /dev/mtd${1} 0 0
+
+  # Attach UBI to MTD device
   ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
-  ubimkvol /dev/ubi${2} -N ${3} -m
+
+  # Make UBI volumes
+  ubimkvol /dev/ubi${2} -N user -s 1232MiB
+  ubimkvol /dev/ubi${2} -N config -s 32MiB
+  ubimkvol /dev/ubi${2} -N checksum -s 1MiB
 }
 
 check_volume_and_mount () {
+  # Parameters:
+  # ${1} - MTD device number
+  # ${2} - UBI device numver that will be attached on MTD
+
+  # Attach UBI to MTD device
   ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
   if [ $? -eq 0 ]; then
     num_vol=$(ubinfo --devn=${2} | python -c "import sys;[sys.stdout.write(l.split(':')[1].strip()) for l in sys.stdin if 'Volumes count' in l]")
     if [ x${num_vol} = x'0' ] || [ x${num_vol} = x ]; then
       echo "No volume associated with mtd${1} (dev:${2}), formatting..."
-      recover_volume ${1} ${2} ${3}
+      recover_volume ${1} ${2}
     fi
-    mount -t ${5} ubi${2}:${3} /${4}
+
+    # Mount UBI volumes
+    mount_volume ${2}
     if [ $? -ne 0 ]; then
       echo "Mounting failed (may due to failed LEB scanning), trying to reformat the partition..."
-      recover_volume ${1} ${2} ${3}
-      mount -t ${5} ubi${2}:${3} /${4}
+      recover_volume ${1} ${2}
+
+      # Mount UBI volumes
+      mount_volume ${2}
+
       # :TODO: If this mount also fails, need to get TR-069 to indicate back to
       # the ACS that this box has failed..
     fi
   else
     echo "Failed to attach mtd${1} to ${2}, formatting..."
-    flash_eraseall /dev/mtd${1}
-    ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
-    ubimkvol /dev/ubi${2} -N ${3} -m
+    recover_volume ${1} ${2}
   fi
 }
 
@@ -91,8 +127,10 @@ case "$1" in
     if [ $? -ne 0 ]; then
       echo "Failed to mount rootfs, need to invoke TR-069 download"
     fi
-    check_volume_and_mount 14 1 user user ubifs
-    check_volume_and_mount 15 2 config config ubifs
+
+    # Create and mount UBI volumes    
+    check_volume_and_mount ${UBIFS_MTD_NO} 1
+
     [ ! -d /user/rw ] && mkdir -p /user/rw
     [ ! -d /user/moca ] && mkdir -p /user/moca
     [ ! -d /user/bsa ] && mkdir -p /user/bsa

@@ -1,6 +1,9 @@
 #!/bin/sh
 # devtmpfs does not get automounted for initramfs
 
+# rootfs MTD device number must be same as S04volckeck
+ROOTFS_MTD_NO=15
+
 mount -t devtmpfs devtmpfs /dev
 exec 0</dev/console
 exec 1>/dev/console
@@ -39,7 +42,7 @@ if [ -e /proc/scsi/usb-storage ]; then
 		/etc/init.d/S04volcheck start
 		# hack...
 		ubiattach -m 12 -d 0 /dev/ubi_ctrl
-		mount -t squashfs /dev/mtdblock17 /rootfs
+		mount -t squashfs /dev/mtdblock${ROOTFS_MTD_NO} /rootfs
 		echo "Installing new sagetv_server tarball"
 		rm -rf /user/rw/app/sage
 		mkdir -p /user/rw/app/sage
