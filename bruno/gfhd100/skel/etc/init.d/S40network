@@ -51,8 +51,15 @@ case "$1" in
 		echo -n "mocacfg kill"
 		mocacfg kill
 		echo "done"
-		echo "move the IRQ handling for Moca to the 2nd core"
-		echo 2 > /proc/irq/31/smp_affinity
+		echo "distribute IRQ handling between cores"
+		# IRQ 62 (Serial port) & 31 (MoCA) on CPU 1.
+		echo 1 > /proc/irq/62/smp_affinity
+		echo 1 > /proc/irq/31/smp_affinity
+		# Ethernet interrupts (18-21) on CPU 2.
+		echo 2 > /proc/irq/18/smp_affinity
+		echo 2 > /proc/irq/19/smp_affinity
+		echo 2 > /proc/irq/20/smp_affinity
+		echo 2 > /proc/irq/21/smp_affinity
 		echo "done"
 		echo -n "mocacfg boot "
 		mocacfg boot
