@@ -312,7 +312,7 @@ def main():
 
   (options, args) = parser.parse_args()
   quiet = options.quiet
-  if options.drmfile is not None:
+  if options.drmfile:
     print("DO NOT INTERRUPT OR POWER CYCLE, or you will lose drm capability.");
     try:
       drm = open(options.drmfile, "rb")
@@ -360,28 +360,28 @@ def main():
 
     pnum = gfhd100_partitions[partition]
     kern = img.GetKernel()
-    if kern is not None:
+    if kern:
       mtd = get_mtd_dev_for_partition("kernel" + str(pnum))
       verbose_print("Writing kernel to {0}".format(mtd))
       install_to_mtd(kern, mtd)
       verbose_print("\n")
 
     rootfs = img.GetRootFs()
-    if rootfs is not None:
+    if rootfs:
       mtd = get_mtd_dev_for_partition("rootfs" + str(pnum))
       verbose_print("Writing rootfs to {0}".format(mtd))
       install_to_ubi(rootfs, mtd)
       verbose_print("\n")
 
     loader = img.GetLoader()
-    if loader is not None:
+    if loader:
       print("DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.");
-      mtd = get_mtd_dev_for_partition("cfe" + str(pnum))
+      mtd = get_mtd_dev_for_partition("cfe")
       verbose_print("Writing loader to {0}".format(mtd))
       install_to_mtd(loader, mtd)
       verbose_print("\n")
 
-  if partition:
+  if partition and options.kern:
     pnum = gfhd100_partitions[partition]
     verbose_print("Setting boot partition to kernel{0}\n".format(pnum))
     set_boot_partition(pnum)

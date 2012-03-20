@@ -29,7 +29,8 @@ if [ -e /proc/scsi/usb-storage ]; then
 	mount -t vfat /dev/usb /tmp/usb
 	sleep 1
 	[ -e /tmp/usb/drm.bin ] && ginstall.py --drm=/tmp/usb/drm.bin
-	[ -e /tmp/usb/loader.bin ] && ginstall.py --loader=/tmp/usb/loader.bin
+	[ -e /tmp/usb/loader.bin ] && ginstall.py --loader=/tmp/usb/loader.bin \
+		--partition=primary
 	[ -e /tmp/usb/bruno_ginstall_image.tgz ] && ginstall.py \
 		--tar=/tmp/usb/bruno_ginstall_image.tgz --partition=primary
 
