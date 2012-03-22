@@ -343,6 +343,7 @@ def main():
   else:
     partition = None
 
+  kern = None
   if options.tar or options.kern or options.rootfs or options.loader:
     if not partition:
       print("A --partition option must be provided. Even for just loader, a"
@@ -381,7 +382,7 @@ def main():
       install_to_mtd(loader, mtd)
       verbose_print("\n")
 
-  if partition and options.kern:
+  if partition and kern:
     pnum = gfhd100_partitions[partition]
     verbose_print("Setting boot partition to kernel{0}\n".format(pnum))
     set_boot_partition(pnum)

@@ -62,7 +62,14 @@ make_resolv_conf() {
 }
 
 make_cwmp_files() {
-  mkdir /tmp/cwmp
+  [ ! -d /tmp/cwmp ] && mkdir /tmp/cwmp
+  if [ -d /config/tr69 ]; then
+    if [ ! -e /config/tr69/acs_url ]; then
+      touch /config/tr69/acs_url
+    fi
+    [ x"$(readlink /tmp/cwmp/acs_url)" != "x/config/tr69/acs_url" ] \
+      && ln -sf /config/tr69/acs_url /tmp/cwmp/acs_url
+  fi
   if [ "x${new_cwmp_acs_url}" != x ] ; then
     echo ${new_cwmp_acs_url} > /tmp/cwmp/acs_url
   fi
