@@ -9,5 +9,5 @@
 ######
 	
 KERNEL=="sd*", SUBSYSTEM=="block", ATTRS{removable}=="1", SYMLINK+="usb"
-KERNEL=="sd*", SUBSYSTEM=="block", ATTRS{removable}=="0", SYMLINK+="sata"
+KERNEL=="sd*", SUBSYSTEM=="block", ATTRS{removable}=="0", SYMLINK+="sata%n"
 
