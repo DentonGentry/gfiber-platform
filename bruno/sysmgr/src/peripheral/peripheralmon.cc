@@ -28,7 +28,7 @@ void PeripheralMon::Probe(void) {
                  << " temperature:" << avsStatus.temperature/1000.0
                  << " fanspeed:" << fan_speed_->ResetCounter()*1000.0/(now - last_time_);
   }
-  fan_control_->DrivePwm((uint16_t)(avsStatus.temperature/1000));
+  fan_control_->AdjustSpeed((uint32_t)(avsStatus.temperature/1000));
   last_time_ = now;
   mgr_thread_->PostDelayed(interval_, this, static_cast<uint32>(EVENT_TIMEOUT));
 }
