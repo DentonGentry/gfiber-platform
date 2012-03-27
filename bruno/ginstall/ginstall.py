@@ -343,15 +343,15 @@ def main():
   else:
     partition = None
 
-  kern = None
-  if options.tar or options.kern or options.rootfs or options.loader:
+  if options.tar or options.kern or options.rootfs:
     if not partition:
-      print("A --partition option must be provided. Even for just loader, a"
-            " a dummy partition number is still needed.")
+      print("A --partition option must be provided.")
       return 1
     if partition not in gfhd100_partitions:
       print("--partition must be one of: " + str(gfhd100_partitions.keys()))
+      return 1
 
+  if options.tar or options.kern or options.rootfs or options.loader:
     if options.tar:
       img = TarImage(options.tar)
       if options.kern or options.rootfs or options.loader:
@@ -360,18 +360,18 @@ def main():
       img = FileImage(options.kern, options.rootfs, options.loader)
 
     pnum = gfhd100_partitions[partition]
-    kern = img.GetKernel()
-    if kern:
-      mtd = get_mtd_dev_for_partition("kernel" + str(pnum))
-      verbose_print("Writing kernel to {0}".format(mtd))
-      install_to_mtd(kern, mtd)
-      verbose_print("\n")
-
     rootfs = img.GetRootFs()
     if rootfs:
       mtd = get_mtd_dev_for_partition("rootfs" + str(pnum))
       verbose_print("Writing rootfs to {0}".format(mtd))
       install_to_ubi(rootfs, mtd)
+      verbose_print("\n")
+
+    kern = img.GetKernel()
+    if kern:
+      mtd = get_mtd_dev_for_partition("kernel" + str(pnum))
+      verbose_print("Writing kernel to {0}".format(mtd))
+      install_to_mtd(kern, mtd)
       verbose_print("\n")
 
     loader = img.GetLoader()
@@ -382,7 +382,7 @@ def main():
       install_to_mtd(loader, mtd)
       verbose_print("\n")
 
-  if partition and kern:
+  if partition:
     pnum = gfhd100_partitions[partition]
     verbose_print("Setting boot partition to kernel{0}\n".format(pnum))
     set_boot_partition(pnum)
