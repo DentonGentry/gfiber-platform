@@ -56,6 +56,8 @@ find_rootfs () {
     elif [ "${KERNEL_OPT_TYPE}" = "nfs.path" ]; then
       ROOTFS_LOCATION=${KERNEL_OPT_VAL}
       echo 'NFS' > /tmp/NFS
+    elif [ "${KERNEL_OPT_TYPE}" = "debug" ]; then
+      echo 'DEBUG' > /tmp/DEBUG
     fi
   done
 }

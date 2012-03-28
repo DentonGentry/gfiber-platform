@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ -e /tmp/DEBUG ]; then
+  /sbin/agetty -L ttyS0 115200 vt100
+else
+  while true; do
+    sleep 86400;
+  done
+fi
