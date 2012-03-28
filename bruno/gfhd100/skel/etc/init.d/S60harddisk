@@ -1,26 +1,58 @@
 #!/bin/sh
 
+PLATFORM=$(cat /etc/platform)
 SATA_DEVICE=/sys/bus/scsi/devices/0:0:0:0
 SATA_HOST=/sys/class/scsi_host/host0
 
-# Rescan SATA device to support auto-mount during system booting
-#
-if [ -h ${SATA_DEVICE} ]; then
-  echo "Scanning SATA device"
-  # Remove SATA device
-  #echo "Remove SATA device at ${SATA_DEVICE}"
-  echo x > ${SATA_DEVICE}/delete
-  sleep 1
-
-  # Force a rescan on SCSI bus
-  #echo "Rescan SATA device at ${SATA_HOST}"
-  echo "0 0 0" > ${SATA_HOST}/scan
-  sleep 5
-
-  # Mount SATA device
-  if [ -h /dev/sata ]; then
-    echo "Mounting SATA device"
-    mount -o noatime,barrier=0,data=writeback -t ext4 /dev/sata /var/media
-    sleep 1
-  fi
+if [ "$PLATFORM" != "GFMS100" ]; then
+  exit 0
 fi
+
+case "$1" in
+  start)
+    if [ -h ${SATA_DEVICE} ]; then
+      # Remove SATA device
+      echo "Remove SATA device at ${SATA_DEVICE}"
+      echo x > ${SATA_DEVICE}/delete
+      sleep 2
+    fi
+    # Rescan SATA device to support auto-mount during system booting
+    #
+    echo "Scanning SATA device"
+    # Force a rescan on SCSI bus
+    echo "Rescan SATA device at ${SATA_HOST}"
+    echo "0 0 0" > ${SATA_HOST}/scan
+    for i in $(seq 30); do
+      [ -h /dev/sata ] && break
+      sleep 1
+    done
+
+    # Mount SATA device
+    if [ -h /dev/sata ]; then
+      echo "Mounting SATA device"
+      [ -h /dev/sata1 ] && mount -o noatime,barrier=0,data=writeback -t ext4 /dev/sata1 /var/media
+      [ -h /dev/sata2 ] && mount -o noatime -t ext4 /dev/sata2 /var/backup
+    fi
+    ;;
+  stop)
+    if [ -h ${SATA_DEVICE} ]; then
+      # Unmount SATA device
+      echo "Unmounting SATA device"
+      mountpoint -q /var/media && umount /var/media
+      mountpoint -q /var/backup && umount /var/backup
+      # Remove SATA device
+      echo "Remove SATA device at ${SATA_DEVICE}"
+      echo x > ${SATA_DEVICE}/delete
+    fi
+    ;;
+  restart|reload)
+    "$0" stop
+    sleep 3
+    "$0" start
+    ;;
+  *)
+    echo $"Usage: $0 {start|stop|restart}"
+    exit 1
+esac
+
+exit $?
