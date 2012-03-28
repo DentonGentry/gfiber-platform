@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Google Inc. All Rights Reserved.
+ * Copyright 2011 - 2012 Google Inc. All Rights Reserved.
  *
  * This file provides parsing dmsg and monitoring kernel message.
  * If any error or warning messaged matched in either
@@ -48,12 +48,16 @@
 #define KERN_SYSLOG_PRECEDING_STR     "kernel:"
 #define KERN_SYSLOG_PRECEDING_STR_SZ  strlen(KERN_SYSLOG_PRECEDING_STR)
 
-#define DIAGD_DB_FS                   "/var/log/diagd/diagdb.bin"
+#define DIAGD_DB_FS                   "/user/diag/diagdb.bin"
 #define NUMBYTES                      (1024)
 #define FILESIZE                      (NUMBYTES * sizeof(char))
 #define DEFAULT_UTC_TS                "Jan  1 1970 00:00:00"
 #define DEFAULT_UTC_TS_SZ             strlen(DEFAULT_UTC_TS)
 #define DIAGD_FILE_POS_INDEX          (DEFAULT_UTC_TS_SZ +1)
+#define DIAGD_MOCA_ERR_COUNTS_INDEX   (DIAGD_FILE_POS_INDEX + sizeof(long))
+#define DIAGD_GENET_ERR_COUNTS_INDEX  (DIAGD_MOCA_ERR_COUNTS_INDEX + DIAG_MOCA_ERR_COUNTS_SZ)
+#define DIAGD_NAND_ERR_COUNTS_INDEX   (DIAGD_GENET_ERR_COUNTS_INDEX + DIAG_GENET_ERR_COUNTS_SZ)
+#define DIAGD_MCE_ERR_COUNTS_INDEX    (DIAGD_NAND_ERR_COUNTS_INDEX + DIAG_NAND_ERR_COUNTS_SZ)
 
 /* "Mmm dd hh:mm:ss" is the timestamp format in the very beginning of
  * a kernel error/warning message.
@@ -461,15 +465,19 @@ int get_diagDb_mmap(char **mapPtr)
     }
 
     if (isNewFile) {
-       /* 
+       /*
         * write default data to diagd database:
         *    timestamp "Jan  1 1970 00:00:00"
         *    filePosPrevRun = 0
-        */ 
+        *    all error and warning counts = 0
+        */
         strcpy(map, DEFAULT_UTC_TS);
-        map[DEFAULT_UTC_TS_SZ] = '\0'; 
-        filePos = (long *) &(map[DIAGD_FILE_POS_INDEX]); 
+        map[DEFAULT_UTC_TS_SZ] = '\0';
+        filePos = (long *) &(map[DIAGD_FILE_POS_INDEX]);
         *filePos = (long) 0L;
+
+        DIAGD_DEBUG("\nDIAG_ALL_ERR_COUNTS_SZ = %d\n", DIAG_ALL_ERR_COUNTS_SZ);
+        memset(&map[DIAGD_MOCA_ERR_COUNTS_INDEX], 0, DIAG_ALL_ERR_COUNTS_SZ);
     }
 
     *mapPtr = map;
@@ -522,7 +530,7 @@ int Diag_Mon_ParseExamine_KernMsg(void)
       /* It is first time running routine after power-up. */
        diag_chkKernMsg_firstRun = false;     /* Clear the flag. */
 
-       /*
+      /*
        * get current year since year is missing in the timestamp
        * of syslog kernel messages.
        */
@@ -541,6 +549,13 @@ int Diag_Mon_ParseExamine_KernMsg(void)
        strptime(diagdMap, "%b %d %Y %T", &diagdTm);
        diagdTimeStamp = mktime(&diagdTm);
        filePosPrevRun  = (long *) &diagdMap[DIAGD_FILE_POS_INDEX];
+
+       /* read in error and warning counts from DIAGD_DB_FS */
+       diagMocaErrCntsPtr  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
+       diagGenetErrCntsPtr = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
+       diagNandErrCntsPtr  = (diagNandErrCounts_t *) &diagdMap[DIAGD_NAND_ERR_COUNTS_INDEX];
+       diagMceErrCntsPtr   = (diagMceErrCounts_t *) &diagdMap[DIAGD_MCE_ERR_COUNTS_INDEX];
+
     }
 
     /* Update the starting time of the api */
@@ -565,7 +580,7 @@ int Diag_Mon_ParseExamine_KernMsg(void)
 
     if (*filePosPrevRun) {
        if (fseek(ifp, *filePosPrevRun, SEEK_SET) != 0) {
-          /* fail to fseek may be caused by log file rotation happens or file is corrupted */
+          /* fail to fseek may be caused by log file rotation or file is corrupted */
           DIAGD_DEBUG("Can not fseek  the %s file to position %ld", KERN_SYSLOG_KMSG_FS, *filePosPrevRun);
        }
     }
@@ -587,8 +602,7 @@ int Diag_Mon_ParseExamine_KernMsg(void)
           continue;
       }
       else {
-         
-         /* read in timestamp within the kernel message  */
+         /* read in timestamp within the kernel message */
          kmsgMsg[KERN_SYSLOG_TS_INDEX]='\0';
          strptime(kmsgMsg, "%b %d %T", &tm);
          DIAGD_TRACE("original  timestamp:%s", kmsgMsg);
@@ -606,7 +620,6 @@ int Diag_Mon_ParseExamine_KernMsg(void)
          if (difftime(diagdTimeStamp, (newtime = mktime(&tm))) > 0) {
             goto saveFilePos;
          }
-
          
          kMsgPtr = &kmsgMsg[0];
          /* set priority level to warning since the priority level of
@@ -649,7 +662,7 @@ int Diag_Mon_ParseExamine_KernMsg(void)
            * dact setting.
            */
           msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE, newtimeStr);
-          if (msgFound == false) {  
+          if (msgFound == false) {
              msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE, newtimeStr);
           }
           break;
@@ -661,9 +674,9 @@ int Diag_Mon_ParseExamine_KernMsg(void)
       DIAGD_TRACE("errmsg: %s", kmsgMsg);
 
       /* save new timestamp */
-      diagdTimeStamp = newtime; 
+      diagdTimeStamp = newtime;
       strcpy(diagdMap, newtimeStr);
-      diagdMap[strlen(newtimeStr)] = '\0'; 
+      diagdMap[strlen(newtimeStr)] = '\0';
 
 saveFilePos:
       if ((currentFilePos = ftell(ifp)) < 0) {
@@ -671,8 +684,13 @@ saveFilePos:
          break;
       }
       else {
-         /* save  file position to DIAGD_DB_FS */
+         /* save file position to DIAGD_DB_FS */
          *filePosPrevRun = currentFilePos;
+
+        /*
+         * diagd error and warning count have been updated to DIAGD_DB_FS
+         * in diagUpdateErorrCount() for each matched kernel message.
+         */
       }
     }
 

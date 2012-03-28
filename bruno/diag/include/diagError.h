@@ -97,7 +97,7 @@
 typedef enum {
    DIAG_MOCA_INIT_ERROR = 0,
    DIAG_MOCA_PROBE_ERROR,
-   DIAG_MOCA_ERROR_MAX 
+   DIAG_MOCA_ERROR_MAX
 } diag_moca_errType_e;
 
 typedef enum {
@@ -130,7 +130,7 @@ typedef enum {
    DIAG_NAND_BBT_ERROR,
    DIAG_NAND_ECC_ERROR,
    DIAG_NAND_NO_DEV_ERROR,
-   DIAG_NAND_ERROR_MAX 
+   DIAG_NAND_ERROR_MAX
 } diag_nand_errType_e;
 
 typedef enum {
@@ -144,7 +144,7 @@ typedef enum {
    DIAG_MCE_MEM_CORRUPT_ERROR = 0,
    DIAG_MCE_OUT_OF_MEM_ERROR,
    DIAG_MCE_HW_POISONED_ERROR,
-   DIAG_MCE_ERROR_MAX 
+   DIAG_MCE_ERROR_MAX
 } diag_mce_errorType_e;
 
 typedef enum {
@@ -160,6 +160,44 @@ typedef struct diagErroCodeTbl_t_ {
    int numOfEntry;
    diagErrorCodeEntry_t *tbl;
 } diagErrorCodeTbl_t;
+
+typedef struct diagMocaErrCounts_t_ {
+   unsigned int     TotalErrCount;
+   unsigned int     TotalWarnCount;
+   unsigned short   ErrCount[DIAG_MOCA_ERROR_MAX];
+   unsigned short   WarnCount[DIAG_MOCA_WARN_MAX];
+} diagMocaErrCounts_t;
+
+typedef struct diagGeneErrCounts_t_ {
+   unsigned int     TotalErrCount;
+   unsigned int     TotalWarnCount;
+   unsigned short   ErrCount[DIAG_GENET_ERROR_MAX];
+   unsigned short   WarnCount[DIAG_GENET_WARN_MAX];
+} diagGenetErrCounts_t;
+
+
+typedef struct diagNandErrCounts_t_ {
+   unsigned int     TotalErrCount;
+   unsigned int     TotalWarnCount;
+   unsigned short   ErrCount[DIAG_NAND_ERROR_MAX];
+   unsigned short   WarnCount[DIAG_NAND_WARN_MAX];
+} diagNandErrCounts_t;
+
+typedef struct diagMceErrCounts_t_ {
+   unsigned int     TotalErrCount;
+   unsigned int     TotalWarnCount;
+   unsigned short   ErrCount[DIAG_MCE_ERROR_MAX];
+   unsigned short   WarnCount[DIAG_MCE_WARN_MAX];
+} diagMceErrCounts_t;
+
+#define DIAG_MOCA_ERR_COUNTS_SZ    sizeof(diagMocaErrCounts_t)
+#define DIAG_GENET_ERR_COUNTS_SZ   sizeof(diagGenetErrCounts_t)
+#define DIAG_NAND_ERR_COUNTS_SZ    sizeof(diagNandErrCounts_t)
+#define DIAG_MCE_ERR_COUNTS_SZ     sizeof(diagMceErrCounts_t)
+#define DIAG_ALL_ERR_COUNTS_SZ     (DIAG_MOCA_ERR_COUNTS_SZ + \
+                                    DIAG_GENET_ERR_COUNTS_SZ + \
+                                    DIAG_NAND_ERR_COUNTS_SZ + \
+                                    DIAG_MCE_ERR_COUNTS_SZ)
 
 #define DIAG_UNKNOWN_ERROR_TYPE 0xFF
 
