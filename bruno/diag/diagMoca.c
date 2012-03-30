@@ -119,7 +119,7 @@ static bool   bConnInfoValid = false;
  * Output:
  * none
  */
-static void diagMoca_ConvertUpTime(uint32_t timeInSecs, uint32_t *pTimeInHrs,
+void diagMoca_ConvertUpTime(uint32_t timeInSecs, uint32_t *pTimeInHrs,
                           uint32_t *pTimeInMin, uint32_t *pTimeInSecs)
 {
   *pTimeInHrs  = timeInSecs / (NO_OF_SECS_IN_MIN * NO_OF_MINS_IN_HR) ;
@@ -1008,6 +1008,7 @@ int diagMoca_MonErrorCounts(void)
   uint32_t  totalPkts, discardPkts;
   bool      err;
   uint16_t  txDiscardTooManyMsg, rxDiscardTooManyMsg;
+  uint16_t  nodeStatsSize, msgLen;
   MoCA_STATISTICS       mocaStats;
   diag_mocaIf_info     *pMocaIf = &pDiagInfo->mocaIf;
   diag_mocaIf_stats_t  *pCurr;
@@ -1016,6 +1017,7 @@ int diagMoca_MonErrorCounts(void)
   diag_mocalog_discardpkts_exceed_t  *pMsg = NULL;
   MoCA_NODE_STATISTICS_EXT_ENTRY cummulativeExtStats;
   diag_moca_node_stats_entry_t  *pStats;
+  PMoCA_STATUS  pStatus = NULL;
 
   DIAGD_ENTRY("%s", __func__);
 
@@ -1058,20 +1060,21 @@ int diagMoca_MonErrorCounts(void)
      * Get max size of data structure
      */
     /* Get the node statistics table including the error counters */
-    txDiscardTooManyMsg = DIAG_MOCA_LOG_MAX_SIZE_DISCARDPKTS_INFO;
-    pMsg = malloc(txDiscardTooManyMsg);
+    pMsg = malloc(DIAG_MOCA_LOG_MAX_SIZE_DISCARDPKTS_INFO);
     if (pMsg == NULL) {
       /* Fail to allocate memory for diag_mocalog_discardpkts_exceed_t. Exit. */
       DIAGD_DEBUG("%s: MoCACtl2_Fmr() failed (error=%d)", __func__, nRet);
       break;
     }
 
+    nodeStatsSize = DIAG_MOCA_MAX_NODE_STATS_SIZE;
+
 
     /* Per definitions of tx/rx discard packet counters, error causes
      * couldn't be pin-down. So we log more statistics counters.
      */
     /* Update the nodeStats element and ignore the return status */
-    diagMoca_GetNodeStatistics(&pMsg->nodeStats, &txDiscardTooManyMsg);
+    diagMoca_GetNodeStatistics(&pMsg->nodeStats, &nodeStatsSize);
 
     memset(&cummulativeExtStats, 0, sizeof(MoCA_NODE_STATISTICS_EXT_ENTRY));
     if (pMsg->nodeStats.nodeStatsTblSize > 0) {
@@ -1182,6 +1185,7 @@ int diagMoca_MonErrorCounts(void)
                       err);
     DIAGD_TRACE("%s: Total Tx Pkts=%u  Discard Tx Pkts=%u",
                 __func__, totalPkts, discardPkts);
+
     if (err == true) {
       /* The discard Tx packets exceeds the threshold. Log the information */
       DIAGD_LOG_WARN("MoCA: Excessive Tx discard packets in %d secs  "
@@ -1246,7 +1250,7 @@ int diagMoca_MonErrorCounts(void)
      * couldn't be pin-down. So we log more statistics counters.
      */
     /* Calculate the table size excluding msgHdr */
-    txDiscardTooManyMsg =
+    msgLen =
           sizeof(uint32_t) + pMsg->nodeStats.nodeStatsTblSize +
           (sizeof(diag_mocaIf_stats_t) * 2);
 
@@ -1257,13 +1261,26 @@ int diagMoca_MonErrorCounts(void)
     diagMoca_buildHdrMocaLogMsg(
         &pMsg->msgHdr,
         rxDiscardTooManyMsg,
-        txDiscardTooManyMsg);
+        msgLen);
 
     /* Write to Moca Log file */
     diagMocaLog((char *)pMsg);
 
+    /* Allocate the memory for reading MoCA_STATUS data */
+    pStatus = (PMoCA_STATUS)malloc(sizeof(MoCA_STATUS));
+    if (pStatus == NULL) {
+      rtn = DIAGD_RC_OUT_OF_MEM;
+      break;
+    }
+
+    /* Retrieve the current status information of the self node */
+    rtn = diagMoca_GetStatus(pStatus);
+    if (rtn == DIAGD_RC_ERR) {
+      break;
+    }
+
     /* Write to diagd log file in string format */
-// =======> TODO
+   diagMocaStrLog((char *)pMsg, pStatus);
 
     rtn = DIAGD_RC_OK;
 
@@ -1271,13 +1288,16 @@ int diagMoca_MonErrorCounts(void)
 
   DIAGD_EXIT("%s - rtn=0x%X", __func__, rtn);
 
+  /* free all allocated memory */
+  if (pStatus != NULL) {
+    free(pStatus);
+  }
+
   if (pMsg != NULL) {
-    /* Free allocated memory */
     free(pMsg);
   }
 
   return (rtn);
-
 } /* diagMoca_MonErrorCounts */
 
 
@@ -1334,8 +1354,9 @@ int diagMoca_MonServicePerf()
 
     /* Check the link status of self node */
     if (pStatus->generalStatus.linkStatus == MoCA_LINK_DOWN) {
-/* TODO 20111018 --> printout the nodestatus information in a subroutine. */
       DIAGD_TRACE("%s: linkstatus = DOWN", __func__);
+      DIAGD_LOG_WARN("MoCA: linkstatus = DOWN");
+      diagMocaMyStatusLog("", pStatus);
       break;
     }
 
@@ -1371,16 +1392,16 @@ int diagMoca_MonServicePerf()
      * nodes should be 2 or more in order to check service performance.
      */
     if (pPerfStatus->noConnectedNodes < 2) {
-/* TODO 20111018 --> printout the nodestatus information in a subroutine. */
       DIAGD_TRACE("%s: no of connected nodes = %d",
                   __func__, pPerfStatus->noConnectedNodes);
+      diagMocaMyStatusLog("", pStatus);
       break;
     }
 
     /* Start checking MoCA Service Performance to the connected nodes */
     pNode_Status = &pNodeStatus->nodeStatus[0];
     msgType = DIAG_MOCA_LOG_NONE;
-    DIAGD_TRACE("%s: Loop through pNodeStatus (nodeStatusTblSize: %u)\n",
+    DIAGD_TRACE("%s: Loop through pNodeStatus (nodeStatusTblSize: %d)\n",
                  __func__, pNodeStatus->nodeStatusTblSize);
 
     for (count = 0;
@@ -1488,7 +1509,7 @@ int diagMoca_MonServicePerf()
       diagMocaLog((char *)pPerfStatus);
 
     /* Write to diagd log file in text format */
-// =======> TODO
+      diagMocaStrLog((char *)pPerfStatus, pStatus);
 
     }
 

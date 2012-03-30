@@ -93,7 +93,7 @@ void diagd_HwMon_Handler()
     }
 
     /* Monitor MoCA Tx/Rx discard packets counts */
-//    Diag_MonMoca_Err_Counts();
+    Diag_MonMoca_Err_Counts();
 
     /* Monitor MoCA performance to each connected node in MoCA network */
     Diag_MonMoca_ServicePerf();
