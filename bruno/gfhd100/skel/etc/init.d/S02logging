@@ -2,12 +2,13 @@
 #
 # Start logging
 #
+[ -e /sbin/syslogd ] || exit 0
 
 case "$1" in
   start)
 	echo -n "Starting logging: "
-	start-stop-daemon -S -q -p /var/run/syslog.pid --exec /usr/sbin/syslogd -- -m 0
-	start-stop-daemon -S -q -p /var/run/klogd.pid --exec /usr/sbin/klogd
+	start-stop-daemon -S -q -p /var/run/syslog.pid --exec /sbin/syslogd -- -m 0
+	start-stop-daemon -S -q -p /var/run/klogd.pid --exec /sbin/klogd
 	echo "OK"
 	;;
   stop)
