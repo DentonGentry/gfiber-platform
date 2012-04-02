@@ -4,7 +4,7 @@
 #
 
 ROOTFS_TYPE="squashfs"
-ROOTFS_MTD_NO=17
+ROOTFS_MTD_NO=17  # created by kernel based on ubi.mtd= bootloader option
 ROOTFS_LOCATION=""
 KERNEL_OPTS=$(cat /proc/cmdline)
 
@@ -15,11 +15,19 @@ recover_volume() {
   ubimkvol /dev/ubi${2} -N ${3} -m
 }
 
-check_volume_and_mount () {
+ubi_to_count() {
+  local a b c d
+  ubinfo --devn=$1 |
+  while read a b c d; do
+    [ "$a $b" = "Volumes count:" ] && echo "$c"
+  done
+}
+
+check_volume_and_mount() {
   ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
   if [ $? -eq 0 ]; then
-    num_vol=$(ubinfo --devn=${2} | python -c "import sys;[sys.stdout.write(l.split(':')[1].strip()) for l in sys.stdin if 'Volumes count' in l]")
-    if [ x${num_vol} = x'0' ] || [ x${num_vol} = x ]; then
+    num_vol=$(ubi_to_count ${2})
+    if [ "${num_vol}" = "0" ] || [ "${num_vol}" = "" ]; then
       echo "No volume associated with mtd${1} (dev:${2}), formatting..."
       recover_volume ${1} ${2} ${3}
     fi
@@ -40,8 +48,7 @@ check_volume_and_mount () {
 }
 
 find_rootfs () {
-  for i in ${KERNEL_OPTS};
-  do
+  for i in ${KERNEL_OPTS}; do
     KERNEL_OPT_TYPE=${i%=*}
     KERNEL_OPT_VAL=${i#*=}
     if [ "${KERNEL_OPT_TYPE}" = "root.type" ]; then
