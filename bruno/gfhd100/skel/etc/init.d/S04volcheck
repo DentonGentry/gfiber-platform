@@ -9,9 +9,9 @@ ROOTFS_LOCATION=""
 KERNEL_OPTS=$(cat /proc/cmdline)
 
 recover_volume() {
-  ubidetach -m ${1} /dev/ubi_ctrl
+  ubidetach -m ${1}
   flash_erase /dev/mtd${1} 0 0
-  ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
+  ubiattach -m ${1} -d ${2}
   ubimkvol /dev/ubi${2} -N ${3} -m
 }
 
@@ -24,7 +24,7 @@ ubi_to_count() {
 }
 
 check_volume_and_mount() {
-  ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
+  ubiattach -m ${1} -d ${2}
   if [ $? -eq 0 ]; then
     num_vol=$(ubi_to_count ${2})
     if [ "${num_vol}" = "0" ] || [ "${num_vol}" = "" ]; then
@@ -42,7 +42,7 @@ check_volume_and_mount() {
   else
     echo "Failed to attach mtd${1} to ${2}, formatting..."
     flash_eraseall /dev/mtd${1}
-    ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
+    ubiattach -m ${1} -d ${2}
     ubimkvol /dev/ubi${2} -N ${3} -m
   fi
 }
@@ -66,14 +66,6 @@ mount_rootfs() {
     ROOTFS_LOCATION="/dev/mtdblock${ROOTFS_MTD_NO}"
   elif [ "${ROOTFS_TYPE}" = "nfs" ]; then
     mount -t ${ROOTFS_TYPE} -o nolock ${ROOTFS_LOCATION} /rootfs
-    [ ! -d /user/rw ] && mkdir -p /user/rw /rootfs/user/rw
-    [ ! -d /user/moca ] && mkdir -p /user/moca /rootfs/user/moca
-    [ ! -d /user/bsa ] && mkdir -p /user/bsa /rootfs/user/bsa
-    [ ! -d /user/netflix ] && mkdir -p /user/netflix /rootfs/user/netflix
-    [ ! -d /user/drm ] && mkdir -p /user/drm /rootfs/user/drm
-    [ ! -d /user/widevine ] && mkdir -p /user/widevine /rootfs/user/widevine
-    echo "Skip volume check since rootfs is nfs"
-    exit 0
   fi
   if [ "${ROOTFS_LOCATION}" != "" ]; then
     echo "Rootfs found: ${ROOTFS_LOCATION}"
@@ -114,9 +106,8 @@ case "$1" in
     echo -n "Stopping volume check: "
     umount /user
     umount /config
-    sleep 1
-    ubidetach -d 1 /dev/ubi_ctrl
-    ubidetach -d 2 /dev/ubi_ctrl
+    ubidetach -d 1
+    ubidetach -d 2
     echo "OK"
     ;;
   restart|reload)
