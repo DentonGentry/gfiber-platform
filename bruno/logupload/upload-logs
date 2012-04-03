@@ -47,12 +47,10 @@ def HttpDo(method, url, content, headers):
   connection = httplib.HTTPConnection(hostport)
   if query:
     path += '?' + query
-  print 'Request: %r (q=%r)' % (path, query)
   connection.request(method, path, content, headers)
   result = connection.getresponse()
   if result.status != 200:
     raise HttpError(result)
-  print repr((result.status, result.reason))
   return result.read()
 
 
@@ -101,7 +99,6 @@ def main():
     o.fatal('at least one filename and/or --stdin expected')
   keys = []
   for k, v in flags:
-    print k, v
     if k in ('-k', '--key'):
       keys.append(tuple(v.split('=', 1)))
 
