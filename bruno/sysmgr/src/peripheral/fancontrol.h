@@ -6,8 +6,62 @@
 
 #include "base/constructormagic.h"
 #include "platformnexus.h"
+#include "platform.h"
 
 namespace bruno_platform_peripheral {
+
+class Platform;
+
+#define DUTY_CYCLE_MIN_VALUE      0
+#define DUTY_CYCLE_MAX_VALUE      100
+
+#define DUTY_CYCLE_PWM_MIN_VALUE  0
+#define DUTY_CYCLE_PWM_MAX_VALUE  255
+
+
+#define SOC_MULTI_VALUE_IN_FLOAT  1000.0
+#define HDD_MULTI_VALUE_IN_FLOAT  100.0
+
+#define MULTI_VALUE               100
+/* Adjust the value back = x /(MULTI_VALUE)*/
+#define ADJUST_VALUE(x)         ((x) / MULTI_VALUE)
+#define ADJUST_VALUE_TWICE(x)   ((x) / (MULTI_VALUE * MULTI_VALUE))
+
+/* Adjust the value back = x * (MULTI_VALUE)*/
+#define TIMES_VALUE(x)          ((x) * MULTI_VALUE)
+
+/* (MULTIPLE_VALUE) time of 1 PWM on per 1% duty cycle */
+#define ONE_PWM_ON_PER_PCT      (TIMES_VALUE(DUTY_CYCLE_PWM_MAX_VALUE)/DUTY_CYCLE_MAX_VALUE)
+
+/* alpha is MULTI_VALUE * real alpha */
+#define ALPHA(Dmax, Dmin, Tmax, Tmin)   ((Dmax - Dmin)/(Tmax - Tmin))
+
+/* Due to the temperature is an unsigned value,
+ * 1. temp_min won't be less than 0 degC
+ * 2. threshold can't be larger than temp_min
+ */
+#define GET_THRESHOLD(Tmin, Th) ((Th > Tmin)? Tmin : Th)
+
+typedef struct FanControlParams {
+  uint16_t  temp_min;
+  uint16_t  temp_max;
+  uint16_t  duty_cycle_min;
+  uint16_t  duty_cycle_max;
+  uint16_t  threshold;
+  uint16_t  alpha;              /* alpha = delta(duty_cycle)/delta(temp) */
+
+  FanControlParams& operator = (const FanControlParams& param) {
+    temp_min = param.temp_min;
+    temp_max = param.temp_max;
+    duty_cycle_min = param.duty_cycle_min;
+    duty_cycle_max = param.duty_cycle_max;
+    threshold = param.threshold;
+    alpha = param.alpha;
+    return *this;
+  }
+
+}FanControlParams;
+
 
 class FanControl {
  public:
@@ -16,6 +70,13 @@ class FanControl {
     VAR_SPEED,
     FULL_SPEED
   };
+
+  enum FanControlParamsTypes {
+    BRUNO_SOC = 0,
+    BRUNO_IS_HDD,
+    BRUNO_PARAMS_TYPES
+  };
+
 
   /*
    * Set the control word to clock rate.
@@ -34,7 +95,11 @@ class FanControl {
   static const unsigned int kPwmDefaultTemperatureScale;
   static const unsigned int kPwmDefaultDutyCycleScale;
 
-  explicit FanControl(uint32_t channel)
+  static const FanControlParams kGFMS100FanCtrlSocDefaults;
+  static const FanControlParams kGFMS100FanCtrlHddDefaults;
+  static const FanControlParams kGFHD100FanCtrlSocDefaults;
+
+  explicit FanControl(uint32_t channel, Platform *platform)
       : pwm_channel_(channel),
         pwm_handle_(NULL),
         state_(OFF),
@@ -53,7 +118,11 @@ class FanControl {
         temperature_max_(0xcc),
         period_(0xfe),
         step_(0x02),
-        threshold_(0x05) {}
+        threshold_(0x05),
+        platform_(BRUNO_GFHD100),
+        pfan_ctrl_params_(NULL),
+        allocatedPlatformInstanceLocal_(false),
+        platformInstance_(platform) {}
 
   virtual ~FanControl();
 
@@ -62,6 +131,8 @@ class FanControl {
   bool SelfStart(void);
   bool AdjustSpeed(uint32_t avg_temp);
   bool DrivePwm(uint16_t duty_cycle);
+  bool AdjustSpeed_PControl(uint16_t soc_temp, uint16_t hdd_temp);
+  void GetHddTemperature(uint16_t *phdd_temp);
 
   void set_self_start_enabled(bool enabled) {
     self_start_enabled_ = enabled;
@@ -75,6 +146,11 @@ class FanControl {
 
   bool InitPwm(void);
   void ComputeDutyCycle(uint32_t avg_temp, uint16_t *new_duty_cycle_pwm);
+  void InitParams(void);
+  std::string ExecCmd(char* cmd);
+  void ComputeDutyCycle_PControl(uint16_t temp, uint16_t *new_duty_cycle_pwm, uint8_t idx);
+  void dbgUpdateFanControlParams(void);
+  bool dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx);
 
   uint32_t pwm_channel_;
   NEXUS_PwmChannelHandle pwm_handle_;
@@ -103,6 +179,15 @@ class FanControl {
   uint16_t period_;
   uint16_t step_; /* The amount of change to increment/decrement per duty cycle change */
   uint16_t threshold_; /* The threshold to affect duty cycle change */
+
+  /* Fan control parameters table
+   * idx BRUNO_SOC: depending upon GFMS100 (Bruno-IS) or GFHD100 (Thin Bruno);
+   * idx BRUNO_IS_HDD: use by HDD GFMS100
+   * */
+  enum BrunoPlatformTypes platform_;
+  FanControlParams *pfan_ctrl_params_;
+  bool allocatedPlatformInstanceLocal_;
+  Platform *platformInstance_;
 
   DISALLOW_COPY_AND_ASSIGN(FanControl);
 };

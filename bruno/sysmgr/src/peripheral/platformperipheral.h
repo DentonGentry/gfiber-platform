@@ -15,6 +15,7 @@ class TempMonitor;
 class FactoryResetButton;
 class PeripheralMon;
 class Unmute;
+class Platform;
 
 class PlatformPeripheral {
  public:
@@ -28,6 +29,7 @@ class PlatformPeripheral {
   static bool SetLedStatusColor(led_status_color_e color);
   static void TurnOffLedStatus(void);
 
+  PlatformPeripheral(Platform *platform);
   ~PlatformPeripheral();
 
  private:
