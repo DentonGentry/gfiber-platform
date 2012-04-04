@@ -3,3 +3,4 @@
 # force time to reasonable value before NTP started
 
 date -s "2011-12-07 11:00:00"
+echo "UTC" > /tmp/TZ
