@@ -1,5 +1,5 @@
 application: gfiber-dropbox
-version: 1
+version: 2
 runtime: python27
 api_version: 1
 threadsafe: true
@@ -7,6 +7,10 @@ threadsafe: true
 handlers:
 - url: /upload/.*
   script: app.wsgi_app
+
+- url: /_.*
+  script: app.wsgi_app
+  login: admin
 
 - url: /.*
   script: app.wsgi_app

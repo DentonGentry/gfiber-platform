@@ -10,8 +10,13 @@ indexes:
 # automatically uploaded to the admin console when you next deploy
 # your application using appcfg.py.
 
-- kind: Words
+- kind: File
   properties:
-  - name: words
+  - name: meta
+  - name: create_time
+
+- kind: File
+  properties:
+  - name: meta
   - name: create_time
     direction: desc

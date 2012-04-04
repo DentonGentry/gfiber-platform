@@ -1,48 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>GFiber Logbox</title>
+<title>{{machineid}}</title>
 
 <style>
-  .filetime {
+  li {
+    padding-left: 2em;
+    text-indent: -2em;
+  }
+  .metalist {
+    margin: 1em;
+  }
+  .filesize {
     color: #888;
     margin-left: 0.5em;
+  }
+  .flag_version {
+    background: #cfc;
+  }
+  .flag_uptime {
+    color: #666;
+  }
+  .flag_uptime_end {
+    background: #ff8;
+  }
+  .flag_panic {
+    background: #f88;
   }
 </style>
 
 </head>
 
 <body>
+<a href="/">&larr;Back</a>
 
-<form method='GET' action='/'>
-Search: <input name='q' value='{{query}}' id='q'></input>
-</form>
+<h3>Logs for: {{machineid}}</h3>
 
-{% if query %}
-  Matching files:
-{% else %}
-  Available Files:
+{% if firstfile.meta %}
+Metadata:
+<ul class='metalist'>
+  {% for meta in firstfile.meta %}
+    <li> {{meta}}
+  {% endfor %}
 {% endif %}
+</ul>
+
+View logs:
 
 <ul>
 {% if files %}
-  {% for file in files %}
+  {% for file, running_size in files %}
    <li>
-     <a href="/{{file.key}}/{{file.name}}"
-       >{{file.name}}{% for meta in file.meta %}
-       {{meta}}
-     {% endfor %}</a>
-     <span class="filetime">{{file.nice_create_time}}</span>
+     Since <a href="/{{file.machine_key}}/log?start={{file.create_time_code}}"
+       >{{file.nice_create_time}}</a>
+     <span class="filesize">{{running_size}}</span>
+     <span class="flags">
+       {% for key,value in file.flags %}
+         <span class="flag_{{key}}">{{key}}={{value}}</span>
+       {% endfor %}
+     </span>
    </li>
   {% endfor %}
 {% else %}
   <li>None.</li>
 {% endif %}
 </ul>
-
-<script>
-document.getElementById('q').focus();
-</script>
 
 </body>
 </html>

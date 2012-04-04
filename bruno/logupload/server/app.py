@@ -1,15 +1,26 @@
 #!/usr/bin/python
 # Copyright 2012 Google Inc. All Rights Reserved.
 #
-"""A simple app to let users upload files, then other users download them."""
+# gpylint function naming pretty much sucks for appengine apps; disable the
+# offending complaints:
+#gpylint: disable-msg=C6409
+#
+"""A simple app to let users upload files, then other users download them.
+
+This service is used by the upload-logs script in Google Fiber's set top box.
+"""
 
 __author__ = 'apenwarr@google.com (Avery Pennarun)'
 
+import datetime
 import logging
 import os
 import re
+import time
 import urllib
 import zlib
+from google.appengine.api import memcache
+from google.appengine.api import taskqueue
 from google.appengine.api import users
 from google.appengine.ext import blobstore
 from google.appengine.ext import db
@@ -18,29 +29,92 @@ from google.appengine.ext.webapp import blobstore_handlers
 from google.appengine.ext.webapp import template
 
 
+MAX_UNCOMPRESSED_BYTES = 10*1024*1024  # max bytes in a single download
+MAX_MEM_PER_DOWNLOAD = 10*1024*1024    # max memory for buffering a download
+MAX_PARALLEL_BLOBS = 64                # max blobstore requests at once
+
+BUFSIZE = min(blobstore.MAX_BLOB_FETCH_SIZE,
+              MAX_MEM_PER_DOWNLOAD / MAX_PARALLEL_BLOBS)
+PARALLEL_BLOBS = min(MAX_MEM_PER_DOWNLOAD / BUFSIZE, MAX_PARALLEL_BLOBS)
+
+
 _path = os.path.dirname(__file__)
+_futures_queue = []
+_memcache = memcache.Client()
+_config = db.create_config(read_policy=db.EVENTUAL_CONSISTENCY)
 
 
-def _SearchWords(s):
-  return re.sub(r'[^\w\s]+', ' ', s).lower().split()
+def sync():
+  while _futures_queue:
+    f = _futures_queue.pop()
+    f.get_result()  # may throw exception
 
 
-STOPWORDS = ['the', 'a', 'in']
+class _Model(db.Model):
+  def put_async(self):
+    """put() in the background.  Call sync() to wait for all pending puts."""
+    f = db.put_async(self)
+    _futures_queue.append(f)
+    return f
+
+  @property
+  def key_name(self):
+    """Property for the primary key, which you can alias to a member."""
+    return self.key().name
 
 
-def _SkipStopWords(words):
-  regex = re.compile(r'\d*$')
-  for word in words:
-    if word not in STOPWORDS and not regex.match(word):
-      yield word
+class Machine(_Model):
+  """Represents a machine that uploads files.
+
+  Eventually we can have user-defined labels etc. for each machine.  For now,
+  it's mostly useful as an efficient way of getting a list of distinct
+  machines.
+  """
+  keymeta = _Model.key_name  # key=value string to match in File list
+  modified_time = db.DateTimeProperty(auto_now=True)
+
+  def __repr__(self):
+    return 'Machine(%s)' % self.keymeta
+
+  def files(self):
+    return File.all().filter('meta', self.keymeta())
+
+  @property
+  def nice_modified_time(self):
+    return self.modified_time.strftime('%Y-%m-%d %H:%M:%S UTC')
+
+  def most_recent_meta(self):
+    metacache = _memcache.get('meta-%s' % self.keymeta)
+    if metacache:
+      return metacache
+    else:
+      f = self.files().order('-create_time').get()
+      meta = f and f.meta or []
+      _memcache.set('meta-%s' % self.keymeta, meta)
+      return meta
 
 
-class File(db.Model):
+class File(_Model):
   """Represents an uploaded file."""
-  name = db.StringProperty()
-  blobid = blobstore.BlobReferenceProperty()
-  create_time = db.DateTimeProperty(auto_now=True)
-  meta = db.StringListProperty()
+  name = db.StringProperty()  # filename
+  blobid = blobstore.BlobReferenceProperty()  # pointer to gzip'd file content
+  size = db.IntegerProperty()  # uncompressed file size
+  create_time = db.DateTimeProperty(auto_now_add=True)  # when it was uploaded
+  meta = db.StringListProperty()  # metadata: a list of key=value strings
+
+  # We split keys and values here so we index the database by key, and thus
+  # search for all rows with key='panic', ordered by date, etc.
+  flag_keys = db.StringListProperty()    # list of flag names
+  flag_values = db.StringListProperty()  # list of flag values
+
+  def _get_flags(self):
+    return zip(self.flag_keys, self.flag_values)
+
+  def _set_flags(self, flags):
+    self.flag_keys = [i[0] for i in flags]
+    self.flag_values = [i[1] for i in flags]
+
+  flags = property(fget=_get_flags, fset=_set_flags)
 
   @property
   def key_name(self):
@@ -50,19 +124,43 @@ class File(db.Model):
   def nice_create_time(self):
     return self.create_time.strftime('%Y-%m-%d %H:%M:%S UTC')
 
+  @property
+  def create_time_code(self):
+    return self.create_time.strftime('%Y%m%d-%H%M%S')
+
   def __repr__(self):
     return 'File(%s)' % self.name
 
   @classmethod
-  def New(cls, name, blobid, meta=None):
+  def New(cls, name, blobid, size, meta=None, flags=None):
     meta = [('%s=%s' % i) for i in (meta or [])]
-    return cls(name=name, blobid=blobid, meta=meta)
+    flag_keys = [i[0] for i in flags]
+    flag_values = [i[1] for i in flags]
+    return cls(name=name, blobid=blobid, size=size, meta=meta,
+               flag_keys=flag_keys,
+               flag_values=flag_values)
 
+  def machine_key(self):
+    """Return a key=value string that uniquely identifies the Machine."""
+    for kv in self.meta:
+      if kv.startswith('hw='):
+        return kv
+    for kv in self.meta:
+      if kv.startswith('serial='):
+        return kv
+    if self.meta:
+      return self.meta[0]
+    return 'nometa'
 
-class Words(db.Model):
-  file = db.ReferenceProperty(File)
-  words = db.StringListProperty()
-  create_time = db.DateTimeProperty(auto_now=True)
+  def machine(self):
+    """Return a Machine object that owns this file; may create one."""
+    for machine in Machine.get_by_key_name(self.meta):
+      if machine:
+        return machine
+    # still here? need to create it then.
+    machine = Machine(key_name=self.machine_key())
+    machine.put_async()
+    return machine
 
 
 def Render(filename, **kwargs):
@@ -77,7 +175,7 @@ def Render(filename, **kwargs):
   return template.render(os.path.join(_path, '.', filename), kwargs)
 
 
-class Handler(webapp.RequestHandler):
+class _Handler(webapp.RequestHandler):
   """A wrapper for webapp.RequestHandler providing some helper functions."""
   Redirect = webapp.RequestHandler.redirect
 
@@ -93,50 +191,129 @@ class Handler(webapp.RequestHandler):
       raise Exception('invalid user')
 
 
-class Main(Handler):
-  """Returns a list of available files."""
+class ListMachines(_Handler):
+  """Returns a list of available machines."""
 
-  #pylint: disable-msg=C6409
   def get(self):
     """HTTP GET handler."""
     self.ValidateUser()
-    query = self.request.get('q')
-    words = _SearchWords(query)
-    if words:
-      qlist = []
-      # start all the datastore queries at once, so they run in parallel.
-      # They don't become synchronous until we actually start iterating
-      # through them.
-      for word in words:
-        qlist.append(list(db.Query(Words, keys_only=True)
-                          .order('-create_time')
-                          .filter('words', word)
-                          .run()))
-      sets = [set(w.parent() for w in q) for q in qlist]
-      keys = set.intersection(*sets)
-      files = File.get(keys)
-      files.sort(key=lambda f: f.create_time, reverse=True)
+    machines = Machine.all().order('-modified_time')
+    self.Render('machines.djt', machines=machines)
+
+
+def _FilesHelper(files):
+  running_size = 0
+  for f in files:
+    if running_size is not None and f.size is not None:
+      running_size += f.size
+    else:  # file created before we had a 'size' attribute
+      running_size = None
+    if running_size:
+      yield f, '%.2fk' % (running_size/1024.)
     else:
-      files = File.all().order('-create_time')
-    self.Render('files.djt', files=files, query=query)
+      yield f, ''
 
 
-BUFSIZE = 1048576
+class ListFiles(_Handler):
+  """Returns a list of available files."""
+
+  #gpylint: disable-msg=W0221
+  def get(self, machineid):
+    """HTTP GET handler."""
+    self.ValidateUser()
+    machine = Machine.get_by_key_name(machineid)
+    if not machine:
+      return self.error(404)
+    #gpylint: disable-msg=E1103
+    files = machine.files().order('-create_time')
+    self.Render('files.djt',
+                machineid=machineid,
+                files=_FilesHelper(files),
+                firstfile=files and files[0])
+
+
+def _AsyncBlobReader(blobkey):
+  """Yield a series of content chunks for the given blobid.
+
+  The first yielded entry is just ''; before yielding it, we start a
+  background blobstore request to get the next block.  This means you can
+  construct muple AsyncBlobReaders, call .next() on each one, and then
+  iterate through them, thus reducing latency.
+
+  Args:
+    blobkey: the blobid.key() of a desired blob.
+  Yields:
+    A sequence of uncompressed data chunks (the contents of the blob)
+  """
+  ofs = 0
+  future = blobstore.fetch_data_async(blobkey, ofs, ofs + BUFSIZE - 1)
+  yield ''
+  while future:
+    data = future.get_result()
+    ofs += len(data)
+    if len(data) < BUFSIZE:
+      future = None
+    else:
+      future = blobstore.fetch_data_async(blobkey, ofs, ofs + BUFSIZE - 1)
+    yield data
 
 
 def _DecompressBlob(blobkey):
-  blob = blobstore.BlobReader(blobkey, buffer_size=BUFSIZE)
+  """Yield a series of un-gzipped content chunks for the given blobid.
+
+  This is a bit complicated because we need to make sure "gzip bombs" don't
+  suck up all our RAM.  A gzip bomb is a very small file that expands to
+  a very large file (eg. a long series of zeroes).  Any single chunk of
+  the file can be a bomb, so we have to decompress carefully.
+
+  Args:
+    blobkey: the blobid of the blob to retrieve from blobstore.
+  Yields:
+    A series of uncompressed data chunks.
+  """
+  blob = _AsyncBlobReader(blobkey)
+  blob.next()  # get it started downloading in the background
   decomp = zlib.decompressobj()
-  while 1:
-    data = blob.read(BUFSIZE)
-    if not data:
-      break
+  yield ''
+  for data in blob:
+    #logging.debug('received %d compressed bytes', len(data))
     yield decomp.decompress(data, BUFSIZE)
     while decomp.unconsumed_tail:
       yield decomp.decompress(decomp.unconsumed_tail, BUFSIZE)
   yield decomp.flush(BUFSIZE)
   while decomp.unconsumed_tail:
     yield decomp.flush(BUFSIZE)
+
+
+def _DecompressBlobs(blobkeys):
+  """Like _DecompressBlob(), but for a sequence of blobkeys.
+
+  We start prefetching up to PARALLEL_BLOBS blobs at a time for better
+  pipelining.
+
+  Args:
+    blobkeys: a list of blobid.key
+  Yields:
+    A sequence of uncompressed data chunks, from each of the blobs in order.
+  """
+  iters = []
+
+  def next_blob():
+    try:
+      blob = _DecompressBlob(blobkeys.next())
+      blob.next()  # get it started
+    except StopIteration:
+      pass
+    else:
+      iters.append(blob)
+
+  for _ in xrange(PARALLEL_BLOBS):
+    next_blob()
+  while iters:
+    for data in iters[0]:
+      yield data
+    iters.pop(0)
+    next_blob()
 
 
 def _AllArgs(req, keys):
@@ -148,7 +325,83 @@ def _AllArgs(req, keys):
   return query
 
 
-class Upload(Handler, blobstore_handlers.BlobstoreUploadHandler):
+def _ParseTime(s):
+  if not s:
+    return None
+  try:
+    return datetime.datetime.strptime(s, '%Y%m%d-%H%M%S')
+  except ValueError:
+    return datetime.datetime.strptime(s, '%Y%m%d')
+
+
+class Download(_Handler):
+  """Retrieves a given file (and all its successors) from the blobstore."""
+
+  #pylint: disable-msg=W0221
+  def get(self, metakey):
+    """HTTP GET handler."""
+    self.ValidateUser()
+    start_time = time.time()
+    machine = Machine.get_by_key_name(metakey)
+    if not machine:
+      return self.error(404)
+
+    start = _ParseTime(self.request.get('start'))
+    end = _ParseTime(self.request.get('end'))
+
+    self.response.headers.add_header('Content-Type', 'text/plain')
+
+    # AppEngine is annoying and won't just let us serve pre-encoded zlib
+    # encoded files.  So let's decompress it and let appengine recompress
+    # it if the client supports it.
+    #gpylint: disable-msg=E1103
+    q = machine.files().order('create_time')
+    if start:
+      q = q.filter('create_time >=', start)
+    if end:
+      q = q.filter('create_time <', end)
+
+    nbytes = 0
+    blobids = (f.blobid.key() for f in q.run(config=_config))
+    for data in _DecompressBlobs(blobids):
+      self.Write(data.replace('\0', ''))
+      nbytes += len(data)
+      if nbytes > MAX_UNCOMPRESSED_BYTES:
+        self.Write('\n(stopping after %d bytes)\n' % nbytes)
+        break
+    end_time = time.time()
+    logging.info('Download: %d bytes in %.2f seconds',
+                 nbytes, end_time - start_time)
+
+
+def _ScanBlob(blobid):
+  flags = []
+  size = 0
+  last_chunk = ''
+  for chunk in _DecompressBlob(blobid):
+    size += len(chunk)
+    for panic in re.findall(r'(?:Kernel panic[^:]*|BUG):\s*(.*)', chunk):
+      flags.append(('panic', panic))
+    if 'Restarting system.' in chunk:
+      flags.append(('reboot', 'soft'))
+    for ver in re.findall(r'SOFTWARE_VERSION=(\S+)', chunk):
+      flags.append(('version', ver))
+    for uptime in re.findall(r'\[([\s\d]+\.\d+)\].*\n[^\[]*\[[\s0.]+\]',
+                             chunk):
+      uptimev = float(uptime.strip())
+      if uptimev > 0:
+        flags.append(('uptime_end', str(int(uptimev))))
+    if chunk:
+      last_chunk = chunk
+  # the last chunk should have the most recent uptime in it
+  uptimes = re.findall(r'\[([\s\d]+\.\d+)\]', last_chunk)
+  if uptimes:
+    uptimev = float(uptimes[-1].strip())
+    flags.append(('uptime', str(int(uptimev))))
+  return size, flags
+
+
+class Upload(_Handler, blobstore_handlers.BlobstoreUploadHandler):
   """Allows the user to upload a file."""
 
   #pylint: disable-msg=W0221
@@ -162,8 +415,8 @@ class Upload(Handler, blobstore_handlers.BlobstoreUploadHandler):
       path += '?' + urllib.urlencode(query)
     url = blobstore.create_upload_url(path)
     self.Write(url)
+    sync()
 
-  #pylint: disable-msg=C6409
   #pylint: disable-msg=W0221
   def post(self, filename):
     """HTTP POST handler."""
@@ -173,53 +426,62 @@ class Upload(Handler, blobstore_handlers.BlobstoreUploadHandler):
                     len(uploads))
       self.error(500)
     meta = _AllArgs(self.request, self.request.get_all('_'))
-    f = File.New(name=filename, blobid=uploads[0].key(), meta=meta)
-    f.put()
-
-    words = set()
-    for bit in _SearchWords(filename):
-      words.add(bit)
-    for key, value in meta:
-      for bit in _SearchWords(key) + _SearchWords(value):
-        words.add(bit)
-    for chunk in _DecompressBlob(f.blobid.key()):
-      bits = _SkipStopWords(_SearchWords(chunk))
-      for bit in bits:
-        words.add(bit)
-    words = list(words)
-    WORDS_PER_ROW = 100
-    for i in xrange(0, len(words), WORDS_PER_ROW):
-      subset = words[i:i+WORDS_PER_ROW]
-      w = Words(parent=f, file=f.key(), words=subset)
-      w.put()
-      break  # for now, allow only one pass, to not exceed appengine quota :(
+    blobid = uploads[0].key()
+    size, flags = _ScanBlob(blobid)
+    f = File.New(name=filename, blobid=blobid, size=size, meta=meta,
+                 flags=flags)
+    f.put_async()
+    machine = f.machine()
+    _memcache.delete('meta-%s' % machine.keymeta)
+    machine.put_async()
 
     self.Redirect('/')
+    sync()
 
 
-class Download(Handler):
-  """Retrieves a given file from the blobstore."""
+class Regen(_Handler):
+  """Make sure all objects are indexed correctly for latest schema."""
 
-  #pylint: disable-msg=C6409
-  #pylint: disable-msg=W0221
-  def get(self, key):
+  def get(self):
     """HTTP GET handler."""
-    self.ValidateUser()
-    f = File.get(key)
-    if not f:
-      return self.error(404)
-
     self.response.headers.add_header('Content-Type', 'text/plain')
 
-    # AppEngine is annoying and won't just let us serve pre-encoded zlib
-    # encoded files.  So let's decompress it and let appengine recompress
-    # it if the client supports it.
-    #pylint: disable-msg=E1103
-    for data in _DecompressBlob(f.blobid.key()):
-      self.Write(data)
+    def _handle(machinekeys):
+      count = 0
+      keys = machinekeys.keys()
+      machines = Machine.get_by_key_name(keys)
+      for key, machine in zip(keys, machines):
+        if not machine:
+          Machine(key_name=key).put_async()
+          count += 1
+      machinekeys.clear()
+      self.Write('created %d\n' % count)
+      sync()
+
+    machinekeys = {}
+    for f in File.all().order('-create_time').run(config=_config):
+      f.size, f.flags = _ScanBlob(f.blobid.key())
+      f.put_async()
+      machinekeys[f.machine_key()] = 1
+      if len(machinekeys) > 500:
+        _handle(machinekeys)
+    _handle(machinekeys)
+    self.Write('ok\n')
+
+
+class StartRegen(_Handler):
+  """Start a Regen operation using the TaskQueue, which has a long timeout."""
+
+  def get(self):
+    """HTTP GET handler."""
+    taskqueue.add(url='/_regen', method='GET')
+
 
 wsgi_app = webapp.WSGIApplication([
-    ('/', Main),
+    ('/', ListMachines),
+    ('/_regen', Regen),
+    ('/_start_regen', StartRegen),
     ('/upload/(.+)', Upload),
-    ('/([^/]+)/.+', Download),
+    ('/([^/]+)/', ListFiles),
+    ('/([^/]+)/log', Download),
 ], debug=True)
