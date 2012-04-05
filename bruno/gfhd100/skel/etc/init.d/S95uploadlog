@@ -2,6 +2,7 @@
 case "$1" in
   start)
 	echo "Starting log uploader."
+	echo "SOFTWARE_VERSION=$(cat /etc/version)" | logger -t system
 	while :; do
 		upload-crash-log
 		sleep 300
