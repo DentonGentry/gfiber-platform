@@ -43,7 +43,10 @@ make_resolv_conf() {
       echo nameserver $nameserver >>/tmp/resolv.conf.dhclient
     done
 
-    cat /tmp/resolv.conf.dhclient /tmp/resolv.conf.dhclient6 > /tmp/resolv.conf.new 2>/dev/null
+    # TODO(dgentry) fix uclibc (http://lists.uclibc.org/pipermail/uclibc/2011-June/045440.html)
+    # and restore this
+    #cat /tmp/resolv.conf.dhclient /tmp/resolv.conf.dhclient6 > /tmp/resolv.conf.new 2>/dev/null
+    cp /tmp/resolv.conf.dhclient /tmp/resolv.conf.new 2>/dev/null
     mv /tmp/resolv.conf.new /tmp/resolv.conf
   elif [ "x${new_dhcp6_name_servers}" != x ] ; then
     cat /dev/null > /tmp/resolv.conf.dhclient6
