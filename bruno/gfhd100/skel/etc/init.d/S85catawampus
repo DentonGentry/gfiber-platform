@@ -2,7 +2,7 @@
 
 case "$1" in
   start)
-	/bin/catawampus >/dev/null 2>&1 &
+	catawampus 2>&1 | logger -t catawampus &
 	;;
   stop)
 	pkill -x catawampus
