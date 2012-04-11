@@ -1,0 +1,17 @@
+#!/bin/sh
+case "$1" in
+  start)
+	echo "Starting vmstat logger."
+	vmstat 5 2>&1 | logger -t vmstat &
+	;;
+  stop)
+	pkill vmstat
+	;;
+  restart|reload)
+	;;
+  *)
+	echo $"Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
