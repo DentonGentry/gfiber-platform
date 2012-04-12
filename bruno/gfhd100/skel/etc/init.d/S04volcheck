@@ -65,7 +65,7 @@ mount_rootfs() {
     cat /proc/mtd
     ROOTFS_LOCATION="/dev/mtdblock${ROOTFS_MTD_NO}"
   elif [ "${ROOTFS_TYPE}" = "nfs" ]; then
-    mount -t ${ROOTFS_TYPE} -o nolock ${ROOTFS_LOCATION} /rootfs
+    mount -t ${ROOTFS_TYPE} -o nolock,proto=tcp ${ROOTFS_LOCATION} /rootfs
   fi
   if [ "${ROOTFS_LOCATION}" != "" ]; then
     echo "Rootfs found: ${ROOTFS_LOCATION}"
