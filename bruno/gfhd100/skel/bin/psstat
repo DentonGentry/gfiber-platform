@@ -1,0 +1,39 @@
+#!/bin/sh
+DELAY="$1"  # if empty, run only once
+
+printstat()
+{
+  local result="$1"
+  shift
+
+  "$@" | sort -rn | head -n 5 | (
+    while read val comm arg0 arg1 junk; do
+      [ "$comm" = "python" ] && comm=${arg1##/*/}  # use the .py script name
+      result="$result $comm($val)"
+    done;
+    echo "$result"
+  )
+}
+
+
+freemem()
+{
+  free | (
+    read header
+    read h1 total junk
+    read h2a h2b real_used real_free junk
+    echo "$1 total=$total used=$real_used free=$real_free"
+  )
+}
+
+
+while :; do
+  printstat "cputop:" ps --no-headers -e -o cputime,comm,cmd
+  printstat "memtop:" ps --no-headers -e -o rss,comm,cmd
+  freemem "mem:"
+  if [ -n "$DELAY" ]; then
+    sleep "$DELAY" || exit 1
+  else
+    break
+  fi
+done
