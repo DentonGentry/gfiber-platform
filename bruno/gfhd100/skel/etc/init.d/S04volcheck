@@ -47,36 +47,6 @@ check_volume_and_mount() {
   fi
 }
 
-find_rootfs () {
-  for i in ${KERNEL_OPTS}; do
-    KERNEL_OPT_TYPE=${i%=*}
-    KERNEL_OPT_VAL=${i#*=}
-    if [ "${KERNEL_OPT_TYPE}" = "root.type" ]; then
-      ROOTFS_TYPE=${KERNEL_OPT_VAL}
-    elif [ "${KERNEL_OPT_TYPE}" = "nfs.path" ]; then
-      ROOTFS_LOCATION=${KERNEL_OPT_VAL}
-      echo 'NFS' > /tmp/NFS
-    elif [ "${KERNEL_OPT_TYPE}" = "debug" ]; then
-      echo 'DEBUG' > /tmp/DEBUG
-    fi
-  done
-}
-
-mount_rootfs() {
-  if [ "${ROOTFS_TYPE}" = "squashfs" ]; then
-    cat /proc/mtd
-    ROOTFS_LOCATION="/dev/mtdblock${ROOTFS_MTD_NO}"
-  elif [ "${ROOTFS_TYPE}" = "nfs" ]; then
-    mount -t ${ROOTFS_TYPE} -o nolock,proto=tcp ${ROOTFS_LOCATION} /rootfs
-  fi
-  if [ "${ROOTFS_LOCATION}" != "" ]; then
-    echo "Rootfs found: ${ROOTFS_LOCATION}"
-  else
-    echo "Rootfs not found: ${ROOTFS_LOCATION} ${KERNEL_OPTS}"
-    exit 1
-  fi
-}
-
 netflix_sanity_check() {
   if [ -e /user/rw/netflix.run ]; then
     rm -rf /user/drm/* /user/netflix/*
@@ -87,12 +57,6 @@ netflix_sanity_check() {
 case "$1" in
   start)
     echo -n "Starting volume check: "
-    find_rootfs
-    mount_rootfs
-    mount -t squashfs ${ROOTFS_LOCATION} /rootfs
-    if [ $? -ne 0 ]; then
-      echo "Failed to mount rootfs, need to invoke TR-069 download"
-    fi
     check_volume_and_mount 14 1 user user ubifs
     check_volume_and_mount 15 2 config config ubifs
     [ ! -d /user/rw ] && mkdir -p /user/rw

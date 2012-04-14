@@ -13,7 +13,7 @@ mkdir -p /tmp/dropbear
 #
 case "$1" in
      start)
-     SCRIPTS=/etc/init.d/S[56789]?*
+     SCRIPTS=/etc/init.d/S[0-9]?*
      ;;
      stop)
      SCRIPTS=/etc/init.d/K*
