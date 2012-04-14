@@ -39,32 +39,14 @@
 /* monitoring kernel message from /proc/kmsg */
 #define KERN_PROC_KMSG_FS     "/proc/kmsg"
 
-/* Instead of using /proc/kmsg, monitor the one defined in "/etc/syslog.conf".
- * Currently for the kernel messages of priority level from warning to critical,
- * it is directing to  "/var/log/kern.log". For the priority level from
- * alert and above, it is directing to "/var/log/kern0.log".
- */
-#define KERN_SYSLOG_KMSG_FS           "/var/log/kern.log"
-#define KERN_SYSLOG_PRECEDING_STR     "kernel:"
-#define KERN_SYSLOG_PRECEDING_STR_SZ  strlen(KERN_SYSLOG_PRECEDING_STR)
-
 #define DIAGD_DB_FS                   "/user/diag/diagdb.bin"
 #define NUMBYTES                      (1024)
 #define FILESIZE                      (NUMBYTES * sizeof(char))
-#define DEFAULT_UTC_TS                "Jan  1 1970 00:00:00"
-#define DEFAULT_UTC_TS_SZ             strlen(DEFAULT_UTC_TS)
-#define DIAGD_FILE_POS_INDEX          (DEFAULT_UTC_TS_SZ +1)
-#define DIAGD_MOCA_ERR_COUNTS_INDEX   (DIAGD_FILE_POS_INDEX + sizeof(long))
+
+#define DIAGD_MOCA_ERR_COUNTS_INDEX   (0)
 #define DIAGD_GENET_ERR_COUNTS_INDEX  (DIAGD_MOCA_ERR_COUNTS_INDEX + DIAG_MOCA_ERR_COUNTS_SZ)
 #define DIAGD_NAND_ERR_COUNTS_INDEX   (DIAGD_GENET_ERR_COUNTS_INDEX + DIAG_GENET_ERR_COUNTS_SZ)
 #define DIAGD_MCE_ERR_COUNTS_INDEX    (DIAGD_NAND_ERR_COUNTS_INDEX + DIAG_NAND_ERR_COUNTS_SZ)
-
-/* "Mmm dd hh:mm:ss" is the timestamp format in the very beginning of
- * a kernel error/warning message.
- */
-#define KERN_SYSLOG_TS_FORMAT         "Mmm dd hh:mm:ss"
-#define KERN_SYSLOG_TS_SZ             strlen(KERN_SYSLOG_TS_FORMAT)
-#define KERN_SYSLOG_TS_INDEX          KERN_SYSLOG_TS_SZ
 
 
 /* Log message level in string.
@@ -189,7 +171,6 @@ static int diag_parse_dkmsg_split(char *pMsg, diag_dkmsg_t *pDkmsgInfo)
               pDkmsgInfo->msglvl, pDkmsgInfo->code, pDkmsgInfo->pDkmsg);
 
   if (rtn != DIAGD_RC_OK) {
-/* ==> TODO 2011/10/06 Log as an SW error to indicate bad string in the file */
     DIAGD_LOG_SWERR("%s - Failed to parse %s", __func__, pMsg);
   }
   
@@ -249,7 +230,7 @@ int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char k
 /*
  * This routine does as follows:
  * 1) Read monitored (KERN_WARN or KERN_ERR) kernel messages 
- * 2) Compare to the input message which read from /var/log/kern.log
+ * 2) Compare to the input message which read from /proc/kmsg
  * 3) If the input kernel msg is a monitored msg, 
  *
  * If it is a monitored message, inform calling routine.
@@ -284,11 +265,8 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName, char *timestamp)
 
     ifp = fopen(pFileName, "r");
     if (ifp == NULL) {
-        /* TODO 2011/10/O3 - 
-         *  TBD - log the error message.
-         *  TBD - inform user???
-         */
         DIAGD_TRACE("Can not open the %s file", pFileName);
+        DIAGD_LOG("Can not open the %s file", pFileName);
         break;
     }
 
@@ -404,7 +382,6 @@ int get_diagDb_mmap(char **mapPtr)
     int result;
     int fd;
     char *map = (char *) NULL;
-    long *filePos = (long *) NULL;
     bool isNewFile = false;
 
     /* Open diagd database file for read and write.
@@ -467,15 +444,8 @@ int get_diagDb_mmap(char **mapPtr)
     if (isNewFile) {
        /*
         * write default data to diagd database:
-        *    timestamp "Jan  1 1970 00:00:00"
-        *    filePosPrevRun = 0
         *    all error and warning counts = 0
         */
-        strcpy(map, DEFAULT_UTC_TS);
-        map[DEFAULT_UTC_TS_SZ] = '\0';
-        filePos = (long *) &(map[DIAGD_FILE_POS_INDEX]);
-        *filePos = (long) 0L;
-
         DIAGD_DEBUG("\nDIAG_ALL_ERR_COUNTS_SZ = %d\n", DIAG_ALL_ERR_COUNTS_SZ);
         memset(&map[DIAGD_MOCA_ERR_COUNTS_INDEX], 0, DIAG_ALL_ERR_COUNTS_SZ);
     }
@@ -487,9 +457,9 @@ int get_diagDb_mmap(char **mapPtr)
 
 extern char *strptime(char *s, char*format, struct tm *tm);
 /*
- * 1) Read kernel messages from a /var/log/kern.log
+ * 1) Read kernel messages from a /proc/kmsg
  * 2) If a kernel message level is KERN_EMERG or KERN_ALERT, (TBD) system issue
- * 3) If a kernel message level is KERN_CRIT or KERN_ERR, (TBD) compare to
+ * 3) If a kernel message level is KERN_CRIT , KERN_ERR, KERN_WARN compare to
  *    the list if it is HW related issues. 
  * If the message is a monitored message, handle based on the dact setting.
  *
@@ -501,148 +471,129 @@ extern char *strptime(char *s, char*format, struct tm *tm);
  */
 int Diag_Mon_ParseExamine_KernMsg(void)
 {
-  FILE *ifp = NULL;
-  int   fd;
-  int   flags;
-  char  kmsgMsg[DIAG_MSG_MAXLINELEN];
-  int   rtn = DIAGD_RC_OK;
-  bool  msgFound = false;
-  char  kernMsgErrLevel = DIAG_KERN_MSG_MAX;
-  char  *kMsgPtr = NULL;
-  long  currentFilePos = (long) 0L;
-  long  *filePosPrevRun = (long *) NULL;
-  char   newtimeStr[24];
-  time_t now, newtime, diagdTimeStamp;
-  struct tm tm, *ptm, diagdTm;
-  static int    thisYear;
-  int    diagdFd = 0;
-  char   *diagdMap = NULL;
+   FILE *ifp = NULL;
+   int   fd;
+   int   flags;
+   char  kmsgMsg[DIAG_MSG_MAXLINELEN];
+   int   rtn = DIAGD_RC_OK;
+   bool  msgFound = false;
+   unsigned char  kernMsgErrLevel = DIAG_KERN_MSG_MAX;
+   char  *kMsgPtr = NULL;
+   char   nowStr[24];
+   time_t now;
+   struct tm  *ptm;
+   int    diagdFd = 0;
+   char   *diagdMap = NULL;
 
-  DIAGD_TRACE("%s: enter", __func__);
+   DIAGD_TRACE("%s: enter", __func__);
 
-  do 
-  {
-    if (diag_chkKernMsg_firstRun == false) {
+   if (diag_chkKernMsg_firstRun == false) {
       if (checkIfTimeout(DIAG_API_IDX_GET_CHK_KERN_KMSG) == false) {
-        break;        /* Wait time is not expired. Exit */
+         goto parse_exit;     /* Wait time is not expired. Exit */
       }
-    }
-    else {
+   }
+   else {
       /* It is first time running routine after power-up. */
-       diag_chkKernMsg_firstRun = false;     /* Clear the flag. */
+      diag_chkKernMsg_firstRun = false;     /* Clear the flag. */
+   }
 
-      /*
-       * get current year since year is missing in the timestamp
-       * of syslog kernel messages.
-       */
-       time(&now);
-       ptm = localtime(&now);
-       thisYear = ptm->tm_year;
-    }
+   /* get mmap of diag databse file */
+   if ((diagdFd = get_diagDb_mmap(&diagdMap)) < 0) {
+      DIAGD_DEBUG("get_diagDb_mmap failed");
+      goto parse_exit;
+   }
+   /* read in timestamp and file position in the previous run from DIAGD_DB_FS */
+   else {
+      /* read in error and warning counts from DIAGD_DB_FS */
+      diagMocaErrCntsPtr  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
+      diagGenetErrCntsPtr = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
+      diagNandErrCntsPtr  = (diagNandErrCounts_t *) &diagdMap[DIAGD_NAND_ERR_COUNTS_INDEX];
+      diagMceErrCntsPtr   = (diagMceErrCounts_t *) &diagdMap[DIAGD_MCE_ERR_COUNTS_INDEX];
+   }
 
-    /* get mmap of diag databse file */
-    if ((diagdFd = get_diagDb_mmap(&diagdMap)) < 0) {
-       DIAGD_DEBUG("get_diagDb_mmap failed");
-       break;
-    }
-    /* read in timestamp and file position in the previous run from DIAGD_DB_FS */
-    else {
-       strptime(diagdMap, "%b %d %Y %T", &diagdTm);
-       diagdTimeStamp = mktime(&diagdTm);
-       filePosPrevRun  = (long *) &diagdMap[DIAGD_FILE_POS_INDEX];
+   /* Update the starting time of the api */
+   time(&diagStartTm_chkKernMsg);
 
-       /* read in error and warning counts from DIAGD_DB_FS */
-       diagMocaErrCntsPtr  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
-       diagGenetErrCntsPtr = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
-       diagNandErrCntsPtr  = (diagNandErrCounts_t *) &diagdMap[DIAGD_NAND_ERR_COUNTS_INDEX];
-       diagMceErrCntsPtr   = (diagMceErrCounts_t *) &diagdMap[DIAGD_MCE_ERR_COUNTS_INDEX];
+   ifp = fopen(KERN_PROC_KMSG_FS, "r");
+   if (ifp == NULL) {
+      DIAGD_DEBUG("Can not open the %s file", KERN_PROC_KMSG_FS);
+      rtn = DIAGD_RC_ERR;
+      goto parse_exit;
+   }
 
-    }
+   /*
+    * /proc/kmsg is opened OK.
+    * fgets() is default to be "blocking". To prevent fgets blocks when the
+    * kmsg doesn't have no new message, set the fp to be non-blocking.
+    */
+   fd = fileno(ifp);
+   flags = fcntl(fd, F_GETFL, 0);
+   flags |= O_NONBLOCK;
+   fcntl(fd, F_SETFL, flags);
 
-    /* Update the starting time of the api */
-    time(&diagStartTm_chkKernMsg);
-
-    ifp = fopen(KERN_SYSLOG_KMSG_FS, "r");
-    if (ifp == NULL) {
-        DIAGD_DEBUG("Can not open the %s file", KERN_SYSLOG_KMSG_FS);
-        rtn = DIAGD_RC_ERR;
-        break;
-    }
-
-    /* 
-     * /var/log/kern.log is opened OK.
-     * fgets() is default to be "blocking". To prevent fgets blocks when the
-     * kmsg doesn't have no new message, set the fp to be non-blocking.
-     */
-    fd = fileno(ifp);
-    flags = fcntl(fd, F_GETFL, 0);
-    flags |= O_NONBLOCK;
-    fcntl(fd, F_SETFL, flags);
-
-    if (*filePosPrevRun) {
-       if (fseek(ifp, *filePosPrevRun, SEEK_SET) != 0) {
-          /* fail to fseek may be caused by log file rotation or file is corrupted */
-          DIAGD_DEBUG("Can not fseek  the %s file to position %ld", KERN_SYSLOG_KMSG_FS, *filePosPrevRun);
-       }
-    }
-
-    while (true) {
+   while (true) {
       /* 
        * If there is no message available, fgets will return NULL with errno set
        * to EWOULDBLCOK.
        */
       if (fgets(kmsgMsg, DIAG_MSG_MAXLINELEN, ifp) == NULL) 
       {
-        /* No message available in /var/log/kern.log. Exit. */
-        DIAGD_DEBUG("No new kernel message available in the %s file", KERN_SYSLOG_KMSG_FS);
-        break;
+         /* No message available in /proc/kmsg Exit. */
+         DIAGD_DEBUG("No new kernel message available in the %s file", KERN_PROC_KMSG_FS);
+         break;
       }
 
       kmsgMsg[strcspn(kmsgMsg, "\n")] = '\0';
       if (kmsgMsg[0] == '\0') {
-          continue;
+         continue;
       }
       else {
-         /* read in timestamp within the kernel message */
-         kmsgMsg[KERN_SYSLOG_TS_INDEX]='\0';
-         strptime(kmsgMsg, "%b %d %T", &tm);
-         DIAGD_TRACE("original  timestamp:%s", kmsgMsg);
-         tm.tm_year = thisYear;
-
-         strftime(newtimeStr, sizeof(newtimeStr), "%b %d %Y %T", &tm);
-         DIAGD_TRACE("converted timestamp:%s", newtimeStr);
-         kmsgMsg[KERN_SYSLOG_TS_INDEX] = ' ';
-
-         /* timestamp of this to-be-processed
-          * kernel message is older than diagdTimeStamp.
-          * No need to parse this kernel message.
-          * Save the current file position and continue.
-          */
-         if (difftime(diagdTimeStamp, (newtime = mktime(&tm))) > 0) {
-            goto saveFilePos;
-         }
-         
+        /* Got a kernel message and check what is the kernel message level.
+         * An valid kernel message is "<msglevel>[relative timestamp] kernel message...."
+         * ie.:
+         * "<6>[2042.204000] eth0: Link is up, 1000 Mbps Full Duplex"
+         * "<3>[11025.823000] sd 7:0:0:0: [sdc] Assuming drive cache: write through"
+         */
          kMsgPtr = &kmsgMsg[0];
-         /* set priority level to warning since the priority level of
-          * logged kernel messages in kern.log is from warning to critical
+	 if (kmsgMsg[0] == '<' && kmsgMsg[2] == '>') {
+            kernMsgErrLevel = DIAG_KERN_WARNING;
+            kernMsgErrLevel = kmsgMsg[1] - '0';
+            DIAGD_TRACE("find the kernel message level <%d>", kernMsgErrLevel);
+            kMsgPtr+= 3;
+         }
+         else {
+         /*
+          * Not a valid kernel message (We shouldn't get here.)
           */
-         kernMsgErrLevel = DIAG_KERN_WARNING;
+            DIAGD_TRACE("Cannot find message level in the kernel message:%s", kmsgMsg);
+            continue;
+         }
 
-         /* skip "kernel:" and space or tab to advance index to the beginning of main kernel message */
-         if ((kMsgPtr = strstr(kMsgPtr, KERN_SYSLOG_PRECEDING_STR)) != NULL) {
-            kMsgPtr+= KERN_SYSLOG_PRECEDING_STR_SZ;
+         /*
+          * skip "[relative timestamp]" and space or tab to advance index to
+          * the beginning of main kernel message
+          */
+         if (((kMsgPtr = strchr(kMsgPtr, '[')) != NULL) &&
+             ((kMsgPtr = strchr(kMsgPtr, ']')) != NULL)) {
+            kMsgPtr++;
             while(*kMsgPtr == ' ' || *kMsgPtr == '\t') {kMsgPtr++;}
          }
          else {
-         /* Cannot locate main kernel message. Should not happen */
-            DIAGD_TRACE("Cannot find \"kernel:\" in the kernel message:%s", kmsgMsg);
-            kernMsgErrLevel = DIAG_KERN_MSG_MAX;
+         /* Cannot locate [relative timestamp] in the kernel message. Should not happen */
+            DIAGD_TRACE("Cannot find [relative timestamp] in the kernel message:%s", kmsgMsg);
+            continue;
          }
       }
 
-      if (kernMsgErrLevel != DIAG_KERN_MSG_MAX) {
-         DIAGD_TRACE("kernMsgErrLevel=%d, pKernMsg: %s", kernMsgErrLevel, kMsgPtr);
+      DIAGD_TRACE("kernMsgErrLevel=%d, pKernMsg: %s", kernMsgErrLevel, kMsgPtr);
+      if (kernMsgErrLevel == DIAG_KERN_MSG_MAX) {
+         continue;
       }
+
+      time(&now);
+      ptm = localtime(&now);
+      strftime(nowStr, sizeof(nowStr), "%b %d %Y %T", ptm);
+      nowStr[strlen(nowStr)] = '\0';
 
       switch (kernMsgErrLevel) {
         case DIAG_KERN_EMERG:
@@ -653,18 +604,18 @@ int Diag_Mon_ParseExamine_KernMsg(void)
            * 1) log the message.
            * 2) TBD - Inform user error occurred 
            */
+          DIAGD_LOG_W_TS("%s %s %4x %s", nowStr, diagd_logmsg_lvl[kernMsgErrLevel], 0, kMsgPtr);
           break;
 
         case DIAG_KERN_CRIT:
         case DIAG_KERN_ERR:
         case DIAG_KERN_WARNING:
-          /* 
-           * If it is a monitored kernel error, warning messages, handle it based on the
-           * dact setting.
+          /* If it is a monitored kernel critical, error, warning messages,
+           * handle it based on the dact setting.
            */
-          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE, newtimeStr);
+          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE, nowStr);
           if (msgFound == false) {
-             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE, newtimeStr);
+             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE, nowStr);
           }
           break;
 
@@ -672,48 +623,29 @@ int Diag_Mon_ParseExamine_KernMsg(void)
           break;        /* don't care of the other level of kernel messages. */
       }
       
-      DIAGD_TRACE("errmsg: %s", kmsgMsg);
+      DIAGD_TRACE("kmsgMsg: %s", kmsgMsg);
+   }
 
-      /* save new timestamp */
-      diagdTimeStamp = newtime;
-      strcpy(diagdMap, newtimeStr);
-      diagdMap[strlen(newtimeStr)] = '\0';
 
-saveFilePos:
-      if ((currentFilePos = ftell(ifp)) < 0) {
-         DIAGD_DEBUG("ftell failed to get current position of the %s file", KERN_SYSLOG_KMSG_FS);
-         break;
+parse_exit:
+   if (ifp != NULL) {
+      fclose(ifp);
+   }
+
+   if (diagdFd > 0) {
+      close(diagdFd);
+
+      /* unmap the mapped virtual memory address space of
+       * the diag database file
+       */
+      if (munmap(diagdMap, FILESIZE) == -1) {
+         DIAGD_TRACE("Error un-mmapping the file");
       }
-      else {
-         /* save file position to DIAGD_DB_FS */
-         *filePosPrevRun = currentFilePos;
+   }
 
-        /*
-         * diagd error and warning count have been updated to DIAGD_DB_FS
-         * in diagUpdateErorrCount() for each matched kernel message.
-         */
-      }
-    }
+   DIAGD_TRACE("%s: exit", __func__);
 
-  } while (0); /* TODO 03092012 remove while(0) later */ 
-
-  if (ifp != NULL) {
-    fclose(ifp);
-  }
-
-  if (diagdFd > 0) {
-     close(diagdFd);
-
-    /*  unmap the mapped virtual memory address space of the diag database file
-     */
-     if (munmap(diagdMap, FILESIZE) == -1) {
-        DIAGD_TRACE("Error un-mmapping the file");
-     }
-  }
-
-  DIAGD_TRACE("%s: exit", __func__);
-
-  return(rtn);
+   return(rtn);
 
 } /* end of Diag_Mon_ParseExamine_KernMsg */
 
