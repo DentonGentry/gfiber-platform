@@ -21,9 +21,10 @@ case "$1" in
 esac
 
 for i in ${SCRIPTS}; do
-
      # Ignore dangling symlinks (if any).
      [ ! -f "$i" ] && continue
+
+     echo -n "${i##*/}: " >&2
 
      case "$i" in
 	*.sh)
@@ -41,8 +42,5 @@ for i in ${SCRIPTS}; do
     esac
 done
 
-# :TODO: (by kedong, don't mount usb yet.
-#echo "Mounting USB stick"
-#sleep 2
-# mount /dev/sda1 /mnt/usb
-#sleep 2
+echo
+echo "/etc/init.d/rcS: done." >&2

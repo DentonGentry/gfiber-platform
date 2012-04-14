@@ -1,8 +1,9 @@
 #!/bin/sh
 
 if [ -e /tmp/DEBUG ]; then
-  /sbin/agetty -L ttyS0 115200 vt100
+  agetty -L ttyS0 115200 vt100
 else
+  echo "Not running getty.  To activate a terminal, use debug=1." >&2
   while true; do
     sleep 86400;
   done
