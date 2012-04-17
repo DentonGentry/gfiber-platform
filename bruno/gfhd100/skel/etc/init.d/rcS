@@ -12,11 +12,15 @@ mkdir -p /tmp/dropbear
 # executing them in numerical order.
 #
 case "$1" in
-     start)
+   start)
      SCRIPTS=/etc/init.d/S[0-9]?*
      ;;
-     stop)
-     SCRIPTS=/etc/init.d/K*
+   stop)
+     # We use "crash-only" shutdown style, based on the assumption that
+     # our system will mostly be stopped by a hard poweroff anyway.  Thus,
+     # there's no reason to try to shutdown the system politely.  Instead
+     # of using /etc/init.d/K* for shutdown scripts, we just leave it blank.
+     SCRIPTS=
      ;;
 esac
 
