@@ -1,0 +1,19 @@
+#!/bin/sh
+
+mkdir -p /tmp/cwmp
+
+# dhclient populates the ACS_URL in /tmp/cwmp/acs_url
+CWMP="
+  /usr/catawampus/cwmpd
+      --acs-url-file=/tmp/cwmp/acs_url
+      --platform=gfmedia
+      --ping_ip6dev=br0
+"
+DELAY=60
+
+#TODO(apenwarr): this sort of loop belongs in /etc/init.d/* or something,
+# not in normal programs in /bin.
+until $CWMP "$@"; do
+  echo "cwmpd exited with code $?.  Respawning in $DELAY seconds." >&2
+  sleep $DELAY
+done

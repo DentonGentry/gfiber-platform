@@ -2,10 +2,10 @@
 
 case "$1" in
   start)
-	catawampus 2>&1 | logger -t catawampus &
+	cwmpd 2>&1 | logger -t cwmpd &
 	;;
   stop)
-	pkill -x catawampus
+	pkill -x cwmpd
 	;;
 
   restart)
