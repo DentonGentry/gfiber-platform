@@ -73,6 +73,8 @@ ANY_TIME=""
 TRACE=""
 MOCAD_PARAMS=""
 [ -e $CFG_FILE ] && . $CFG_FILE
+PLATFORM=`cat /etc/platform`
+[ "$PLATFORM" = "GFMS100" ] && INIT_TIME="$INIT_TIME --preferredNC on"
 
 cmd="$1"
 shift
