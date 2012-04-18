@@ -49,9 +49,11 @@ View logs:
 
 <ul>
 {% if files %}
-  {% for file, running_size in files %}
+  {% for file, running_size, end_time_code, splitter in files %}
+   {% if splitter %}<hr>{% endif %}
    <li>
-     Since <a href="/{{file.machine_key}}/log?start={{file.create_time_code}}"
+     Since <a
+     href="/{{file.machine_key}}/log?start={{file.create_time_code}}{% if end_time_code %}&end={{end_time_code}}{% endif %}"
        >{{file.nice_create_time}}</a>
      <span class="filesize">{{running_size}}</span>
      <span class="flags">

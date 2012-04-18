@@ -23,13 +23,13 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from google.appengine.api import users
 from google.appengine.ext import blobstore
-from google.appengine.ext import db
+from google.appengine.ext import ndb
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import blobstore_handlers
 from google.appengine.ext.webapp import template
 
 
-MAX_UNCOMPRESSED_BYTES = 10*1024*1024  # max bytes in a single download
+MAX_UNCOMPRESSED_BYTES = 5*1024*1024  # max bytes in a single download
 MAX_MEM_PER_DOWNLOAD = 10*1024*1024    # max memory for buffering a download
 MAX_PARALLEL_BLOBS = 64                # max blobstore requests at once
 
@@ -41,7 +41,6 @@ PARALLEL_BLOBS = min(MAX_MEM_PER_DOWNLOAD / BUFSIZE, MAX_PARALLEL_BLOBS)
 _path = os.path.dirname(__file__)
 _futures_queue = []
 _memcache = memcache.Client()
-_config = db.create_config(read_policy=db.EVENTUAL_CONSISTENCY)
 
 
 def sync():
@@ -50,17 +49,17 @@ def sync():
     f.get_result()  # may throw exception
 
 
-class _Model(db.Model):
+class _Model(ndb.Model):
   def put_async(self):
     """put() in the background.  Call sync() to wait for all pending puts."""
-    f = db.put_async(self)
+    f = ndb.Model.put_async(self)
     _futures_queue.append(f)
     return f
 
   @property
   def key_name(self):
     """Property for the primary key, which you can alias to a member."""
-    return self.key().name
+    return self.key.id
 
 
 class Machine(_Model):
@@ -71,41 +70,37 @@ class Machine(_Model):
   machines.
   """
   keymeta = _Model.key_name  # key=value string to match in File list
-  modified_time = db.DateTimeProperty(auto_now=True)
+  modified_time = ndb.DateTimeProperty(auto_now=True)
 
   def __repr__(self):
     return 'Machine(%s)' % self.keymeta
 
   def files(self):
-    return File.all().filter('meta', self.keymeta())
+    return File.query().filter(File.meta == self.keymeta())
 
   @property
   def nice_modified_time(self):
     return self.modified_time.strftime('%Y-%m-%d %H:%M:%S UTC')
 
   def most_recent_meta(self):
-    metacache = _memcache.get('meta-%s' % self.keymeta)
-    if metacache:
-      return metacache
-    else:
-      f = self.files().order('-create_time').get()
-      meta = f and f.meta or []
-      _memcache.set('meta-%s' % self.keymeta, meta)
-      return meta
+    f = self.files().order(-File.create_time).get()
+    meta = f and f.meta or []
+    _memcache.set('meta-%s' % self.keymeta, meta)
+    return meta
 
 
 class File(_Model):
   """Represents an uploaded file."""
-  name = db.StringProperty()  # filename
-  blobid = blobstore.BlobReferenceProperty()  # pointer to gzip'd file content
-  size = db.IntegerProperty()  # uncompressed file size
-  create_time = db.DateTimeProperty(auto_now_add=True)  # when it was uploaded
-  meta = db.StringListProperty()  # metadata: a list of key=value strings
+  name = ndb.StringProperty()  # filename
+  blobid = ndb.BlobKeyProperty()  # pointer to gzip'd file content
+  size = ndb.IntegerProperty()  # uncompressed file size
+  create_time = ndb.DateTimeProperty(auto_now_add=True)  # when it was uploaded
+  meta = ndb.StringProperty(repeated=True)  # metadata: key=value strings
 
   # We split keys and values here so we index the database by key, and thus
   # search for all rows with key='panic', ordered by date, etc.
-  flag_keys = db.StringListProperty()    # list of flag names
-  flag_values = db.StringListProperty()  # list of flag values
+  flag_keys = ndb.StringProperty(repeated=True)    # list of flag names
+  flag_values = ndb.StringProperty(repeated=True)  # list of flag values
 
   def _get_flags(self):
     return zip(self.flag_keys, self.flag_values)
@@ -115,10 +110,6 @@ class File(_Model):
     self.flag_values = [i[1] for i in flags]
 
   flags = property(fget=_get_flags, fset=_set_flags)
-
-  @property
-  def key_name(self):
-    return self.key().name
 
   @property
   def nice_create_time(self):
@@ -154,11 +145,11 @@ class File(_Model):
 
   def machine(self):
     """Return a Machine object that owns this file; may create one."""
-    for machine in Machine.get_by_key_name(self.meta):
+    for machine in ndb.get_multi(ndb.Key(Machine, i) for i in self.meta):
       if machine:
         return machine
     # still here? need to create it then.
-    machine = Machine(key_name=self.machine_key())
+    machine = Machine(id=self.machine_key())
     machine.put_async()
     return machine
 
@@ -191,27 +182,46 @@ class _Handler(webapp.RequestHandler):
       raise Exception('invalid user')
 
 
+def _MachinesHelper(machines):
+  found = _memcache.get_multi((str(m.keymeta) for m in machines),
+                              key_prefix='meta-')
+  for m in machines:
+    key = str(m.keymeta)
+    if key in found:
+      yield m, found[key]
+    else:
+      yield m, m.most_recent_meta()
+
+
 class ListMachines(_Handler):
   """Returns a list of available machines."""
 
   def get(self):
     """HTTP GET handler."""
     self.ValidateUser()
-    machines = Machine.all().order('-modified_time')
-    self.Render('machines.djt', machines=machines)
+    machines = Machine.query().order(-Machine.modified_time).fetch(1000)
+    self.Render('machines.djt', machines=_MachinesHelper(machines))
 
 
 def _FilesHelper(files):
   running_size = 0
+  end_time = None
+  splitter = False
   for f in files:
     if running_size is not None and f.size is not None:
       running_size += f.size
     else:  # file created before we had a 'size' attribute
       running_size = None
     if running_size:
-      yield f, '%.2fk' % (running_size/1024.)
+      yield f, '%.2fk' % (running_size/1024.), end_time, splitter
     else:
-      yield f, ''
+      yield f, '', end_time, splitter
+    splitter = False
+    for key, _ in f.flags:
+      if key == 'version':  # reboot detected
+        end_time = f.create_time_code
+        running_size = f.size
+        splitter = True
 
 
 class ListFiles(_Handler):
@@ -221,11 +231,11 @@ class ListFiles(_Handler):
   def get(self, machineid):
     """HTTP GET handler."""
     self.ValidateUser()
-    machine = Machine.get_by_key_name(machineid)
+    machine = ndb.Key(Machine, machineid).get()
     if not machine:
       return self.error(404)
     #gpylint: disable-msg=E1103
-    files = machine.files().order('-create_time')
+    files = machine.files().order(-File.create_time).fetch(2000)
     self.Render('files.djt',
                 machineid=machineid,
                 files=_FilesHelper(files),
@@ -241,13 +251,14 @@ def _AsyncBlobReader(blobkey):
   iterate through them, thus reducing latency.
 
   Args:
-    blobkey: the blobid.key() of a desired blob.
+    blobkey: the blobid of a desired blob.
   Yields:
     A sequence of uncompressed data chunks (the contents of the blob)
   """
   ofs = 0
   future = blobstore.fetch_data_async(blobkey, ofs, ofs + BUFSIZE - 1)
   yield ''
+  cacheable = True
   while future:
     data = future.get_result()
     ofs += len(data)
@@ -255,11 +266,20 @@ def _AsyncBlobReader(blobkey):
       future = None
     else:
       future = blobstore.fetch_data_async(blobkey, ofs, ofs + BUFSIZE - 1)
+      cacheable = False
     yield data
+  if cacheable:
+    _memcache.set('zblob-%s' % blobkey, data)
 
 
-def _DecompressBlob(blobkey):
-  """Yield a series of un-gzipped content chunks for the given blobid.
+def _TrivialReader(data):
+  """Works like _AsyncBlobReader, if you already have the data."""
+  yield ''
+  yield data
+
+
+def _Decompress(dataiter):
+  """Yield a series of un-gzipped content chunks for the given data iterator.
 
   This is a bit complicated because we need to make sure "gzip bombs" don't
   suck up all our RAM.  A gzip bomb is a very small file that expands to
@@ -267,15 +287,14 @@ def _DecompressBlob(blobkey):
   the file can be a bomb, so we have to decompress carefully.
 
   Args:
-    blobkey: the blobid of the blob to retrieve from blobstore.
+    dataiter: an iterator that retrieves the data, one chunk at a time.
   Yields:
     A series of uncompressed data chunks.
   """
-  blob = _AsyncBlobReader(blobkey)
-  blob.next()  # get it started downloading in the background
+  dataiter.next()  # get it started downloading in the background
   decomp = zlib.decompressobj()
   yield ''
-  for data in blob:
+  for data in dataiter:
     #logging.debug('received %d compressed bytes', len(data))
     yield decomp.decompress(data, BUFSIZE)
     while decomp.unconsumed_tail:
@@ -285,6 +304,11 @@ def _DecompressBlob(blobkey):
     yield decomp.flush(BUFSIZE)
 
 
+def _DecompressBlob(blobkey):
+  """Yield a series of un-gzipped content chunks for the given blobid."""
+  return _Decompress(_AsyncBlobReader(blobkey))
+
+
 def _DecompressBlobs(blobkeys):
   """Like _DecompressBlob(), but for a sequence of blobkeys.
 
@@ -292,28 +316,33 @@ def _DecompressBlobs(blobkeys):
   pipelining.
 
   Args:
-    blobkeys: a list of blobid.key
+    blobkeys: a list of blobid
   Yields:
     A sequence of uncompressed data chunks, from each of the blobs in order.
   """
   iters = []
+  blobkeys = list(str(i) for i in blobkeys)
 
-  def next_blob():
-    try:
-      blob = _DecompressBlob(blobkeys.next())
-      blob.next()  # get it started
-    except StopIteration:
-      pass
-    else:
-      iters.append(blob)
-
-  for _ in xrange(PARALLEL_BLOBS):
-    next_blob()
-  while iters:
-    for data in iters[0]:
-      yield data
-    iters.pop(0)
-    next_blob()
+  while blobkeys:
+    needed = PARALLEL_BLOBS - len(iters)
+    logging.warn('fetching %d\n', needed)
+    want = blobkeys[:needed]
+    blobkeys[:needed] = []
+    found = _memcache.get_multi(want, key_prefix='zblob-')
+    for blobkey in want:
+      zblob = found.get(blobkey)
+      if zblob:
+        logging.warn('found: %r\n', blobkey)
+        dataiter = _Decompress(_TrivialReader(zblob))
+      else:
+        logging.warn('not found: %r\n', blobkey)
+        dataiter = _DecompressBlob(blobkey)
+      dataiter.next()  # get it started downloading
+      iters.append(dataiter)
+    while iters:
+      dataiter = iters.pop(0)
+      for data in dataiter:
+        yield data
 
 
 def _AllArgs(req, keys):
@@ -342,7 +371,7 @@ class Download(_Handler):
     """HTTP GET handler."""
     self.ValidateUser()
     start_time = time.time()
-    machine = Machine.get_by_key_name(metakey)
+    machine = ndb.Key(Machine, metakey).get()
     if not machine:
       return self.error(404)
 
@@ -355,14 +384,14 @@ class Download(_Handler):
     # encoded files.  So let's decompress it and let appengine recompress
     # it if the client supports it.
     #gpylint: disable-msg=E1103
-    q = machine.files().order('create_time')
+    q = machine.files().order(File.create_time)
     if start:
-      q = q.filter('create_time >=', start)
+      q = q.filter(File.create_time >= start)
     if end:
-      q = q.filter('create_time <', end)
+      q = q.filter(File.create_time < end)
 
     nbytes = 0
-    blobids = (f.blobid.key() for f in q.run(config=_config))
+    blobids = (f.blobid for f in q.fetch(1000))
     for data in _DecompressBlobs(blobids):
       self.Write(data.replace('\0', ''))
       nbytes += len(data)
@@ -432,8 +461,8 @@ class Upload(_Handler, blobstore_handlers.BlobstoreUploadHandler):
                  flags=flags)
     f.put_async()
     machine = f.machine()
-    _memcache.delete('meta-%s' % machine.keymeta)
     machine.put_async()
+    _memcache.delete('meta-%s' % machine.keymeta)
 
     self.Redirect('/')
     sync()
@@ -449,18 +478,18 @@ class Regen(_Handler):
     def _handle(machinekeys):
       count = 0
       keys = machinekeys.keys()
-      machines = Machine.get_by_key_name(keys)
+      machines = ndb.get_multi(ndb.Key(Machine, key) for key in keys)
       for key, machine in zip(keys, machines):
         if not machine:
-          Machine(key_name=key).put_async()
+          Machine(id=key).put_async()
           count += 1
       machinekeys.clear()
       self.Write('created %d\n' % count)
       sync()
 
     machinekeys = {}
-    for f in File.all().order('-create_time').run(config=_config):
-      f.size, f.flags = _ScanBlob(f.blobid.key())
+    for f in File.query().order(-File.create_time):
+      f.size, f.flags = _ScanBlob(f.blobid)
       f.put_async()
       machinekeys[f.machine_key()] = 1
       if len(machinekeys) > 500:
