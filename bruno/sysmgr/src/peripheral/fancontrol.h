@@ -147,7 +147,7 @@ class FanControl {
   bool InitPwm(void);
   void ComputeDutyCycle(uint32_t avg_temp, uint16_t *new_duty_cycle_pwm);
   void InitParams(void);
-  std::string ExecCmd(char* cmd);
+  std::string ExecCmd(char* cmd, std::string *pattern);
   void ComputeDutyCycle_PControl(uint16_t temp, uint16_t *new_duty_cycle_pwm, uint8_t idx);
   void dbgUpdateFanControlParams(void);
   bool dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx);
