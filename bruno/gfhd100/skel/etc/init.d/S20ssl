@@ -1,0 +1,24 @@
+#!/bin/sh
+
+case "$1" in
+  start)
+	echo -n "Extracting SSL certificates: "
+	mkdir -p -m 0555 /tmp/ssl/certs || exit 1
+	mkdir -p -m 0550 /tmp/ssl/private || exit 1
+	hnvram -q -r GOOGLE_SSL_CRT >/tmp/ssl/certs/device.pem
+	hnvram -q -r GOOGLE_SSL_PEM >/tmp/ssl/private/device.key
+	echo "done"
+;;
+  stop)
+	;;
+
+  restart)
+	$0 stop; $0 start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+	;;
+esac
+
+exit 0
