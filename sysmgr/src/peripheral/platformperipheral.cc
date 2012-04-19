@@ -19,6 +19,7 @@
 #include "platform_peripheral_api.h"
 #include "platformperipheral.h"
 #include "platform.h"
+#include "ubifsmon.h"
 
 namespace bruno_platform_peripheral {
 
@@ -48,9 +49,10 @@ bool PlatformPeripheral::Init(unsigned int monitor_interval) {
   kInstance_->factory_reset_button_->Init(kInstance_->mgr_thread_);
   kInstance_->peripheral_mon_->Init(kInstance_->mgr_thread_, monitor_interval);
   kInstance_->unmute_->Init();
+  kInstance_->ubifs_mon_->Init(kInstance_->mgr_thread_, monitor_interval);
   kInstance_->flash_->Init(kInstance_->mgr_thread_,
-                           kInstance_->factory_reset_button_);
-
+                           kInstance_->factory_reset_button_,
+                           kInstance_->ubifs_mon_);
   return true;
 }
 
@@ -69,6 +71,7 @@ bool PlatformPeripheral::Terminate(void) {
     kInstance_->factory_reset_button_->Terminate();
     kInstance_->peripheral_mon_->Terminate();
     kInstance_->unmute_->Terminate();
+    kInstance_->ubifs_mon_->Terminate();
     delete kInstance_;
     kInstance_ = NULL;
     delete platformInstance_;
@@ -113,8 +116,10 @@ PlatformPeripheral::PlatformPeripheral(Platform *platform)
     led_standby_(new LedStandby()),
     led_status_(new LedStatus()),
     factory_reset_button_(new FactoryResetButton()),
-    peripheral_mon_(new PeripheralMon(new FanControl(0, platform), new GpIoFanSpeed())),
+    peripheral_mon_(new PeripheralMon(new FanControl(0, platform),
+                    new GpIoFanSpeed())),
     unmute_(new Unmute()),
+    ubifs_mon_(new UbifsMon(platform)),
     flash_(new Flash()) {
 }
 

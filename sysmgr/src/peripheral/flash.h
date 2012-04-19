@@ -19,6 +19,8 @@
 #include "base/scoped_ptr.h"
 #include "common.h"
 #include "factoryresetbutton.h"
+#include "ubifsmon.h"
+#include "flash.h"
 
 namespace bruno_platform_peripheral {
 
@@ -103,7 +105,8 @@ class Flash : public sigslot::has_slots<>, public bruno_base::MessageHandler {
   virtual ~Flash() {}
 
   void Init(bruno_base::Thread*& mgr_thread,
-            bruno_base::scoped_ptr<FactoryResetButton>& factory_reset_button);
+            bruno_base::scoped_ptr<FactoryResetButton>& factory_reset_button,
+            bruno_base::scoped_ptr<UbifsMon>& ubifs_mon);
   bool ProcessRoUbiVolumes(void);
   bool ProcessSpecifiedUbiVolume(std::string& ubi_vol_name);
   bool ReadOnlyVolumeList(std::list<UbifsMountEntry>& mntList);
@@ -117,6 +120,7 @@ class Flash : public sigslot::has_slots<>, public bruno_base::MessageHandler {
   void OnMessage(bruno_base::Message* msg);
   void OnResetEvent(void);
   bool FactoryReset(void);
+  void OnRecvRoUbiFsEvent(void);
 
  private:
   // The manager thread is the thread which handles all message dispatching.
@@ -124,6 +128,7 @@ class Flash : public sigslot::has_slots<>, public bruno_base::MessageHandler {
   bruno_base::Thread* mgr_thread_;
 
   void GenFactoryResetVolList(std::list<std::string>& vol_list);
+  bool EraseReadOnlyVolumes(void);
 
   DISALLOW_COPY_AND_ASSIGN(Flash);
 };

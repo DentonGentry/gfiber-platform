@@ -26,9 +26,12 @@ const std::string  Flash::kFsNameDelimiter = ":";
 const std::string  Flash::kMntOptsDelimiter = ",";
 const std::string  Flash::kMntVolAttr = "ro";
 
-void Flash::Init(bruno_base::Thread*& mgr_thread, bruno_base::scoped_ptr<FactoryResetButton>& factory_reset_button) {
+void Flash::Init(bruno_base::Thread*& mgr_thread,
+            bruno_base::scoped_ptr<FactoryResetButton>& factory_reset_button,
+            bruno_base::scoped_ptr<UbifsMon>& ubifs_mon) {
   mgr_thread_ = mgr_thread;
   factory_reset_button->SignalResetEvent.connect(this, &Flash::OnResetEvent);
+  ubifs_mon->SignalRecvRoUbiFsEvent.connect(this, &Flash::OnRecvRoUbiFsEvent);
 }
 
 bool Flash::ProcessRoUbiVolumes() {
@@ -40,6 +43,7 @@ bool Flash::ProcessRoUbiVolumes() {
     if (ReadOnlyVolumeList(mnt_list) == false) {
       /* Cannot find mounted RO volume */
       LOG(LS_ERROR) << "ProcessRoUbiVolumes(): cannot find RO UBI volume" << std::endl;
+      is_ok = false;
       break;
     }
 
@@ -121,14 +125,14 @@ bool Flash::ReadOnlyVolumeList(std::list<UbifsMountEntry>& mnt_list) {
   }
 
   if (is_found) {
-    LOG(LS_VERBOSE) << "mnt_list size= " << mnt_list.size() << std::endl;
+    LOG(LS_INFO) << "Read-only UBIFS volume: size= " << mnt_list.size() << std::endl;
     for (std::list<UbifsMountEntry>::iterator it = mnt_list.begin();
          it != mnt_list.end(); it++) {
-      LOG(LS_VERBOSE) << "ubi_dev_name_= " << it->GetUbiDevName() << std::endl
-                      << "ubi_dev_number_= " << it->GetUbiDevNumber() << std::endl
-                      << "ubi_vol_name_= " << it->GetUbiVolName() << std::endl
-                      << "dir_name_= " << it->GetDirName() << std::endl
-                      << "ubi_vol_id_= " << it->GetUbiVolId() << std::endl;
+      LOG(LS_INFO) << "ubi_dev_name_= " << it->GetUbiDevName() << std::endl
+                   << "ubi_dev_number_= " << it->GetUbiDevNumber() << std::endl
+                   << "ubi_vol_name_= " << it->GetUbiVolName() << std::endl
+                   << "dir_name_= " << it->GetDirName() << std::endl
+                   << "ubi_vol_id_= " << it->GetUbiVolId() << std::endl;
     }
   }
   LOG(LS_VERBOSE) << "ReadOnlyVolumeList: is_found= " << is_found << std::endl;
@@ -376,11 +380,12 @@ void Flash::OnMessage(bruno_base::Message* msg) {
   uint32_t type = msg->message_id;
   switch (type) {
     case EVENT_FACTORY_RESET:
-      LOG(LS_INFO) << "Received message EVENT_FACTORY_RESET" << std::endl;
+      LOG(LS_VERBOSE) << "Received message EVENT_FACTORY_RESET" << std::endl;
       FactoryReset();
       break;
     case EVENT_ERASE_RO_VOL:
-      LOG(LS_INFO) << "Received message EVENT_ERASE_RO_VOL" << std::endl;
+      LOG(LS_VERBOSE) << "Received message EVENT_ERASE_RO_VOL" << std::endl;
+      EraseReadOnlyVolumes();
       break;
     default:
       LOG(LS_WARNING) << "Invalid message type, ignore ... " << type;
@@ -389,7 +394,7 @@ void Flash::OnMessage(bruno_base::Message* msg) {
 }
 
 void Flash::OnResetEvent() {
-  LOG(LS_INFO) << "Received factory reset event " << std::endl;
+  LOG(LS_INFO) << "Received factory reset event" << std::endl;
   mgr_thread_->Post(this, static_cast<uint32>(EVENT_FACTORY_RESET));
 }
 
@@ -423,6 +428,31 @@ bool Flash::FactoryReset() {
   return is_ok;
 }
 
+
+void Flash::OnRecvRoUbiFsEvent() {
+  LOG(LS_INFO) << "Received read-only UBI volume event" << std::endl;
+  mgr_thread_->Post(this, static_cast<uint32>(EVENT_ERASE_RO_VOL));
+}
+
+
+bool Flash::EraseReadOnlyVolumes() {
+  bool is_ok = true;
+
+  do {
+    is_ok = ProcessRoUbiVolumes();
+    if (is_ok == false) {
+      break;
+    }
+
+    is_ok = Common::Reboot();
+    if (is_ok == false) {
+      LOG(LS_ERROR) << "Fail to reboot" << std::endl;
+      break;
+    }
+  } while (false);
+
+  return is_ok;
+}
 
 
 void Flash::GenFactoryResetVolList(std::list<std::string>& vol_list) {

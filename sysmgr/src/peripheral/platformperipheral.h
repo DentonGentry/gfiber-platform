@@ -17,7 +17,7 @@ class PeripheralMon;
 class Unmute;
 class Platform;
 class Flash;
-
+class UbifsMon;
 
 class PlatformPeripheral {
  public:
@@ -42,6 +42,7 @@ class PlatformPeripheral {
   bruno_base::scoped_ptr<FactoryResetButton> factory_reset_button_;
   bruno_base::scoped_ptr<PeripheralMon> peripheral_mon_;
   bruno_base::scoped_ptr<Unmute> unmute_;
+  bruno_base::scoped_ptr<UbifsMon> ubifs_mon_;
   bruno_base::scoped_ptr<Flash> flash_;
 
   static bruno_base::CriticalSection kCrit_;
