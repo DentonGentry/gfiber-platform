@@ -1,49 +1,21 @@
 #!/bin/sh
 
-PLATFORM=$(cat /etc/platform)
-SATA_DEVICE=/sys/bus/scsi/devices/0:0:0:0
-SATA_HOST=/sys/class/scsi_host/host0
-
-if [ "$PLATFORM" != "GFMS100" ]; then
-  exit 0
-fi
-
 case "$1" in
   start)
-    if [ -h ${SATA_DEVICE} ]; then
-      # Remove SATA device
-      echo "Remove SATA device at ${SATA_DEVICE}"
-      echo x > ${SATA_DEVICE}/delete
-      sleep 2
-    fi
-    # Rescan SATA device to support auto-mount during system booting
-    #
-    echo "Scanning SATA device"
-    # Force a rescan on SCSI bus
-    echo "Rescan SATA device at ${SATA_HOST}"
-    echo "0 0 0" > ${SATA_HOST}/scan
-    for i in $(seq 30); do
-      [ -h /dev/sata ] && break
-      sleep 1
-    done
-
     # Mount SATA device
-    if [ -h /dev/sata ]; then
+    if [ -e /dev/sda ]; then
       echo "Mounting SATA device"
-      [ -h /dev/sata1 ] && mount -o noatime,barrier=0,data=writeback -t ext4 /dev/sata1 /var/media
-      [ -h /dev/sata2 ] && mount -o noatime -t ext4 /dev/sata2 /var/backup
+      [ -e /dev/sda1 ] && mount -o noatime,barrier=0,data=writeback -t ext4 /dev/sda1 /var/media
+
+      #TODO(apenwarr): /var/backup may be obsolete.  Investigate.
+      [ -e /dev/sda2 ] && mount -o noatime -t ext4 /dev/sda2 /var/backup
     fi
     ;;
   stop)
-    if [ -h ${SATA_DEVICE} ]; then
-      # Unmount SATA device
-      echo "Unmounting SATA device"
-      mountpoint -q /var/media && umount /var/media
-      mountpoint -q /var/backup && umount /var/backup
-      # Remove SATA device
-      echo "Remove SATA device at ${SATA_DEVICE}"
-      echo x > ${SATA_DEVICE}/delete
-    fi
+    # Unmount SATA device
+    echo "Unmounting SATA device"
+    mountpoint -q /var/media && umount /var/media
+    mountpoint -q /var/backup && umount /var/backup
     ;;
   restart|reload)
     "$0" stop
