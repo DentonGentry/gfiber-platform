@@ -1,12 +1,15 @@
-#! /bin/sh
+#!/bin/sh
 
 # /usr should take precedence over /
 export PATH=/usr/bin:/usr/sbin:/bin:/sbin:.
 
-mount -o remount,rw / / # REMOUNT_ROOTFS_RW
-
-# TODO(sledbetter): fix /tmp mounting so not needed
-mkdir -p /tmp/dropbear
+# TODO(apenwarr): mkdir -p seems buggy across symlinks.
+#  Strangely doing the 'cd' commands below seems to make things like
+#  'mkdir -p /var/lock/whatever' start working, implying it's caused by a bug
+#  in the kernel somewhere (perhaps in NFS).
+(cd /var/lock)
+(cd /var/cache)
+(cd /var/log)
 
 # Start all init scripts in /etc/init.d
 # executing them in numerical order.
