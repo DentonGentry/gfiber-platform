@@ -3,6 +3,12 @@
 # /usr should take precedence over /
 export PATH=/usr/bin:/usr/sbin:/bin:/sbin:.
 
+# Send our output (and that of our child processes) to /dev/kmsg so it'll be
+# timestamped and uploaded along with the kernel messages.  We can't use
+# /bin/logger here because syslogd isn't started yet, and anyway, doing it
+# this way guarantees all our boot messages are in exactly the right order.
+exec >/dev/kmsg 2>&1
+
 # TODO(apenwarr): mkdir -p seems buggy across symlinks.
 #  Strangely doing the 'cd' commands below seems to make things like
 #  'mkdir -p /var/lock/whatever' start working, implying it's caused by a bug
@@ -34,7 +40,7 @@ for i in ${SCRIPTS}; do
      # Ignore backup files (filename~) created by editors (mostly for nfsroot)
      [ "$i" != "${i%~}" ] && continue
 
-     echo -n "${i##*/}: " >&2
+     echo "---- ${i##*/}" >&2
 
      case "$i" in
 	*.sh)
