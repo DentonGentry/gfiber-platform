@@ -1,25 +1,15 @@
 #!/bin/sh
-# :TODO: (by kedong, temporarily move bt service after switch root since it is
-# tied with alsa which is not enabled in initramfs)
-mkdir -p /var/lock/subsys
-
-RETVAL=0
-
 case "$1" in
   start)
 	echo -n "Starting Bluetooth service: "
 	cd /user/bsa
-	/usr/bin/bsa_server -d /dev/bthid 2>& 1 >> /var/log/bsa.log &
-	RETVAL=$?
-	[ $RETVAL -eq 0 ] && echo '' > /var/lock/subsys/bsa
+	bsa_server -d /dev/bthid 2>&1 | logger -t bsa &
 	echo "done"
 	;;
   stop)
 	echo -n "Shutting down Bluetooth service: "
 	pkill -x bsa_server
-	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/bsa
 	echo "done"
-	return $RETVAL
 	;;
 
   restart)
