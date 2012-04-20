@@ -1,10 +1,14 @@
 application: gfiber-dropbox
-version: 2
+version: 3
 runtime: python27
 api_version: 1
 threadsafe: true
 
 handlers:
+- url: /stats.*
+  script: google.appengine.ext.appstats.ui.app
+  login: required
+
 - url: /upload/.*
   script: app.wsgi_app
 

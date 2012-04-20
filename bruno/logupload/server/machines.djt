@@ -22,11 +22,11 @@ Available Machines:
 
 <ul>
 {% if machines %}
-  {% for machine in machines %}
+  {% for machine, metas in machines %}
    <li>
      <span class="machinedate">{{machine.nice_modified_time}}</span>
      <a href="/{{machine.keymeta}}/">{{machine.keymeta}}</a>
-     {% for meta in machine.most_recent_meta %}
+     {% for meta in metas %}
        {% if meta != machine.keymeta %}{{meta}}{% endif %}
      {% endfor %}
    </li>
