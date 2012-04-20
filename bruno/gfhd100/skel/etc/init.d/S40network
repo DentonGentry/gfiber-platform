@@ -19,7 +19,7 @@ case "$1" in
 	fi
 
 	# configure loopback
-	/sbin/ifup lo
+	ifup lo
 	if [ ! -e /tmp/NFS ]; then
 		echo -n "Creating bridge... "
 		brctl addbr br0 || exit 1
@@ -67,6 +67,7 @@ case "$1" in
 		echo 2 > /proc/irq/21/smp_affinity
 		echo "done"
 		echo -n "mocacfg boot "
+		mkdir -p /tmp/moca
 		mocacfg boot
 		echo "done"
 	fi
