@@ -7,6 +7,17 @@ SERVICE='mocad'
 case "$1" in
   start)
 	echo "Starting network..."
+	# create a default resolv.conf in case DHCP doesn't provide one
+	# (this is always true if using nfsroot).
+	# 8.8.8.8 and 8.8.4.4 are well-known Google public DNS servers
+	# that can be used from anywhere, so it makes a good place to start.
+	# DHCP will just overwrite this file when it's ready to go.
+	if [ ! -r /etc/resolv.conf ]; then
+		#TODO(apenwarr): add IPv6 DNS once our uClibc can handle it.
+		(echo 'nameserver 8.8.8.8';
+		 echo 'nameserver 8.8.4.4') >/etc/resolv.conf
+	fi
+
 	# configure loopback
 	/sbin/ifup lo
 	if [ ! -e /tmp/NFS ]; then
