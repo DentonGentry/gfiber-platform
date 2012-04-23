@@ -11,7 +11,7 @@
 #include "hmx_upgrade_nvram.h"
 
 // Max length of data in an NVRAM field
-#define NVRAM_MAX_DATA  256
+#define NVRAM_MAX_DATA  4096
 
 /* To avoid modifying the HMX code, we supply dummy versions of two
  * missing routines to satisfy the linker. These are used when writing
@@ -114,7 +114,7 @@ char* format_nvram(hnvram_format_e format, const char* data,
   return output;
 }
 
-char* read_nvram(const char* name, char* output, int outlen) {
+char* read_nvram(const char* name, char* output, int outlen, int quiet) {
   const hnvram_field_t* field = get_nvram_field(name);
   if (field == NULL) {
     return NULL;
@@ -125,8 +125,12 @@ char* read_nvram(const char* name, char* output, int outlen) {
     return NULL;
   }
   char formatbuf[NVRAM_MAX_DATA * 2];
-  snprintf(output, outlen, "%s=%s", name,
-           format_nvram(field->format, data, formatbuf, sizeof(formatbuf)));
+  char* nv = format_nvram(field->format, data, formatbuf, sizeof(formatbuf));
+  if (quiet) {
+    snprintf(output, outlen, "%s", nv);
+  } else {
+    snprintf(output, outlen, "%s=%s", name, nv);
+  }
   return output;
 }
 
@@ -240,17 +244,21 @@ int hnvram_main(int argc, char * const argv[]) {
   }
 
   int d_flag = 0;  // dump all NVRAM variables
+  int q_flag = 0;  // quiet: don't output name of variable.
   char* duparg;
   char output[NVRAM_MAX_DATA];
   int c;
-  while ((c = getopt(argc, argv, "dr:w:")) != -1) {
+  while ((c = getopt(argc, argv, "dqr:w:")) != -1) {
     switch(c) {
       case 'd':
         d_flag = 1;
         break;
+      case 'q':
+        q_flag = 1;
+        break;
       case 'r':
         duparg = strdup(optarg);
-        if (read_nvram(duparg, output, sizeof(output)) == NULL) {
+        if (read_nvram(duparg, output, sizeof(output), q_flag) == NULL) {
           fprintf(stderr, "Unable to read %s\n", duparg);
           exit(1);
         }

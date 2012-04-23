@@ -8,11 +8,15 @@ CWMP="
       --acs-url-file=/tmp/cwmp/acs_url
       --platform=gfmedia
       --ping_ip6dev=br0
+      --ca-certs=/etc/ssl/certs/ca-certificates.crt
 "
+
 DELAY=60
 
 #TODO(apenwarr): this sort of loop belongs in /etc/init.d/* or something,
 # not in normal programs in /bin.
+#TODO(dgentry): pick a fight with apenwarr about init.d versus bin
+# for babysitter functionality.
 until $CWMP "$@"; do
   echo "cwmpd exited with code $?.  Respawning in $DELAY seconds." >&2
   sleep $DELAY
