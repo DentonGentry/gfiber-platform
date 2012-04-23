@@ -1,0 +1,7 @@
+Platform       Tmin  Tmax  Dmin  Dmax  Threshold
+
+GFMS100_SOC    70    100   25    75    2
+
+GFMS100_HDD    45    70    25    50    2
+
+GFHD100_SOC    45    100   25    100   2

@@ -8,7 +8,7 @@ LIBNAME=brunoperipheral
 
 all: ../../build/lib$(LIBNAME).so
 
-CFLAGS:=-fPIC -Wall -W
+CFLAGS:=-fPIC -Wall -W -Wswitch-enum
 CPPFLAGS=-I../../include $(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags nexus brunobase)))
 SRCS=$(shell ls *.cc)
 

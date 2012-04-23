@@ -19,16 +19,20 @@ void PeripheralMon::Probe(void) {
   NEXUS_AvsStatus avsStatus;
   NEXUS_GetAvsStatus(&avsStatus);
   bruno_base::TimeStamp now = bruno_base::Time();
+  uint16_t  hdd_temp;
 
+  fan_control_->GetHddTemperature(&hdd_temp);
   if (0 == last_time_) {
-    LOG(LS_INFO) << "voltage:" << avsStatus.voltage/1000.0
-                 << " temperature:" << avsStatus.temperature/1000.0;
+    LOG(LS_INFO) << "voltage:" << avsStatus.voltage/SOC_MULTI_VALUE_IN_FLOAT
+                 << "  soc_temperature:" << avsStatus.temperature/SOC_MULTI_VALUE_IN_FLOAT
+                 << "  hdd_temperature:" << hdd_temp/HDD_MULTI_VALUE_IN_FLOAT;
   } else {
-    LOG(LS_INFO) << "voltage:" << avsStatus.voltage/1000.0
-                 << " temperature:" << avsStatus.temperature/1000.0
-                 << " fanspeed:" << fan_speed_->ResetCounter()*1000.0/(now - last_time_);
+    LOG(LS_INFO) << "voltage:" << avsStatus.voltage/SOC_MULTI_VALUE_IN_FLOAT
+                 << "  soc_temperature:" << avsStatus.temperature/SOC_MULTI_VALUE_IN_FLOAT
+                 << "  hdd_temperature:" << hdd_temp/HDD_MULTI_VALUE_IN_FLOAT
+                 << "  fanspeed:" << fan_speed_->ResetCounter()*SOC_MULTI_VALUE_IN_FLOAT/(now - last_time_);
   }
-  fan_control_->AdjustSpeed((uint32_t)(avsStatus.temperature/1000));
+  fan_control_->AdjustSpeed_PControl((uint16_t)(avsStatus.temperature/10), hdd_temp);
   last_time_ = now;
   mgr_thread_->PostDelayed(interval_, this, static_cast<uint32>(EVENT_TIMEOUT));
 }

@@ -17,21 +17,29 @@
 #include "peripheralmon.h"
 #include "platform_peripheral_api.h"
 #include "platformperipheral.h"
+#include "platform.h"
 
 namespace bruno_platform_peripheral {
 
 PlatformPeripheral* PlatformPeripheral::kInstance_ = NULL;
 bruno_base::CriticalSection PlatformPeripheral::kCrit_;
 
+extern Platform* platformInstance_;
+
 bool PlatformPeripheral::Init(unsigned int monitor_interval) {
   {
     bruno_base::CritScope lock(&kCrit_);
-    if (kInstance_ != NULL) {
+    if ((kInstance_ != NULL) || (platformInstance_ != NULL)) {
       LOG(LS_WARNING) << "Peripherals are already initialized...";
       return false;
     }
-    kInstance_ = new PlatformPeripheral();
+    LOG(LS_INFO) << "Init platformInstance_ in platformperipheral" << std::endl;
+    platformInstance_ = new Platform ("Unknown Platform", BRUNO_UNKNOWN, false);
+    kInstance_ = new PlatformPeripheral(platformInstance_);
   }
+  /* Initialize platform */
+  platformInstance_->Init();
+
   kInstance_->mgr_thread_ = bruno_base::Thread::Current();
   kInstance_->led_main_->Init();
   kInstance_->led_standby_->Init();
@@ -60,6 +68,8 @@ bool PlatformPeripheral::Terminate(void) {
     kInstance_->unmute_->Terminate();
     delete kInstance_;
     kInstance_ = NULL;
+    delete platformInstance_;
+    platformInstance_ = NULL;
   }
   return true;
 }
@@ -95,12 +105,12 @@ void PlatformPeripheral::TurnOffLedStatus(void) {
   return kInstance_->led_status_->TurnOff();
 }
 
-PlatformPeripheral::PlatformPeripheral()
+PlatformPeripheral::PlatformPeripheral(Platform *platform)
   : led_main_(new LedMain()),
     led_standby_(new LedStandby()),
     led_status_(new LedStatus()),
     factory_reset_button_(new FactoryResetButton()),
-    peripheral_mon_(new PeripheralMon(new FanControl(0), new GpIoFanSpeed())),
+    peripheral_mon_(new PeripheralMon(new FanControl(0, platform), new GpIoFanSpeed())),
     unmute_(new Unmute()) {
 }
 
