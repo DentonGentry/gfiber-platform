@@ -300,12 +300,13 @@ void FanControl::GetHddTemperature(uint16_t *phdd_temp) {
 
   /* TODO - Use ioctl to get SMART data if possible. */
   if (platformInstance_->PlatformHasHdd() == true) {
-    std::string buf = "smartctl -l scttempsts /dev/sda | grep Current";
+    std::string pattern = "Current";
+    std::string buf = "smartctl -l scttempsts /dev/sda";
     /* Create vector to hold hdd temperature words */
     std::vector<std::string> tokens;
 
     /* Insert the HDD temperature string into a stream */
-    std::string result = ExecCmd((char *)buf.c_str());
+    std::string result = ExecCmd((char *)buf.c_str(), &pattern);
     if ((result == "ERROR") || (result.empty() == true)) {
       /* Failed to get HDD temperature. Exit */
       LOG(LS_ERROR) << "GetHddTemperature: Can't get HDD temperature";
@@ -537,7 +538,7 @@ void FanControl::ComputeDutyCycle_PControl(
   return;
 }
 
-std::string FanControl::ExecCmd(char* cmd) {
+std::string FanControl::ExecCmd(char* cmd, std::string *pattern) {
   char buffer[256];
   std::string result = "";
   FILE* pipe = popen(cmd, "r");
@@ -548,8 +549,21 @@ std::string FanControl::ExecCmd(char* cmd) {
   }
 
   while(!feof(pipe)) {
-    if(fgets(buffer, sizeof(buffer), pipe) != NULL)
-    result += buffer;
+    if(fgets(buffer, sizeof(buffer), pipe) != NULL) {
+      /* pattern == NULL, read and return all of lines
+       * pattern != NULL, return the line if found the pattern in the line
+       */
+      if (pattern != NULL) {
+        result = buffer;
+        if (result.compare(0, pattern->size(), *pattern) == 0) {
+          break;      /* Found the pattern. Exit. */
+        }
+        result.clear();
+      }
+      else {
+        result += buffer;
+      }
+    }
   }
   pclose(pipe);
 
@@ -577,12 +591,11 @@ bool FanControl::dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx) {
   uint16_t max, min;
 
   /* TODO - Use protobuf to parse the fan control parameters. */
-  std::string buf = std::string("cat ") + FAN_CONTROL_PARAMS_FILE + " | grep ";
 
   /* Get the search platform keyword in the table file: GFMS100_SOC,
    * GFMS100_HDD...
    */
-  buf += platformInstance_->PlatformName();
+  std::string buf = platformInstance_->PlatformName();
   switch (fc_idx) {
     case BRUNO_SOC:
       buf += "_SOC";
@@ -598,8 +611,12 @@ bool FanControl::dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx) {
 
   LOG(LS_INFO) << buf << std::endl;
 
+  std::string result = platformInstance_->GetLine((char *)FAN_CONTROL_PARAMS_FILE, &buf);
+  if (result.empty() == true)
+    return false;
+
   /* Insert the fan control parameters string into a stream */
-  std::stringstream ss(ExecCmd((char *)buf.c_str()));
+  std::stringstream ss(result);
   while (ss >> buf) {
     tokens.push_back(buf);
   }

@@ -36,13 +36,13 @@ class Platform {
   std::string PlatformName(void) const { return name_; }
   enum BrunoPlatformTypes PlatformType(void) const { return type_; }
   bool PlatformHasHdd(void) const { return has_hdd_; }
+  std::string GetLine(char *file, std::string *pattern);
 
  private:
   std::string name_;
   enum BrunoPlatformTypes type_;
   bool has_hdd_;
 
-  std::string GetLine(char *file, std::string *pattern);
   void GetPlatformType(void);
   DISALLOW_COPY_AND_ASSIGN(Platform);
 };
