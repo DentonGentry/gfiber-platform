@@ -8,13 +8,8 @@ CWMP="
       --acs-url-file=/tmp/cwmp/acs_url
       --platform=gfmedia
       --ping_ip6dev=br0
-      --ca-certs=/etc/ssl/ca-certificates.crt
+      --ca-certs=/etc/ssl/certs/ca-certificates.crt
 "
-
-if [ -s /tmp/ssl/certs/device.pem ] && [ -s /tmp/ssl/private/device.key ]; then
-  CWMP="$CWMP --client-cert=/etc/ssl/certs/device.pem"
-  CWMP="$CWMP --client-key=/etc/ssl/private/device.key"
-fi
 
 DELAY=60
 
