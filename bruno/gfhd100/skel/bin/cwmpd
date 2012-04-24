@@ -11,6 +11,11 @@ CWMP="
       --ca-certs=/etc/ssl/certs/ca-certificates.crt
 "
 
+if [ -s /tmp/ssl/certs/device.pem ] && [ -s /tmp/ssl/private/device.key ]; then
+  CWMP="$CWMP --client-cert=/etc/ssl/certs/device.pem"
+  CWMP="$CWMP --client-key=/etc/ssl/private/device.key"
+fi
+
 DELAY=60
 
 #TODO(apenwarr): this sort of loop belongs in /etc/init.d/* or something,
