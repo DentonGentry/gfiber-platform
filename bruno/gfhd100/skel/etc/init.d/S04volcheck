@@ -3,48 +3,172 @@
 # Volume check service
 #
 
-ROOTFS_TYPE="squashfs"
-ROOTFS_MTD_NO=17  # created by kernel based on ubi.mtd= bootloader option
-ROOTFS_LOCATION=""
-KERNEL_OPTS=$(cat /proc/cmdline)
+# 'data+ubi' and 'misc+ubi' partitions
+DATA_MTD_NAME='"data+ubi"'
+DATA_MTD_NO=
+MISC_MTD_NAME='"misc+ubi"'
+MISC_MTD_NO=
 
-recover_volume() {
-  ubidetach -m ${1}
-  flash_erase /dev/mtd${1} 0 0
-  ubiattach -m ${1} -d ${2}
-  ubimkvol /dev/ubi${2} -N ${3} -m
-}
+# 'rootfs' on /dev/ubi0
+# 'data+ubi' on /dev/ubi1
+# 'misc+ubi' on /dev/ubi2
+DATA_UBI_NO=1
+MISC_UBI_NO=2
 
-ubi_to_count() {
-  local a b c d
-  ubinfo --devn=$1 |
+USER_NAME=user
+CONFIG_NAME=config
+SCRATCH_NAME=scratch
+CHECKSUM0_NAME=checksum0
+CHECKSUM1_NAME=checksum1
+
+USER_SIZE=760MiB
+CONFIG_SIZE=230MiB
+SCRATCH_SIZE=370MiB
+CHECKSUM0_SIZE=56MiB
+CHECKSUM1_SIZE=56MiB
+
+check_mtd() {
+  local a b c d e
+  cat /proc/mtd |
   while read a b c d; do
-    [ "$a $b" = "Volumes count:" ] && echo "$c"
+    # convert 'mtdxx:' to 'xx'
+    e=${a%:*}
+    [ $d = ${1} ] && echo "${e#mtd}"
   done
 }
 
-check_volume_and_mount() {
-  ubiattach -m ${1} -d ${2}
+recover_volume() {
+# Format MTD device and mount UBI volumes.
+# ${1} - MTD device number
+# ${2} - UBI device number
+
+  echo "Failed to mount ubifs on mtd${1}, formatting..."
+
+  # umount UBI volumes detach UBI devices
+  umount_ubifs ${2}
+
+  # format MTD partition
+  flash_erase /dev/mtd${1} 0 0
+
+  # attach UBI devices and mount UBI volumes
+  mount_ubifs ${1} ${2}
+}
+
+mount_ubifs() {
+# Attach MTD device to UBI device.
+# ${1} - MTD device number
+# ${2} - UBI device number
+
+  #echo "Attach mtd${1} to /dev/ubi${2}"
+  ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
   if [ $? -eq 0 ]; then
-    num_vol=$(ubi_to_count ${2})
-    if [ "${num_vol}" = "0" ] || [ "${num_vol}" = "" ]; then
-      echo "No volume associated with mtd${1} (dev:${2}), formatting..."
-      recover_volume ${1} ${2} ${3}
-    fi
-    mount -t ${5} ubi${2}:${3} /${4}
+    mount_volumes ${1} ${2}
     if [ $? -ne 0 ]; then
-      echo "Mounting failed (may due to failed LEB scanning), trying to reformat the partition..."
-      recover_volume ${1} ${2} ${3}
-      mount -t ${5} ubi${2}:${3} /${4}
-      # :TODO: If this mount also fails, need to get TR-069 to indicate back to
-      # the ACS that this box has failed..
+      return 1
     fi
   else
-    echo "Failed to attach mtd${1} to ${2}, formatting..."
-    flash_eraseall /dev/mtd${1}
-    ubiattach -m ${1} -d ${2}
-    ubimkvol /dev/ubi${2} -N ${3} -m
+    echo "Failed to attach mtd${1} to /dev/ubi${2}"
+    return 1
   fi
+}
+
+mount_volumes() {
+# Mount UBI volumes.
+# ${1} - MTD device number
+# ${2} - UBI device number
+
+  if [ ${1} -eq ${DATA_MTD_NO} ]; then
+    # mount UBI 'user' volume
+    mount_volume ${USER_NAME} ${2} ${USER_SIZE}
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+
+    # mount UBI 'config' volume
+    mount_volume ${CONFIG_NAME} ${2} ${CONFIG_SIZE}
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+  elif [ ${1} -eq ${MISC_MTD_NO} ]; then
+    # mount UBI 'scratch' volume
+    mount_volume ${SCRATCH_NAME} ${2} ${SCRATCH_SIZE}
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+
+    # mount UBI 'checksum0' volume
+    mount_volume ${CHECKSUM0_NAME} ${2} ${CHECKSUM0_SIZE}
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+
+    # mount UBI 'checksum1' volume
+    mount_volume ${CHECKSUM1_NAME} ${2} ${CHECKSUM1_SIZE}
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+  fi
+}
+
+mount_volume() {
+# Mount UBI volume.
+# ${1} - UBI volume name
+# ${2} - UBI device number
+# ${3} - UBI volume size
+
+  # make UBI volume
+  make_volume ${1} ${2} ${3}
+  if [ $? -ne 0 ]; then
+    return 1
+  fi
+
+  # mount UBI volume
+  [ ! -d /${1} ] && mkdir -p /${1}
+  mount -t ubifs ubi${2}:${1} /${1}
+  if [ $? -ne 0 ]; then
+    echo "Failed to mount '${1}' volume"
+    return 1
+  fi
+}
+
+make_volume() {
+# Make UBI volume.
+# ${1} - UBI volume name
+# ${2} - UBI device number
+# ${3} - UBI volume size
+
+  # get UBI volume name and remove 'space' characters
+  VOL_NAME=$(ubinfo -a | grep -w "${1}" | sed -e 's/[\t ]//g')
+  if [ "${VOL_NAME}" = "Name:${1}" ]; then
+    echo "UBI volume '${1}' existed"
+    return 0
+  fi
+
+  # echo "Make '${1}' volume on /dev/ubi${2} (size:${3})"
+  ubimkvol /dev/ubi${2} -s ${3} -N ${1}
+  if [ $? -ne 0 ]; then
+    echo "Failed to make '${1}' volume"
+    return 1
+  fi
+}
+
+umount_ubifs() {
+# Umount UBI volumes.
+# ${1} - UBI device number
+
+  if [ ${1} -eq ${DATA_UBI_NO} ]; then
+    [ -d /{USER_NAME} ] && umount /${USER_NAME}
+    [ -d /{CONFIG_NAME} ] && umount /${CONFIG_NAME}
+  elif [ ${1} -eq ${MISC_UBI_NO} ]; then
+    [ -d /{SCRATCH_NAME} ] && umount /${SCRATCH_NAME}
+    [ -d /{CHECKSUM0_NAME} ] && umount /${CHECKSUM0_NAME}
+    [ -d /{CHECKSUM1_NAME} ] && umount /${CHECKSUM1_NAME}
+  else
+    return 1
+  fi
+
+  sleep 1
+  ubidetach -d ${1} /dev/ubi_ctrl
 }
 
 netflix_sanity_check() {
@@ -56,9 +180,21 @@ netflix_sanity_check() {
 
 case "$1" in
   start)
+    # Get MTD partition number
+    DATA_MTD_NO=$(check_mtd ${DATA_MTD_NAME})
+    MISC_MTD_NO=$(check_mtd ${MISC_MTD_NAME})
+
     echo -n "Starting volume check: "
-    check_volume_and_mount 14 1 user user ubifs
-    check_volume_and_mount 15 2 config config ubifs
+    mount_ubifs ${DATA_MTD_NO} ${DATA_UBI_NO}
+    if [ $? -ne 0 ]; then
+      recover_volume ${DATA_MTD_NO} ${DATA_UBI_NO}
+    fi
+
+    mount_ubifs $MISC_MTD_NO $MISC_UBI_NO
+    if [ $? -ne 0 ]; then
+      recover_volume ${MISC_MTD_NO} ${MISC_UBI_NO}
+    fi
+
     [ ! -d /user/rw ] && mkdir -p /user/rw
     [ ! -d /user/bsa ] && mkdir -p /user/bsa
     [ ! -d /user/netflix ] && mkdir -p /user/netflix
@@ -68,11 +204,13 @@ case "$1" in
     echo "OK"
     ;;
   stop)
+    # Get MTD partition number
+    DATA_MTD_NO=$(check_mtd ${DATA_MTD_NAME})
+    MISC_MTD_NO=$(check_mtd ${MISC_MTD_NAME})
+
     echo -n "Stopping volume check: "
-    umount /user
-    umount /config
-    ubidetach -d 1
-    ubidetach -d 2
+    umount_ubifs ${DATA_UBI_NO}
+    umount_ubifs ${MISC_UBI_NO}
     echo "OK"
     ;;
   restart|reload)
