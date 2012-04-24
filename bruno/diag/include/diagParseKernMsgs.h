@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Google Inc. All Rights Reserved.
+ * Copyright 2011 - 2012 Google Inc. All Rights Reserved.
  *
  * This file provides diagnostics monitor related data structures and definitions.
  */
@@ -126,6 +126,10 @@ extern int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned
 
 extern void diagUpdateErrorCount(char *timestamp, unsigned short errorCode);
 extern void diagUpdateWarnCount(char *timestamp, unsigned short errorCode);
+extern diagMocaErrCounts_t  *diagMocaErrCntsPtr;
+extern diagGenetErrCounts_t *diagGenetErrCntsPtr;
+extern diagNandErrCounts_t  *diagNandErrCntsPtr;
+extern diagMceErrCounts_t   *diagMceErrCntsPtr;
 
 /*
  * Prototypes

@@ -44,6 +44,7 @@
 
 #include "diagdDefs.h"
 #include "diagMonApis.h"
+#include "diagError.h"
 #include "diagParseKernMsgs.h"
 
 #ifdef DIAG_TEST_UTIL

@@ -20,36 +20,12 @@
  *
  *--------------------------------------------------------------------------
  */
-/* MoCA error and warning counters */
+/* Diag error and warning counters */
 
-struct {
-   unsigned int     TotalErrCount;
-   unsigned int     TotalWarnCount;
-   unsigned short   ErrCount[DIAG_MOCA_ERROR_MAX];
-   unsigned short   WarnCount[DIAG_MOCA_WARN_MAX];
-} diagMocaErrCounts;
-
-struct {
-   unsigned int     TotalErrCount;
-   unsigned int     TotalWarnCount;
-   unsigned short   ErrCount[DIAG_GENET_ERROR_MAX];
-   unsigned short   WarnCount[DIAG_GENET_WARN_MAX];
-} diagGenetErrCounts;
-
-
-struct {
-   unsigned int     TotalErrCount;
-   unsigned int     TotalWarnCount;
-   unsigned short   ErrCount[DIAG_NAND_ERROR_MAX];
-   unsigned short   WarnCount[DIAG_NAND_WARN_MAX];
-} diagNandErrCounts;
-
-struct {
-   unsigned int     TotalErrCount;
-   unsigned int     TotalWarnCount;
-   unsigned short   ErrCount[DIAG_MCE_ERROR_MAX];
-   unsigned short   WarnCount[DIAG_MCE_WARN_MAX];
-} diagMceErrCounts;
+diagMocaErrCounts_t  *diagMocaErrCntsPtr = NULL;
+diagGenetErrCounts_t *diagGenetErrCntsPtr = NULL;
+diagNandErrCounts_t  *diagNandErrCntsPtr = NULL;
+diagMceErrCounts_t   *diagMceErrCntsPtr = NULL;
 
 char *diagMocaErrTypeStr[] = {
    "DIAG_MOCA_INIT_ERROR",
@@ -230,7 +206,7 @@ unsigned char diagGetErrType(unsigned char componentType, unsigned short errorCo
    for (i=0; i < numOfEntry; i++) {
       if (entryPtr[i].errorCode == errorCode) {
          return entryPtr[i].errorType;
-      } 
+      }
    }
 
    return DIAG_UNKNOWN_ERROR_TYPE;
@@ -243,10 +219,10 @@ unsigned char diagGetErrType(unsigned char componentType, unsigned short errorCo
  *    1. Increment indiviual error count and total error count of its
  *       component type.
  *    2. Writes out component type, error type, error count and total
- *       error count logging information to /var/log/diagd/diagd.log file.
+ *       error count logging information to /user/diag/log/diagd.log file.
  *
  * If error code is not matched, log the error message to
- *    /var/log/diagd/diagd.log file and return.
+ *    /user/diag/log/diagd.log file and return.
  *
  * Input:
  *    errorCode
@@ -281,68 +257,68 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
 
    switch(componentType) {
       case ERROR_CODE_COMPONENT_BRCM_MOCA:
-         diagMocaErrCounts.ErrCount[errType]++;
-         diagMocaErrCounts.TotalErrCount++;
+         diagMocaErrCntsPtr->ErrCount[errType]++;
+         diagMocaErrCntsPtr->TotalErrCount++;
 
          DIAGD_TRACE("%s: componentType = BRCM_MOCA errType = %d" \
                      " counter=%d total errorCount=%d", __func__, errType,
-                     diagMocaErrCounts.ErrCount[errType],
-                     diagMocaErrCounts.TotalErrCount);
+                     diagMocaErrCntsPtr->ErrCount[errType],
+                     diagMocaErrCntsPtr->TotalErrCount);
 
          DIAGD_LOG_W_TS("%s BRCM_MOCA errType = %s" \
                    " counter=%d total errorCount=%d",
                    timestamp,
                    diagMocaErrTypeStr[errType],
-                   diagMocaErrCounts.ErrCount[errType],
-                   diagMocaErrCounts.TotalErrCount);
+                   diagMocaErrCntsPtr->ErrCount[errType],
+                   diagMocaErrCntsPtr->TotalErrCount);
          break;
       case ERROR_CODE_COMPONENT_BRCM_GENET:
-         diagGenetErrCounts.ErrCount[errType]++;
-         diagGenetErrCounts.TotalErrCount++;
+         diagGenetErrCntsPtr->ErrCount[errType]++;
+         diagGenetErrCntsPtr->TotalErrCount++;
 
          DIAGD_TRACE("%s: componentType = BRCM_GENET errType = %d" \
                      " counter=%d total errorCount=%d", __func__, errType,
-                     diagGenetErrCounts.ErrCount[errType],
-                     diagGenetErrCounts.TotalErrCount);
+                     diagGenetErrCntsPtr->ErrCount[errType],
+                     diagGenetErrCntsPtr->TotalErrCount);
 
          DIAGD_LOG_W_TS("%s BRCM_GENET errtType = %s" \
                    " counter=%d total errorCount=%d",
                    timestamp,
                    diagGenetErrTypeStr[errType],
-                   diagGenetErrCounts.ErrCount[errType],
-                   diagGenetErrCounts.TotalErrCount);
+                   diagGenetErrCntsPtr->ErrCount[errType],
+                   diagGenetErrCntsPtr->TotalErrCount);
          break;
       case ERROR_CODE_COMPONENT_MTD_NAND:
-         diagNandErrCounts.ErrCount[errType]++;
-         diagNandErrCounts.TotalErrCount++;
+         diagNandErrCntsPtr->ErrCount[errType]++;
+         diagNandErrCntsPtr->TotalErrCount++;
 
          DIAGD_TRACE("%s: componentType = MTD_NAND errType = %d" \
                      " counter=%d total errorCount=%d", __func__, errType,
-                     diagNandErrCounts.ErrCount[errType],
-                     diagNandErrCounts.TotalErrCount);
+                     diagNandErrCntsPtr->ErrCount[errType],
+                     diagNandErrCntsPtr->TotalErrCount);
 
          DIAGD_LOG_W_TS("%s MTD_NAND errType = %s" \
                    " counter=%d total errorCount=%d",
                    timestamp,
                    diagNandErrTypeStr[errType],
-                   diagNandErrCounts.ErrCount[errType],
-                   diagNandErrCounts.TotalErrCount);
+                   diagNandErrCntsPtr->ErrCount[errType],
+                   diagNandErrCntsPtr->TotalErrCount);
          break;
       case ERROR_CODE_COMPONENT_KERNEL_MM:
-         diagMceErrCounts.ErrCount[errType]++;
-         diagMceErrCounts.TotalErrCount++;
+         diagMceErrCntsPtr->ErrCount[errType]++;
+         diagMceErrCntsPtr->TotalErrCount++;
 
          DIAGD_TRACE("%s: componentType = KERNEL_MM errType = %d" \
                      " counter=%d total errorCount=%d", __func__, errType,
-                     diagMceErrCounts.ErrCount[errType],
-                     diagMceErrCounts.TotalErrCount);
+                     diagMceErrCntsPtr->ErrCount[errType],
+                     diagMceErrCntsPtr->TotalErrCount);
 
          DIAGD_LOG_W_TS("%s KERNEL_MM errType = %s" \
                    " counter=%d total errorCount=%d",
                    timestamp,
                    diagMceErrTypeStr[errType],
-                   diagMceErrCounts.ErrCount[errType],
-                   diagMceErrCounts.TotalErrCount);
+                   diagMceErrCntsPtr->ErrCount[errType],
+                   diagMceErrCntsPtr->TotalErrCount);
          break;
       default:
          break;
@@ -390,51 +366,51 @@ void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
 
    switch(componentType) {
       case ERROR_CODE_COMPONENT_BRCM_MOCA:
-         diagMocaErrCounts.WarnCount[warnType]++;
-         diagMocaErrCounts.TotalWarnCount++;
+         diagMocaErrCntsPtr->WarnCount[warnType]++;
+         diagMocaErrCntsPtr->TotalWarnCount++;
 
          DIAGD_TRACE("%s: componentType = BRCM_MOCA warnType = %d" \
                      " counter=%d total warnCount=%d", __func__, warnType,
-                     diagMocaErrCounts.WarnCount[warnType],
-                     diagMocaErrCounts.TotalWarnCount);
+                     diagMocaErrCntsPtr->WarnCount[warnType],
+                     diagMocaErrCntsPtr->TotalWarnCount);
 
          DIAGD_LOG_W_TS("%s BRCM_MOCA warnType = %s" \
                    " counter=%d total warnCount=%d",
                    timestamp,
                    diagMocaWarnTypeStr[warnType],
-                   diagMocaErrCounts.WarnCount[warnType],
-                   diagMocaErrCounts.TotalWarnCount);
+                   diagMocaErrCntsPtr->WarnCount[warnType],
+                   diagMocaErrCntsPtr->TotalWarnCount);
          break;
       case ERROR_CODE_COMPONENT_BRCM_GENET:
-         diagGenetErrCounts.WarnCount[warnType]++;
+         diagGenetErrCntsPtr->WarnCount[warnType]++;
+         diagGenetErrCntsPtr->TotalWarnCount++;
 
-         diagGenetErrCounts.TotalWarnCount++;
          DIAGD_TRACE("%s: componentType = BRCM_GENET warnType = %d" \
                      " counter=%d total warnCount=%d", __func__, warnType,
-                     diagGenetErrCounts.WarnCount[warnType],
-                     diagGenetErrCounts.TotalWarnCount);
+                     diagGenetErrCntsPtr->WarnCount[warnType],
+                     diagGenetErrCntsPtr->TotalWarnCount);
 
          DIAGD_LOG_W_TS("%s BRCM_GENET warnType = %s counter=%d total warnCount=%d",
                    timestamp,
                    diagGenetWarnTypeStr[warnType],
-                   diagGenetErrCounts.WarnCount[warnType],
-                   diagGenetErrCounts.TotalWarnCount);
+                   diagGenetErrCntsPtr->WarnCount[warnType],
+                   diagGenetErrCntsPtr->TotalWarnCount);
          break;
       case ERROR_CODE_COMPONENT_MTD_NAND:
-         diagNandErrCounts.WarnCount[warnType]++;
-         diagNandErrCounts.TotalWarnCount++;
+         diagNandErrCntsPtr->WarnCount[warnType]++;
+         diagNandErrCntsPtr->TotalWarnCount++;
 
          DIAGD_TRACE("%s: componentType = MTD_NAND warnType = %d" \
                      " counter=%d total warnCount=%d", __func__, warnType,
-                     diagNandErrCounts.WarnCount[warnType],
-                     diagNandErrCounts.TotalWarnCount);
+                     diagNandErrCntsPtr->WarnCount[warnType],
+                     diagNandErrCntsPtr->TotalWarnCount);
 
          DIAGD_LOG_W_TS("%s MTD_NAND warnType = %s" \
                    " counter=%d total warnCount=%d",
                    timestamp,
                    diagNandWarnTypeStr[warnType],
-                   diagNandErrCounts.WarnCount[warnType],
-                   diagNandErrCounts.TotalWarnCount);
+                   diagNandErrCntsPtr->WarnCount[warnType],
+                   diagNandErrCntsPtr->TotalWarnCount);
          break;
       case ERROR_CODE_COMPONENT_KERNEL_MM:
          DIAGD_TRACE("%s: Shouldn't be here since there is no" \
