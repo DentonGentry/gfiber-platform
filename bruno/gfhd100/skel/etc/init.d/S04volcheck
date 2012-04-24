@@ -175,6 +175,7 @@ case "$1" in
     [ ! -d /user/netflix ] && mkdir -p /user/netflix
     [ ! -d /user/drm ] && mkdir -p /user/drm
     [ ! -d /user/widevine ] && mkdir -p /user/widevine
+    [ ! -d /user/ytlb ] && mkdir -p /user/ytlb
     netflix_sanity_check
     echo "OK"
     ;;
