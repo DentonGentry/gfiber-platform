@@ -56,6 +56,10 @@ typedef enum {
 #define DIAG_PARSE_MSG_LEVEL_STR        "msglvl="       /* specify the msg error level */
 #define DIAG_PARSE_MSG_LEVEL_STR_LEN   strlen((char *)DIAG_PARSE_MSG_LEVEL_STR)
 
+/* Specify the monitored message error code */
+#define DIAG_PARSE_MSG_CODE_STR        "code="       /* specify the msg error code */
+#define DIAG_PARSE_MSG_CODE_STR_LEN   strlen((char *)DIAG_PARSE_MSG_CODE_STR)
+
 /*
  * The message error level is based on
  * 1) Type of kernel error messages,
@@ -101,6 +105,7 @@ typedef struct _diag_dkmsg_ {
   unsigned char   dtoken;       /* 1 - data is valid in the database. */
   unsigned char   dact;         /* Refer to diag_parse_dact           */
   unsigned char   msglvl;       /* Refer to diag_log_msg_err_levels   */
+  unsigned short  code;         /* refer to ERROR_CODE_.... defined in diagError.h */
   char           *pDkmsg;       /* Point to the monitored message     */
 } diag_dkmsg_t;
 
@@ -108,16 +113,19 @@ typedef struct _diag_dkmsg_ {
 typedef struct _diag_logmsg_info_ {
   unsigned char   dact;         /* Refer to diag_parse_dact               */
   unsigned char   kmsgErrLevel; /* Refer to enum diag_log_msg_err_levels  */
+  unsigned short  code;         /* refer to ERROR_CODE_.... defined in diagError.h */
   char           *pDkmsg;       /* Point to the kerel message to be logged*/
 } diag_logmsg_info_t;
 
 
-extern int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, char *pDkmsg);
+extern int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char kmsgErrLevel, unsigned short code, char *pDkmsg);
 
-#define DIAGD_LOG_ALERT_HANDLER(_dact, _kmsgErrLevel, _pDkmsg) { \
-  diagd_log_msg_and_alert(_dact, _kmsgErrLevel, _pDkmsg); \
+#define DIAGD_LOG_ALERT_HANDLER(_dact, _timestamp, _kmsgErrLevel, _code, _pDkmsg) { \
+  diagd_log_msg_and_alert(_dact, _timestamp, _kmsgErrLevel, _code, _pDkmsg); \
 }
 
+extern void diagUpdateErrorCount(char *timestamp, unsigned short errorCode);
+extern void diagUpdateWarnCount(char *timestamp, unsigned short errorCode);
 
 /*
  * Prototypes

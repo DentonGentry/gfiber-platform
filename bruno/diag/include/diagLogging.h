@@ -68,6 +68,8 @@
   #define DIAGD_LOG(format, args...) \
     tDiagLog(NULL, format,  ## args)
 
+  #define DIAGD_LOG_W_TS(format, args...) \
+    diagLog(NULL, format,  ## args)
 #else
 
   #define DIAGD_LOG_INFO(format, args...) { \
