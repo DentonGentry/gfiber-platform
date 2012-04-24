@@ -485,6 +485,7 @@ int get_diagDb_mmap(char **mapPtr)
     return fd;
 }
 
+extern char *strptime(char *s, char*format, struct tm *tm);
 /*
  * 1) Read kernel messages from a /var/log/kern.log
  * 2) If a kernel message level is KERN_EMERG or KERN_ALERT, (TBD) system issue

@@ -278,6 +278,11 @@ typedef struct __attribute__((packed,aligned(4))) _diag_mocalog_discardpkts_exce
     (sizeof(diag_mocalog_discardpkts_exceed_t) +  \
     (sizeof(diag_moca_node_stats_entry_t) * 15))
 
+/*  size of nodeStatsTblSize + 15 * size of diag_moca_node_stats_entry_t */
+#define DIAG_MOCA_MAX_NODE_STATS_SIZE \
+    (sizeof(uint32_t ) +  \
+    (sizeof(diag_moca_node_stats_entry_t) * 15))
+
 
 /* Header of MoCA log message in DIAGD_MOCA_LOG_FILE
  * - DIAG_MOCA_LOG_POOR_PHY_RATE
@@ -323,5 +328,7 @@ int diagMoca_GetNodeStatistics(
       uint16_t *pSize);
 int diagMoca_GetConnInfo(diag_moca_node_connect_info_t *pConnInfo);
 int diagd_MoCA_Init();
+void diagMoca_ConvertUpTime(uint32_t timeInSecs, uint32_t *pTimeInHrs,
+                            uint32_t *pTimeInMin, uint32_t *pTimeInSecs);
 
 #endif /* end of _DIAG_MOCA_H_ */

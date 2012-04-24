@@ -138,5 +138,7 @@ void tDiagLog(const char *msgLvl, const char *format_str, ...);
 void dtrLog(const char *format_str, ...);
 void tDtrLog(const char *format_str, ...);
 void diagMocaLog(char *pLogMsg);
+void diagMocaStrLog(char *pLogMsg, PMoCA_STATUS pStatus);
+void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus);
 
 #endif  // _DIAG_LOGGING_H
