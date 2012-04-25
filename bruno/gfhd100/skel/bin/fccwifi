@@ -27,6 +27,7 @@ if [ $band != a ] && [ $band != b ]; then
 fi
 
 if [ $crypto = WPA_PSK_AES ] ; then
+  wl radio on
   wl down
   wl ap 1
   wl band $band
@@ -35,12 +36,12 @@ if [ $crypto = WPA_PSK_AES ] ; then
   wl wsec 4
   wl sup_wpa 1
   wl wpa_auth 4
-  wl set_pmk 1234567890
-  wl radio on
   wl up
+  wl set_pmk 1234567890
   wl ssid $ssid
   wl status
 elif [ $crypto = WPA2_PSK_AES ] ; then
+  wl radio on
   wl down
   wl ap 1
   wl band $band
@@ -49,11 +50,11 @@ elif [ $crypto = WPA2_PSK_AES ] ; then
   wl wsec 4
   wl sup_wpa 1
   wl wpa_auth 128
-  wl set_pmk 1234567890
-  wl radio on
   wl up
+  wl set_pmk 1234567890
   wl ssid $ssid
 elif [ $crypto = WPA_PSK_TKIP ] ; then
+  wl radio on
   wl down
   wl ap 1
   wl band $band
@@ -62,11 +63,11 @@ elif [ $crypto = WPA_PSK_TKIP ] ; then
   wl wsec 2
   wl sup_wpa 1
   wl wpa_auth 4
-  wl set_pmk 1234567890
-  wl radio on
   wl up
+  wl set_pmk 1234567890
   wl ssid $ssid
 elif [ $crypto = WPA2_PSK_TKIP ] ; then
+  wl radio on
   wl down
   wl ap 1
   wl band $band
@@ -75,11 +76,11 @@ elif [ $crypto = WPA2_PSK_TKIP ] ; then
   wl wsec 2
   wl sup_wpa 1
   wl wpa_auth 128
-  wl set_pmk  1234567890
-  wl radio on
   wl up
+  wl set_pmk  1234567890
   wl ssid $ssid
 elif [ $crypto = WEP ] ; then
+  wl radio on
   wl down
   wl ap 1
   wl band $band
@@ -88,11 +89,11 @@ elif [ $crypto = WEP ] ; then
   wl wsec 1
   wl sup_wpa 1
   wl wpa_auth 0
-  wl addwep 0 1234567890
-  wl radio on
   wl up
+  wl addwep 0 1234567890
   wl ssid $ssid
 elif [ $crypto = NONE ] ; then
+  wl radio on
   wl down
   wl ap 1
   wl band $band
@@ -101,7 +102,6 @@ elif [ $crypto = NONE ] ; then
   wl wsec 0
   wl sup_wpa 1
   wl wpa_auth 0
-  wl radio on
   wl up
   wl ssid $ssid
 else
