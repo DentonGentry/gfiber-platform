@@ -1,2 +1,1 @@
-export PATH=.:$PATH
-export PS1='# '
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
