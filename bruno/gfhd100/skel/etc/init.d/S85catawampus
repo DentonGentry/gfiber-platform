@@ -2,7 +2,7 @@
 
 case "$1" in
   start)
-	cwmpd 2>&1 | logger -t cwmpd &
+	babysit 60 cwmpd 2>&1 | logger -t cwmpd &
 	;;
   stop)
 	pkill -x cwmpd
