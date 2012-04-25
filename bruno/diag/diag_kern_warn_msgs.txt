@@ -1,8 +1,8 @@
 dtoken=1 dact=log msglvl=3 code=1000 dkmsg=moca_m2m_xfer: DMA interrupt timed out, status @@@
-dtoken=1 dact=log msglvl=3 code=1000 dkmsg=moca_m2m_xfer: bad status @@@ bad status @@@)
+dtoken=1 dact=log msglvl=3 code=1000 dkmsg=moca_m2m_xfer: bad status @@@ (s/d/c @@@ @@@ @@@)
 dtoken=1 dact=log msglvl=3 code=1001 dkmsg=moca_write_mem: copy past end of cntl memory: @@@
 dtoken=1 dact=log msglvl=3 code=1002 dkmsg=moca_read_mem: copy past end of cntl memory: @@@
-dtoken=1 dact=log msglvl=3 code=1003 dkmsg=moca_get_pages: get_user_pages returned @@@, "expecting @@@
+dtoken=1 dact=log msglvl=3 code=1003 dkmsg=moca_get_pages: get_user_pages returned @@@, expecting @@@
 dtoken=0 dact=log msglvl=3 code=1004 dkmsg=moca_write_img: chunk ack timed out
 dtoken=0 dact=log msglvl=3 code=1005 dkmsg=moca_recvmsg: dropping long message
 dtoken=0 dact=log msglvl=3 code=1005 dkmsg=moca_recvmsg: IE is not a multiple of 4 bytes
@@ -16,13 +16,25 @@ dtoken=0 dact=log msglvl=3 code=1009 dkmsg=moca_file_read: moca_recvmsg core_req
 dtoken=0 dact=log msglvl=3 code=100A dkmsg=moca_file_read: moca_recvmsg host_resp failed
 dtoken=0 dact=log msglvl=3 code=100B dkmsg=moca_probe: can't request interrupt
 dtoken=0 dact=log msglvl=3 code=100C dkmsg=bmoca: can't register class device
+dtoken=0 dact=log msglvl=3 code=100D dkmsg=error: bmoca I2C base addr is not set
 
 
 dtoken=0 dact=log msglvl=3 code=1100 dkmsg=Droping fragmented packet!
 
 
-dtoken=0 dact=hwerr msglvl=3 code=1200 dkmsg=nand_bbt: ECC error while reading bad block table
 dtoken=0 dact=hwerr msglvl=3 code=1200 dkmsg=nand_bbt: ECC error while reading block for writing bad block table
 dtoken=1 dact=hwerr msglvl=3 code=1200 dkmsg=nand_bbt: Error while writing bad block table @@@
 dtoken=1 dact=hwerr msglvl=1 code=1201 dkmsg=@@@ EDU RBUS error at addr @@@
 dtoken=1 dact=hwerr msglvl=1 code=1202 dkmsg=@@@ uncorrectable error at @@@
+dtoken=0 dact=hwerr msglvl=1 code=1203 dkmsg=No NAND device found
+dtoken=1 dact=log msglvl=3 code=1204 dkmsg=mtd: partition "@@@" extends beyond the end of device "@@@" -- size truncated to @@@
+dtoken=1 dact=log msglvl=3 code=1204 dkmsg=mtd: partition "@@@" doesn't start on an erase block boundary -- force read-only
+dtoken=1 dact=log msglvl=3 code=1204 dkmsg=mtd: partition "@@@" doesn't end on an erase block -- force read-only
+dtoken=1 dact=log msglvl=3 code=1205 dkmsg=Unable to register @@@ block device on major @@@: @@@
+dtoken=1 dact=log msglvl=3 code=1206 dkmsg=mtdblock: erase of region [@@@, @@@]
+dtoken=0 dact=log msglvl=3 code=1207 dkmsg=warning: unable to build a flash partition map, using entire device
+
+dtoken=0 dact=log msglvl=3 code=1300 dkmsg=brcm_setup_spi_flash: can't locate SPI master
+dtoken=0 dact=log msglvl=3 code=1300 dkmsg=brcm_setup_spi_flash: can't add SPI device
+dtoken=1 dact=log msglvl=3 code=1301 dkmsg=brcm_setup_cs: can't register SPI master (error @@@)
+dtoken=1 dact=log msglvl=3 code=1301 dkmsg=brcm_setup_cs: can't register SPI flash (error @@@)

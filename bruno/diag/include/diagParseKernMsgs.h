@@ -128,8 +128,8 @@ extern void diagUpdateErrorCount(char *timestamp, unsigned short errorCode);
 extern void diagUpdateWarnCount(char *timestamp, unsigned short errorCode);
 extern diagMocaErrCounts_t  *diagMocaErrCntsPtr;
 extern diagGenetErrCounts_t *diagGenetErrCntsPtr;
-extern diagNandErrCounts_t  *diagNandErrCntsPtr;
-extern diagMceErrCounts_t   *diagMceErrCntsPtr;
+extern diagMtdNandErrCounts_t  *diagMtdNandErrCntsPtr;
+extern diagSpiErrCounts_t   *diagSpiErrCntsPtr;
 
 /*
  * Prototypes

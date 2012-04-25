@@ -38,9 +38,18 @@ dtoken=0 dact=hwerr msglvl=1 code=0202 dkmsg=nand_bbt: Out of memory
 dtoken=0 dact=hwerr msglvl=1 code=0202 dkmsg=nand_update_bbt: Out of memory
 dtoken=0 dact=hwerr msglvl=1 code=0202 dkmsg=nand_create_default_bbt_descr: Out of memory
 dtoken=0 dact=hwerr msglvl=1 code=0204 dkmsg=uncorrectable error :
-dtoken=0 dact=hwerr msglvl=1 code=0205 dkmsg=No NAND device found.
+dtoken=1 dact=hwerr msglvl=1 code=0205 dkmsg=memory allocation error while creating partitions for "@@@"
+dtoken=1 dact=hwerr msglvl=1 code=0205 dkmsg=mtd: partition "@@@" is out of reach -- disabled
+dtoken=1 dact=hwerr msglvl=1 code=0206 dkmsg=Error registering mtd class or bdi: @@@
 
 
-dtoken=1 dact=log msglvl=1 code=0300 dkmsg=MCE @@@: Killing @@@ early due to hardware memory corruption
-dtoken=0 dact=log msglvl=1 code=0301 dkmsg=MCE: Out of memory while machine check handling
-dtoken=1 dact=log msglvl=1 code=0302 dkmsg=MCE @@@: already hardware poisoned
+dtoken=1 dact=hwerr msglvl=1 code=0300 dkmsg=unrecognized JEDEC id @@@
+dtoken=0 dact=hwerr msglvl=1 code=0300 dkmsg=error allocating spi_master
+dtoken=0 dact=hwerr msglvl=1 code=0300 dkmsg=can't get resource 0
+dtoken=0 dact=hwerr msglvl=1 code=0300 dkmsg=can't ioremap
+dtoken=0 dact=hwerr msglvl=1 code=0300 dkmsg=no IRQ defined
+dtoken=0 dact=hwerr msglvl=1 code=0300 dkmsg=unable to allocate IRQ
+dtoken=0 dact=hwerr msglvl=1 code=0300 dkmsg=can't ioremap BSPI range
+dtoken=0 dact=hwerr msglvl=1 code=0300 dkmsg=can't ioremap BSPI_RAF range
+dtoken=0 dact=hwerr msglvl=1 code=0300 dkmsg=can't register master
+dtoken=0 dact=hwerr msglvl=1 code=0301 dkmsg=Unrecognized flash type, no QUAD MODE support

@@ -14,8 +14,8 @@
  *    Bit 0 - Bit 3:
  *    0x00 - Broadcom MoCA
  *    0x01 - Broadcom Giga-bit Ethernet
- *    0x02 - MTD/NAND
- *    0x03 - MCE, Kernel Memory Management
+ *    0x02 - MTD, MTD/NAND
+ *    0x03 - SPI
  *
  *    Bit 4 - Bit 7:
  *    0x00 - Error, Critial
@@ -33,7 +33,7 @@
 #define ERROR_CODE_COMPONENT_BRCM_MOCA       0x00
 #define ERROR_CODE_COMPONENT_BRCM_GENET      0x01
 #define ERROR_CODE_COMPONENT_MTD_NAND        0x02
-#define ERROR_CODE_COMPONENT_KERNEL_MM       0x03
+#define ERROR_CODE_COMPONENT_BRCM_SPI        0x03
 #define ERROR_CODE_COMPONENT_MAX             0x04
 #define ERROR_CODE_UNKNOWN_COMPONENT_TYPE    0xFF
 #define GET_ERROR_CODE_COMPONENT_TYPE(code)       ((code & COMPONENT_BITS_MASK) >> 8)
@@ -41,34 +41,34 @@
        ((code & SEVERITY_LEVEL_BITS_MASK) == SEVERITY_LEVEL_WARNING)
 
 /* Errors issued by Broadcom MoCA driver */
-#define MOCA_INIT_ERROR                     0x0000
-#define MOCA_PROBE_ERROR                    0x0001
+#define MOCA_INIT_ERROR                      0x0000
+#define MOCA_PROBE_ERROR                     0x0001
 
 /* Errors issued by Broadcom Giga-bit Ethernet driver */
-#define GENET_OPEN_ERROR                    0x0100
-#define GENET_TXRING_ERROR                  0x0101
-#define GENET_TXDMA_MAP_ERROR               0x0102
-#define GENET_RING_XMIT_ERROR               0x0103
-#define GENET_RX_SKB_ALLOC_ERROR            0x0104
-#define GENET_ASSIGN_RX_BUFFER_ERROR        0x0105
-#define GENET_HFB_UPDATE_ERROR              0x0106
-#define GENET_HFB_READ_ERROR                0x0107
-#define GENET_PROBE_ERROR                   0x0108
-#define GENET_PWR_DOWN_ERROR                0x0109
-#define GENET_PHY_INIT_ERROR                0x010A
+#define GENET_OPEN_ERROR                     0x0100
+#define GENET_TXRING_ERROR                   0x0101
+#define GENET_TXDMA_MAP_ERROR                0x0102
+#define GENET_RING_XMIT_ERROR                0x0103
+#define GENET_RX_SKB_ALLOC_ERROR             0x0104
+#define GENET_ASSIGN_RX_BUFFER_ERROR         0x0105
+#define GENET_HFB_UPDATE_ERROR               0x0106
+#define GENET_HFB_READ_ERROR                 0x0107
+#define GENET_PROBE_ERROR                    0x0108
+#define GENET_PWR_DOWN_ERROR                 0x0109
+#define GENET_PHY_INIT_ERROR                 0x010A
 
-/* Errors issued by mtd/nand */
-#define NAND_INIT_ERROR                     0x0200
-#define NAND_BBT_WR_ERROR                   0x0201
-#define NAND_BBT_OUT_OF_MEM_ERROR           0x0202
-#define NAND_BBT_SCAN_ERROR                 0x0203
-#define NAND_ECC_UNCORRECTABLE_ERROR        0x0204
-#define NAND_NO_DEV_ERROR                   0x0205
+/* Errors issued by mtd, mtd/nand */
+#define MTD_NAND_INIT_ERROR                  0x0200
+#define MTD_NAND_BBT_WR_ERROR                0x0201
+#define MTD_NAND_BBT_OUT_OF_MEM_ERROR        0x0202
+#define MTD_NAND_BBT_SCAN_ERROR              0x0203
+#define MTD_NAND_ECC_UNCORRECTABLE_ERROR     0x0204
+#define MTD_ALLOC_PARTITION_ERROR            0x0205
+#define MTD_INIT_ERROR                       0x0206
 
-/* errors issued by kernel memory management */
-#define MCE_HW_MEM_CORRUPT_ERROR            0x0300
-#define MCE_OUT_OF_MEM_ERROR                0x0301
-#define MCE_HW_POISONED_ERROR               0x0302
+/* Errors issued by Broadcom SPI */
+#define SPI_PROBE_ERROR                      0x0300
+#define SPI_UNRECOG_FLASH_TYPE_ERROR         0x0301
 
 
 /* Warnings issued by Broadcom MoCA driver */
@@ -85,18 +85,32 @@
 #define MOCA_RECVMSG_HOST_RSP_FAIL_WARN      0x100A
 #define MOCA_PROBE_REQ_INTERRUPT_FAIL_WARN   0x100B
 #define MOCA_PROBE_REG_CLASS_DEV_FAIL_WARN   0x100C
+#define MOCA_I2C_BASE_ADDR_NOT_SET_WARN      0x100D
 
 /* Warnings issued by Broadcom Giga-bit Ethernet driver */
 #define GENET_DROP_FRAGMENTED_PKT_WARN       0x1100
 
-/* Warnings issued by mtd/nand */
-#define NAND_BBT_WRT_WARN                    0x1200
-#define NAND_EDU_RBUS_WARN                   0x1201
-#define NAND_RD_UNCORRECTABLE_WARN           0x1202
+/* Warnings issued by mtd, mtd/nand */
+#define MTD_NAND_BBT_WRT_WARN                0x1200
+#define MTD_NAND_EDU_RBUS_WARN               0x1201
+#define MTD_NAND_RD_UNCORRECTABLE_WARN       0x1202
+#define MTD_NAND_NO_DEV_WARN                 0x1203
+#define MTD_ALLOC_PARTITION_WARN             0x1204
+#define MTD_BLKTRANS_REG_WARN                0x1205
+#define MTD_ERASE_WRT_WARN                   0x1206
+#define MTD_BRCMSTB_SETP_WARN                0x1207
+
+/* Warnings issued by SPI */
+#define SPI_FLASH_SETUP_WARN                 0x1300
+#define SPI_CS_SETUP_WARN                    0x1301
 
 typedef enum {
    DIAG_MOCA_INIT_ERROR = 0,
    DIAG_MOCA_PROBE_ERROR,
+   DIAG_MOCA_RESERVED_1_ERROR,
+   DIAG_MOCA_RESERVED_2_ERROR,
+   DIAG_MOCA_RESERVED_3_ERROR,
+   DIAG_MOCA_RESERVED_4_ERROR,
    DIAG_MOCA_ERROR_MAX
 } diag_moca_errType_e;
 
@@ -106,6 +120,11 @@ typedef enum {
    DIAG_MOCA_READ_WARN,
    DIAG_MOCA_NO_MEM_WARN,
    DIAG_MOCA_PROBE_WARN,
+   DIAG_MOCA_REG_WARN,
+   DIAG_MOCA_RESERVED_1_WARN,
+   DIAG_MOCA_RESERVED_2_WARN,
+   DIAG_MOCA_RESERVED_3_WARN,
+   DIAG_MOCA_RESERVED_4_WARN,
    DIAG_MOCA_WARN_MAX
 } diag_moca_warnType_e;
 
@@ -117,39 +136,94 @@ typedef enum {
    DIAG_GENET_PROBE_ERROR,
    DIAG_GENET_PWR_DOWN_ERROR,
    DIAG_GENET_PHY_ERROR,
+   DIAG_GENET_RESERVED_1_ERROR,
+   DIAG_GENET_RESERVED_2_ERROR,
+   DIAG_GENET_RESERVED_3_ERROR,
+   DIAG_GENET_RESERVED_4_ERROR,
    DIAG_GENET_ERROR_MAX
 } diag_genet_errorType_e;
 
 typedef enum {
    DIAG_GENET_DROP_FRAGMENTED_PKT_WARN = 0,
+   DIAG_GENET_RESERVED_1_WARN,
+   DIAG_GENET_RESERVED_2_WARN,
+   DIAG_GENET_RESERVED_3_WARN,
+   DIAG_GENET_RESERVED_4_WARN,
    DIAG_GENET_WARN_MAX
 } diag_genet_warnType_e;
 
 typedef enum {
-   DIAG_NAND_INIT_ERROR = 0,
-   DIAG_NAND_BBT_ERROR,
-   DIAG_NAND_ECC_ERROR,
-   DIAG_NAND_NO_DEV_ERROR,
-   DIAG_NAND_ERROR_MAX
-} diag_nand_errType_e;
+   DIAG_MTD_NAND_INIT_ERROR = 0,
+   DIAG_MTD_NAND_BBT_ERROR,
+   DIAG_MTD_NAND_ECC_ERROR,
+   DIAG_MTD_ALLOC_PARTITION_ERROR,
+   DIAG_MTD_INIT_ERROR,
+   DIAG_MTD_RESERVED_1_ERROR,
+   DIAG_MTD_RESERVED_2_ERROR,
+   DIAG_MTD_RESERVED_3_ERROR,
+   DIAG_MTD_RESERVED_4_ERROR,
+   DIAG_MTD_RESERVED_5_ERROR,
+   DIAG_MTD_RESERVED_6_ERROR,
+   DIAG_MTD_RESERVED_7_ERROR,
+   DIAG_MTD_RESERVED_8_ERROR,
+   DIAG_MTD_RESERVED_9_ERROR,
+   DIAG_MTD_RESERVED_10_ERROR,
+   DIAG_MTD_NAND_ERROR_MAX
+} diag_mtd_nand_errType_e;
 
 typedef enum {
-   DIAG_NAND_BBT_WRITE_WARN = 0,
-   DIAG_NAND_EDU_RBUS_WARN,
-   DIAG_NAND_READ_UNCORRECTABLE_WARN,
-   DIAG_NAND_WARN_MAX
-} diag_nand_warnType_e;
+   DIAG_MTD_NAND_BBT_WRITE_WARN = 0,
+   DIAG_MTD_NAND_EDU_RBUS_WARN,
+   DIAG_MTD_NAND_READ_UNCORRECTABLE_WARN,
+   DIAG_MTD_NAND_NO_DEV_WARN,
+   DIAG_MTD_ALLOC_PARTITION_WARN,
+   DIAG_MTD_BLKTRANS_REG_WARN,
+   DIAG_MTD_ERASE_WRT_WARN,
+   DIAG_MTD_BRCMSTB_SETP_WARN,
+   DIAG_MTD_RESERVED_1_WARN,
+   DIAG_MTD_RESERVED_2_WARN,
+   DIAG_MTD_RESERVED_3_WARN,
+   DIAG_MTD_RESERVED_4_WARN,
+   DIAG_MTD_RESERVED_5_WARN,
+   DIAG_MTD_RESERVED_6_WARN,
+   DIAG_MTD_RESERVED_7_WARN,
+   DIAG_MTD_RESERVED_8_WARN,
+   DIAG_MTD_RESERVED_9_WARN,
+   DIAG_MTD_RESERVED_10_WARN,
+   DIAG_MTD_NAND_WARN_MAX
+} diag_mtd_nand_warnType_e;
 
 typedef enum {
-   DIAG_MCE_MEM_CORRUPT_ERROR = 0,
-   DIAG_MCE_OUT_OF_MEM_ERROR,
-   DIAG_MCE_HW_POISONED_ERROR,
-   DIAG_MCE_ERROR_MAX
-} diag_mce_errorType_e;
+   DIAG_SPI_PROBE_ERROR = 0,
+   DIAG_SPI_UNRECOG_FLASH_TYPE_ERROR,
+   DIAG_SPI_RESERVED_1_ERROR,
+   DIAG_SPI_RESERVED_2_ERROR,
+   DIAG_SPI_RESERVED_3_ERROR,
+   DIAG_SPI_RESERVED_4_ERROR,
+   DIAG_SPI_RESERVED_5_ERROR,
+   DIAG_SPI_RESERVED_6_ERROR,
+   DIAG_SPI_RESERVED_7_ERROR,
+   DIAG_SPI_RESERVED_8_ERROR,
+   DIAG_SPI_RESERVED_9_ERROR,
+   DIAG_SPI_RESERVED_10_ERROR,
+   DIAG_SPI_ERROR_MAX
+} diag_spi_errorType_e;
 
 typedef enum {
-   DIAG_MCE_WARN_MAX = 0
-} diag_mce_warnType_e;
+   DIAG_SPI_FLASH_SETUP_WARN = 0,
+   DIAG_SPI_CS_SETUP_WARN,
+   DIAG_SPI_RESERVED_1_WARN,
+   DIAG_SPI_RESERVED_2_WARN,
+   DIAG_SPI_RESERVED_3_WARN,
+   DIAG_SPI_RESERVED_4_WARN,
+   DIAG_SPI_RESERVED_5_WARN,
+   DIAG_SPI_RESERVED_6_WARN,
+   DIAG_SPI_RESERVED_7_WARN,
+   DIAG_SPI_RESERVED_8_WARN,
+   DIAG_SPI_RESERVED_9_WARN,
+   DIAG_SPI_RESERVED_10_WARN,
+   DIAG_SPI_WARN_MAX
+} diag_spi_warnType_e;
 
 typedef struct diagErrorCodeEntry_t_ {
    unsigned short errorCode;
@@ -175,29 +249,28 @@ typedef struct diagGeneErrCounts_t_ {
    unsigned short   WarnCount[DIAG_GENET_WARN_MAX];
 } diagGenetErrCounts_t;
 
-
-typedef struct diagNandErrCounts_t_ {
+typedef struct diagMtdNandErrCounts_t_ {
    unsigned int     TotalErrCount;
    unsigned int     TotalWarnCount;
-   unsigned short   ErrCount[DIAG_NAND_ERROR_MAX];
-   unsigned short   WarnCount[DIAG_NAND_WARN_MAX];
-} diagNandErrCounts_t;
+   unsigned short   ErrCount[DIAG_MTD_NAND_ERROR_MAX];
+   unsigned short   WarnCount[DIAG_MTD_NAND_WARN_MAX];
+} diagMtdNandErrCounts_t;
 
-typedef struct diagMceErrCounts_t_ {
+typedef struct diagSpiErrCounts_t_ {
    unsigned int     TotalErrCount;
    unsigned int     TotalWarnCount;
-   unsigned short   ErrCount[DIAG_MCE_ERROR_MAX];
-   unsigned short   WarnCount[DIAG_MCE_WARN_MAX];
-} diagMceErrCounts_t;
+   unsigned short   ErrCount[DIAG_SPI_ERROR_MAX];
+   unsigned short   WarnCount[DIAG_SPI_WARN_MAX];
+} diagSpiErrCounts_t;
 
-#define DIAG_MOCA_ERR_COUNTS_SZ    sizeof(diagMocaErrCounts_t)
-#define DIAG_GENET_ERR_COUNTS_SZ   sizeof(diagGenetErrCounts_t)
-#define DIAG_NAND_ERR_COUNTS_SZ    sizeof(diagNandErrCounts_t)
-#define DIAG_MCE_ERR_COUNTS_SZ     sizeof(diagMceErrCounts_t)
-#define DIAG_ALL_ERR_COUNTS_SZ     (DIAG_MOCA_ERR_COUNTS_SZ + \
-                                    DIAG_GENET_ERR_COUNTS_SZ + \
-                                    DIAG_NAND_ERR_COUNTS_SZ + \
-                                    DIAG_MCE_ERR_COUNTS_SZ)
+#define DIAG_MOCA_ERR_COUNTS_SZ       sizeof(diagMocaErrCounts_t)
+#define DIAG_GENET_ERR_COUNTS_SZ      sizeof(diagGenetErrCounts_t)
+#define DIAG_MTD_NAND_ERR_COUNTS_SZ   sizeof(diagMtdNandErrCounts_t)
+#define DIAG_SPI_ERR_COUNTS_SZ        sizeof(diagSpiErrCounts_t)
+#define DIAG_ALL_ERR_COUNTS_SZ        (DIAG_MOCA_ERR_COUNTS_SZ + \
+                                       DIAG_GENET_ERR_COUNTS_SZ + \
+                                       DIAG_MTD_NAND_ERR_COUNTS_SZ + \
+                                       DIAG_SPI_ERR_COUNTS_SZ)
 
 #define DIAG_UNKNOWN_ERROR_TYPE 0xFF
 

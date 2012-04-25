@@ -45,8 +45,8 @@
 
 #define DIAGD_MOCA_ERR_COUNTS_INDEX   (0)
 #define DIAGD_GENET_ERR_COUNTS_INDEX  (DIAGD_MOCA_ERR_COUNTS_INDEX + DIAG_MOCA_ERR_COUNTS_SZ)
-#define DIAGD_NAND_ERR_COUNTS_INDEX   (DIAGD_GENET_ERR_COUNTS_INDEX + DIAG_GENET_ERR_COUNTS_SZ)
-#define DIAGD_MCE_ERR_COUNTS_INDEX    (DIAGD_NAND_ERR_COUNTS_INDEX + DIAG_NAND_ERR_COUNTS_SZ)
+#define DIAGD_MTD_NAND_ERR_COUNTS_INDEX (DIAGD_GENET_ERR_COUNTS_INDEX + DIAG_GENET_ERR_COUNTS_SZ)
+#define DIAGD_SPI_ERR_COUNTS_INDEX    (DIAGD_MTD_NAND_ERR_COUNTS_INDEX + DIAG_MTD_NAND_ERR_COUNTS_SZ)
 
 
 /* Log message level in string.
@@ -507,8 +507,8 @@ int Diag_Mon_ParseExamine_KernMsg(void)
       /* read in error and warning counts from DIAGD_DB_FS */
       diagMocaErrCntsPtr  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
       diagGenetErrCntsPtr = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
-      diagNandErrCntsPtr  = (diagNandErrCounts_t *) &diagdMap[DIAGD_NAND_ERR_COUNTS_INDEX];
-      diagMceErrCntsPtr   = (diagMceErrCounts_t *) &diagdMap[DIAGD_MCE_ERR_COUNTS_INDEX];
+      diagMtdNandErrCntsPtr  = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
+      diagSpiErrCntsPtr   = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
    }
 
    /* Update the starting time of the api */

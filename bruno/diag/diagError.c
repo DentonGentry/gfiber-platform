@@ -24,8 +24,8 @@
 
 diagMocaErrCounts_t  *diagMocaErrCntsPtr = NULL;
 diagGenetErrCounts_t *diagGenetErrCntsPtr = NULL;
-diagNandErrCounts_t  *diagNandErrCntsPtr = NULL;
-diagMceErrCounts_t   *diagMceErrCntsPtr = NULL;
+diagMtdNandErrCounts_t  *diagMtdNandErrCntsPtr = NULL;
+diagSpiErrCounts_t   *diagSpiErrCntsPtr = NULL;
 
 char *diagMocaErrTypeStr[] = {
    "DIAG_MOCA_INIT_ERROR",
@@ -42,17 +42,17 @@ char *diagGenetErrTypeStr[] = {
    "DIAG_GENET_PHY_ERROR"
 };
 
-char *diagNandErrTypeStr[] = {
-   "DIAG_NAND_INIT_ERROR",
-   "DIAG_NAND_BBT_ERROR",
-   "DIAG_NAND_ECC_ERROR",
-   "DIAG_NAND_NO_DEV_ERROR"
+char *diagMtdNandErrTypeStr[] = {
+   "DIAG_MTD_NAND_INIT_ERROR",
+   "DIAG_MTD_NAND_BBT_ERROR",
+   "DIAG_MTD_NAND_ECC_ERROR",
+   "DIAG_MTD_ALLOC_PARTITION_ERROR",
+   "DIAG_MTD_INIT_ERROR"
 };
 
-char *diagMceErrTypeStr[] = {
-   "DIAG_MCE_MEM_CORRUPT_ERROR",
-   "DIAG_MCE_OUT_OF_MEM_ERROR",
-   "DIAG_MCE_HW_POISONED_ERROR"
+char *diagSpiErrTypeStr[] = {
+   "DIAG_SPI_PROBE_ERROR",
+   "DIAG_SPI_UNRECOG_FLASH_TYPE_ERROR"
 };
 
 char *diagMocaWarnTypeStr[] = {
@@ -60,26 +60,37 @@ char *diagMocaWarnTypeStr[] = {
    "DIAG_MOCA_WRITE_WARN",
    "DIAG_MOCA_READ_WARN",
    "DIAG_MOCA_NO_MEM_WARN",
-   "DIAG_MOCA_PROBE_WARN"
+   "DIAG_MOCA_PROBE_WARN",
+   "DIAG_MOCA_REG_WARN"
 };
 
 char *diagGenetWarnTypeStr[] = {
    "DIAG_GENET_DROP_FRAGMENTED_PKT_WARN"
 };
 
-char *diagNandWarnTypeStr[] = {
-   "DIAG_NAND_BBT_WRITE_WARN",
-   "DIAG_NAND_EDU_RBUS_WARN",
-   "DIAG_NAND_READ_UNCORRECTABLE_WARN"
+char *diagMtdNandWarnTypeStr[] = {
+   "DIAG_MTD_NAND_BBT_WRITE_WARN",
+   "DIAG_MTD_NAND_EDU_RBUS_WARN",
+   "DIAG_MTD_NAND_READ_UNCORRECTABLE_WARN",
+   "DIAG_MTD_NAND_NO_DEV_WARN",
+   "DIAG_MTD_ALLOC_PARTITION_WARN",
+   "DIAG_MTD_BLKTRANS_REG_WARN",
+   "DIAG_MTD_ERASE_WRT_WARN",
+   "DIAG_MTD_BRCMSTB_SETP_WARN"
 };
 
-/* Errors, Warnings issued by Broadcom MoCA driver */
+char *diagSpiWarnTypeStr[] = {
+   "DIAG_SPI_FLASH_SETUP_WARN",
+   "DIAG_SPI_CS_SETUP_WARN"
+};
+
+/* Errors issued by Broadcom MoCA driver */
 diagErrorCodeEntry_t diagMocaErrCodeTbl[] = {
    {MOCA_INIT_ERROR, DIAG_MOCA_INIT_ERROR},
-   {MOCA_PROBE_ERROR, DIAG_MOCA_PROBE_ERROR},
+   {MOCA_PROBE_ERROR, DIAG_MOCA_PROBE_ERROR}
 };
 
-/* Errors, Warnings issued by Broadcom Giga-bit Ethernet driver */
+/* Errors  issued by Broadcom Giga-bit Ethernet driver */
 diagErrorCodeEntry_t diagGenetErrCodeTbl[] = {
    {GENET_OPEN_ERROR, DIAG_GENET_OPEN_ERROR},
    {GENET_TXRING_ERROR, DIAG_GENET_XMIT_ERROR},
@@ -91,41 +102,41 @@ diagErrorCodeEntry_t diagGenetErrCodeTbl[] = {
    {GENET_HFB_READ_ERROR, DIAG_GENET_HFB_ERROR},
    {GENET_PROBE_ERROR, DIAG_GENET_PROBE_ERROR},
    {GENET_PWR_DOWN_ERROR, DIAG_GENET_PWR_DOWN_ERROR},
-   {GENET_PHY_INIT_ERROR, DIAG_GENET_PHY_ERROR},
-   {GENET_DROP_FRAGMENTED_PKT_WARN, DIAG_GENET_DROP_FRAGMENTED_PKT_WARN}
+   {GENET_PHY_INIT_ERROR, DIAG_GENET_PHY_ERROR}
 };
 
-/* Errors issued by mtd/nand */
-diagErrorCodeEntry_t diagNandErrCodeTbl[] = {
-   {NAND_INIT_ERROR, DIAG_NAND_INIT_ERROR},
-   {NAND_BBT_WR_ERROR, DIAG_NAND_BBT_ERROR},
-   {NAND_BBT_OUT_OF_MEM_ERROR, DIAG_NAND_BBT_ERROR},
-   {NAND_BBT_SCAN_ERROR, DIAG_NAND_BBT_ERROR},
-   {NAND_ECC_UNCORRECTABLE_ERROR, DIAG_NAND_ECC_ERROR},
-   {NAND_NO_DEV_ERROR, DIAG_NAND_NO_DEV_ERROR}
+/* Errors issued by mtd, mtd/nand */
+diagErrorCodeEntry_t diagMtdNandErrCodeTbl[] = {
+   {MTD_NAND_INIT_ERROR, DIAG_MTD_NAND_INIT_ERROR},
+   {MTD_NAND_BBT_WR_ERROR, DIAG_MTD_NAND_BBT_ERROR},
+   {MTD_NAND_BBT_OUT_OF_MEM_ERROR, DIAG_MTD_NAND_BBT_ERROR},
+   {MTD_NAND_BBT_SCAN_ERROR, DIAG_MTD_NAND_BBT_ERROR},
+   {MTD_NAND_ECC_UNCORRECTABLE_ERROR, DIAG_MTD_NAND_ECC_ERROR},
+   {MTD_ALLOC_PARTITION_ERROR, DIAG_MTD_ALLOC_PARTITION_ERROR},
+   {MTD_INIT_ERROR, DIAG_MTD_INIT_ERROR}
 };
 
 
-/* errors issued by kernel memory management */
-diagErrorCodeEntry_t diagMceErrCodeTbl[] = {
-   {MCE_HW_MEM_CORRUPT_ERROR, DIAG_MCE_MEM_CORRUPT_ERROR},
-   {MCE_OUT_OF_MEM_ERROR, DIAG_MCE_OUT_OF_MEM_ERROR},
-   {MCE_HW_POISONED_ERROR, DIAG_MCE_HW_POISONED_ERROR}
+/* Errors issued by SPI */
+diagErrorCodeEntry_t diagSpiErrCodeTbl[] = {
+   {SPI_PROBE_ERROR, DIAG_SPI_PROBE_ERROR},
+   {SPI_UNRECOG_FLASH_TYPE_ERROR, DIAG_SPI_UNRECOG_FLASH_TYPE_ERROR}
 };
 
 #define DIAG_ERROR_CODE_ENTRY_SZ   sizeof(diagErrorCodeEntry_t)
 #define DIAG_MOCA_NUM_OF_ERROR     sizeof(diagMocaErrCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
 #define DIAG_GENET_NUM_OF_ERROR    sizeof(diagGenetErrCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
-#define DIAG_NAND_NUM_OF_ERROR     sizeof(diagNandErrCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
-#define DIAG_MCE_NUM_OF_ERROR      sizeof(diagMceErrCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
+#define DIAG_MTD_NAND_NUM_OF_ERROR sizeof(diagMtdNandErrCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
+#define DIAG_SPI_NUM_OF_ERROR      sizeof(diagSpiErrCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
 
 diagErrorCodeTbl_t diagErrorCodeTbl[ERROR_CODE_COMPONENT_MAX] = {
    {DIAG_MOCA_NUM_OF_ERROR,  diagMocaErrCodeTbl},
    {DIAG_GENET_NUM_OF_ERROR, diagGenetErrCodeTbl},
-   {DIAG_NAND_NUM_OF_ERROR,  diagNandErrCodeTbl},
-   {DIAG_MCE_NUM_OF_ERROR,   diagMceErrCodeTbl}
+   {DIAG_MTD_NAND_NUM_OF_ERROR, diagMtdNandErrCodeTbl},
+   {DIAG_SPI_NUM_OF_ERROR,   diagSpiErrCodeTbl}
 };
 
+/* Warnings issued by Broadcom MoCA driver */
 diagErrorCodeEntry_t diagMocaWarnCodeTbl[] = {
    {MOCA_M2M_XFER_WARN, DIAG_MOCA_M2M_XFER_WARN},
    {MOCA_WRT_MEM_WARN, DIAG_MOCA_WRITE_WARN},
@@ -139,29 +150,44 @@ diagErrorCodeEntry_t diagMocaWarnCodeTbl[] = {
    {MOCA_RECVMSG_CORE_REQ_FAIL_WARN, DIAG_MOCA_NO_MEM_WARN},
    {MOCA_RECVMSG_HOST_RSP_FAIL_WARN, DIAG_MOCA_NO_MEM_WARN},
    {MOCA_PROBE_REQ_INTERRUPT_FAIL_WARN, DIAG_MOCA_PROBE_WARN},
-   {MOCA_PROBE_REG_CLASS_DEV_FAIL_WARN, DIAG_MOCA_PROBE_WARN}
+   {MOCA_PROBE_REG_CLASS_DEV_FAIL_WARN, DIAG_MOCA_PROBE_WARN},
+   {MOCA_I2C_BASE_ADDR_NOT_SET_WARN, DIAG_MOCA_REG_WARN}
 };
 
+/* Warnings issued by Broadcom Giga-bit Ethernet driver */
 diagErrorCodeEntry_t diagGenetWarnCodeTbl[] = {
    {GENET_DROP_FRAGMENTED_PKT_WARN, DIAG_GENET_DROP_FRAGMENTED_PKT_WARN}
 };
 
-diagErrorCodeEntry_t diagNandWarnCodeTbl[] = {
-   {NAND_BBT_WRT_WARN, DIAG_NAND_BBT_WRITE_WARN},
-   {NAND_EDU_RBUS_WARN, DIAG_NAND_EDU_RBUS_WARN},
-   {NAND_RD_UNCORRECTABLE_WARN, DIAG_NAND_READ_UNCORRECTABLE_WARN}
+/* Warnings issued by mtd, mtd/nand */
+diagErrorCodeEntry_t diagMtdNandWarnCodeTbl[] = {
+   {MTD_NAND_BBT_WRT_WARN, DIAG_MTD_NAND_BBT_WRITE_WARN},
+   {MTD_NAND_EDU_RBUS_WARN, DIAG_MTD_NAND_EDU_RBUS_WARN},
+   {MTD_NAND_RD_UNCORRECTABLE_WARN, DIAG_MTD_NAND_READ_UNCORRECTABLE_WARN},
+   {MTD_NAND_NO_DEV_WARN, DIAG_MTD_NAND_NO_DEV_WARN},
+   {MTD_ALLOC_PARTITION_WARN, DIAG_MTD_ALLOC_PARTITION_WARN},
+   {MTD_BLKTRANS_REG_WARN, DIAG_MTD_BLKTRANS_REG_WARN},
+   {MTD_ERASE_WRT_WARN, DIAG_MTD_ERASE_WRT_WARN},
+   {MTD_BRCMSTB_SETP_WARN, DIAG_MTD_BRCMSTB_SETP_WARN}
+
+};
+
+/* Warnings issued by SPI */
+diagErrorCodeEntry_t diagSpiWarnCodeTbl[] = {
+   {SPI_FLASH_SETUP_WARN, DIAG_SPI_FLASH_SETUP_WARN},
+   {SPI_CS_SETUP_WARN, DIAG_SPI_CS_SETUP_WARN}
 };
 
 #define DIAG_MOCA_NUM_OF_WARN     sizeof(diagMocaWarnCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
 #define DIAG_GENET_NUM_OF_WARN    sizeof(diagGenetWarnCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
-#define DIAG_NAND_NUM_OF_WARN     sizeof(diagNandWarnCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
-#define DIAG_MCE_NUM_OF_WARN      0
+#define DIAG_MTD_NAND_NUM_OF_WARN sizeof(diagMtdNandWarnCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
+#define DIAG_SPI_NUM_OF_WARN      sizeof(diagSpiWarnCodeTbl)/DIAG_ERROR_CODE_ENTRY_SZ
 
 diagErrorCodeTbl_t diagWarnCodeTbl[ERROR_CODE_COMPONENT_MAX] = {
    {DIAG_MOCA_NUM_OF_WARN,  diagMocaWarnCodeTbl},
    {DIAG_GENET_NUM_OF_WARN, diagGenetWarnCodeTbl},
-   {DIAG_NAND_NUM_OF_WARN,  diagNandWarnCodeTbl},
-   {DIAG_MCE_NUM_OF_WARN,   NULL}
+   {DIAG_MTD_NAND_NUM_OF_WARN,  diagMtdNandWarnCodeTbl},
+   {DIAG_SPI_NUM_OF_WARN,   diagSpiWarnCodeTbl}
 };
 
 /* TODO 03092012 check threashold */
@@ -289,36 +315,36 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
                    diagGenetErrCntsPtr->TotalErrCount);
          break;
       case ERROR_CODE_COMPONENT_MTD_NAND:
-         diagNandErrCntsPtr->ErrCount[errType]++;
-         diagNandErrCntsPtr->TotalErrCount++;
+         diagMtdNandErrCntsPtr->ErrCount[errType]++;
+         diagMtdNandErrCntsPtr->TotalErrCount++;
 
          DIAGD_TRACE("%s: componentType = MTD_NAND errType = %d" \
                      " counter=%d total errorCount=%d", __func__, errType,
-                     diagNandErrCntsPtr->ErrCount[errType],
-                     diagNandErrCntsPtr->TotalErrCount);
+                     diagMtdNandErrCntsPtr->ErrCount[errType],
+                     diagMtdNandErrCntsPtr->TotalErrCount);
 
          DIAGD_LOG_W_TS("%s MTD_NAND errType = %s" \
                    " counter=%d total errorCount=%d",
                    timestamp,
-                   diagNandErrTypeStr[errType],
-                   diagNandErrCntsPtr->ErrCount[errType],
-                   diagNandErrCntsPtr->TotalErrCount);
+                   diagMtdNandErrTypeStr[errType],
+                   diagMtdNandErrCntsPtr->ErrCount[errType],
+                   diagMtdNandErrCntsPtr->TotalErrCount);
          break;
-      case ERROR_CODE_COMPONENT_KERNEL_MM:
-         diagMceErrCntsPtr->ErrCount[errType]++;
-         diagMceErrCntsPtr->TotalErrCount++;
+      case ERROR_CODE_COMPONENT_BRCM_SPI:
+         diagSpiErrCntsPtr->ErrCount[errType]++;
+         diagSpiErrCntsPtr->TotalErrCount++;
 
-         DIAGD_TRACE("%s: componentType = KERNEL_MM errType = %d" \
+         DIAGD_TRACE("%s: componentType = BRCM_SPI errType = %d" \
                      " counter=%d total errorCount=%d", __func__, errType,
-                     diagMceErrCntsPtr->ErrCount[errType],
-                     diagMceErrCntsPtr->TotalErrCount);
+                     diagSpiErrCntsPtr->ErrCount[errType],
+                     diagSpiErrCntsPtr->TotalErrCount);
 
-         DIAGD_LOG_W_TS("%s KERNEL_MM errType = %s" \
+         DIAGD_LOG_W_TS("%s BRCM_SPI errType = %s" \
                    " counter=%d total errorCount=%d",
                    timestamp,
-                   diagMceErrTypeStr[errType],
-                   diagMceErrCntsPtr->ErrCount[errType],
-                   diagMceErrCntsPtr->TotalErrCount);
+                   diagSpiErrTypeStr[errType],
+                   diagSpiErrCntsPtr->ErrCount[errType],
+                   diagSpiErrCntsPtr->TotalErrCount);
          break;
       default:
          break;
@@ -397,24 +423,36 @@ void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
                    diagGenetErrCntsPtr->TotalWarnCount);
          break;
       case ERROR_CODE_COMPONENT_MTD_NAND:
-         diagNandErrCntsPtr->WarnCount[warnType]++;
-         diagNandErrCntsPtr->TotalWarnCount++;
+         diagMtdNandErrCntsPtr->WarnCount[warnType]++;
+         diagMtdNandErrCntsPtr->TotalWarnCount++;
 
          DIAGD_TRACE("%s: componentType = MTD_NAND warnType = %d" \
                      " counter=%d total warnCount=%d", __func__, warnType,
-                     diagNandErrCntsPtr->WarnCount[warnType],
-                     diagNandErrCntsPtr->TotalWarnCount);
+                     diagMtdNandErrCntsPtr->WarnCount[warnType],
+                     diagMtdNandErrCntsPtr->TotalWarnCount);
 
          DIAGD_LOG_W_TS("%s MTD_NAND warnType = %s" \
                    " counter=%d total warnCount=%d",
                    timestamp,
-                   diagNandWarnTypeStr[warnType],
-                   diagNandErrCntsPtr->WarnCount[warnType],
-                   diagNandErrCntsPtr->TotalWarnCount);
+                   diagMtdNandWarnTypeStr[warnType],
+                   diagMtdNandErrCntsPtr->WarnCount[warnType],
+                   diagMtdNandErrCntsPtr->TotalWarnCount);
          break;
-      case ERROR_CODE_COMPONENT_KERNEL_MM:
-         DIAGD_TRACE("%s: Shouldn't be here since there is no" \
-                     " KERNEL_MM warnType defined yet!", __func__);
+      case ERROR_CODE_COMPONENT_BRCM_SPI:
+         diagSpiErrCntsPtr->WarnCount[warnType]++;
+         diagSpiErrCntsPtr->TotalWarnCount++;
+
+         DIAGD_TRACE("%s: componentType = BRCM_SPI warnType = %d" \
+                     " counter=%d total warnCount=%d", __func__, warnType,
+                     diagSpiErrCntsPtr->WarnCount[warnType],
+                     diagSpiErrCntsPtr->TotalWarnCount);
+
+         DIAGD_LOG_W_TS("%s BRCM_SPI warnType = %s" \
+                   " counter=%d total warnCount=%d",
+                   timestamp,
+                   diagSpiWarnTypeStr[warnType],
+                   diagSpiErrCntsPtr->WarnCount[warnType],
+                   diagSpiErrCntsPtr->TotalWarnCount);
 
          break;
       default:
