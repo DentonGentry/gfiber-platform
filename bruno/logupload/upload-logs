@@ -7,6 +7,7 @@ __author__ = 'apenwarr@google.com (Avery Pennarun)'
 
 import httplib
 import os.path
+import signal
 import sys
 import time
 import urllib
@@ -93,6 +94,10 @@ def UploadFile(url, filename, fileobj, keys):
 
 
 def main():
+  # set an alarm, in case our HTTP client (or anything else) hangs
+  # for any reason
+  signal.alarm(60)
+
   o = options.Options(optspec)
   (opt, flags, extra) = o.parse(sys.argv[1:])  #pylint: disable-msg=W0612
   if not extra and not opt.stdin:
