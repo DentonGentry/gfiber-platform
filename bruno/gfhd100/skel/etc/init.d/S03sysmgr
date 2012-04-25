@@ -5,14 +5,14 @@ PLATFORM=$(cat /etc/platform)
 
 start() {
   if [ "$PLATFORM" = "GFMS100" ]; then
-    /usr/bin/sysmgr --interval 60000 2>&1 | logger -t sysmgr &
+    babysit 5 sysmgr --interval 60000 2>&1 | logger -t sysmgr &
     RETVAL=$?
     return $RETVAL
   fi
 }
 
 stop() {
-  /usr/bin/pkill -x sysmgr
+  pkill -x sysmgr
   RETVAL=$?
   return $RETVAL
 }

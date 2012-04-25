@@ -1,5 +1,4 @@
 #!/bin/sh
-
 mkdir -p /tmp/cwmp
 
 # dhclient populates the ACS_URL in /tmp/cwmp/acs_url
@@ -16,13 +15,4 @@ if [ -s /tmp/ssl/certs/device.pem ] && [ -s /tmp/ssl/private/device.key ]; then
   CWMP="$CWMP --client-key=/etc/ssl/private/device.key"
 fi
 
-DELAY=60
-
-#TODO(apenwarr): this sort of loop belongs in /etc/init.d/* or something,
-# not in normal programs in /bin.
-#TODO(dgentry): pick a fight with apenwarr about init.d versus bin
-# for babysitter functionality.
-until $CWMP "$@"; do
-  echo "cwmpd exited with code $?.  Respawning in $DELAY seconds." >&2
-  sleep $DELAY
-done
+exec $CWMP "$@"

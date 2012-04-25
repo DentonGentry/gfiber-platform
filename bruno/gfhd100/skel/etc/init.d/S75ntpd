@@ -2,7 +2,7 @@
 
 case "$1" in
   start)
-	ntpd -s
+	babysit 60 ntpd -sd 2>&1 | logger -t ntpd &
 	;;
   stop)
 	pkill -x ntpd

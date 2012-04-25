@@ -1,0 +1,20 @@
+#!/bin/sh
+RETRY_TIMEOUT=$1
+
+if [ -z "$RETRY_TIMEOUT" -o -z "$*" ]; then
+  echo "Usage: $0 <retry_timeout> <program> [args...]" >&2
+  exit 1
+fi
+shift
+
+# Run until the program manages to exit successfully.
+until "$@"; do
+  RV=$?
+  if [ "$RV" = 143 ]; then
+    # SIGTERM means someone asked for it to die.
+    echo "SIGTERM: '$1' was killed explicitly.  Not retrying." >&2
+    break
+  fi
+  echo "Error: '$1' exited with code $RV.  Retry in $RETRY_TIMEOUT secs." >&2
+  sleep $RETRY_TIMEOUT || sleep 1  # just in case $RETRY_TIMEOUT is invalid
+done
