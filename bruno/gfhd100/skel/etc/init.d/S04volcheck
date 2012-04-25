@@ -60,12 +60,12 @@ mount_ubifs() {
 # ${2} - UBI device number
 
   #echo "Attach mtd${1} to /dev/ubi${2}"
-  ubiattach -m ${1} -d ${2} /dev/ubi_ctrl
+  if ! ubiattach -m ${1} -d ${2}; then
+    flash_eraseall /dev/mtd${1}
+    ubiattach -m ${1} -d ${2}
+  fi
   if [ $? -eq 0 ]; then
-    mount_volumes ${1} ${2}
-    if [ $? -ne 0 ]; then
-      return 1
-    fi
+    mount_volumes ${1} ${2} || return 1
   else
     echo "Failed to attach mtd${1} to /dev/ubi${2}"
     return 1
@@ -79,34 +79,19 @@ mount_volumes() {
 
   if [ ${1} -eq ${DATA_MTD_NO} ]; then
     # mount UBI 'user' volume
-    mount_volume ${USER_NAME} ${2} ${USER_SIZE}
-    if [ $? -ne 0 ]; then
-      return 1
-    fi
+    mount_volume ${USER_NAME} ${2} ${USER_SIZE} || return 1
 
     # mount UBI 'config' volume
-    mount_volume ${CONFIG_NAME} ${2} ${CONFIG_SIZE}
-    if [ $? -ne 0 ]; then
-      return 1
-    fi
+    mount_volume ${CONFIG_NAME} ${2} ${CONFIG_SIZE} || return 1
   elif [ ${1} -eq ${MISC_MTD_NO} ]; then
     # mount UBI 'scratch' volume
-    mount_volume ${SCRATCH_NAME} ${2} ${SCRATCH_SIZE}
-    if [ $? -ne 0 ]; then
-      return 1
-    fi
+    mount_volume ${SCRATCH_NAME} ${2} ${SCRATCH_SIZE} || return 1
 
     # mount UBI 'checksum0' volume
-    mount_volume ${CHECKSUM0_NAME} ${2} ${CHECKSUM0_SIZE}
-    if [ $? -ne 0 ]; then
-      return 1
-    fi
+    mount_volume ${CHECKSUM0_NAME} ${2} ${CHECKSUM0_SIZE} || return 1
 
     # mount UBI 'checksum1' volume
-    mount_volume ${CHECKSUM1_NAME} ${2} ${CHECKSUM1_SIZE}
-    if [ $? -ne 0 ]; then
-      return 1
-    fi
+    mount_volume ${CHECKSUM1_NAME} ${2} ${CHECKSUM1_SIZE} || return 1
   fi
 }
 
@@ -117,15 +102,11 @@ mount_volume() {
 # ${3} - UBI volume size
 
   # make UBI volume
-  make_volume ${1} ${2} ${3}
-  if [ $? -ne 0 ]; then
-    return 1
-  fi
+  make_volume ${1} ${2} ${3} || return 1
 
   # mount UBI volume
   [ ! -d /${1} ] && mkdir -p /${1}
-  mount -t ubifs ubi${2}:${1} /${1}
-  if [ $? -ne 0 ]; then
+  if ! mount -t ubifs ubi${2}:${1} /${1}; then
     echo "Failed to mount '${1}' volume"
     return 1
   fi
@@ -138,15 +119,13 @@ make_volume() {
 # ${3} - UBI volume size
 
   # get UBI volume name and remove 'space' characters
-  VOL_NAME=$(ubinfo -a | grep -w "${1}" | sed -e 's/[\t ]//g')
-  if [ "${VOL_NAME}" = "Name:${1}" ]; then
-    echo "UBI volume '${1}' existed"
+  if ubinfo -d ${2} -N ${1}; then
+    echo "UBI volume '${1}' exists"
     return 0
   fi
 
   # echo "Make '${1}' volume on /dev/ubi${2} (size:${3})"
-  ubimkvol /dev/ubi${2} -s ${3} -N ${1}
-  if [ $? -ne 0 ]; then
+  if ! ubimkvol /dev/ubi${2} -s ${3} -N ${1}; then
     echo "Failed to make '${1}' volume"
     return 1
   fi
@@ -168,7 +147,7 @@ umount_ubifs() {
   fi
 
   sleep 1
-  ubidetach -d ${1} /dev/ubi_ctrl
+  ubidetach -d ${1}
 }
 
 netflix_sanity_check() {
@@ -185,15 +164,11 @@ case "$1" in
     MISC_MTD_NO=$(check_mtd ${MISC_MTD_NAME})
 
     echo -n "Starting volume check: "
-    mount_ubifs ${DATA_MTD_NO} ${DATA_UBI_NO}
-    if [ $? -ne 0 ]; then
+    mount_ubifs ${DATA_MTD_NO} ${DATA_UBI_NO} || \
       recover_volume ${DATA_MTD_NO} ${DATA_UBI_NO}
-    fi
 
-    mount_ubifs $MISC_MTD_NO $MISC_UBI_NO
-    if [ $? -ne 0 ]; then
+    mount_ubifs ${MISC_MTD_NO} ${MISC_UBI_NO} || \
       recover_volume ${MISC_MTD_NO} ${MISC_UBI_NO}
-    fi
 
     [ ! -d /user/rw ] && mkdir -p /user/rw
     [ ! -d /user/bsa ] && mkdir -p /user/bsa
