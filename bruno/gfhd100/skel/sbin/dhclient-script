@@ -64,27 +64,52 @@ make_resolv_conf() {
   fi
 }
 
+atomic() {
+  local filename="$1" newval="$2"
+  shift
+
+  # Only rewrite the file if it's different from before.  This helps avoid
+  # unnecessary flash churn.
+  if [ ! -e $filename ] || [ "$(cat $filename)" != "$newval" ]; then
+    oldval=$([ -e $filename ] && cat $filename)
+    rm -f $filename.new
+    echo "$@" >$filename.new
+    mv $filename.new $filename
+  fi
+}
+
+#TODO(apenwarr): Actually we should probably save a *list* of ACS URLs.
+# That way if cwmpd fails to connect to one, it can fall back to another one
+# itself.  We have to be careful about what conditions necessitate a fallback,
+# but it's probably not *only* DHCP server related.  In particular, if DHCP
+# doesn't provide an entry at all and we have an old one in /config, that
+# one might refuse us, and maybe we'd like to fall back to the hardcoded
+# default in that case, but that would have to be implemented in cwmpd, not
+# here.
 make_cwmp_files() {
-  [ ! -d /tmp/cwmp ] && mkdir /tmp/cwmp
-  if [ -d /config/tr69 ]; then
-    if [ ! -e /config/tr69/acs_url ]; then
-      touch /config/tr69/acs_url
-    fi
-    [ x"$(readlink /tmp/cwmp/acs_url)" != "x/config/tr69/acs_url" ] \
-      && ln -sf /config/tr69/acs_url /tmp/cwmp/acs_url
+  mkdir -p /tmp/cwmp /config/tr69
+  if [ -n "$new_cwmp_acs_url" ]; then
+    # DHCP server gave us an ACS URL, so we can discard any old ones.
+    atomic /tmp/cwmp/acs_url "$new_cwmp_acs_url"
+    atomic /config/tr69/acs_url "$new_cwmp_acs_url"
+  elif [ -s /config/tr69/acs_url ]; then
+    # DHCP server didn't provide an ACS URL, but we have an old one persisted,
+    # so use that as a fallback.
+    atomic /tmp/cwmp/acs_url "$(cat /config/tr69/acs_url)"
+  elif [ ! -s /tmp/cwmp/acs_url ]; then
+    # No DHCP-provided entry and no fallback; use a hardcoded default and
+    # hope for the best.  Save it to /tmp, but *not* /config, since it's not
+    # a "real" config value (and if the default changes in future software
+    # versions, we want it to take effect).
+    #TODO(apenwarr): figure out what hardcoded server to actually use
+    atomic /tmp/cwmp/acs_url "https://FIXME.default.acs.url.local/"
   fi
-  if [ "x${new_cwmp_acs_url}" != x ] ; then
-    echo ${new_cwmp_acs_url} > /tmp/cwmp/acs_url
-  fi
-  if [ "x${new_cwmp_provisioning_code}" != x ] ; then
-    echo ${new_cwmp_provisioning_code} > /tmp/cwmp/provisioning_code
-  fi
-  if [ "x${new_cwmp_retry_minimum_wait_interval}" != x ] ; then
-    echo ${new_cwmp_retry_minimum_wait_interval} > /tmp/cwmp/retry_minimum_wait_interval
-  fi
-  if [ "x${new_cwmp_retry_interval_multiplier}" != x ] ; then
-    echo ${new_cwmp_retry_interval_multiplier} > /tmp/cwmp/retry_interval_multiplier
-  fi
+  [ -n "$new_cwmp_provisioning_code" ] &&
+    atomic /tmp/cwmp/provisioning_code "$new_cwmp_provisioning_code"
+  [ -n "$new_cwmp_retry_minimum_wait_interval" ] &&
+    atomic /tmp/cwmp/retry_minimum_wait_interval "$new_cwmp_retry_minimum_wait_interval"
+  [ -n "$new_cwmp_retry_interval_multiplier" ] &&
+    atomic /tmp/cwmp/retry_interval_multiplier "$new_cwmp_retry_interval_multiplier"
 }
 
 # Must be used on exit.   Invokes the local dhcp client exit hooks, if any.
