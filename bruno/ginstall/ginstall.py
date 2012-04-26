@@ -205,8 +205,11 @@ def CalculateSha(f, n):
 def IsLoaderCurrent(f):
   """Return True if the current running loader is the same as the file."""
   with open('/dev/mtd0', 'rb') as l:
+    current = f.tell()
     fsize = GetFileSize(f)
+    f.seek(0, os.SEEK_SET)
     sha_install = CalculateSha(f, fsize)
+    f.seek(current, os.SEEK_SET)
     sha_current = CalculateSha(l, fsize)
     return sha_install == sha_current
 
