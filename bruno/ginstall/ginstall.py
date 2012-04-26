@@ -5,7 +5,6 @@
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
-import hashlib
 import optparse
 import os
 import re
@@ -173,8 +172,8 @@ def WriteToFile(srcfile, dstfile):
   return totsize
 
 
-def ReadAndVerify(srcfile, dstfile):
-  """Read srcfile and dstfile. Return true if contents are identical."""
+def IsIdentical(srcfile, dstfile):
+  """Compare srcfile and dstfile. Return true if contents are identical."""
   sbuf = srcfile.read(BUFSIZE)
   dbuf = dstfile.read(len(sbuf))
   while sbuf and dbuf:
@@ -195,25 +194,6 @@ def GetFileSize(f):
   return size
 
 
-def CalculateSha(f, n):
-  """Return sha256 string of the first n characters of the file f."""
-  m = hashlib.sha256()
-  m.update(f.read(n))
-  return m.hexdigest()
-
-
-def IsLoaderCurrent(f):
-  """Return True if the current running loader is the same as the file."""
-  with open('/dev/mtd0', 'rb') as l:
-    current = f.tell()
-    fsize = GetFileSize(f)
-    f.seek(0, os.SEEK_SET)
-    sha_install = CalculateSha(f, fsize)
-    f.seek(current, os.SEEK_SET)
-    sha_current = CalculateSha(l, fsize)
-    return sha_install == sha_current
-
-
 def InstallToMtd(f, mtd):
   """Write an image to an mtd device."""
   if EraseMtd(mtd):
@@ -223,7 +203,7 @@ def InstallToMtd(f, mtd):
     written = WriteToFile(f, mtdfile)
     f.seek(0, os.SEEK_SET)
     mtdfile.seek(0, os.SEEK_SET)
-    if not ReadAndVerify(f, mtdfile):
+    if not IsIdentical(f, mtdfile):
       raise IOError('Flash verify failed')
     return written
 
@@ -414,12 +394,22 @@ def main():
       VerbosePrint('\n')
 
     loader = img.GetLoader()
-    if loader and not IsLoaderCurrent(loader):
-      print 'DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.'
+    if loader:
       mtd = GetMtdDevForPartition('cfe')
-      VerbosePrint('Writing loader to {0}'.format(mtd))
-      InstallToMtd(loader, mtd)
+      is_loader_current = False
+      mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
+      with open(mtdblockname, 'r+b') as mtdfile:
+        VerbosePrint('Checking if the loader is up to date')
+        is_loader_current = IsIdentical(loader, mtdfile)
       VerbosePrint('\n')
+      if is_loader_current:
+        VerbosePrint('The loader is the latest.\n')
+      else:
+        loader.seek(0, os.SEEK_SET)
+        print 'DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.'
+        VerbosePrint('Writing loader to {0}'.format(mtd))
+        InstallToMtd(loader, mtd)
+        VerbosePrint('\n')
 
   if partition:
     pnum = gfhd100_partitions[partition]
