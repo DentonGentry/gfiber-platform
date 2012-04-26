@@ -24,9 +24,11 @@ DRV_Error DRV_FLASH_Write(int offset, char *data, int nDataSize) {
 }
 
 void usage(const char* progname) {
-  printf("Usage: %s [-d] [-r VARNAME] [-w VARNAME=value]\n", progname);
+  printf("Usage: %s [-d | [-q|-b] -r VARNAME] [-w VARNAME=value]\n", progname);
   printf("\t-d : dump all NVRAM variables\n");
   printf("\t-r VARNAME : read VARNAME from NVRAM\n");
+  printf("\t-q : quiet mode, suppress the variable name and equal sign\n");
+  printf("\t-b : read VARNAME from NVRAM in raw binary format, e.g. dumping a binary key\n");
   printf("\t-w VARNAME=value : write value to VARNAME in NVRAM.\n");
 }
 
@@ -112,6 +114,28 @@ char* format_nvram(hnvram_format_e format, const char* data,
     case HNVRAM_UINT8:     format_uint8(data, output, outlen); break;
   }
   return output;
+}
+
+int read_raw_nvram(const char* name, char* output, int outlen) {
+  const hnvram_field_t* field = get_nvram_field(name);
+  int ret;
+  if (field == NULL) {
+    return -1;
+  }
+
+  if (HMX_NVRAM_GetLength(field->nvram_type, &ret) != DRV_OK) {
+    return -1;
+  }
+
+  if (ret > outlen) {
+    return -1;
+  }
+
+  if (HMX_NVRAM_GetField(field->nvram_type, 0, output, outlen) != DRV_OK) {
+    return -1;
+  }
+
+  return ret;
 }
 
 char* read_nvram(const char* name, char* output, int outlen, int quiet) {
@@ -243,48 +267,82 @@ int hnvram_main(int argc, char * const argv[]) {
     exit(1);
   }
 
-  int d_flag = 0;  // dump all NVRAM variables
+  char op = 0;     // operation
+  int op_cnt = 0;  // operation
   int q_flag = 0;  // quiet: don't output name of variable.
-  char* duparg;
+  int b_flag = 0;  // binary: output the binary format
   char output[NVRAM_MAX_DATA];
   int c;
-  while ((c = getopt(argc, argv, "dqr:w:")) != -1) {
+  while ((c = getopt(argc, argv, "dbqrw:")) != -1) {
     switch(c) {
-      case 'd':
-        d_flag = 1;
+      case 'b':
+        b_flag = 1;
         break;
       case 'q':
         q_flag = 1;
         break;
-      case 'r':
-        duparg = strdup(optarg);
-        if (read_nvram(duparg, output, sizeof(output), q_flag) == NULL) {
-          fprintf(stderr, "Unable to read %s\n", duparg);
-          exit(1);
-        }
-        puts(output);
-        free(duparg);
-        break;
       case 'w':
-        duparg = strdup(optarg);
-        if (write_nvram(duparg) != 0) {
-          fprintf(stderr, "Unable to write %s\n", duparg);
-          exit(1);
+        {
+          char* duparg = strdup(optarg);
+          if (write_nvram(duparg) != 0) {
+            fprintf(stderr, "Unable to write %s\n", duparg);
+            free(duparg);
+            exit(1);
+          }
+          free(duparg);
         }
-        free(duparg);
+        break;
+      case 'r':
+      case 'd':
+        if (op != c) {
+          ++op_cnt;
+        }
+        op = c;
         break;
       default:
         usage(argv[0]);
         exit(1);
-        break;
     }
   }
 
+  if (op_cnt > 1) {
+    usage(argv[0]);
+    exit(1);
+  }
+
   // dump NVRAM at the end, after all writes have been done.
-  if (d_flag) {
-    if ((err = HMX_NVRAM_Dir()) != DRV_OK) {
-      fprintf(stderr, "Unable to dump variables, HMX_NVRAM_Dir=%d\n", err);
-    }
+  switch (op) {
+    case 'd':
+      if (optind < argc) {
+        usage(argv[0]);
+        exit(1);
+      }
+      if ((err = HMX_NVRAM_Dir()) != DRV_OK) {
+        fprintf(stderr, "Unable to dump variables, HMX_NVRAM_Dir=%d\n", err);
+      }
+      break;
+    case 'r':
+      if (optind >= argc) {
+        usage(argv[0]);
+        exit(1);
+      }
+      for (; optind < argc; ++optind) {
+        if (b_flag) {
+          int len = read_raw_nvram(argv[optind], output, sizeof(output));
+          if (len < 0) {
+            fprintf(stderr, "Unable to read %s\n", argv[optind]);
+            exit(1);
+          }
+          fwrite(output, 1, len, stdout);
+        } else {
+          if (read_nvram(argv[optind], output, sizeof(output), q_flag) == NULL) {
+            fprintf(stderr, "Unable to read %s\n", argv[optind]);
+            exit(1);
+          }
+          puts(output);
+        }
+      }
+      break;
   }
 
   exit(0);
