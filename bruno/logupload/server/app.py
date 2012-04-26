@@ -506,10 +506,38 @@ class StartRegen(_Handler):
     taskqueue.add(url='/_regen', method='GET')
 
 
+def _Query(meta):
+  return (File.query()
+          .filter(File.meta == meta)
+          .order(-File.create_time)
+          .iter(keys_only=True, batch_size=1000))
+
+
+class Query(_Handler):
+  """Return a list of all File keys containing the given metadata."""
+
+  def get(self, meta):
+    """HTTP GET handler."""
+    self.response.headers.add_header('Content-Type', 'text/plain')
+    for k in _Query(meta):
+      self.Write('%s\n' % k)
+
+
+class DeleteAll(_Handler):
+  """Delete all File keys containing the given metadata."""
+
+  def get(self, meta):
+    """HTTP GET handler."""
+    ndb.delete_multi(_Query(meta))
+    self.Write('ok\n')
+
+
 wsgi_app = webapp.WSGIApplication([
     ('/', ListMachines),
     ('/_regen', Regen),
     ('/_start_regen', StartRegen),
+    ('/_query/(.+)', Query),
+    ('/_deleteall/(.+)', DeleteAll),
     ('/upload/(.+)', Upload),
     ('/([^/]+)/', ListFiles),
     ('/([^/]+)/log', Download),
