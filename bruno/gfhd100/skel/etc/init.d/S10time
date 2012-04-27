@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cp /etc/ntpd.conf.default /tmp/ntpd.conf
+echo "UTC" > /tmp/TZ

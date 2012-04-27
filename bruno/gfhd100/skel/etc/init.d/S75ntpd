@@ -2,7 +2,7 @@
 
 case "$1" in
   start)
-	babysit 60 ntpd -sd 2>&1 | logger -t ntpd &
+	babysit 60 ntpd -sd -w /tmp/ntp.synced 2>&1 | logger -t ntpd &
 	;;
   stop)
 	pkill -x ntpd

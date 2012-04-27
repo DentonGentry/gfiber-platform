@@ -1,0 +1,9 @@
+#!/bin/sh
+
+synced_file=$1
+
+while [ ! -f $synced_file ]; do
+  msleep 400
+done
+
+exit 0
