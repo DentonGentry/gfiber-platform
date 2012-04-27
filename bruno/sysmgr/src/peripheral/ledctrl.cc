@@ -43,7 +43,7 @@ void LedCtrl::Terminate(void) {
 void LedCtrl::TurnOn(void) {
   for (std::list<GpIo*>::iterator i=led_list_.begin();
        i != led_list_.end(); ++i) {
-    if (!(*i)->Write(NEXUS_GpioValue_eLow))
+    if (!(*i)->Write(NEXUS_GpioValue_eHigh))
       LOG(LS_WARNING) << "Failed to turn on " << (*i)->GetConfig().name_;
   }
 }
@@ -51,7 +51,7 @@ void LedCtrl::TurnOn(void) {
 void LedCtrl::TurnOff(void) {
   for (std::list<GpIo*>::iterator i=led_list_.begin();
        i != led_list_.end(); ++i) {
-    if (!(*i)->Write(NEXUS_GpioValue_eHigh))
+    if (!(*i)->Write(NEXUS_GpioValue_eLow))
       LOG(LS_WARNING) << "Failed to turn off " << (*i)->GetConfig().name_;
   }
 }

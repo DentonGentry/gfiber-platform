@@ -93,8 +93,8 @@ void PlatformPeripheral::TurnOffLedStandby(void) {
 bool PlatformPeripheral::SetLedStatusColor(led_status_color_e color) {
   switch (color) {
     case LED_STATUS_RED: kInstance_->led_status_->SetRed(); break;
-    case LED_STATUS_GREEN: kInstance_->led_status_->SetGreen(); break;
-    case LED_STATUS_YELLOW: kInstance_->led_status_->SetYellow(); break;
+    case LED_STATUS_ACT_BLUE: kInstance_->led_status_->SetBlue(); break;
+    case LED_STATUS_PURPLE: kInstance_->led_status_->SetPurple(); break;
     default:
       return false;
   }

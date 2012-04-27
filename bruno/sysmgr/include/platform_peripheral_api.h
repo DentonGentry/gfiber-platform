@@ -18,10 +18,11 @@ void platform_peripheral_turn_off_led_main(void);
 void platform_peripheral_turn_on_led_standby(void);
 void platform_peripheral_turn_off_led_standby(void);
 
+/* From more information, refer to src/peripheral/gpioconfig.h */
 typedef enum led_status_color_e {
   LED_STATUS_RED,
-  LED_STATUS_GREEN,
-  LED_STATUS_YELLOW
+  LED_STATUS_ACT_BLUE,
+  LED_STATUS_PURPLE
 } led_status_color_e;
 
 int platform_peripheral_set_led_status_color(led_status_color_e color);

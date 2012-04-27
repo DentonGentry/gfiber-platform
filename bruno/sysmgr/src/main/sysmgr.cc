@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
   // Initialize lights
   platform_peripheral_turn_on_led_main();
   platform_peripheral_turn_off_led_standby();
-  platform_peripheral_set_led_status_color(LED_STATUS_GREEN);
+  platform_peripheral_set_led_status_color(LED_STATUS_ACT_BLUE);
 
   platform_peripheral_run();
   platform_peripheral_terminate();

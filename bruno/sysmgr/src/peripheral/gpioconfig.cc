@@ -10,28 +10,24 @@ const GpIoConfig GpIoConfig::kTable[] = {
   GpIoConfig("LED Standby 0",
              NEXUS_GpioType_eAonStandard, 10, NEXUS_GpioMode_eOutputPushPull,
              NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eHigh),
-  // GPIO_LED_STANDBY1
-  GpIoConfig("LED Standby 1",
-             NEXUS_GpioType_eAonStandard, 11, NEXUS_GpioMode_eOutputPushPull,
-             NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eHigh),
   // GPIO_LED_RED
   GpIoConfig("LED Red",
-             NEXUS_GpioType_eAonStandard, 13, NEXUS_GpioMode_eOutputPushPull,
-             NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eMax),
-  // GPIO_LED_GREEN
-  GpIoConfig("LED Green",
              NEXUS_GpioType_eAonStandard, 17, NEXUS_GpioMode_eOutputPushPull,
+             NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eMax),
+  // GPIO_LED_ACT_BLUE
+  GpIoConfig("LED Act Blue",
+             NEXUS_GpioType_eAonStandard, 13, NEXUS_GpioMode_eOutputPushPull,
              NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eMax),
   // GPIO_LED_BLUE
   GpIoConfig("LED Blue",
              NEXUS_GpioType_eAonStandard, 12, NEXUS_GpioMode_eOutputPushPull,
              NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eMax),
   // GPIO_FAN_CONTROL
-  GpIoConfig("LED Fan Control",
+  GpIoConfig("Fan Control",
              NEXUS_GpioType_eStandard, 99, NEXUS_GpioMode_eOutputPushPull,
              NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eLow),
   // GPIO_FAN_SPEED
-  GpIoConfig("LED Fan Speed",
+  GpIoConfig("Fan Speed",
              NEXUS_GpioType_eStandard, 98, NEXUS_GpioMode_eInput,
              NEXUS_GpioInterrupt_eFallingEdge, NEXUS_GpioValue_eMax),
   // GPIO_UNMUTE
@@ -39,7 +35,7 @@ const GpIoConfig GpIoConfig::kTable[] = {
              NEXUS_GpioType_eStandard, 74, NEXUS_GpioMode_eOutputPushPull,
              NEXUS_GpioInterrupt_eDisabled, NEXUS_GpioValue_eHigh),
   // GPIO_FACTORY_RESET
-  GpIoConfig("LED Factory Reset",
+  GpIoConfig("Factory Reset",
              NEXUS_GpioType_eAonStandard, 4, NEXUS_GpioMode_eInput,
              NEXUS_GpioInterrupt_eEdge, NEXUS_GpioValue_eMax),
 };

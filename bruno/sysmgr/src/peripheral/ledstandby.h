@@ -14,7 +14,6 @@ class LedStandby : public LedCtrl {
  public:
   LedStandby () {
     AddLed(new GpIo(GpIoConfig::kTable[GpIoConfig::GPIO_LED_STANDBY0]));
-    AddLed(new GpIo(GpIoConfig::kTable[GpIoConfig::GPIO_LED_STANDBY1]));
   }
 
   virtual ~LedStandby();
