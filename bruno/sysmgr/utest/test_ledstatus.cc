@@ -19,14 +19,14 @@ static void test_red(int duration) {
 }
 
 static void test_yellow(int duration) {
-  LOG(LS_INFO) << "Set LED status to yellow for " << duration << " seconds...";
-  platform_peripheral_set_led_status_color(LED_STATUS_YELLOW);
+  LOG(LS_INFO) << "Set LED status to purple for " << duration << " seconds...";
+  platform_peripheral_set_led_status_color(LED_STATUS_PURPLE);
   sleep(duration);
 }
 
-static void test_green(int duration) {
-  LOG(LS_INFO) << "Set LED status to green for " << duration << " seconds...";
-  platform_peripheral_set_led_status_color(LED_STATUS_GREEN);
+static void test_blue(int duration) {
+  LOG(LS_INFO) << "Set LED status to blue for " << duration << " seconds...";
+  platform_peripheral_set_led_status_color(LED_STATUS_ACT_BLUE);
   sleep(duration);
 }
 
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
     test_off(FLAG_duration);
     test_red(FLAG_duration);
     test_yellow(FLAG_duration);
-    test_green(FLAG_duration);
+    test_blue(FLAG_duration);
     LOG(LS_INFO) << "Round " << i << " Ends";
   }
   platform_peripheral_terminate();

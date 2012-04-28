@@ -14,12 +14,12 @@ class LedStatus : public LedCtrl {
  public:
   LedStatus () {
     AddLed(new GpIo(GpIoConfig::kTable[GpIoConfig::GPIO_LED_RED]));
-    AddLed(new GpIo(GpIoConfig::kTable[GpIoConfig::GPIO_LED_GREEN]));
+    AddLed(new GpIo(GpIoConfig::kTable[GpIoConfig::GPIO_LED_ACT_BLUE]));
   }
 
   virtual void SetRed(void);
-  virtual void SetYellow(void);
-  virtual void SetGreen(void);
+  virtual void SetPurple(void);
+  virtual void SetBlue(void);
   virtual ~LedStatus();
 
  private:

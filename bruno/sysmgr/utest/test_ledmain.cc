@@ -13,13 +13,13 @@ extern "C" {
 #endif
 
 static void test_on(int duration) {
-  LOG(LS_INFO) << "Turning on LED Standby for " << duration << " seconds...";
+  LOG(LS_INFO) << "Turning on LED Main for " << duration << " seconds...";
   platform_peripheral_turn_on_led_main();
   sleep(duration);
 }
 
 static void test_off(int duration) {
-  LOG(LS_INFO) << "Turning off LED Standby for " << duration << " seconds...";
+  LOG(LS_INFO) << "Turning off LED Main for " << duration << " seconds...";
   platform_peripheral_turn_off_led_main();
   sleep(duration);
 }
