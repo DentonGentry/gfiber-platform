@@ -12,6 +12,8 @@ case $reason in
       return
     fi
 
+    # Discard old servers, including those from ntpd.conf.default.
+    # Use only the servers we just received via DHCP.
     (for server in $new_ntp_servers; do
       echo "server $server"
     done) >/tmp/ntpd.conf
@@ -20,6 +22,7 @@ case $reason in
     ;;
 
   EXPIRE|FAIL|RELEASE|STOP)
-    /etc/init.d/S75ntpd stop
+    cp /etc/ntpd.conf.default /tmp/ntpd.conf
+    /etc/init.d/S75ntpd restart
     ;;
 esac
