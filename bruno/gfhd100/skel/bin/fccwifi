@@ -90,8 +90,8 @@ elif [ $crypto = WEP ] ; then
   wl sup_wpa 1
   wl wpa_auth 0
   wl up
-  wl addwep 0 1234567890
   wl ssid $ssid
+  wl addwep 0 1234567890
 elif [ $crypto = NONE ] ; then
   wl radio on
   wl down
