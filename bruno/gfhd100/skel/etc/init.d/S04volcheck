@@ -60,10 +60,8 @@ mount_ubifs() {
 # ${2} - UBI device number
 
   #echo "Attach mtd${1} to /dev/ubi${2}"
-  if ! ubiattach -m ${1} -d ${2}; then
-    flash_eraseall /dev/mtd${1}
-    ubiattach -m ${1} -d ${2}
-  fi
+  # if attach fails, recover_volume will take care of the recovery.
+  ubiattach -m ${1} -d ${2}
   if [ $? -eq 0 ]; then
     mount_volumes ${1} ${2} || return 1
   else
