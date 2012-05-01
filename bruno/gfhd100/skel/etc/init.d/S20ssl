@@ -3,8 +3,9 @@
 case "$1" in
   start)
 	echo -n "Extracting SSL certificates: "
-	mkdir -p -m 0555 /tmp/ssl/certs || exit 1
-	mkdir -p -m 0550 /tmp/ssl/private || exit 1
+	(mkdir -p /tmp/ssl/certs && chmod 0555 /tmp/ssl/certs) || exit 1
+	(mkdir -p /tmp/ssl/private && chmod 0550 /tmp/ssl/private) || exit 1
+
 	hnvram -q -r GOOGLE_SSL_CRT >/tmp/ssl/certs/device.pem
 	hnvram -q -r GOOGLE_SSL_PEM >/tmp/ssl/private/device.key
 	echo "done"
