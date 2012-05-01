@@ -633,7 +633,7 @@ void diagMocaNodeCommonStatusLog(char *dtstr, PMoCA_NODE_COMMON_STATUS_ENTRY pNo
  * Output:
  * None
  */
-void diagMocaNodeStatsLog(char *dtstr, diag_moca_node_stats_table_t  *pNodeStats) 
+void diagMocaNodeStatsLog(char *dtstr, diag_moca_node_stats_table_t  *pNodeStats)
 {
    int idx=0;
    int nodes=0;
@@ -700,10 +700,10 @@ void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus)
 {
    char inBuf[128];
    char outBuf[128];
-   int count ;
+   int count;
    UINT32 noOfNodes = 0;
 
-   UINT32 coreversionMajor, coreversionMinor, coreversionBuild ;
+   UINT32 coreversionMajor, coreversionMinor, coreversionBuild;
    UINT32 timeH, timeM, timeS;
 
 
@@ -719,29 +719,29 @@ void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus)
    DIAGD_LOG_W_TS("%s            MoCA Status(General)     ", dtstr);
    DIAGD_LOG_W_TS("%s ==================================  ", dtstr);
 
-   sprintf(outBuf, "%s vendorId                  : %d \t", dtstr, 
+   sprintf(outBuf, "%s vendorId                  : %d \t", dtstr,
            pStatus->generalStatus.vendorId);
-   sprintf(inBuf, " HwVersion                 : 0x%x ", 
+   sprintf(inBuf, " HwVersion                 : 0x%x ",
             pStatus->generalStatus.hwVersion);
    strcat(outBuf, inBuf);
    DIAGD_LOG_W_TS(outBuf);
-   sprintf(outBuf, "%s SwVersion                 : %d.%d.%d \t", dtstr, 
+   sprintf(outBuf, "%s SwVersion                 : %d.%d.%d \t", dtstr,
            coreversionMajor, coreversionMinor, coreversionBuild);
-   sprintf(inBuf, " self MoCA Version         : 0x%x ", 
+   sprintf(inBuf, " self MoCA Version         : 0x%x ",
             pStatus->generalStatus.selfMoCAVersion);
    strcat(outBuf, inBuf);
    DIAGD_LOG_W_TS(outBuf);
 
-   sprintf(outBuf, "%s networkVersionNumber      : 0x%x \t", dtstr, 
+   sprintf(outBuf, "%s networkVersionNumber      : 0x%x \t", dtstr,
            pStatus->generalStatus.networkVersionNumber);
-   sprintf(inBuf, " qam256Support             : %s ", 
+   sprintf(inBuf, " qam256Support             : %s ",
           (pStatus->generalStatus.qam256Support == MoCA_QAM_256_SUPPORT_ON) ?
            "supported" : "unknown");
    strcat(outBuf, inBuf);
    DIAGD_LOG_W_TS(outBuf);
 
    if (pStatus->generalStatus.operStatus == MoCA_OPER_STATUS_ENABLED)
-      sprintf(outBuf, "%s operStatus                : Enabled \t", dtstr) ;
+      sprintf(outBuf, "%s operStatus                : Enabled \t", dtstr);
    else
       sprintf(outBuf, "%s operStatus                : Hw Error \t", dtstr);
    if (pStatus->generalStatus.linkStatus == MoCA_LINK_UP)
@@ -751,12 +751,12 @@ void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus)
    strcat(outBuf, inBuf);
    DIAGD_LOG_W_TS(outBuf);
 
-   sprintf(outBuf, "%s connectedNodes BitMask    : 0x%x \t", dtstr, 
+   sprintf(outBuf, "%s connectedNodes BitMask    : 0x%x \t", dtstr,
            pStatus->generalStatus.connectedNodes);
    if (pStatus->generalStatus.nodeId >= MoCA_MAX_NODES)
       sprintf(inBuf, " nodeId                    : N/A ");
    else
-      sprintf(inBuf, " nodeId                    : %u ", 
+      sprintf(inBuf, " nodeId                    : %u ",
               pStatus->generalStatus.nodeId);
    strcat(outBuf, inBuf);
    DIAGD_LOG_W_TS(outBuf);
@@ -773,17 +773,17 @@ void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus)
    DIAGD_LOG_W_TS(outBuf);
 
    diagMoca_ConvertUpTime(pStatus->miscStatus.linkUpTime, &timeH, &timeM, &timeS);
-   sprintf(outBuf, "%s linkUpTime                : %02uh:%02um:%02us", 
+   sprintf(outBuf, "%s linkUpTime                : %02uh:%02um:%02us",
             dtstr, timeH, timeM, timeS);
    if (pStatus->generalStatus.backupNcId >= MoCA_MAX_NODES)
       sprintf(inBuf, " backupNcId                : N/A ");
    else
-      sprintf(inBuf, " backupNcId                : %u ", 
+      sprintf(inBuf, " backupNcId                : %u ",
                pStatus->generalStatus.backupNcId);
    strcat(outBuf, inBuf);
    DIAGD_LOG_W_TS(outBuf);
 
-   sprintf(outBuf, "%s rfChannel                 : %u Mhz\t", dtstr, 
+   sprintf(outBuf, "%s rfChannel                 : %u Mhz\t", dtstr,
             pStatus->generalStatus.rfChannel);
    sprintf(inBuf, " bwStatus                  : 0x%x ",
             pStatus->generalStatus.bwStatus);
@@ -804,32 +804,39 @@ void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus)
    strcat(outBuf, inBuf);
    DIAGD_LOG_W_TS(outBuf);
 
-   sprintf(outBuf, "%s pqosEgressNumFlows        : %d \t\t", dtstr, 
+   sprintf(outBuf, "%s pqosEgressNumFlows        : %d \t\t", dtstr,
    pStatus->generalStatus.pqosEgressNumFlows);
 
    /* find the number of connected nodes from the connected nodes bitmask */
    for (count = 0 ; count < MoCA_MAX_NODES ; count++) {
       if (pStatus->generalStatus.connectedNodes & (0x1 << count))
-         noOfNodes++ ;
+         noOfNodes++;
       }
-      sprintf(inBuf, " Num of connectedNodes     : %d ", noOfNodes) ;
+      sprintf(inBuf, " Num of connectedNodes     : %d ", noOfNodes);
       strcat(outBuf, inBuf);
       DIAGD_LOG_W_TS(outBuf);
 
-      sprintf(outBuf, "%s ledStatus                 : %x ", dtstr, pStatus->generalStatus.ledStatus);
+      sprintf(outBuf, "%s ledStatus                 : %x ", dtstr,
+              pStatus->generalStatus.ledStatus);
       DIAGD_LOG_W_TS(outBuf);
 
       DIAGD_LOG_W_TS("%s ==================================  ", dtstr);
       DIAGD_LOG_W_TS("%s            MoCA Status(Extended)    ", dtstr);
       DIAGD_LOG_W_TS("%s ==================================  ", dtstr);
 
-      diagMoca_ConvertUpTime(pStatus->extendedStatus.lastPmkExchange, &timeH, &timeM, &timeS) ;
-      DIAGD_LOG_W_TS("%s lastPmkExchange           : %02uh:%02um:%02us", dtstr, timeH, timeM, timeS) ;
-      DIAGD_LOG_W_TS("%s lastPmkInterval           : %d sec", dtstr, pStatus->extendedStatus.lastPmkInterval);
+      diagMoca_ConvertUpTime(pStatus->extendedStatus.lastPmkExchange,
+                             &timeH, &timeM, &timeS);
+      DIAGD_LOG_W_TS("%s lastPmkExchange           : %02uh:%02um:%02us", dtstr,
+                     timeH, timeM, timeS);
+      DIAGD_LOG_W_TS("%s lastPmkInterval           : %d sec", dtstr,
+                     pStatus->extendedStatus.lastPmkInterval);
 
-      diagMoca_ConvertUpTime(pStatus->extendedStatus.lastTekExchange, &timeH, &timeM, &timeS);
-      DIAGD_LOG_W_TS("%s lastTekExchange           : %02uh:%02um:%02us", dtstr, timeH, timeM, timeS );
-      DIAGD_LOG_W_TS("%s lastTekInterval           : %d sec", dtstr, pStatus->extendedStatus.lastTekInterval);
+      diagMoca_ConvertUpTime(pStatus->extendedStatus.lastTekExchange, &timeH,
+                             &timeM, &timeS);
+      DIAGD_LOG_W_TS("%s lastTekExchange           : %02uh:%02um:%02us", dtstr,
+                     timeH, timeM, timeS);
+      DIAGD_LOG_W_TS("%s lastTekInterval           : %d sec", dtstr,
+                     pStatus->extendedStatus.lastTekInterval);
 
       DIAGD_LOG_W_TS("%s PMK Even Key              : %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x %s",
          dtstr,
@@ -881,7 +888,7 @@ void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus)
 /*
  * Diag logged MoCA message type string.
  * Refer to enum diag_moca_log_msgs defined in diagMoca.h
- * 
+ *
  */
 char *diagMocaMsgTypeStr[] = {
    "DIAG_MOCA_LOG_NONE",
@@ -944,7 +951,7 @@ void diagMocaStrLog(char *pLogMsg, PMoCA_STATUS pStatus)
          diagMocaStatsLog("", pPrevStats);
          DIAGD_LOG_W_TS("%s ##########Current  Stats###########", "");
          diagMocaStatsLog("", pCurrStats);
-         diagMocaNodeStatsLog("", pNodeStats); 
+         diagMocaNodeStatsLog("", pNodeStats);
          break;
      case DIAG_MOCA_LOG_POOR_PHY_RATE:
          pPerfStatus = (diag_moca_perf_status_t *)pLogMsg;
