@@ -1,0 +1,38 @@
+#!/bin/sh
+#
+# A script that ensures all the programs in a process group die when the
+# script dies that started them.  So if you run:
+#     selfclean myprog args...
+# and 'myprog' starts several subprocesses, then if myprog or selfclean
+# die for any reason (particularly CTRL-C or SIGTERM), selfclean will
+# attempt to kill all the subprocesses too.
+#
+# You can use selfclean as the first line of a shell script:
+#   #!/bin/selfclean /bin/sh
+# This will ensure that a script's subprograms are cleaned up nicely.
+#
+
+if [ -z "$*" ]; then
+  echo "Usage: $0 <script> [args...]" >&2
+  exit 1
+fi
+
+cleanup()
+{
+  trap '' TERM
+  kill -TERM -$$
+  [ "$1" = 0 ] || echo " -- exited with code $1" >&2
+  exit $1
+}
+
+
+"$@" &
+child=$!
+
+# we have to capture signals *after* launching the subprocess, otherwise
+# the signal handlers are inherited by the subprocess, and it will start
+# ignoring SIGTERM/SIGINT, which defeats the purpose.
+trap 'cleanup $?' EXIT
+trap 'exit $?' TERM
+trap 'exit $?' INT
+wait $!

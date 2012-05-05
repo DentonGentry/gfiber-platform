@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# Print a message every few seconds indicating the number of cycles that
+# were able to complete.  Most useful as a "nice -20" process so you can
+# count how many CPU cycles are left over after "real" work gets done.
+#
+name=$1
+mypid=$$
+count=0
+
+trap 'echo "${name:=spin}: $count"; count=0' USR1
+
+while sleep 10; do
+  kill -USR1 $mypid || exit 0
+done &
+
+while :; do
+  count=$(($count + 1))
+done

@@ -1,0 +1,126 @@
+#!/usr/bin/python
+# Copyright 2011 Google Inc. All Rights Reserved.
+#
+"""A tool for doing sequential and/or random disk reads/writes."""
+
+__author__ = 'apenwarr@google.com (Avery Pennarun)'
+
+import os
+import os.path
+import random
+import subprocess
+import sys
+import time
+import options
+
+optspec = """
+stress-disk [options...] <device-or-file-or-dir>
+--
+c,chunksize=        Bytes per read() call, in bytes [1048576]
+m,maxrate=          Max chunks per second (default=unlimited)
+p,print-interval=   Seconds between printouts [1]
+random              Random blocks instead of sequential
+w,write             Write blocks into the file or dir (thus corrupting it)
+no-delete           If --write creates a file, don't delete it
+destructive-rampage Allow --write to work on devices or files, not just dirs
+"""
+
+
+def Log(s, *args):
+  sys.stdout.flush()
+  if args:
+    sys.stderr.write((s + '\n') % args)
+  else:
+    sys.stderr.write(s + '\n')
+  sys.stderr.flush()
+
+
+def main():
+  o = options.Options(optspec)
+  (opt, flags, extra) = o.parse(sys.argv[1:])  #pylint: disable-msg=W0612
+  if len(extra) != 1:
+    o.fatal('exactly one filename expected')
+  if opt.chunksize < 4096:
+    o.fatal('chunksize must be >= 4096')
+
+  filename = extra[0]
+  safe_to_write = opt.destructive_rampage
+  created = False
+
+  orig_filename = filename
+  if os.path.isdir(filename):
+    filename = os.path.join(filename, 'stress-disk.tmp')
+    if not os.path.exists(filename):
+      vfs = os.statvfs(orig_filename)
+      wantsize = vfs.f_bavail * vfs.f_bsize * 0.75
+      wantsize = min(wantsize, 100*1024*1024*1024)  # limit to 100GB
+      Log('%s: allocating %dM.', filename, wantsize/1024/1024)
+      rv = subprocess.call(['hdparm', '--fallocate', '%d' % (wantsize/1024),
+                            filename])
+      if rv:
+        raise Exception('hdparm returned code %d' % rv)
+      created = True
+      Log('%s: created.', filename)
+    safe_to_write = True
+
+  if opt.write and not safe_to_write:
+    o.fatal('--write can only write to a dir (or use --destructive-rampage)')
+
+  f = open(filename, opt.write and 'r+' or 'r')
+  if created and opt.delete:
+    # we still have the file open; this will ensure it gets deleted upon
+    # process exit.
+    os.unlink(filename)
+  fd = f.fileno()
+  size = os.lseek(fd, 0, os.SEEK_END)
+
+  if size < opt.chunksize:
+    o.fatal('%r: size (%r) must be >= chunksize (%r)'
+            % (filename, size, opt.chunksize))
+
+  t = last_print_time = time.time()
+  nbytes = 0
+
+  Log('%s %s, chunk=%d, rate=%s, %s',
+      opt.write and 'Writing to' or 'Reading from',
+      filename,
+      opt.chunksize,
+      opt.maxrate or 'unlimited',
+      opt.random and 'random' or 'sequential')
+
+  while 1:
+    if opt.random:
+      offset = random.randint(0, size - opt.chunksize)
+      os.lseek(fd, offset, os.SEEK_SET)
+    else:
+      offset = os.lseek(fd, 0, os.SEEK_CUR)
+      if offset + opt.chunksize > size:
+        os.lseek(fd, 0, os.SEEK_SET)
+    if opt.write:
+      assert safe_to_write
+      chunk = chr(offset & 0xff) * opt.chunksize
+      nbytes += os.write(fd, chunk)
+    else:
+      nbytes += len(os.read(fd, opt.chunksize))
+
+    now = time.time()
+    if opt.print_interval and now - last_print_time > opt.print_interval:
+      print ('%s %-15s %7.2fM in %5.2fs = %6.2fM/s'
+             % (opt.write and 'wr' or 'rd',
+                orig_filename + ':',
+                nbytes / 1024. / 1024.,
+                now - last_print_time,
+                nbytes / 1024. / 1024. / (now - last_print_time)))
+      sys.stdout.flush()
+      last_print_time = now
+      nbytes = 0
+
+    if opt.maxrate > 0:
+      t += 1.0 / opt.maxrate
+      while now < t:
+        time.sleep(t - now)
+        now = time.time()
+
+
+if __name__ == '__main__':
+  main()
