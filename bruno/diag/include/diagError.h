@@ -30,12 +30,15 @@
 #define SEVERITY_LEVEL_BITS_MASK             0xF000
 #define SEVERITY_LEVEL_WARNING               0x1000
 
-#define ERROR_CODE_COMPONENT_BRCM_MOCA       0x00
-#define ERROR_CODE_COMPONENT_BRCM_GENET      0x01
-#define ERROR_CODE_COMPONENT_MTD_NAND        0x02
-#define ERROR_CODE_COMPONENT_BRCM_SPI        0x03
-#define ERROR_CODE_COMPONENT_MAX             0x04
-#define ERROR_CODE_UNKNOWN_COMPONENT_TYPE    0xFF
+typedef enum {
+   ERROR_CODE_COMPONENT_BRCM_MOCA = 0,
+   ERROR_CODE_COMPONENT_BRCM_GENET,
+   ERROR_CODE_COMPONENT_MTD_NAND,
+   ERROR_CODE_COMPONENT_BRCM_SPI,
+   ERROR_CODE_COMPONENT_MAX,
+   ERROR_CODE_UNKNOWN_COMPONENT_TYPE = 0xFF
+} diag_compType_e;
+
 #define GET_ERROR_CODE_COMPONENT_TYPE(code)       ((code & COMPONENT_BITS_MASK) >> 8)
 #define IS_DIAG_WARNING_CODE(code)   \
        ((code & SEVERITY_LEVEL_BITS_MASK) == SEVERITY_LEVEL_WARNING)
@@ -263,6 +266,14 @@ typedef struct diagSpiErrCounts_t_ {
    unsigned short   WarnCount[DIAG_SPI_WARN_MAX];
 } diagSpiErrCounts_t;
 
+typedef struct diagErrsInfoEntry_t_ {
+   char           *componentTypStr;
+   unsigned char  rsvdErrType;
+   unsigned char  rsvdWarnType;
+   char           **errTypeStr;
+   char           **warnTypeStr;
+} diagErrsInfoEntry_t;
+
 #define DIAG_MOCA_ERR_COUNTS_SZ       sizeof(diagMocaErrCounts_t)
 #define DIAG_GENET_ERR_COUNTS_SZ      sizeof(diagGenetErrCounts_t)
 #define DIAG_MTD_NAND_ERR_COUNTS_SZ   sizeof(diagMtdNandErrCounts_t)
@@ -271,6 +282,11 @@ typedef struct diagSpiErrCounts_t_ {
                                        DIAG_GENET_ERR_COUNTS_SZ + \
                                        DIAG_MTD_NAND_ERR_COUNTS_SZ + \
                                        DIAG_SPI_ERR_COUNTS_SZ)
+
+#define DIAGD_MOCA_ERR_COUNTS_INDEX   (0)
+#define DIAGD_GENET_ERR_COUNTS_INDEX  (DIAGD_MOCA_ERR_COUNTS_INDEX + DIAG_MOCA_ERR_COUNTS_SZ)
+#define DIAGD_MTD_NAND_ERR_COUNTS_INDEX (DIAGD_GENET_ERR_COUNTS_INDEX + DIAG_GENET_ERR_COUNTS_SZ)
+#define DIAGD_SPI_ERR_COUNTS_INDEX    (DIAGD_MTD_NAND_ERR_COUNTS_INDEX + DIAG_MTD_NAND_ERR_COUNTS_SZ)
 
 #define DIAG_UNKNOWN_ERROR_TYPE 0xFF
 

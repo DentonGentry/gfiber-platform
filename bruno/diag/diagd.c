@@ -48,9 +48,6 @@
 /*
  * This routine is processing linkup/linkdown monitoring handler.
  *
- * TODO??? - 20111027
- *  This routine might be moved to the main hardware monitoring handler later.
- *  Now this is running in a thread.
  */
 void *diagd_NetlinkProcess_Handler()
 {
@@ -67,7 +64,7 @@ void *diagd_NetlinkProcess_Handler()
 /*
  * Process hardware monitoring
  */
-void diagd_HwMon_Handler()
+void diagd_HwMon_Handler(void *param)
 {
   int diag_counter = 0;
   int looping = 1;
@@ -88,7 +85,7 @@ void diagd_HwMon_Handler()
       looping = 0;    /* Failed. Exit */
     }
 
-    if (Diag_Mon_ParseExamine_KernMsg() != DIAGD_RC_OK) {
+    if (Diag_Mon_ParseExamine_KernMsg((char *)param) != DIAGD_RC_OK) {
       looping = 0;    /* Failed. Exit */
     }
 
@@ -117,16 +114,42 @@ void diagd_HwMon_Handler()
 
 
 
-int main()
+int main(int argc, char* argv[])
 {
   pthread_t tdiagHandler, tnetlinkMonHandler, tnetlink;
+  int fnameIdx = 0;
+  char *filename = NULL;
+  bool paramChkOk = false;
+
+  if (argc == 1) {
+     paramChkOk = true;
+  }
+  else if ((argc == 2) &&
+     (!strcmp(argv[1], "-h") || !strcmp(argv[1], "-help"))) {
+     goto main_exit;
+  }
+  else if ((argc == 3) && !strcmp(argv[1], "-f")) {
+     fnameIdx = 2;
+     paramChkOk = true;
+  }
+
+main_exit:
+  if (paramChkOk == false) {
+     printf("diagd [-f <filename>]\n");
+     exit(0);
+  }
+
+  if (fnameIdx !=0) {
+     filename = argv[fnameIdx];
+  }
 
   diagd_Init();
 
 #ifdef DIAGD_ENABLE_DIAG_THREAD
   pthread_create(&tdiagHandler, NULL, (void *)diagd_Cmd_Handler, NULL);
 #endif
-  pthread_create(&tnetlinkMonHandler, NULL, (void *)diagd_HwMon_Handler, NULL);
+  pthread_create(&tnetlinkMonHandler, NULL, (void *)diagd_HwMon_Handler, (void *)filename);
+  
 
 #ifdef DIAGD_ENABLE_NETLINK_TRHREAD
   pthread_create(&tnetlink, NULL, diagd_NetlinkProcess_Handler, NULL);

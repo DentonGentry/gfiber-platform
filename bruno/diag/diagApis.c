@@ -44,6 +44,9 @@ static const diagHostCmdTableEntry diagHostCmdTable[] = {
   {DIAGD_REQ_MOCA_GET_NODE_STATUS_TBL,  &diag_CmdHandler_Moca_GetNodeStatus},
   {DIAGD_REQ_MOCA_GET_NODE_STATS_TBL,   &diag_CmdHandler_Moca_GetNodeStatistics},
 
+  {DIAGD_REQ_GET_MON_KERN_MSGS_SUM,     &diag_CmdHandler_GetMonKernMsgsCntsSum},
+  {DIAGD_REQ_GET_MON_KERN_MSGS_DET,     &diag_CmdHandler_GetMonKernMsgsCntsDet},
+
 };
 
 
@@ -478,11 +481,6 @@ int diag_CmdHandler_Moca_GetNodeStatus(void)
     }
 
     if (rtn == DIAGD_RC_OK) {
-      /* TODO 2011/11/30 -
-       * For now, we send the max packet size to remote.
-       * We should calculate the valid data length based on connected nodes
-       * in diag_moca_nodestatus_t database.
-       */
       /* Send node status of the connected nodes to remote */
       diag_sendRsp(DIAGD_RSQ_MOCA_GET_NODE_STATUS_TBL, (uint8_t *)pNodeStatus, bufLen);
     }
@@ -630,6 +628,138 @@ int diag_CmdHandler_Moca_GetNodeConnectInfo(void)
 
 } /* end of diag_CmdHandler_Moca_GetNodeConnectInfo */
 
+extern int get_diagDb_mmap(char **diagdMap);
+
+/*
+ * Query to get the summary of the monitored kernel
+ * error & warning messages counters.
+ *
+ * Input:
+ * None
+ *
+ * Output:
+ * DIAGD_RC_OK  - OK
+ * DIAGD_RC_OUT_OF_MEM - Failed
+ *
+ */
+int diag_CmdHandler_GetMonKernMsgsCntsSum(void)
+{
+   int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
+   int diagdFd;
+   diagMocaErrCounts_t     *mocaErrs = NULL;
+   diagGenetErrCounts_t    *genetErrs = NULL;
+   diagMtdNandErrCounts_t  *mtdNandErrs = NULL;
+   diagSpiErrCounts_t      *spiErrs = NULL;
+   char *diagdMap = NULL;
+   char inBuf[128];
+   char outBuf[256];
+
+
+  DIAGD_ENTRY("%s", __func__);
+
+   /* call get_diagDb_mmap() to get total error and warning counts */
+   if ((diagdFd = get_diagDb_mmap(&diagdMap)) > 0) {
+      /* read in error and warning counts from DIAGD_DB_FS */
+      mocaErrs  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
+      genetErrs = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
+      mtdNandErrs = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
+      spiErrs = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
+     
+      sprintf(outBuf, "BRCM_MOCA      total errorCount=%d, warningCount=%d\n",
+              mocaErrs->TotalErrCount, mocaErrs->TotalWarnCount);
+
+      sprintf(inBuf, "BRCM_GENET     total errorCount=%d, warningCount=%d\n",
+              genetErrs->TotalErrCount, genetErrs->TotalWarnCount);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "BRCM_MTD       total errorCount=%d, warningCount=%d\n",
+              mtdNandErrs->TotalErrCount, mtdNandErrs->TotalWarnCount);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "BRCM_SPI       total errorCount=%d, warningCount=%d\n",
+              spiErrs->TotalErrCount, spiErrs->TotalWarnCount);
+      strcat(outBuf, inBuf);
+
+      rtn = DIAGD_RC_OK;
+   }
+
+   if (rtn == DIAGD_RC_OK) {
+     /* Send the summary of monitored kernel error & warning msgs counters to remote */
+     outBuf[strlen(outBuf)] = '\0';
+     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, (uint8_t *)&outBuf[0],
+                  strlen(outBuf)+1); /* total length of output string */
+   }
+   else {
+     /* Failed. Send empty payload to indicate the request failed */
+     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, NULL, 0);
+   }
+
+  DIAGD_EXIT("%s: rtn=0x%x", __func__, rtn);
+
+  return(rtn);
+
+} /* end of diag_CmdHandler_GetMonKernMsgsCountSum */
+
+extern void diagGetErrsInfo(char *buffer, void *ptr, diag_compType_e type);
+/*
+ * Query to get the details of the monitored kernel
+ * error & warning messages counters.
+ *
+ * Input:
+ * None
+ *
+ * Output:
+ * DIAGD_RC_OK  - OK
+ * DIAGD_RC_OUT_OF_MEM - Failed
+ *
+ */
+int diag_CmdHandler_GetMonKernMsgsCntsDet(void)
+{
+   int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
+   int diagdFd;
+   diagMocaErrCounts_t     *mocaErrs = NULL;
+   diagGenetErrCounts_t    *genetErrs = NULL;
+   diagMtdNandErrCounts_t  *mtdNandErrs = NULL;
+   diagSpiErrCounts_t      *spiErrs = NULL;
+   char *diagdMap = NULL;
+   char outBuf[1600];
+
+
+  DIAGD_ENTRY("%s", __func__);
+
+   /* call get_diagDb_mmap() to get total error and warning counts */
+   if ((diagdFd = get_diagDb_mmap(&diagdMap)) > 0) {
+      /* read in error and warning counts from DIAGD_DB_FS */
+      mocaErrs  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
+      genetErrs = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
+      mtdNandErrs = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
+      spiErrs = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
+
+      outBuf[0] = '\0';
+      diagGetErrsInfo(outBuf, mocaErrs, ERROR_CODE_COMPONENT_BRCM_MOCA);
+      diagGetErrsInfo(outBuf, genetErrs, ERROR_CODE_COMPONENT_BRCM_GENET);
+      diagGetErrsInfo(outBuf, mtdNandErrs, ERROR_CODE_COMPONENT_MTD_NAND);
+      diagGetErrsInfo(outBuf, spiErrs, ERROR_CODE_COMPONENT_BRCM_SPI);
+
+      rtn = DIAGD_RC_OK;
+   }
+
+   if (rtn == DIAGD_RC_OK) {
+     /* Send the detailed report of monitored kernel error & warning msgs counters to remote */
+     outBuf[strlen(outBuf)] = '\0';
+     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, (uint8_t *)&outBuf[0],
+                  strlen(outBuf)+1); /* total length of output string */
+   }
+   else {
+     /* Failed. Send empty payload to indicate the request failed */
+     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, NULL, 0);
+   }
+
+  DIAGD_EXIT("%s: rtn=0x%x", __func__, rtn);
+
+  return(rtn);
+
+}
 
 /*
  * Validate and process the received request

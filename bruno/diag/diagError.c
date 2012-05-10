@@ -190,11 +190,17 @@ diagErrorCodeTbl_t diagWarnCodeTbl[ERROR_CODE_COMPONENT_MAX] = {
    {DIAG_SPI_NUM_OF_WARN,   diagSpiWarnCodeTbl}
 };
 
-/* TODO 03092012 check threashold */
-bool isDiagErrorCountReachThreshold(unsigned char componetType, unsigned char errType)
-{
-   return false;
-}
+diagErrsInfoEntry_t errsInfoTbl[ERROR_CODE_COMPONENT_MAX] = {
+   {"BRCM_MOCA", DIAG_MOCA_RESERVED_1_ERROR, DIAG_MOCA_RESERVED_1_WARN,\
+    diagMocaErrTypeStr, diagMocaWarnTypeStr},
+   {"BRCM_GENET", DIAG_GENET_RESERVED_1_ERROR, DIAG_GENET_RESERVED_1_WARN,\
+    diagGenetErrTypeStr, diagGenetWarnTypeStr},
+   {"MTD_NAND", DIAG_MTD_RESERVED_1_ERROR, DIAG_MTD_RESERVED_1_WARN,\
+    diagMtdNandErrTypeStr, diagMtdNandWarnTypeStr},
+   {"BRCM_SPI", DIAG_SPI_RESERVED_1_ERROR, DIAG_SPI_RESERVED_1_WARN,\
+    diagSpiErrTypeStr, diagSpiWarnTypeStr},
+};
+
 
 /*
  * This routine will search the corresponding error or warning table based on
@@ -212,7 +218,7 @@ bool isDiagErrorCountReachThreshold(unsigned char componetType, unsigned char er
  *
  *    DIAG_UNKNOWN_ERROR_TYPE if errorCode is not matched.
  */
-unsigned char diagGetErrType(unsigned char componentType, unsigned short errorCode)
+unsigned char diagGetErrType(diag_compType_e componentType, unsigned short errorCode)
 {
    diagErrorCodeEntry_t *entryPtr;
    int numOfEntry = 0;
@@ -260,7 +266,7 @@ unsigned char diagGetErrType(unsigned char componentType, unsigned short errorCo
 void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
 {
    unsigned char errType;
-   unsigned char componentType = GET_ERROR_CODE_COMPONENT_TYPE(errorCode);
+   diag_compType_e componentType = GET_ERROR_CODE_COMPONENT_TYPE(errorCode);
 
    if(IS_DIAG_WARNING_CODE(errorCode)) {
       diagUpdateWarnCount(timestamp, errorCode);
@@ -350,11 +356,6 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
          break;
    }
 
-   /* TODO : check threashold and issue alarm */
-   if (isDiagErrorCountReachThreshold(componentType, errType) == true) {
-      /* issue alarm */
-     ;
-   }
 }
 
 /*
@@ -374,7 +375,7 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
 void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
 {
    unsigned char warnType;
-   unsigned char componentType = GET_ERROR_CODE_COMPONENT_TYPE(errorCode);
+   diag_compType_e componentType = GET_ERROR_CODE_COMPONENT_TYPE(errorCode);
 
    if(componentType >= ERROR_CODE_COMPONENT_MAX) {
       DIAGD_TRACE("%s: unknown component type %d", __func__, componentType);
@@ -459,9 +460,99 @@ void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
          break;
    }
 
-   /* TODO : check threashold and issue alarm */
-   if (isDiagErrorCountReachThreshold(componentType, warnType) == true) {
-      /* issue alarm */
-     ;
+}
+
+/*
+ * This routine will initialize global diag error counts pointers.
+ *
+ * Input:
+ *    diagdMap - mmap pointer to diag database file /user/diag/diagdb.bin
+ *
+ * Output:
+ *    none
+ */
+void diagErrCnts_Init(char *diagdMap)
+{
+   /* read in error and warning counts from DIAGD_DB_FS */
+   diagMocaErrCntsPtr  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
+   diagGenetErrCntsPtr = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
+   diagMtdNandErrCntsPtr  = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
+   diagSpiErrCntsPtr   = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
+}
+
+/*
+ * This routine will provide  the Diag error & warning counts and
+ *  their corresponding error type string based on component type.
+ *
+ * Input:
+ *    buffer - buffer to put the MoCA errors and error types string
+ *    ptr    - void *
+ *    type   - component type
+ *
+ * Output:
+ *    none
+ */
+void diagGetErrsInfo(char *buffer, void *ptr, diag_compType_e type)
+{
+   int i;
+   char inBuf[128];
+   char *typeStr = NULL;
+   char **errTypeStr;
+   char **warnTypeStr;
+   unsigned short *errCnts;
+   unsigned short *warnCnts;
+   unsigned char rsvdErrType;
+   unsigned char rsvdWarnType;
+   diagErrsInfoEntry_t *errsDetInfo = NULL;
+
+   if(type >= ERROR_CODE_COMPONENT_MAX) {
+      DIAGD_TRACE("%s: unknown component type %d", __func__, type);
+      DIAGD_LOG("Unknown component type %d", type);
+      return;
+   }
+
+   errsDetInfo = &errsInfoTbl[type];
+   typeStr = errsDetInfo->componentTypStr;
+   errTypeStr = errsDetInfo->errTypeStr;
+   warnTypeStr = errsDetInfo->warnTypeStr;
+   rsvdErrType = errsDetInfo->rsvdErrType;
+   rsvdWarnType = errsDetInfo->rsvdWarnType;
+
+   switch (type) {
+      case ERROR_CODE_COMPONENT_BRCM_MOCA:
+         errCnts = ((diagMocaErrCounts_t *)ptr)->ErrCount;
+         warnCnts = ((diagMocaErrCounts_t *)ptr)->WarnCount;
+         break;
+      case ERROR_CODE_COMPONENT_BRCM_GENET:
+         errCnts = ((diagGenetErrCounts_t *)ptr)->ErrCount;
+         warnCnts = ((diagGenetErrCounts_t *)ptr)->WarnCount;
+         break;
+      case ERROR_CODE_COMPONENT_MTD_NAND:
+         errCnts = ((diagMtdNandErrCounts_t *)ptr)->ErrCount;
+         warnCnts = ((diagMtdNandErrCounts_t *)ptr)->WarnCount;
+         break;
+      case ERROR_CODE_COMPONENT_BRCM_SPI:
+         errCnts = ((diagSpiErrCounts_t *)ptr)->ErrCount;
+         warnCnts = ((diagSpiErrCounts_t *)ptr)->WarnCount;
+         break;
+      default:
+         DIAGD_TRACE("%s: unsupported component type %d", __func__, type);
+         DIAGD_LOG("Unsupported component type %d", type);
+         return;
+         break;
+   }
+
+   strcat(buffer, typeStr);
+   strcat(buffer, "   Error Counts:\n");
+   for (i = 0; i < rsvdErrType; i++) {
+      sprintf(inBuf, "   %s   = %d\n", errTypeStr[i], errCnts[i]);
+      strcat(buffer, inBuf);
+   }
+
+   strcat(buffer, typeStr);
+   strcat(buffer, "   Warning Counts:\n");
+   for (i = 0; i < rsvdWarnType; i++) {
+      sprintf(inBuf, "   %s   = %d\n", warnTypeStr[i], warnCnts[i]);
+      strcat(buffer, inBuf);
    }
 }

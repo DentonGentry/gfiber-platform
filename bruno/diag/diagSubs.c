@@ -1018,7 +1018,7 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode)
  * others       - Initialization failed
  *
  */
-int diagd_Init(void)
+int diagd_Init()
 {
   int   rtn = DIAGD_RC_OK;          /* default is OK */
   int   i;

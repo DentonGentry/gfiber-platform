@@ -55,6 +55,14 @@ typedef enum
    * Equal to mocactl showtbl --nodestats
    */
   DIAGD_SUB_CMD_MOCA_NODE_STATS_TBL   = 0x321,
+  
+  /* Get Kernel error & Warning Messages Counts */
+  /* Get summary of kernel error & warning counts */
+  DIAGD_SUB_CMD_GET_MON_KERN_MSGS_SUM = 0x400,
+
+  /* Get detailed kernel error & warning counts */
+  DIAGD_SUB_CMD_GET_MON_KERN_MSGS_DET = 0x401,
+
 
 } DIAG_sub_cmd_types_t;
 
@@ -87,6 +95,12 @@ typedef enum {
   /* Query MoCA node statistics of connected nodes */
   DIAGD_REQ_MOCA_GET_NODE_STATS_TBL  = DIAGD_PKT_CMD | DIAGD_SUB_CMD_MOCA_NODE_STATS_TBL,
 
+  /* Kernel error & warning messages counts related requests */
+  /* Get summary of kernel error & warning counts */
+  DIAGD_REQ_GET_MON_KERN_MSGS_SUM = DIAGD_PKT_CMD | DIAGD_SUB_CMD_GET_MON_KERN_MSGS_SUM,
+  /* Get detailed kernel error & warning counts */
+  DIAGD_REQ_GET_MON_KERN_MSGS_DET = DIAGD_PKT_CMD | DIAGD_SUB_CMD_GET_MON_KERN_MSGS_DET,
+
 } diagd_host_req_types_t;
 
 typedef enum {
@@ -116,6 +130,11 @@ typedef enum {
   /* Response of getting MoCA node statistics of connected nodes */
   DIAGD_RSP_MOCA_GET_NODE_STATS_TBL   = DIAGD_PKT_RSP | DIAGD_SUB_CMD_MOCA_NODE_STATS_TBL,
 
+  /* Kernel error & warning messages counts related responses */
+  /* Response of getting summary of kernel error & warning counts */
+  DIAGD_RSP_GET_MON_KERN_MSGS_SUM = DIAGD_PKT_RSP | DIAGD_SUB_CMD_GET_MON_KERN_MSGS_SUM,
+  /* Response of getting detailed kernel error & warning counts */
+  DIAGD_RSP_GET_MON_KERN_MSGS_DET = DIAGD_PKT_RSP | DIAGD_SUB_CMD_GET_MON_KERN_MSGS_DET,
 } diagd_host_rsp_types_t;
 
 

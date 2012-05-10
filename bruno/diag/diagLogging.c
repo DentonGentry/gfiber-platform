@@ -90,11 +90,6 @@ int diagtOpenTestResultsLogFile(void)
 
     testResultsFp = fopen(DIAGD_TEST_RESULTS_FILE, "a");
     if (testResultsFp == NULL) {
-
-      /* TODO - 2011/11/08
-       *  1) HOWTO - If failed to open the log file.
-       *  2) For now, we treat it as a fatal error and abort the diagd.
-       */
       rtn = DIAGD_RC_FAILED_OPEN_LOG_FILE;
       DIAGD_LOG_SWERR("%s: Failed to open "DIAGD_LOG_FILE, __func__);
       break;
@@ -160,11 +155,6 @@ int diagtOpenEventLogFile(void)
 
     logFp = fopen(DIAGD_LOG_FILE, "a");
     if (logFp == NULL) {
-
-      /* TODO - 2011/11/08
-       *  1) HOWTO - If failed to open the log file.
-       *  2) For now, we treat it as a fatal error and abort the diagd.
-       */
       rtn = DIAGD_RC_FAILED_OPEN_LOG_FILE;
       DIAGD_DEBUG("%s: Failed to open "DIAGD_LOG_FILE, __func__);
       break;
@@ -228,11 +218,6 @@ int diagtOpenMocaLogFile(void)
 
     mocaLogFp = fopen(DIAGD_MOCA_LOG_FILE, "a");
     if (mocaLogFp == NULL) {
-
-      /* TODO - 2011/11/28
-       *  1) HOWTO - If failed to open the log file.
-       *  2) For now, we treat it as a fatal error and abort the diagd.
-       */
       rtn = DIAGD_RC_FAILED_OPEN_LOG_FILE;
       DIAGD_DEBUG("%s: Failed to open "DIAGD_MOCA_LOG_FILE, __func__);
       break;
@@ -909,7 +894,6 @@ char *diagMocaMsgTypeStr[] = {
 void diagMocaStrLog(char *pLogMsg, PMoCA_STATUS pStatus)
 {
   char        dtstr[50];
-
   uint32_t  msgSize;
   uint16_t  msgType;
   diag_moca_log_msg_hdr_t  *pMsgHdr = (diag_moca_log_msg_hdr_t *)pLogMsg;
