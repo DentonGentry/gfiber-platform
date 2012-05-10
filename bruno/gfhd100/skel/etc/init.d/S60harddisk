@@ -28,10 +28,13 @@ case "$1" in
     done
 
     # Mount SATA device
-    if [ -h /dev/sata ]; then
+    if [ -h /dev/sata1 ]; then
       echo "Mounting SATA device"
       [ -h /dev/sata1 ] && mount -o noatime,barrier=0,data=writeback -t ext4 /dev/sata1 /var/media
       [ -h /dev/sata2 ] && mount -o noatime -t ext4 /dev/sata2 /var/backup
+    elif [ -h /dev/sata ]; then
+      echo "Mounting SATA device"
+      mount -o noatime,barrier=0,data=writeback -t ext4 /dev/sata /var/media
     fi
     ;;
   stop)
