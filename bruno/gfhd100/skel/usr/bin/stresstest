@@ -21,7 +21,7 @@ fs_writable()
 
 is_fat()
 {
-  [ -e /dev/sda ]
+  [ -e /dev/sda ] && grep -q GFMS /tmp/platform
 }
 
 
