@@ -17,15 +17,11 @@ MISC_UBI_NO=2
 
 USER_NAME=user
 CONFIG_NAME=config
-SCRATCH_NAME=scratch
-CHECKSUM0_NAME=checksum0
-CHECKSUM1_NAME=checksum1
+MISC_NAME=misc
 
 USER_SIZE=760MiB
 CONFIG_SIZE=230MiB
-SCRATCH_SIZE=370MiB
-CHECKSUM0_SIZE=56MiB
-CHECKSUM1_SIZE=56MiB
+MISC_SIZE=480MiB
 
 check_mtd() {
   local a b c d e
@@ -47,8 +43,11 @@ recover_volume() {
   # umount UBI volumes detach UBI devices
   umount_ubifs ${2}
 
-  # format MTD partition
+  # erase MTD partition
   flash_erase /dev/mtd${1} 0 0
+
+  # format MTD partition
+  ubiformat /dev/mtd${1} -y
 
   # attach UBI devices and mount UBI volumes
   mount_ubifs ${1} ${2}
@@ -60,7 +59,11 @@ mount_ubifs() {
 # ${2} - UBI device number
 
   #echo "Attach mtd${1} to /dev/ubi${2}"
-  # if attach fails, recover_volume will take care of the recovery.
+  # If UBI device failed to attach, return 1 to call 'recover_volume()':
+  # 1. detach UBI devices
+  # 2. erase MTD partition
+  # 3. format MTD partition
+  # 4. attach UBI devices and mount UBI volumes again
   ubiattach -m ${1} -d ${2}
   if [ $? -eq 0 ]; then
     mount_volumes ${1} ${2} || return 1
@@ -83,13 +86,7 @@ mount_volumes() {
     mount_volume ${CONFIG_NAME} ${2} ${CONFIG_SIZE} || return 1
   elif [ ${1} -eq ${MISC_MTD_NO} ]; then
     # mount UBI 'scratch' volume
-    mount_volume ${SCRATCH_NAME} ${2} ${SCRATCH_SIZE} || return 1
-
-    # mount UBI 'checksum0' volume
-    mount_volume ${CHECKSUM0_NAME} ${2} ${CHECKSUM0_SIZE} || return 1
-
-    # mount UBI 'checksum1' volume
-    mount_volume ${CHECKSUM1_NAME} ${2} ${CHECKSUM1_SIZE} || return 1
+    mount_volume ${MISC_NAME} ${2} ${MISC_SIZE} || return 1
   fi
 }
 
@@ -137,9 +134,7 @@ umount_ubifs() {
     [ -d /{USER_NAME} ] && umount /${USER_NAME}
     [ -d /{CONFIG_NAME} ] && umount /${CONFIG_NAME}
   elif [ ${1} -eq ${MISC_UBI_NO} ]; then
-    [ -d /{SCRATCH_NAME} ] && umount /${SCRATCH_NAME}
-    [ -d /{CHECKSUM0_NAME} ] && umount /${CHECKSUM0_NAME}
-    [ -d /{CHECKSUM1_NAME} ] && umount /${CHECKSUM1_NAME}
+    [ -d /{MISC_NAME} ] && umount /${MISC_NAME}
   else
     return 1
   fi
