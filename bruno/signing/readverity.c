@@ -40,7 +40,6 @@ int main(int argc, char** argv) {
   start = strstr(buffer, VERITY_START);
   if (!start) {
     fprintf(stderr, "Cannot find the verity table\n");
-    fclose(fd);
     exit(-1);
   }
 
