@@ -23,6 +23,7 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from google.appengine.api import users
 from google.appengine.ext import blobstore
+from google.appengine.ext import deferred
 from google.appengine.ext import ndb
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import blobstore_handlers
@@ -39,22 +40,10 @@ PARALLEL_BLOBS = min(MAX_MEM_PER_DOWNLOAD / BUFSIZE, MAX_PARALLEL_BLOBS)
 
 
 _path = os.path.dirname(__file__)
-_futures_queue = []
 _memcache = memcache.Client()
 
 
-def sync():
-  while _futures_queue:
-    f = _futures_queue.pop()
-    f.get_result()  # may throw exception
-
-
 class _Model(ndb.Model):
-  def put_async(self):
-    """put() in the background.  Call sync() to wait for all pending puts."""
-    f = ndb.Model.put_async(self)
-    _futures_queue.append(f)
-    return f
 
   @property
   def key_name(self):
@@ -73,7 +62,7 @@ class Machine(_Model):
   modified_time = ndb.DateTimeProperty(auto_now=True)
 
   def __repr__(self):
-    return 'Machine(%s)' % self.keymeta
+    return 'Machine(%s)' % self.keymeta()
 
   def files(self):
     return File.query().filter(File.meta == self.keymeta())
@@ -82,10 +71,13 @@ class Machine(_Model):
   def nice_modified_time(self):
     return self.modified_time.strftime('%Y-%m-%d %H:%M:%S UTC')
 
-  def most_recent_meta(self):
+  def most_recent_meta(self, sets=None):
     f = self.files().order(-File.create_time).get()
     meta = f and f.meta or []
-    _memcache.set('meta-%s' % self.keymeta, meta)
+    if sets is not None:
+      sets['meta-%s' % self.keymeta()] = meta
+    else:
+      _memcache.set('meta-%s' % self.keymeta(), meta)
     return meta
 
 
@@ -149,9 +141,7 @@ class File(_Model):
       if machine:
         return machine
     # still here? need to create it then.
-    machine = Machine(id=self.machine_key())
-    machine.put_async()
-    return machine
+    return Machine(id=self.machine_key())
 
 
 def Render(filename, **kwargs):
@@ -170,6 +160,10 @@ class _Handler(webapp.RequestHandler):
   """A wrapper for webapp.RequestHandler providing some helper functions."""
   Redirect = webapp.RequestHandler.redirect
 
+  def __init__(self, *args, **kwargs):
+    super(_Handler, self).__init__(*args, **kwargs)
+    self.futures_queue = []
+
   def Write(self, *args):
     self.response.out.write(*args)
 
@@ -181,16 +175,29 @@ class _Handler(webapp.RequestHandler):
     if not user or not user.email().endswith('@google.com'):
       raise Exception('invalid user')
 
+  def PutAsync(self, model):
+    """model.put() in the background.  Call self.Sync() to let it finish."""
+    f = ndb.Model.put_async(model)
+    self.futures_queue.append(f)
+    return f
+
+  def Sync(self):
+    while self.futures_queue:
+      f = self.futures_queue.pop()
+      f.get_result()  # may throw exception
+
 
 def _MachinesHelper(machines):
-  found = _memcache.get_multi((str(m.keymeta) for m in machines),
+  found = _memcache.get_multi((str(m.keymeta()) for m in machines),
                               key_prefix='meta-')
+  sets = {}
   for m in machines:
-    key = str(m.keymeta)
+    key = str(m.keymeta())
     if key in found:
       yield m, found[key]
     else:
-      yield m, m.most_recent_meta()
+      yield m, m.most_recent_meta(sets=sets)
+  _memcache.set_multi(sets)
 
 
 class ListMachines(_Handler):
@@ -224,6 +231,22 @@ def _FilesHelper(files):
         splitter = True
 
 
+def FilesForMachine(machine):
+  #gpylint: disable-msg=E1103
+  files = machine.files().order(-File.create_time).fetch(1000)
+  cached = list(_FilesHelper(files))
+  _memcache.set('files-%s' % machine.keymeta(), cached)
+  return cached
+
+
+def CachedFilesForMachine(machine):
+  cached = _memcache.get('files-%s' % machine.keymeta())
+  if not cached:
+    logging.info('Regenerating files list for %r', machine)
+    cached = FilesForMachine(machine)
+  return cached
+
+
 class ListFiles(_Handler):
   """Returns a list of available files."""
 
@@ -234,12 +257,11 @@ class ListFiles(_Handler):
     machine = ndb.Key(Machine, machineid).get()
     if not machine:
       return self.error(404)
-    #gpylint: disable-msg=E1103
-    files = machine.files().order(-File.create_time).fetch(2000)
+    cached = CachedFilesForMachine(machine)
     self.Render('files.djt',
                 machineid=machineid,
-                files=_FilesHelper(files),
-                firstfile=files and files[0])
+                files=cached,
+                firstfile=cached and cached[0][0])
 
 
 def _AsyncBlobReader(blobkey):
@@ -444,7 +466,6 @@ class Upload(_Handler, blobstore_handlers.BlobstoreUploadHandler):
       path += '?' + urllib.urlencode(query)
     url = blobstore.create_upload_url(path)
     self.Write(url)
-    sync()
 
   #pylint: disable-msg=W0221
   def post(self, filename):
@@ -459,13 +480,14 @@ class Upload(_Handler, blobstore_handlers.BlobstoreUploadHandler):
     size, flags = _ScanBlob(blobid)
     f = File.New(name=filename, blobid=blobid, size=size, meta=meta,
                  flags=flags)
-    f.put_async()
+    self.PutAsync(f)
     machine = f.machine()
-    machine.put_async()
-    _memcache.delete('meta-%s' % machine.keymeta)
-
+    self.PutAsync(machine)
+    self.Sync()
+    machine.most_recent_meta()  # populate the memcache pre-emptively
+    _memcache.delete('files-%s' % machine.keymeta())
+    deferred.defer(CachedFilesForMachine, machine)
     self.Redirect('/')
-    sync()
 
 
 class Regen(_Handler):
@@ -481,21 +503,22 @@ class Regen(_Handler):
       machines = ndb.get_multi(ndb.Key(Machine, key) for key in keys)
       for key, machine in zip(keys, machines):
         if not machine:
-          Machine(id=key).put_async()
+          self.PutAsync(Machine(id=key))
           count += 1
       machinekeys.clear()
       self.Write('created %d\n' % count)
-      sync()
+      self.Sync()
 
     machinekeys = {}
     for f in File.query().order(-File.create_time):
       f.size, f.flags = _ScanBlob(f.blobid)
-      f.put_async()
+      self.PutAsync(f)
       machinekeys[f.machine_key()] = 1
       if len(machinekeys) > 500:
         _handle(machinekeys)
     _handle(machinekeys)
     self.Write('ok\n')
+    self.Sync()
 
 
 class StartRegen(_Handler):
