@@ -486,7 +486,6 @@ class Upload(_Handler, blobstore_handlers.BlobstoreUploadHandler):
     self.Sync()
     machine.most_recent_meta()  # populate the memcache pre-emptively
     _memcache.delete('files-%s' % machine.keymeta())
-    deferred.defer(CachedFilesForMachine, machine)
     self.Redirect('/')
 
 
