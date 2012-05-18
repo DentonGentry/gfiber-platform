@@ -63,6 +63,9 @@ typedef enum
   /* Get detailed kernel error & warning counts */
   DIAGD_SUB_CMD_GET_MON_KERN_MSGS_DET = 0x401,
 
+  /* Get network link status & statistics */
+  DIAGD_SUB_CMD_GET_NET_LINK_STATS = 0x500,
+
 
 } DIAG_sub_cmd_types_t;
 
@@ -101,6 +104,9 @@ typedef enum {
   /* Get detailed kernel error & warning counts */
   DIAGD_REQ_GET_MON_KERN_MSGS_DET = DIAGD_PKT_CMD | DIAGD_SUB_CMD_GET_MON_KERN_MSGS_DET,
 
+  /* Get network link status & statistics */
+  DIAGD_REQ_GET_NET_LINK_STATS = DIAGD_PKT_CMD | DIAGD_SUB_CMD_GET_NET_LINK_STATS,
+
 } diagd_host_req_types_t;
 
 typedef enum {
@@ -135,6 +141,10 @@ typedef enum {
   DIAGD_RSP_GET_MON_KERN_MSGS_SUM = DIAGD_PKT_RSP | DIAGD_SUB_CMD_GET_MON_KERN_MSGS_SUM,
   /* Response of getting detailed kernel error & warning counts */
   DIAGD_RSP_GET_MON_KERN_MSGS_DET = DIAGD_PKT_RSP | DIAGD_SUB_CMD_GET_MON_KERN_MSGS_DET,
+
+  /* Response of getting network link status & statistics */
+  DIAGD_RSP_GET_NET_LINK_STATS = DIAGD_PKT_CMD | DIAGD_SUB_CMD_GET_NET_LINK_STATS,
+
 } diagd_host_rsp_types_t;
 
 
