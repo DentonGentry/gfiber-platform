@@ -135,6 +135,6 @@ extern diagSpiErrCounts_t   *diagSpiErrCntsPtr;
  * Prototypes
  */
 
-int Diag_Mon_ParseExamine_KernMsg(void);
+int Diag_Mon_ParseExamine_KernMsg(char *filename);
 
 #endif /* end of _DIAG_PARSE_KERN_MSGS_H_ */

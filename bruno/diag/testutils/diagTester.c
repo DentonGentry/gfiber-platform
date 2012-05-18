@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Google Inc. All Rights Reserved.
+ * Copyright 2011 - 2012 Google Inc. All Rights Reserved.
  *
  * This file provides diagd tester related functions
  *
@@ -27,16 +27,15 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <netdb.h>
-// #include "diagApisHostCmd.h"
 #include "diagdIncludes.h"
 
 
-//#define PORT      "3490" // the port client will be connecting to 
 #define DIAG_HOSTCMD_PORT   50152   /* the port client will be connecting to */
 #define DIAG_BUF_LEN        (1024 * 1)
 #define MAXDATASIZE 100 // max number of bytes we can get at once 
 
 #define DIAG_QUIT           0xFFFF  /* Quit from this tester   */
+#define DIAG_TRY_AGAIN      0x0000  /* Enter invalid number in diagMenu   */
 
 
 const char diagdMsgHeaderMarker[] = {"DIag"};
@@ -58,62 +57,76 @@ void convertUpTime (
 uint32_t diagMenu()
 {
   char str[30];
-  int cmdId = DIAG_QUIT;
+  int cmdId = DIAG_TRY_AGAIN;
+  int len;
 
     printf("Commands: \n");
-    printf("01   Get Monitoring Log\n");
-    printf("02   Get Diag Test Reuslts\n");
-    printf("03   Run Test (Currently only eth0 internal loopback available)\n");    
-    printf("04   Get MoCa Node Connect PHY and CP information.\n");
-    printf("05   Get MoCA Log file\n");
-    printf("06   Get MoCA Init Params\n");
-    printf("07   Get MoCA Self Node status\n");
-    printf("08   Get MoCA Self Node config\n");
-    printf("09   Get MoCA Node Status Table\n");
-    printf("0a   Get MoCA Node Statistics Table\n");
-    printf("q   Quit \n");
+    printf(" 1   Get Monitoring Log\n");
+    printf(" 2   Get Diag Test Results\n");
+    printf(" 3   Run Intrusive Test (Currently only eth0 internal loopback available)\n");
+    printf("         Note: The Bruno box will be forced to reboot after this test is finished.\n");
+    printf(" 4   Get MoCa Node Connect PHY and CP information\n");
+    printf(" 5   Get MoCA Init Params\n");
+    printf(" 6   Get MoCA Self Node status\n");
+    printf(" 7   Get MoCA Self Node config\n");
+    printf(" 8   Get MoCA Node Status Table\n");
+    printf(" 9   Get MoCA Node Statistics Table\n");
+    printf("10   Get Summary of Kernel Error & Warning Messages Counters\n");
+    printf("11   Get Detail Report of Kernel Error & Warning Messages Counters\n");
+    printf(" q   Quit \n");
 
     printf("Enter>> ");
     
     scanf("%s", str);
 
 
+    len = strlen(str);
+    if (len == 1) {
+       if (memcmp(str, "1", 1) == 0) {
+          cmdId = DIAGD_REQ_GET_MON_LOG;
+       }
+       else if (memcmp(str, "2", 1) == 0) {
+          cmdId = DIAGD_REQ_GET_DIAG_RESULT_LOG;
+       }
+       else if (memcmp(str, "3", 1) == 0) {
+          cmdId = DIAGD_REQ_RUN_TESTS;
+       }
+       else if (memcmp(str, "4", 1) == 0) {
+          cmdId = DIAGD_REQ_MOCA_GET_CONN_INFO;
+       }
+       else if (memcmp(str, "5", 1) == 0) {
+          cmdId = DIAGD_REQ_MOCA_GET_MOCA_INITPARMS;
+       }
+       else if (memcmp(str, "6", 1) == 0) {
+          cmdId = DIAGD_REQ_MOCA_GET_STATUS;
+       }
+       else if (memcmp(str, "7", 1) == 0) {
+          cmdId = DIAGD_REQ_MOCA_GET_CONFIG;
+       }
+       else if (memcmp(str, "8", 1) == 0) {
+          cmdId = DIAGD_REQ_MOCA_GET_NODE_STATUS_TBL;
+       }
+       else if (memcmp(str, "9", 2) == 0) {
+          cmdId = DIAGD_REQ_MOCA_GET_NODE_STATS_TBL;
+       }
+       else if (memcmp(str, "q", 1) == 0) {
+          cmdId = DIAG_QUIT;
+       }
+    }
+    else if (len == 2) {
+       if (memcmp(str, "10", 2) == 0) {
+          cmdId = DIAGD_REQ_GET_MON_KERN_MSGS_SUM;
+       }
+       else if (memcmp(str, "11", 2) == 0) {
+          cmdId = DIAGD_REQ_GET_MON_KERN_MSGS_DET;
+       }
+    }
 
-    if (memcmp(str, "01", 2) == 0) {
-      cmdId = DIAGD_REQ_GET_MON_LOG;
+    if (cmdId == DIAG_TRY_AGAIN) {
+       printf("%s: Invalid number %s you entered! You need to enter number" \
+              " 1-11, or 'q' to quit.\n",  __func__, str);
+       printf("%s: Try again!\n", __func__);
     }
-    else if (memcmp(str, "02", 2) == 0) {
-      cmdId = DIAGD_REQ_GET_DIAG_RESULT_LOG;
-    }
-    else if (memcmp(str, "03", 2) == 0) {
-      cmdId = DIAGD_REQ_RUN_TESTS;
-    }
-    else if (memcmp(str, "04", 2) == 0) {
-      cmdId = DIAGD_REQ_MOCA_GET_CONN_INFO;
-    }
-    else if (memcmp(str, "05", 2) == 0) {
-      cmdId = DIAGD_REQ_MOCA_GET_MOCA_LOG;
-    }
-    else if (memcmp(str, "06", 2) == 0) {
-      cmdId = DIAGD_REQ_MOCA_GET_MOCA_INITPARMS;
-    }
-    else if (memcmp(str, "07", 2) == 0) {
-      cmdId = DIAGD_REQ_MOCA_GET_STATUS;
-    }
-    else if (memcmp(str, "08", 2) == 0) {
-      cmdId = DIAGD_REQ_MOCA_GET_CONFIG;
-    }
-    else if (memcmp(str, "09", 2) == 0) {
-      cmdId = DIAGD_REQ_MOCA_GET_NODE_STATUS_TBL;
-    }
-    else if (memcmp(str, "0a", 2) == 0) {
-      cmdId = DIAGD_REQ_MOCA_GET_NODE_STATS_TBL;
-    }
-    else if (memcmp(str, "q", 1) == 0) {
-      cmdId = DIAG_QUIT;
-    }
-
-    printf("%s: Exit (cmdId=0x%x)\n", __func__, cmdId);
 
     return (cmdId);
     
@@ -839,6 +852,10 @@ void diagTest_Print_nodeStatisticsTbl(
 
 } /* end of diagTest_Print_nodeStatisticsTbl */
 
+void diagTest_Print_KernMsgsReport(char *pPayload)
+{
+   printf("%s", pPayload);
+}
 
 int main(int argc, char *argv[])
 {
@@ -857,12 +874,12 @@ int main(int argc, char *argv[])
   diag_msg_header_t  *pMsgHdr = NULL;
 
 
-  do {
+  if (argc != 2) {
+     fprintf(stderr, "Usage: diagTester <server_ip>\n");
+     exit (0);
+  }
 
-    if (argc != 2) {
-      fprintf(stderr, "Usage: diagTester <server_ip>\n");
-      break;
-    }
+  do {
 
     /* Dispaly command menu */
     cmdIdx = diagMenu();
@@ -870,13 +887,22 @@ int main(int argc, char *argv[])
     if (cmdIdx == DIAG_QUIT) {
       break;
     }
-    
+
+    if (cmdIdx == DIAG_TRY_AGAIN) {
+      continue;
+    }
+
+    /* close the socket if it was used */
+    if (hsock != -1) {
+       close(hsock);
+    }
+
     hsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(hsock == -1){
       fprintf(stderr, "Error initializing socket %d\n",errno);
       break;
     }
-    
+
     memset(&my_addr, 0, sizeof(my_addr));
 
     my_addr.sin_family = AF_INET ;
@@ -891,6 +917,12 @@ int main(int argc, char *argv[])
     }
 
     /* Now lets do the client related stuff */
+    /* free pBuffer if it was used */
+    if (pBuffer != NULL) {
+       free(pBuffer);
+       pBuffer = NULL;
+    }
+
     buffer_len = DIAG_BUF_LEN;
     pBuffer = malloc(buffer_len);
     memset(pBuffer, '\0', buffer_len);
@@ -930,8 +962,7 @@ int main(int argc, char *argv[])
 
 
     /* Check request to get a log file */
-    if ((cmdIdx == DIAGD_REQ_GET_MON_LOG) ||(cmdIdx == DIAGD_REQ_GET_DIAG_RESULT_LOG) ||
-        (cmdIdx == DIAGD_REQ_MOCA_GET_MOCA_LOG)) {
+    if ((cmdIdx == DIAGD_REQ_GET_MON_LOG) ||(cmdIdx == DIAGD_REQ_GET_DIAG_RESULT_LOG)) {
 
       do {
     
@@ -963,6 +994,12 @@ int main(int argc, char *argv[])
       msgLen = pMsgHdr->len;
       
       /* Other requests */
+      /* free pPayload if it was used */
+      if (pPayload != NULL) {
+         free(pPayload);
+         pPayload = NULL;
+      }
+
       pPayload = malloc(msgLen);
       memset(pPayload, 0, msgLen);
 
@@ -1008,9 +1045,6 @@ int main(int argc, char *argv[])
           }
           break;
   
-        case DIAGD_REQ_MOCA_GET_MOCA_LOG:
-          printf("TODO......\n");
-          break;
   
         case DIAGD_REQ_MOCA_GET_MOCA_INITPARMS:
           {
@@ -1053,30 +1087,30 @@ int main(int argc, char *argv[])
             diagTest_Print_nodeStatisticsTbl(pNodeStatsTbl);
           }
           break;
+        case DIAGD_REQ_GET_MON_KERN_MSGS_SUM:
+        case DIAGD_REQ_GET_MON_KERN_MSGS_DET:
+          {
+            diagTest_Print_KernMsgsReport(pPayload);
+          }
+          break;
       } /* end of switch */
 
-      if (pPayload != NULL) {
-        free(pPayload);
-        pPayload = NULL;
-      }
-      
     } /* if (cmdIdx) */
 
-  } while (false);
+  } while (true);
 
+  
   if (pBuffer != NULL) {
     free(pBuffer);
   }
 
   if (pPayload != NULL) {
-    free(pPayload);
+     free(pPayload);
   }
-  
+
   if (hsock != -1) {
     close(hsock);
   }
 
   return(err);
-  
 }
-

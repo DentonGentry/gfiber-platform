@@ -18,6 +18,8 @@ int diag_CmdHandler_Moca_GetNodeStatus(void);
 int diag_CmdHandler_Moca_GetNodeStatistics(void);
 int diag_CmdHandler_Moca_GetMocaLog(void);
 int diag_CmdHandler_Moca_GetNodeConnectInfo(void);
+int diag_CmdHandler_GetMonKernMsgsCntsSum(void);
+int diag_CmdHandler_GetMonKernMsgsCntsDet(void);
 
 void diagd_Cmd_Handler();
 

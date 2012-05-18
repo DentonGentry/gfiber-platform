@@ -43,11 +43,6 @@
 #define NUMBYTES                      (1024)
 #define FILESIZE                      (NUMBYTES * sizeof(char))
 
-#define DIAGD_MOCA_ERR_COUNTS_INDEX   (0)
-#define DIAGD_GENET_ERR_COUNTS_INDEX  (DIAGD_MOCA_ERR_COUNTS_INDEX + DIAG_MOCA_ERR_COUNTS_SZ)
-#define DIAGD_MTD_NAND_ERR_COUNTS_INDEX (DIAGD_GENET_ERR_COUNTS_INDEX + DIAG_GENET_ERR_COUNTS_SZ)
-#define DIAGD_SPI_ERR_COUNTS_INDEX    (DIAGD_MTD_NAND_ERR_COUNTS_INDEX + DIAG_MTD_NAND_ERR_COUNTS_SZ)
-
 
 /* Log message level in string.
  * NOTE - Must sync up to the definition of diag_log_msg_err_levels.
@@ -456,6 +451,7 @@ int get_diagDb_mmap(char **mapPtr)
 }
 
 extern char *strptime(char *s, char*format, struct tm *tm);
+extern void diagErrCnts_Init(char *diagdMap);
 /*
  * 1) Read kernel messages from a /proc/kmsg
  * 2) If a kernel message level is KERN_EMERG or KERN_ALERT, (TBD) system issue
@@ -469,7 +465,7 @@ extern char *strptime(char *s, char*format, struct tm *tm);
  * DIAGD_RC_OK  -    OK
  * DIAGD_RC_ERR -    failed
  */
-int Diag_Mon_ParseExamine_KernMsg(void)
+int Diag_Mon_ParseExamine_KernMsg(char *filename)
 {
    FILE *ifp = NULL;
    int   fd;
@@ -487,6 +483,7 @@ int Diag_Mon_ParseExamine_KernMsg(void)
 
    DIAGD_TRACE("%s: enter", __func__);
 
+
    if (diag_chkKernMsg_firstRun == false) {
       if (checkIfTimeout(DIAG_API_IDX_GET_CHK_KERN_KMSG) == false) {
          goto parse_exit;     /* Wait time is not expired. Exit */
@@ -495,6 +492,10 @@ int Diag_Mon_ParseExamine_KernMsg(void)
    else {
       /* It is first time running routine after power-up. */
       diag_chkKernMsg_firstRun = false;     /* Clear the flag. */
+
+      if (filename != NULL) {
+         DIAGD_DEBUG("%s: first time filename= %s", __func__, filename);
+      }
    }
 
    /* get mmap of diag databse file */
@@ -502,23 +503,41 @@ int Diag_Mon_ParseExamine_KernMsg(void)
       DIAGD_DEBUG("get_diagDb_mmap failed");
       goto parse_exit;
    }
-   /* read in timestamp and file position in the previous run from DIAGD_DB_FS */
    else {
       /* read in error and warning counts from DIAGD_DB_FS */
-      diagMocaErrCntsPtr  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
-      diagGenetErrCntsPtr = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
-      diagMtdNandErrCntsPtr  = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
-      diagSpiErrCntsPtr   = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
+      diagErrCnts_Init(diagdMap);
    }
 
    /* Update the starting time of the api */
    time(&diagStartTm_chkKernMsg);
+   
+   if (filename != NULL ) {
+      ifp = fopen(filename, "r");
+   }
+   else {
+      ifp = fopen(KERN_PROC_KMSG_FS, "r");
+   }
 
-   ifp = fopen(KERN_PROC_KMSG_FS, "r");
-   if (ifp == NULL) {
-      DIAGD_DEBUG("Can not open the %s file", KERN_PROC_KMSG_FS);
-      rtn = DIAGD_RC_ERR;
-      goto parse_exit;
+   if (!ifp) {
+   /* fopen fails then check if filename is NULL
+    * or filename is KERN_PROC_KMSG_FS
+    * set rtn to DIAGD_RC_ERR and prepare to exit
+    */
+      if ((!filename) || (!strcmp(filename, KERN_PROC_KMSG_FS))) {
+         rtn = DIAGD_RC_ERR;
+         goto parse_exit;
+      }
+      /* fopen with none default file fails
+       * then fopen with default file
+       */
+      ifp = fopen(KERN_PROC_KMSG_FS, "r");
+      if (!ifp) {
+      /* fopen with default file still fails
+       * set rtn to DIAGD_RC_ERR and prepare to exit
+       */
+         rtn = DIAGD_RC_ERR;
+         goto parse_exit;
+      }
    }
 
    /*
@@ -539,7 +558,7 @@ int Diag_Mon_ParseExamine_KernMsg(void)
       if (fgets(kmsgMsg, DIAG_MSG_MAXLINELEN, ifp) == NULL) 
       {
          /* No message available in /proc/kmsg Exit. */
-         DIAGD_DEBUG("No new kernel message available in the %s file", KERN_PROC_KMSG_FS);
+         DIAGD_DEBUG("No new kernel message available!");
          break;
       }
 
@@ -554,6 +573,7 @@ int Diag_Mon_ParseExamine_KernMsg(void)
          * "<6>[2042.204000] eth0: Link is up, 1000 Mbps Full Duplex"
          * "<3>[11025.823000] sd 7:0:0:0: [sdc] Assuming drive cache: write through"
          */
+         DIAGD_DEBUG("a new kernel message:%s", kmsgMsg);
          kMsgPtr = &kmsgMsg[0];
 	 if (kmsgMsg[0] == '<' && kmsgMsg[2] == '>') {
             kernMsgErrLevel = DIAG_KERN_WARNING;
@@ -602,7 +622,7 @@ int Diag_Mon_ParseExamine_KernMsg(void)
            * If the kernel message is KERN_EMERG or KERN_ALERT, don't need to
            * check if it is a monitored message. Do,
            * 1) log the message.
-           * 2) TBD - Inform user error occurred 
+           * 2) - issue an alarm
            */
           DIAGD_LOG_W_TS("%s %s %4x %s", nowStr, diagd_logmsg_lvl[kernMsgErrLevel], 0, kMsgPtr);
           break;

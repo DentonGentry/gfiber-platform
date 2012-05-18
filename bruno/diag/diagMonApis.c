@@ -214,8 +214,7 @@ int diag_Check_NetLinkUpDownCounts()
       pStats = &pNetIf->statistics[pNetIf->active_stats_idx];
       pStatsDelta = &pNetIf->delta_stats;
 
-      /* Check if the link_down count is over threshold */
-      /* TODO 20111027 -
+      /* Check if the link_down count is over threshold 
        * 1) If MoCA and GENET interfaces are using same thresholds???
        * 2) Let's use the same threshold for now.
        */
@@ -288,7 +287,6 @@ void diagd_Rd_Netlink_Msgs()
 
     /*
      * Message signals an error, the payload contains an nlmsgerr structure.
-     * TODO - Add error handling later.
      */
     if (nh->nlmsg_type == NLMSG_ERROR) {
 
