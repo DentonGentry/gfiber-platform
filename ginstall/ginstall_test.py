@@ -5,11 +5,11 @@
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
-import ginstall
 import os
 import stat
 import tempfile
 import unittest
+import ginstall
 
 
 class ImginstTest(unittest.TestCase):
@@ -44,6 +44,18 @@ class ImginstTest(unittest.TestCase):
     self.files_to_remove.append(scriptfile.name)
     self.files_to_remove.append(outfile.name)
     return (scriptfile, outfile)
+
+  def testVerify(self):
+    self.assertTrue(ginstall.Verify(
+        open("testdata/img/loader.bin"),
+        open("testdata/img/loader.sig"),
+        open("testdata/img/public.der")))
+
+  def testVerifyFailure(self):
+    self.assertFalse(ginstall.Verify(
+        open("testdata/img/loader.bin"),
+        open("testdata/img/loader_bad.sig"),
+        open("testdata/img/public.der")))
 
   def testGetMtdNum(self):
     self.assertEqual(ginstall.GetMtdNum(3), 3)
@@ -105,7 +117,8 @@ class ImginstTest(unittest.TestCase):
   def testFileImage(self):
     fileimg = ginstall.FileImage("testdata/img/vmlinux",
                                  "testdata/img/rootfs.ubi",
-                                 "testdata/img/loader.bin")
+                                 "testdata/img/loader.bin",
+                                 "testdata/img/loader.sig")
     self.assertEqual(fileimg.GetKernel().read(), "vmlinux")
     self.assertEqual(fileimg.GetRootFs().read(), "rootfs.ubi")
     self.assertEqual(fileimg.GetLoader().read(), "loader.bin")

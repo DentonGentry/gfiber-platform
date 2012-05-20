@@ -1,0 +1,4 @@
+Step to generate the loader signature file.
+
+openssl dgst -sign <path-to-gfiber_private.pem> -sha512 -binary -keyform PEM \
+    <loadername>.bin > <loadername>.sig 

@@ -11,6 +11,9 @@ import re
 import subprocess
 import sys
 import tarfile
+import Crypto.Hash.SHA512 as SHA512  #gpylint: disable-msg=F0401
+import Crypto.PublicKey.RSA as RSA  #gpylint: disable-msg=F0401
+import Crypto.Signature.PKCS1_v1_5 as PKCS1_v1_5  #gpylint: disable-msg=F0401
 
 
 # unit tests can override these with fake versions
@@ -27,6 +30,13 @@ quiet = False
 
 # Partitions supported
 gfhd100_partitions = {'primary': 0, 'secondary': 1}
+
+
+def Verify(f, s, k):
+  key = RSA.importKey(k.read())
+  h = SHA512.new(f.read())
+  v = PKCS1_v1_5.new(key)
+  return v.verify(h, s.read())
 
 
 def VerbosePrint(string):
@@ -238,10 +248,11 @@ def InstallToUbi(f, mtd):
 class FileImage(object):
   """A system image packaged as separate kernel, rootfs and loader files."""
 
-  def __init__(self, kernelfile, rootfs, loader):
+  def __init__(self, kernelfile, rootfs, loader, loadersig):
     self.kernelfile = kernelfile
     self.rootfs = rootfs
     self.loader = loader
+    self.loadersig = loadersig
 
   def GetLoader(self):
     if self.loader:
@@ -269,6 +280,16 @@ class FileImage(object):
         return open(self.rootfs, 'rb')
       except IOError:
         print 'unable to open rootfs file %s' % self.rootfs
+        return None
+    else:
+      return None
+
+  def GetLoaderSig(self):
+    if self.loadersig:
+      try:
+        return open(self.loadersig, 'rb')
+      except IOError:
+        print 'unable to open loader file %s' % self.loadersig
         return None
     else:
       return None
@@ -305,6 +326,12 @@ class TarImage(object):
     except KeyError:
       return None
 
+  def GetLoaderSig(self):
+    try:
+      return self.tar_f.extractfile('loader.sig')
+    except KeyError:
+      return None
+
 
 def main():
   global quiet  #gpylint: disable-msg=W0603
@@ -320,6 +347,12 @@ def main():
                     default=None)
   parser.add_option('--loader', dest='loader',
                     help='bootloader to install',
+                    default=None)
+  parser.add_option('--no-loader', dest='skiploader', action='store_true',
+                    help='skip loader installation (dev-only)',
+                    default=False)
+  parser.add_option('--loadersig', dest='loadersig',
+                    help='bootloader signature',
                     default=None)
   parser.add_option('--drm', dest='drmfile',
                     help='drm blob to install',
@@ -376,10 +409,45 @@ def main():
   if options.tar or options.kern or options.rootfs or options.loader:
     if options.tar:
       img = TarImage(options.tar)
-      if options.kern or options.rootfs or options.loader:
-        print '--tar option provided, ignoring --kernel, --rootfs and --loader'
+      if options.kern or options.rootfs or options.loader or options.loadersig:
+        print ('--tar option provided, ignoring --kernel, --rootfs,'
+               ' --loader and --loadersig')
     else:
-      img = FileImage(options.kern, options.rootfs, options.loader)
+      img = FileImage(options.kern, options.rootfs, options.loader,
+                      options.loadersig)
+
+    key = open('/etc/gfiber_public.der')
+    if not key:
+      print 'Key file /etc/gfiber_public.der is missing. Abort installation.'
+      return 1
+
+    loader = img.GetLoader()
+    if loader:
+      if options.skiploader:
+        print 'Skip loader installation.'
+      else:
+        loadersig = img.GetLoaderSig()
+        if not loadersig:
+          print 'Loader signature file is missing. Abort installation.'
+          return 1
+        if not Verify(loader, loadersig, key):
+          print 'Loader signing check failed. Abort installation.'
+          return 1
+        mtd = GetMtdDevForPartition('cfe')
+        is_loader_current = False
+        mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
+        with open(mtdblockname, 'r+b') as mtdfile:
+          VerbosePrint('Checking if the loader is up to date')
+          is_loader_current = IsIdentical(loader, mtdfile)
+        VerbosePrint('\n')
+        if is_loader_current:
+          VerbosePrint('The loader is the latest.\n')
+        else:
+          loader.seek(0, os.SEEK_SET)
+          print 'DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.'
+          VerbosePrint('Writing loader to {0}'.format(mtd))
+          InstallToMtd(loader, mtd)
+          VerbosePrint('\n')
 
     pnum = gfhd100_partitions[partition]
     rootfs = img.GetRootFs()
@@ -395,24 +463,6 @@ def main():
       VerbosePrint('Writing kernel to {0}'.format(mtd))
       InstallToMtd(kern, mtd)
       VerbosePrint('\n')
-
-    loader = img.GetLoader()
-    if loader:
-      mtd = GetMtdDevForPartition('cfe')
-      is_loader_current = False
-      mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
-      with open(mtdblockname, 'r+b') as mtdfile:
-        VerbosePrint('Checking if the loader is up to date')
-        is_loader_current = IsIdentical(loader, mtdfile)
-      VerbosePrint('\n')
-      if is_loader_current:
-        VerbosePrint('The loader is the latest.\n')
-      else:
-        loader.seek(0, os.SEEK_SET)
-        print 'DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.'
-        VerbosePrint('Writing loader to {0}'.format(mtd))
-        InstallToMtd(loader, mtd)
-        VerbosePrint('\n')
 
   if partition:
     pnum = gfhd100_partitions[partition]
