@@ -21,7 +21,7 @@ fs_writable()
 
 is_fat()
 {
-  [ -e /dev/sda ]
+  [ -e /dev/sda ] && grep -q GFMS /tmp/platform
 }
 
 
@@ -83,7 +83,7 @@ main()
   should_never_die label iperf -s &
   should_never_die label iperf -s -u &
 
-  IPERF_TCP="retry label iperf -t3600 -i10"
+  IPERF_TCP="retry label iperf -t3600 -i10   "
   IPERF_UDP="retry label iperf -t3600 -i10 -u"
   if is_fat; then
     $IPERF_TCP -c 169.254.1.2 &
@@ -107,17 +107,25 @@ main()
       should_never_die stress-disk -p10 "$d" &
 
       # slow small random read
-      should_never_die stress-disk -p0 -c 4096 -m 10 --random "$d" &
+      should_never_die stress-disk -p0 -c4096 -m10 --random "$d" &
     fi
   done
 
   # NAND reads
   #TODO(apenwarr): don't hardcode the device name; read it from /proc/mtd
-  should_never_die stress-disk -p10 -c65536 /dev/mtd12 &
+  #TODO(apenwarr): -c65536 causes memory allocation problems.
+  # This seems to be because the MTD driver tries to allocate kernel memory
+  # the same size as the read() parameter as a single contiguous block,
+  # which, under heavy load, might not be available.  There's no good reason
+  # for MTD to do this, afaik, so we could try to debug the kernel so we
+  # can increase this parameter.  It could theoretically cause problems on
+  # a normal system under high load, not just one being stresstested.
+  should_never_die stress-disk -p10 -c4096 /dev/mtd12 &
 
   # NOR reads
   #TODO(apenwarr): don't hardcode the device name; read it from /proc/mtd
-  should_never_die stress-disk -p10 -c65536 /dev/mtd1
+  #TODO(apenwarr): see above about -c65536.
+  should_never_die stress-disk -p10 -c4096 /dev/mtd1 &
 
   sleep 5
   #TODO(apenwarr): actually bind the following to cpu0 and cpu1
