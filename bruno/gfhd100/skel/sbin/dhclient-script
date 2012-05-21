@@ -101,8 +101,7 @@ make_cwmp_files() {
     # hope for the best.  Save it to /tmp, but *not* /config, since it's not
     # a "real" config value (and if the default changes in future software
     # versions, we want it to take effect).
-    #TODO(apenwarr): figure out what hardcoded server to actually use
-    atomic /tmp/cwmp/acs_url "https://FIXME.default.acs.url.local/"
+    atomic /tmp/cwmp/acs_url "https://acs.prod.gfsvc.com/default/cwmp"
   fi
   [ -n "$new_cwmp_provisioning_code" ] &&
     atomic /tmp/cwmp/provisioning_code "$new_cwmp_provisioning_code"
