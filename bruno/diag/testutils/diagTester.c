@@ -54,6 +54,16 @@ void convertUpTime (
    return ;
 } /* end of convertUpTime */
 
+/*
+ * 05/18/2012
+ * Due to eth0 internal loopback test failed,
+ * remove options:
+ *  Get Diag Test Results,
+ *  Run Intrusive Test
+ *
+ *  Both options will be restored once eth0 internal loopback
+ *  test is verified working as intended.
+ */
 uint32_t diagMenu()
 {
   char str[30];
@@ -62,21 +72,19 @@ uint32_t diagMenu()
 
     printf("Commands: \n");
     printf(" 1   Get Monitoring Log\n");
-    printf(" 2   Get Diag Test Results\n");
-    printf(" 3   Run Intrusive Test (Currently only eth0 internal loopback available)\n");
-    printf("         Note: The Bruno box will be forced to reboot after this test is finished.\n");
-    printf(" 4   Get MoCa Node Connect PHY and CP information\n");
-    printf(" 5   Get MoCA Init Params\n");
-    printf(" 6   Get MoCA Self Node status\n");
-    printf(" 7   Get MoCA Self Node config\n");
-    printf(" 8   Get MoCA Node Status Table\n");
-    printf(" 9   Get MoCA Node Statistics Table\n");
-    printf("10   Get Summary of Kernel Error & Warning Messages Counters\n");
-    printf("11   Get Detail Report of Kernel Error & Warning Messages Counters\n");
+    printf(" 2   Get MoCA Node Connect PHY and CP information\n");
+    printf(" 3   Get MoCA Init Params\n");
+    printf(" 4   Get MoCA Self Node status\n");
+    printf(" 5   Get MoCA Self Node config\n");
+    printf(" 6   Get MoCA Node Status Table\n");
+    printf(" 7   Get MoCA Node Statistics Table\n");
+    printf(" 8   Get Summary of Kernel Error & Warning Messages Counters\n");
+    printf(" 9   Get Detail Report of Kernel Error & Warning Messages Counters\n");
+    printf("10   Get Network Interface Link Status & Statistics\n");
     printf(" q   Quit \n");
 
     printf("Enter>> ");
-    
+
     scanf("%s", str);
 
 
@@ -86,28 +94,28 @@ uint32_t diagMenu()
           cmdId = DIAGD_REQ_GET_MON_LOG;
        }
        else if (memcmp(str, "2", 1) == 0) {
-          cmdId = DIAGD_REQ_GET_DIAG_RESULT_LOG;
-       }
-       else if (memcmp(str, "3", 1) == 0) {
-          cmdId = DIAGD_REQ_RUN_TESTS;
-       }
-       else if (memcmp(str, "4", 1) == 0) {
           cmdId = DIAGD_REQ_MOCA_GET_CONN_INFO;
        }
-       else if (memcmp(str, "5", 1) == 0) {
+       else if (memcmp(str, "3", 1) == 0) {
           cmdId = DIAGD_REQ_MOCA_GET_MOCA_INITPARMS;
        }
-       else if (memcmp(str, "6", 1) == 0) {
+       else if (memcmp(str, "4", 1) == 0) {
           cmdId = DIAGD_REQ_MOCA_GET_STATUS;
        }
-       else if (memcmp(str, "7", 1) == 0) {
+       else if (memcmp(str, "5", 1) == 0) {
           cmdId = DIAGD_REQ_MOCA_GET_CONFIG;
        }
-       else if (memcmp(str, "8", 1) == 0) {
+       else if (memcmp(str, "6", 1) == 0) {
           cmdId = DIAGD_REQ_MOCA_GET_NODE_STATUS_TBL;
        }
-       else if (memcmp(str, "9", 2) == 0) {
+       else if (memcmp(str, "7", 1) == 0) {
           cmdId = DIAGD_REQ_MOCA_GET_NODE_STATS_TBL;
+       }
+       else if (memcmp(str, "8", 1) == 0) {
+          cmdId = DIAGD_REQ_GET_MON_KERN_MSGS_SUM;
+       }
+       else if (memcmp(str, "9", 2) == 0) {
+          cmdId = DIAGD_REQ_GET_MON_KERN_MSGS_DET;
        }
        else if (memcmp(str, "q", 1) == 0) {
           cmdId = DIAG_QUIT;
@@ -115,21 +123,18 @@ uint32_t diagMenu()
     }
     else if (len == 2) {
        if (memcmp(str, "10", 2) == 0) {
-          cmdId = DIAGD_REQ_GET_MON_KERN_MSGS_SUM;
-       }
-       else if (memcmp(str, "11", 2) == 0) {
-          cmdId = DIAGD_REQ_GET_MON_KERN_MSGS_DET;
+          cmdId = DIAGD_REQ_GET_NET_LINK_STATS;
        }
     }
 
     if (cmdId == DIAG_TRY_AGAIN) {
        printf("%s: Invalid number %s you entered! You need to enter number" \
-              " 1-11, or 'q' to quit.\n",  __func__, str);
+              " 1-10, or 'q' to quit.\n",  __func__, str);
        printf("%s: Try again!\n", __func__);
     }
 
     return (cmdId);
-    
+
 } /* end of diagMenu */
 
 
@@ -1089,6 +1094,7 @@ int main(int argc, char *argv[])
           break;
         case DIAGD_REQ_GET_MON_KERN_MSGS_SUM:
         case DIAGD_REQ_GET_MON_KERN_MSGS_DET:
+        case DIAGD_REQ_GET_NET_LINK_STATS:
           {
             diagTest_Print_KernMsgsReport(pPayload);
           }

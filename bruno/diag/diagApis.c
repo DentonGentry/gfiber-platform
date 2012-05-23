@@ -46,6 +46,7 @@ static const diagHostCmdTableEntry diagHostCmdTable[] = {
 
   {DIAGD_REQ_GET_MON_KERN_MSGS_SUM,     &diag_CmdHandler_GetMonKernMsgsCntsSum},
   {DIAGD_REQ_GET_MON_KERN_MSGS_DET,     &diag_CmdHandler_GetMonKernMsgsCntsDet},
+  {DIAGD_REQ_GET_NET_LINK_STATS,        &diag_CmdHandler_GetNetifLinkStats},
 
 };
 
@@ -759,6 +760,111 @@ int diag_CmdHandler_GetMonKernMsgsCntsDet(void)
 
   return(rtn);
 
+}
+
+/*
+ * Query to get the network interface's status and statistcs
+ * Currently it only provides those information for "eth0".
+ * This function could be modified in order to support other
+ * network interfaces if they are required in the future.
+ *
+ * Input:
+ * None
+ *
+ * Output:
+ * DIAGD_RC_OK  - OK
+ * DIAGD_RC_OUT_OF_MEM - Failed
+ *
+ */
+int diag_CmdHandler_GetNetifLinkStats(void)
+{
+   int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
+   diag_netIf_info_t *pNetIf  = NULL;
+   netIf_counter_t   netif_counter;
+   unsigned long     linkup;
+   diag_netif_stats_t *pCounter;
+   char inBuf[128];
+   char outBuf[512];
+   char *pNetif_name = "eth0";
+
+
+   DIAGD_ENTRY("%s", __func__);
+
+
+   /* Get the starting address of the specified network interface. */
+   diag_GetStartingAddr_NetIfInfo(pNetif_name, &pNetIf);
+
+   if (!pNetIf) {
+      DIAGD_TRACE("%s: No available entry for network interface =%s", __func__, pNetif_name);
+   }
+   else {
+      /*  Get the current link status. */
+      strcpy(pNetIf->name, pNetif_name);
+
+      /* Setup the input parameter of diag_Get_Netif_One_Counter(): netif name */
+      strcpy(netif_counter.netif_name, pNetif_name);
+      netif_counter.pData = &linkup;          /* temp use */
+      diag_Get_Netlink_State((netif_netlink_t *)&netif_counter);
+
+      DIAGD_TRACE("%s: pNetif_name=%s link=%s", __func__,
+                  pNetif_name, (*(netif_counter.pData) == DIAG_NETLINK_UP)? "UP":"DOWN");
+      sprintf(outBuf, "Network interface name = %s, Link Status = %s\n", pNetif_name,
+              (*(netif_counter.pData) == DIAG_NETLINK_UP)? "UP":"DOWN");
+
+      strcat(outBuf, "=============================================\n");
+
+      diag_Get_Netif_Counters(pNetif_name, true);
+
+      pCounter = &(pNetIf->statistics[pNetIf->active_stats_idx]);
+
+      sprintf(inBuf, "rx_bytes:%lu \trx_packets:%lu\n",
+              pCounter->rx_bytes, pCounter->rx_packets);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "tx_bytes:%lu \ttx_packets:%lu\n",
+              pCounter->tx_bytes, pCounter->tx_packets);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "tx_errors:%lu\n", pCounter->tx_errors);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "rx_errors:%lu\n", pCounter->rx_errors);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "rx_crc_errors:%lu\n", pCounter->rx_crc_errors);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "rx_frame_errors:%lu\n", pCounter->rx_frame_errors);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "rx_length_errors:%lu\n", pCounter->rx_length_errors);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "link_ups:%lu\n", pCounter->link_ups);
+      strcat(outBuf, inBuf);
+
+      sprintf(inBuf, "link_downs:%lu\n", pCounter->link_downs);
+      strcat(outBuf, inBuf);
+
+      strcat(outBuf, "=============================================\n");
+
+      rtn = DIAGD_RC_OK;
+   }
+
+   if (rtn == DIAGD_RC_OK) {
+     /* Send network link status to remote */
+     outBuf[strlen(outBuf)] = '\0';
+     diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, (uint8_t *)&outBuf[0],
+                  strlen(outBuf)+1); /* total length of output string */
+   }
+   else {
+     /* Failed. Send empty payload to indicate the request failed */
+     diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, NULL, 0);
+   }
+
+  DIAGD_EXIT("%s: rtn=0x%x", __func__, rtn);
+
+  return(rtn);
 }
 
 /*
