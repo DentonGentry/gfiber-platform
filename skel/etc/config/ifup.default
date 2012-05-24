@@ -1,2 +1,0 @@
-iface=$1
-ip link set dev ${iface} up
