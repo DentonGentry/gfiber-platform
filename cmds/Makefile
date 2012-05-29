@@ -3,11 +3,11 @@ default: all
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
-TARGETS=grep
+TARGETS=grep wait-until-created
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 
 HOST_CC ?= cc
-CFLAGS += -Wall
+CFLAGS += -Wall -g
 .PRECIOUS: %.o host-%.o
 
 all: $(TARGETS) $(HOST_TARGETS)
@@ -28,9 +28,10 @@ host-%.o: %.c
 host-%: host-%.o
 	$(HOST_CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
-runtests: $(wildcard test*.sh)
+TESTS=$(wildcard test*.sh)
+runtests: all $(TESTS)
 	set -e; \
-	for d in $^; do \
+	for d in $(TESTS); do \
 		echo Running $$d; \
 		./$$d; \
 	done
