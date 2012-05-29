@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
 	FILE *f;
 
 	if (argc < 2)
-		printf("usage: grep regexp [file ...]");
+		printf("usage: grep regexp [file ...]\n");
 	nmatch = 0;
 	if (argc == 2) {
 		if (grep(argv[1], stdin, NULL))
