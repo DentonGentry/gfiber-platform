@@ -282,11 +282,17 @@ int diagd_Loopback_Test(char *pNetIf_name, uint8_t loopbackType)
 
 
     /* For loopback test, the bridge interface must be shutdown.
-     * TODO -
+     *
      * For the time being, shutdown br0 w/o any checking.
      * After loopback test, bruno should be reboot.
+     *
+     * Must shutdown local loop(127.0.0.1) and eth1 for MoCA
+     * as welll.  Otherwise, some packets will be received from
+     * different ifindex during the loopback test.
      */
     system("ip link set dev br0 down");
+    system("ip link set dev eth1 down");
+    system("ip link set dev lo down");
 
     /* Set to loopback mode */
     if (diag_SetLoopbackMode(pNetIf_name, loopbackType) != DIAGD_RC_OK) {
@@ -384,6 +390,7 @@ int diagd_Loopback_Test(char *pNetIf_name, uint8_t loopbackType)
     srand(time(NULL));
 
     DIAGD_TRACE("send packets....\n");
+    DIAGD_TRACE("(LOOPBACK_PKT_SIZE+ETH_HEADER_LEN)=%d\n", (LOOPBACK_PKT_SIZE+ETH_HEADER_LEN));
 
     /* Get the statistic counters prior to start loopback tx/rx */
     diag_Get_Netif_Counters(pNetIf_name, false);
@@ -421,6 +428,7 @@ int diagd_Loopback_Test(char *pNetIf_name, uint8_t loopbackType)
         }
 
         total_missed_packets++;
+        DIAGD_DEBUG("%s: total_missed_packets= %d", __func__, total_missed_packets);
         if (total_missed_packets >= MAX_NUMBER_OF_MISSING_RX_PKTS) {
           break;
         }
@@ -430,8 +438,14 @@ int diagd_Loopback_Test(char *pNetIf_name, uint8_t loopbackType)
         if (sendLen == recvLen) {
           total_recv_packets++;
         }
+        else {
+           DIAGD_DEBUG("%s: sendLen= %d  NOT EQUAL TO recvLen= %d", __func__,
+                 sendLen, recvLen);
+        }
       }
       else {
+        DIAGD_DEBUG("%s: from.sll_ifindex = %d NOT EQUAL TO ifindex= %d", __func__,
+              from.sll_ifindex, ifindex);
         /* TBD - Got a packet from other net interface. Ignore for now. */
       }
     }
