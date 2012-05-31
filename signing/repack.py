@@ -104,10 +104,6 @@ def FakeSign(fname):
 
 def RealSign(hostdir, key, ifname, ofname):
   """Sign the image with production key."""
-  # brcm_sign_enc does not use libfakeroot.so. But it fails to preload
-  # libfakeroot.so since it is in the LD_PRELOAD. Just remove it to avoid the
-  # error message.
-  os.environ['LD_PRELOAD'] = ''
   p = subprocess.Popen([os.path.join(hostdir, 'usr/bin', 'brcm_sign_enc')],
                        stdin=subprocess.PIPE, shell=False)
   for cmd in ['sign_kernel_file', ifname, ofname + '-sig.bin', 'l', key,
