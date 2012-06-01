@@ -9,7 +9,7 @@ all: $(EXES)
 
 CFLAGS:=-Wall -Wimplicit -Wno-unknown-pragmas
 HOST_CFLAGS=-I/include -I/usr/include -I$(HOST_DIR)/include -I$(HOST_DIR)/usr/include
-HOST_LDFLAGS=-L/lib -L/usr/lib -L$(HOST_DIR)/lib -L$(HOST_DIR)/usr/lib -lgtest -lpthread
+HOST_LDFLAGS=-L$(HOST_DIR)/lib -L$(HOST_DIR)/usr/lib -lgtest -lpthread
 
 readverity: readverity.o main.o
 	$(CC) -o $@ $^ $(CFLAGS)
