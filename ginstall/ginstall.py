@@ -297,6 +297,9 @@ class TarImage(object):
       return None
 
   def GetLoader(self):
+    if open('/proc/cpuinfo').read().find('BCM7425B0') >= 0:
+      print 'old B0 device: ignoring loader.bin in tarball'
+      return None
     try:
       return self.tar_f.extractfile('loader.bin')
     except KeyError:
