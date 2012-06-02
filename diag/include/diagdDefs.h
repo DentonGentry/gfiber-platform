@@ -43,13 +43,12 @@ typedef enum {
 #define DIAG_RESULT_MSG_MAX_LEN   256
 
 /* It is for the release build */
-//#define DIAG_REL_BUILD
+#define DIAG_REL_BUILD
 
 #ifdef DIAG_REL_BUILD
   /* If defined, print out error message to stderr */
-  #define DIAGD_DEBUG_ON
-  /* If defined, print out error message to stderr */
   #define DIAGD_PERROR_ON
+  #define DIAGD_ERROR_ON
 #else
   /* If defined, print out debugging message to stdout */
   #define DIAGD_TRACE_ENTRY_ON
@@ -61,6 +60,9 @@ typedef enum {
   #define DIAGD_PERROR_ON
 #endif /* end of DIAG_REL_BUILD */
 
+#ifdef DIAGD_MOCA_LOGGING_ON
+  #undef DIAGD_MOCA_LOGGIN_ON
+#endif
 
 /*
  * Debugging macro
@@ -98,12 +100,19 @@ typedef enum {
   #define DIAGD_DEBUG(format, args...)
 #endif /* end of DIAG_DBG_ON */
 
-
 #ifdef DIAGD_PERROR_ON
   #define DIAGD_PERROR(format)  perror(format)
 #else
   #define DIAGD_PERROR(format)
 #endif /* end of DIAG_DBG_ON */
+
+#ifdef DIAGD_ERROR_ON
+#define DIAGD_ERROR(format, args...)  { \
+    fprintf(stderr, "%s: "format"\n", MOD_NAME, ## args);  \
+  }
+#else
+  #define DIAGD_ERROR(format, args...)
+#endif /* end of DIAGD_ERROR_ON */
 
 
 #endif /* end of _DIAGD_DEFS_H_ */

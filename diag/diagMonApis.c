@@ -484,6 +484,12 @@ int Diag_MonNet_GetNetIfStatistics()
     for (i = 0; i < netif_info.nInterfaces; i++) {
 
       /* Let's get the statistics counters of each interface */
+      /* skip network interface "teql0" due to the carrier of
+       * "teq10" is not readable.
+       */
+      if (!strcmp(netif_info.netif_name[i], "teql0")) {
+        continue;
+      }
       if (diag_Get_Netif_Counters(netif_info.netif_name[i], true) != DIAGD_RC_OK) {
         break;
       }

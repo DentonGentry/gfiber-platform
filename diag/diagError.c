@@ -274,16 +274,14 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
    }
 
    if(componentType >= ERROR_CODE_COMPONENT_MAX) {
-      DIAGD_TRACE("%s: unknown component type %d", __func__, componentType);
-      DIAGD_LOG("Unknown component type %d", componentType);
+      DIAGD_ERROR("%s: Unknown component type %d", __func__, componentType);
       return;
    }
 
    errType = diagGetErrType(componentType, errorCode);
 
    if (errType == DIAG_UNKNOWN_ERROR_TYPE) {
-      DIAGD_TRACE("%s: unknown errType %d", __func__, errType);
-      DIAGD_LOG("Unknown errType %d", errType);
+      DIAGD_ERROR("%s: unknown errType %d", __func__, errType);
       return;
    }
 
@@ -378,16 +376,14 @@ void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
    diag_compType_e componentType = GET_ERROR_CODE_COMPONENT_TYPE(errorCode);
 
    if(componentType >= ERROR_CODE_COMPONENT_MAX) {
-      DIAGD_TRACE("%s: unknown component type %d", __func__, componentType);
-      DIAGD_LOG("Unknown component type %d", componentType);
+      DIAGD_ERROR("%s: unknown component type %d", __func__, componentType);
       return;
    }
 
    warnType = diagGetErrType(componentType, errorCode);
 
    if (warnType == DIAG_UNKNOWN_ERROR_TYPE) {
-      DIAGD_TRACE("%s: unknown warnType %d", __func__, warnType);
-      DIAGD_LOG("Unknown warnType %d", warnType);
+      DIAGD_ERROR("%s: unknown warnType %d", __func__, warnType);
       return;
    }
 
@@ -506,8 +502,7 @@ void diagGetErrsInfo(char *buffer, void *ptr, diag_compType_e type)
    diagErrsInfoEntry_t *errsDetInfo = NULL;
 
    if(type >= ERROR_CODE_COMPONENT_MAX) {
-      DIAGD_TRACE("%s: unknown component type %d", __func__, type);
-      DIAGD_LOG("Unknown component type %d", type);
+      DIAGD_ERROR("%s: unknown component type %d", __func__, type);
       return;
    }
 
@@ -536,8 +531,7 @@ void diagGetErrsInfo(char *buffer, void *ptr, diag_compType_e type)
          warnCnts = ((diagSpiErrCounts_t *)ptr)->WarnCount;
          break;
       default:
-         DIAGD_TRACE("%s: unsupported component type %d", __func__, type);
-         DIAGD_LOG("Unsupported component type %d", type);
+         DIAGD_ERROR("%s: unsupported component type %d", __func__, type);
          return;
          break;
    }
