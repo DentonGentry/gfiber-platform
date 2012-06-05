@@ -334,8 +334,7 @@ int diag_CmdHandler_Moca_GetInitParams(void)
     if (rtn == DIAGD_RC_OK) {
       /* Send init parameter */
       diag_sendRsp(DIAGD_RSP_MOCA_GET_MOCA_INITPARMS, (uint8_t *)pInitParms, bufLen);
-    }
-    else {
+    } else {
       /* Failed. Send empty payload to indicate the request failed */
       diag_sendRsp(DIAGD_RSP_MOCA_GET_MOCA_INITPARMS, NULL, 0);
     }
@@ -384,8 +383,7 @@ int diag_CmdHandler_Moca_GetSelfStatus(void)
     if (rtn == DIAGD_RC_OK) {
       /* Send self status to remote */
       diag_sendRsp(DIAGD_RSP_MOCA_GET_STATUS, (uint8_t *)pSelfNode, bufLen);
-    }
-    else {
+    } else {
       /* Failed. Send empty payload to indicate the request failed */
       diag_sendRsp(DIAGD_RSP_MOCA_GET_STATUS, NULL, 0);
     }
@@ -434,8 +432,7 @@ int diag_CmdHandler_Moca_GetSelfConfig(void)
     if (rtn == DIAGD_RC_OK) {
       /* Send self status to remote */
       diag_sendRsp(DIAGD_RSP_MOCA_GET_CONFIG, (uint8_t *)pSelfNode, bufLen);
-    }
-    else {
+    } else {
       /* Failed. Send empty payload to indicate the request failed */
       diag_sendRsp(DIAGD_RSP_MOCA_GET_CONFIG, NULL, 0);
     }
@@ -484,8 +481,7 @@ int diag_CmdHandler_Moca_GetNodeStatus(void)
     if (rtn == DIAGD_RC_OK) {
       /* Send node status of the connected nodes to remote */
       diag_sendRsp(DIAGD_RSQ_MOCA_GET_NODE_STATUS_TBL, (uint8_t *)pNodeStatus, bufLen);
-    }
-    else {
+    } else {
       /* Failed. Send empty payload to indicate the request failed */
       diag_sendRsp(DIAGD_RSQ_MOCA_GET_NODE_STATUS_TBL, NULL, 0);
     }
@@ -540,8 +536,7 @@ int diag_CmdHandler_Moca_GetNodeStatistics(void)
     if (rtn == DIAGD_RC_OK) {
       /* Send node statistics to remote */
       diag_sendRsp(DIAGD_RSQ_MOCA_GET_NODE_STATUS_TBL, (uint8_t *)pNodeStats, bufLen);
-    }
-    else {
+    } else {
       /* Failed. Send empty payload to indicate the request failed */
       diag_sendRsp(DIAGD_RSQ_MOCA_GET_NODE_STATUS_TBL, NULL, 0);
     }
@@ -611,8 +606,7 @@ int diag_CmdHandler_Moca_GetNodeConnectInfo(void)
       /* Send node statistics to remote */
       diag_sendRsp(DIAGD_RSP_MOCA_GET_CONN_INFO, (uint8_t *)pConnInfo,
                    sizeof(diag_moca_node_connect_info_t));
-    }
-    else {
+    } else {
       /* Failed. Send empty payload to indicate the request failed */
       diag_sendRsp(DIAGD_RSP_MOCA_GET_CONN_INFO, NULL, 0);
     }
@@ -689,8 +683,7 @@ int diag_CmdHandler_GetMonKernMsgsCntsSum(void)
      outBuf[strlen(outBuf)] = '\0';
      diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, (uint8_t *)&outBuf[0],
                   strlen(outBuf)+1); /* total length of output string */
-   }
-   else {
+   } else {
      /* Failed. Send empty payload to indicate the request failed */
      diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, NULL, 0);
    }
@@ -750,8 +743,7 @@ int diag_CmdHandler_GetMonKernMsgsCntsDet(void)
      outBuf[strlen(outBuf)] = '\0';
      diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, (uint8_t *)&outBuf[0],
                   strlen(outBuf)+1); /* total length of output string */
-   }
-   else {
+   } else {
      /* Failed. Send empty payload to indicate the request failed */
      diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, NULL, 0);
    }
@@ -763,20 +755,18 @@ int diag_CmdHandler_GetMonKernMsgsCntsDet(void)
 }
 
 /*
- * Query to get the network interface's status and statistcs
- * Currently it only provides those information for "eth0".
- * This function could be modified in order to support other
- * network interfaces if they are required in the future.
+ * Query to get the network interface's status and statistcs.
  *
  * Input:
- * None
+ * outBuf - buffer to store link status and statistics.
+ * pNetif_name - network interface name
  *
  * Output:
  * DIAGD_RC_OK  - OK
  * DIAGD_RC_OUT_OF_MEM - Failed
  *
  */
-int diag_CmdHandler_GetNetifLinkStats(void)
+int diag_GetNetifLinkStats(char *outBuf, char *pNetif_name)
 {
    int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
    diag_netIf_info_t *pNetIf  = NULL;
@@ -784,9 +774,6 @@ int diag_CmdHandler_GetNetifLinkStats(void)
    unsigned long     linkup;
    diag_netif_stats_t *pCounter;
    char inBuf[128];
-   char outBuf[512];
-   char *pNetif_name = "eth0";
-
 
    DIAGD_ENTRY("%s", __func__);
 
@@ -796,14 +783,13 @@ int diag_CmdHandler_GetNetifLinkStats(void)
 
    if (!pNetIf) {
       DIAGD_TRACE("%s: No available entry for network interface =%s", __func__, pNetif_name);
-   }
-   else {
+   } else {
       /*  Get the current link status. */
       strcpy(pNetIf->name, pNetif_name);
 
       /* Setup the input parameter of diag_Get_Netif_One_Counter(): netif name */
       strcpy(netif_counter.netif_name, pNetif_name);
-      netif_counter.pData = &linkup;          /* temp use */
+      netif_counter.pData = &linkup; /* temp use */
       diag_Get_Netlink_State((netif_netlink_t *)&netif_counter);
 
       DIAGD_TRACE("%s: pNetif_name=%s link=%s", __func__,
@@ -817,11 +803,11 @@ int diag_CmdHandler_GetNetifLinkStats(void)
 
       pCounter = &(pNetIf->statistics[pNetIf->active_stats_idx]);
 
-      sprintf(inBuf, "rx_bytes:%lu \trx_packets:%lu\n",
+      sprintf(inBuf, "rx_bytes:%8lu \trx_packets:%lu\n",
               pCounter->rx_bytes, pCounter->rx_packets);
       strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "tx_bytes:%lu \ttx_packets:%lu\n",
+      sprintf(inBuf, "tx_bytes:%8lu \ttx_packets:%lu\n",
               pCounter->tx_bytes, pCounter->tx_packets);
       strcat(outBuf, inBuf);
 
@@ -851,13 +837,58 @@ int diag_CmdHandler_GetNetifLinkStats(void)
       rtn = DIAGD_RC_OK;
    }
 
+  DIAGD_EXIT("%s: rtn=0x%x", __func__, rtn);
+
+  return(rtn);
+}
+
+/*
+ * Query to get the network interface's status and statistcs.
+ * Currently it provides the information for "eth0" and "eth1" only.
+ * This function could be modified in order to support other
+ * network interfaces if they are required in the future.
+ *
+ * Input:
+ * None
+ *
+ * Output:
+ * DIAGD_RC_OK  - OK
+ * DIAGD_RC_OUT_OF_MEM - Failed
+ *
+ */
+int diag_CmdHandler_GetNetifLinkStats(void)
+{
+   int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
+   char outBuf[1024];
+   char *ptr = NULL;
+   int  tmpLen = 0;
+   char *pNetif_name[2] = {"eth0", "eth1"};
+
+   /* get "eth0" link status and statistics */
+   rtn = diag_GetNetifLinkStats(outBuf, pNetif_name[0]);
+
    if (rtn == DIAGD_RC_OK) {
-     /* Send network link status to remote */
-     outBuf[strlen(outBuf)] = '\0';
-     diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, (uint8_t *)&outBuf[0],
-                  strlen(outBuf)+1); /* total length of output string */
-   }
-   else {
+     tmpLen = strlen(outBuf);
+     outBuf[tmpLen] = '\0';
+     ptr = outBuf + tmpLen;
+
+     /* get "eth1" link status and statistics */
+     rtn = diag_GetNetifLinkStats(ptr, pNetif_name[1]);
+
+     if (rtn == DIAGD_RC_OK) {
+       /* Send network link status to remote */
+       outBuf[strlen(outBuf)] = '\0';
+       diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, (uint8_t *)&outBuf[0],
+                    strlen(outBuf)+1);  /* total length of output string */
+     } else {
+       /* failed to get "eth1" link status and statistics
+        * Send eth0 link status to remote
+        */
+       outBuf[tmpLen] = '\0';
+       diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, (uint8_t *)&outBuf[0],
+                    strlen(outBuf)+1);  /* total length of output string */
+     }
+   } else {
      /* Failed. Send empty payload to indicate the request failed */
      diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, NULL, 0);
    }
@@ -866,7 +897,6 @@ int diag_CmdHandler_GetNetifLinkStats(void)
 
   return(rtn);
 }
-
 /*
  * Validate and process the received request
  *
