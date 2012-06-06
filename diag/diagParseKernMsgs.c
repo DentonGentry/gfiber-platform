@@ -166,7 +166,7 @@ static int diag_parse_dkmsg_split(char *pMsg, diag_dkmsg_t *pDkmsgInfo)
               pDkmsgInfo->msglvl, pDkmsgInfo->code, pDkmsgInfo->pDkmsg);
 
   if (rtn != DIAGD_RC_OK) {
-    DIAGD_LOG_SWERR("%s - Failed to parse %s", __func__, pMsg);
+    DIAGD_ERROR("%s - Failed to parse %s", __func__, pMsg);
   }
   
   return (rtn);
@@ -260,8 +260,7 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName, char *timestamp)
 
     ifp = fopen(pFileName, "r");
     if (ifp == NULL) {
-        DIAGD_TRACE("Can not open the %s file", pFileName);
-        DIAGD_LOG("Can not open the %s file", pFileName);
+        DIAGD_ERROR("%s: Can not open the %s file", __func__, pFileName);
         break;
     }
 

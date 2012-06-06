@@ -18,6 +18,11 @@
 #include "diagdIncludes.h"
 #include "diagLibApis.h"
 
+#ifdef MOD_NAME
+  #undef MOD_NAME
+#endif
+#define MOD_NAME  "libbrunodiag.so\0"
+
 const char diagdMsgHeaderMarker[] = {"DIag"};
 #define DIAG_MSG_MARKER_LEN     sizeof(uint32_t)
 #define DIAG_HOSTCMD_PORT   50152   /* the port client will be connecting to */
@@ -460,6 +465,9 @@ void diagPrintSelfNodeStatus(char *buffer, MoCA_STATUS *pStatus) {
  * 1. Network interface eth0 linkstatus and statistics
  * 2. MoCA self node status
  *
+ * It also print out the same info to stderr and expects
+ * it is redirect to logger.
+ *
  * Input:
  *   buffer  - pointer to a char buffer.
  *             caller needs to provide the buffer of
@@ -487,7 +495,7 @@ int diag_get_info(char *buffer, int bufSize) {
 
 
   if (!buffer || bufSize < 4096) {
-      return err;
+    return err;
   }
 
   cmdIdx = DIAGD_REQ_GET_NET_LINK_STATS;
@@ -535,6 +543,7 @@ int diag_get_info(char *buffer, int bufSize) {
   diagPrintSelfNodeStatus(tmpBufPtr, (MoCA_STATUS *)pPayload);
   err = DIAG_LIB_RC_OK;
 
+  fprintf(stderr, "%s", buffer);
 cleanup_exit:
   /* free the resource */
 

@@ -77,8 +77,7 @@ const char diagdMsgHeaderMarker[] = {"DIag"};
  * Output:
  * None
  */
-void diag_sendRsp(uint32_t responseCode, uint8_t *pBuf, uint32_t bufLen)
-{
+void diag_sendRsp(uint32_t responseCode, uint8_t *pBuf, uint32_t bufLen) {
   diag_msg_header_t  *pRspHdr = (diag_msg_header_t *)pDiagInfo->hostReqData;
   int   sentHdrLen, bytecount;
 
@@ -86,21 +85,21 @@ void diag_sendRsp(uint32_t responseCode, uint8_t *pBuf, uint32_t bufLen)
 
   /* compose response header */
   bcopy((void *)diagdMsgHeaderMarker,
-        (void *)&pRspHdr->headerMarker,
-        DIAG_MSG_MARKER_LEN);
+      (void *)&pRspHdr->headerMarker,
+      DIAG_MSG_MARKER_LEN);
 
   pRspHdr->msgType = responseCode;
   pRspHdr->len     = bufLen;
 
   DIAGD_TRACE("%s: RspHdr  headerMarker=0x%x, len=%u, msgType=0x%x",
-              __func__, pRspHdr->headerMarker, pRspHdr->len, pRspHdr->msgType);
+      __func__, pRspHdr->headerMarker, pRspHdr->len, pRspHdr->msgType);
 
   /* Let's send the response header first */
   sentHdrLen = send(pDiagInfo->hostCmdDesc,
-                    pDiagInfo->hostReqData, DIAG_MSG_HDR, 0);
+      pDiagInfo->hostReqData, DIAG_MSG_HDR, 0);
   if (sentHdrLen != DIAG_MSG_HDR) {
     DIAGD_DEBUG("%s: bad length (ExpectedLen=%u, ActualLen=%u\n",
-                __func__, DIAG_MSG_HDR, sentHdrLen);
+        __func__, DIAG_MSG_HDR, sentHdrLen);
   }
 
   /* Check if there are payload to be sent */
@@ -130,8 +129,7 @@ void diag_sendRsp(uint32_t responseCode, uint8_t *pBuf, uint32_t bufLen)
  * DIAGD_RC_OK  - OK
  * DIAGD_RC_ERR - Failed
  */
-int diag_Sendfile(char *pFilename, uint32_t diagRspCode)
-{
+int diag_Sendfile(char *pFilename, uint32_t diagRspCode) {
   struct stat statBuf;        /* Argument to fstat */
   int   rtn = DIAGD_RC_ERR;   /* Default is failed */
   int   fd;                   /* File descriptor for file to send */
@@ -148,7 +146,7 @@ int diag_Sendfile(char *pFilename, uint32_t diagRspCode)
     fd = open(pFilename, O_RDONLY);
     if (fd == -1) {
       DIAGD_DEBUG("%s: open '%s' failed: %s\n",
-                  __func__, pFilename, strerror(errno));
+          __func__, pFilename, strerror(errno));
       break;
     }
 
@@ -157,22 +155,22 @@ int diag_Sendfile(char *pFilename, uint32_t diagRspCode)
 
     /* compose response header */
     bcopy((void *)diagdMsgHeaderMarker,
-          (void *)&pRspHdr->headerMarker,
-          DIAG_MSG_MARKER_LEN);
+        (void *)&pRspHdr->headerMarker,
+        DIAG_MSG_MARKER_LEN);
 
     pRspHdr->msgType = diagRspCode;
     pRspHdr->len     = statBuf.st_size;
 
     DIAGD_TRACE("%s: RspHdr  headerMarker=0x%x, len=%u, msgType=0x%x",
-                __func__, pRspHdr->headerMarker,
-                pRspHdr->len, pRspHdr->msgType);
+        __func__, pRspHdr->headerMarker,
+        pRspHdr->len, pRspHdr->msgType);
 
     /* Let's send the response header first */
     sentHdrLen = send(pDiagInfo->hostCmdDesc,
-                      pDiagInfo->hostReqData, DIAG_MSG_HDR, 0);
+        pDiagInfo->hostReqData, DIAG_MSG_HDR, 0);
     if (sentHdrLen != DIAG_MSG_HDR) {
       DIAGD_DEBUG("%s: bad length (ExpectedLen=%u, ActualLen=%u\n",
-                  __func__, DIAG_MSG_HDR, sentHdrLen);
+          __func__, DIAG_MSG_HDR, sentHdrLen);
     }
 
     /* Copy file using sendfile */
@@ -185,7 +183,7 @@ int diag_Sendfile(char *pFilename, uint32_t diagRspCode)
 
     if (rc != statBuf.st_size) {
       DIAGD_DEBUG("%s: sendfile incomplete: %d of %d bytes sent\n",
-                  __func__, rc, (int)statBuf.st_size);
+          __func__, rc, (int)statBuf.st_size);
       break;
     }
 
@@ -220,8 +218,7 @@ int diag_Sendfile(char *pFilename, uint32_t diagRspCode)
  * Output:
  * None
  */
-void Diag_runEthLoopBackTest()
-{
+void Diag_runEthLoopBackTest() {
 
   DIAGD_ENTRY("%s", __func__);
   diagd_Loopback_Test((char *)ETH0, (uint8_t)DIAG_LOOPBACK_TYPE_INTERNAL);
@@ -239,8 +236,7 @@ void Diag_runEthLoopBackTest()
  * DIAGD_RC_OK  - OK
  * DIAGD_RC_ERR - Failed
  */
-int diag_CmdHandler_GetMonitorLog(void)
-{
+int diag_CmdHandler_GetMonitorLog(void) {
   DIAGD_ENTRY("%s:", __func__);
 
   return(diag_Sendfile(DIAGD_LOG_FILE, DIAGD_RSP_GET_MON_LOG));
@@ -258,8 +254,7 @@ int diag_CmdHandler_GetMonitorLog(void)
  * DIAGD_RC_OK  - OK
  * DIAGD_RC_ERR - Failed
  */
-int diag_CmdHandler_GetTestResultLog(void)
-{
+int diag_CmdHandler_GetTestResultLog(void) {
   DIAGD_ENTRY("%s: ", __func__);
 
   return(diag_Sendfile(DIAGD_TEST_RESULTS_FILE, DIAGD_RSP_GET_DIAG_RESULT_LOG));
@@ -280,9 +275,9 @@ int diag_CmdHandler_GetTestResultLog(void)
  * DIAGD_RC_OK  - OK
  * DIAGD_RC_ERR - Failed
  */
-int diag_CmdHandler_RunTests(void)
-{
+int diag_CmdHandler_RunTests(void) {
   int   rtn = DIAGD_RC_OK;     /* Default is OK */
+
 
   /* Send ACK to the client the request was received.
    * The ACK packet just header with DIAGD_RSP_RUN_TESTS
@@ -315,8 +310,7 @@ int diag_CmdHandler_RunTests(void)
  * DIAGD_RC_OUT_OF_MEM - Failed
  * others       - refer to enum CmsRet in BRCM cms.h
  */
-int diag_CmdHandler_Moca_GetInitParams(void)
-{
+int diag_CmdHandler_Moca_GetInitParams(void) {
   MoCA_INITIALIZATION_PARMS  *pInitParms = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
@@ -364,8 +358,7 @@ int diag_CmdHandler_Moca_GetInitParams(void)
  * DIAGD_RC_OUT_OF_MEM - Failed
  * others       - refer to enum CmsRet in BRCM cms.h
  */
-int diag_CmdHandler_Moca_GetSelfStatus(void)
-{
+int diag_CmdHandler_Moca_GetSelfStatus(void) {
   MoCA_STATUS   *pSelfNode = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
@@ -413,8 +406,7 @@ int diag_CmdHandler_Moca_GetSelfStatus(void)
  * DIAGD_RC_OUT_OF_MEM - Failed
  * others       - refer to enum CmsRet in BRCM cms.h
  */
-int diag_CmdHandler_Moca_GetSelfConfig(void)
-{
+int diag_CmdHandler_Moca_GetSelfConfig(void) {
   diag_moca_config_t *pSelfNode = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
@@ -462,8 +454,7 @@ int diag_CmdHandler_Moca_GetSelfConfig(void)
  * DIAGD_RC_OUT_OF_MEM - Failed
  * others       - refer to enum CmsRet in BRCM cms.h
  */
-int diag_CmdHandler_Moca_GetNodeStatus(void)
-{
+int diag_CmdHandler_Moca_GetNodeStatus(void) {
   diag_moca_nodestatus_t   *pNodeStatus = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
@@ -512,8 +503,7 @@ int diag_CmdHandler_Moca_GetNodeStatus(void)
  * DIAGD_RC_OUT_OF_MEM - Failed
  * others       - refer to enum CmsRet in BRCM cms.h
  */
-int diag_CmdHandler_Moca_GetNodeStatistics(void)
-{
+int diag_CmdHandler_Moca_GetNodeStatistics(void) {
   diag_moca_node_stats_table_t   *pNodeStats = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
@@ -526,7 +516,7 @@ int diag_CmdHandler_Moca_GetNodeStatistics(void)
      * which support up to max connected node
      */
     bufLen = (sizeof(diag_moca_node_stats_entry_t) * MoCA_MAX_NODES) +
-             sizeof(uint32_t);
+      sizeof(uint32_t);
 
     pNodeStats = malloc(bufLen);
     if (pNodeStats != NULL) {
@@ -564,8 +554,7 @@ int diag_CmdHandler_Moca_GetNodeStatistics(void)
  * DIAGD_RC_OK  - OK
  * DIAGD_RC_ERR - Failed
  */
-int diag_CmdHandler_Moca_GetMocaLog(void)
-{
+int diag_CmdHandler_Moca_GetMocaLog(void) {
   DIAGD_ENTRY("%s: ", __func__);
 
   return(diag_Sendfile(DIAGD_MOCA_LOG_FILE, DIAGD_RSP_MOCA_GET_MOCA_LOG));
@@ -585,8 +574,7 @@ int diag_CmdHandler_Moca_GetMocaLog(void)
  * DIAGD_RC_OUT_OF_MEM - Failed
  * others       - refer to enum CmsRet in BRCM cms.h
  */
-int diag_CmdHandler_Moca_GetNodeConnectInfo(void)
-{
+int diag_CmdHandler_Moca_GetNodeConnectInfo(void) {
   diag_moca_node_connect_info_t   *pConnInfo = NULL;
   int   rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
 
@@ -637,56 +625,55 @@ extern int get_diagDb_mmap(char **diagdMap);
  * DIAGD_RC_OUT_OF_MEM - Failed
  *
  */
-int diag_CmdHandler_GetMonKernMsgsCntsSum(void)
-{
-   int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
-   int diagdFd;
-   diagMocaErrCounts_t     *mocaErrs = NULL;
-   diagGenetErrCounts_t    *genetErrs = NULL;
-   diagMtdNandErrCounts_t  *mtdNandErrs = NULL;
-   diagSpiErrCounts_t      *spiErrs = NULL;
-   char *diagdMap = NULL;
-   char inBuf[128];
-   char outBuf[256];
+int diag_CmdHandler_GetMonKernMsgsCntsSum(void) {
+  int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
+  int diagdFd;
+  diagMocaErrCounts_t     *mocaErrs = NULL;
+  diagGenetErrCounts_t    *genetErrs = NULL;
+  diagMtdNandErrCounts_t  *mtdNandErrs = NULL;
+  diagSpiErrCounts_t      *spiErrs = NULL;
+  char *diagdMap = NULL;
+  char inBuf[128];
+  char outBuf[256];
 
 
   DIAGD_ENTRY("%s", __func__);
 
-   /* call get_diagDb_mmap() to get total error and warning counts */
-   if ((diagdFd = get_diagDb_mmap(&diagdMap)) > 0) {
-      /* read in error and warning counts from DIAGD_DB_FS */
-      mocaErrs  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
-      genetErrs = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
-      mtdNandErrs = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
-      spiErrs = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
-     
-      sprintf(outBuf, "BRCM_MOCA      total errorCount=%d, warningCount=%d\n",
-              mocaErrs->TotalErrCount, mocaErrs->TotalWarnCount);
+  /* call get_diagDb_mmap() to get total error and warning counts */
+  if ((diagdFd = get_diagDb_mmap(&diagdMap)) > 0) {
+    /* read in error and warning counts from DIAGD_DB_FS */
+    mocaErrs  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
+    genetErrs = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
+    mtdNandErrs = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
+    spiErrs = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
 
-      sprintf(inBuf, "BRCM_GENET     total errorCount=%d, warningCount=%d\n",
-              genetErrs->TotalErrCount, genetErrs->TotalWarnCount);
-      strcat(outBuf, inBuf);
+    sprintf(outBuf, "BRCM_MOCA      total errorCount=%d, warningCount=%d\n",
+        mocaErrs->TotalErrCount, mocaErrs->TotalWarnCount);
 
-      sprintf(inBuf, "BRCM_MTD       total errorCount=%d, warningCount=%d\n",
-              mtdNandErrs->TotalErrCount, mtdNandErrs->TotalWarnCount);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "BRCM_GENET     total errorCount=%d, warningCount=%d\n",
+        genetErrs->TotalErrCount, genetErrs->TotalWarnCount);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "BRCM_SPI       total errorCount=%d, warningCount=%d\n",
-              spiErrs->TotalErrCount, spiErrs->TotalWarnCount);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "BRCM_MTD       total errorCount=%d, warningCount=%d\n",
+        mtdNandErrs->TotalErrCount, mtdNandErrs->TotalWarnCount);
+    strcat(outBuf, inBuf);
 
-      rtn = DIAGD_RC_OK;
-   }
+    sprintf(inBuf, "BRCM_SPI       total errorCount=%d, warningCount=%d\n",
+        spiErrs->TotalErrCount, spiErrs->TotalWarnCount);
+    strcat(outBuf, inBuf);
 
-   if (rtn == DIAGD_RC_OK) {
-     /* Send the summary of monitored kernel error & warning msgs counters to remote */
-     outBuf[strlen(outBuf)] = '\0';
-     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, (uint8_t *)&outBuf[0],
-                  strlen(outBuf)+1); /* total length of output string */
-   } else {
-     /* Failed. Send empty payload to indicate the request failed */
-     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, NULL, 0);
-   }
+    rtn = DIAGD_RC_OK;
+  }
+
+  if (rtn == DIAGD_RC_OK) {
+    /* Send the summary of monitored kernel error & warning msgs counters to remote */
+    outBuf[strlen(outBuf)] = '\0';
+    diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, (uint8_t *)&outBuf[0],
+        strlen(outBuf)+1); /* total length of output string */
+  } else {
+    /* Failed. Send empty payload to indicate the request failed */
+    diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, NULL, 0);
+  }
 
   DIAGD_EXIT("%s: rtn=0x%x", __func__, rtn);
 
@@ -707,46 +694,45 @@ extern void diagGetErrsInfo(char *buffer, void *ptr, diag_compType_e type);
  * DIAGD_RC_OUT_OF_MEM - Failed
  *
  */
-int diag_CmdHandler_GetMonKernMsgsCntsDet(void)
-{
-   int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
-   int diagdFd;
-   diagMocaErrCounts_t     *mocaErrs = NULL;
-   diagGenetErrCounts_t    *genetErrs = NULL;
-   diagMtdNandErrCounts_t  *mtdNandErrs = NULL;
-   diagSpiErrCounts_t      *spiErrs = NULL;
-   char *diagdMap = NULL;
-   char outBuf[1600];
+int diag_CmdHandler_GetMonKernMsgsCntsDet(void) {
+  int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
+  int diagdFd;
+  diagMocaErrCounts_t     *mocaErrs = NULL;
+  diagGenetErrCounts_t    *genetErrs = NULL;
+  diagMtdNandErrCounts_t  *mtdNandErrs = NULL;
+  diagSpiErrCounts_t      *spiErrs = NULL;
+  char *diagdMap = NULL;
+  char outBuf[1600];
 
 
   DIAGD_ENTRY("%s", __func__);
 
-   /* call get_diagDb_mmap() to get total error and warning counts */
-   if ((diagdFd = get_diagDb_mmap(&diagdMap)) > 0) {
-      /* read in error and warning counts from DIAGD_DB_FS */
-      mocaErrs  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
-      genetErrs = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
-      mtdNandErrs = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
-      spiErrs = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
+  /* call get_diagDb_mmap() to get total error and warning counts */
+  if ((diagdFd = get_diagDb_mmap(&diagdMap)) > 0) {
+    /* read in error and warning counts from DIAGD_DB_FS */
+    mocaErrs  = (diagMocaErrCounts_t *) &diagdMap[DIAGD_MOCA_ERR_COUNTS_INDEX];
+    genetErrs = (diagGenetErrCounts_t *) &diagdMap[DIAGD_GENET_ERR_COUNTS_INDEX];
+    mtdNandErrs = (diagMtdNandErrCounts_t *) &diagdMap[DIAGD_MTD_NAND_ERR_COUNTS_INDEX];
+    spiErrs = (diagSpiErrCounts_t *) &diagdMap[DIAGD_SPI_ERR_COUNTS_INDEX];
 
-      outBuf[0] = '\0';
-      diagGetErrsInfo(outBuf, mocaErrs, ERROR_CODE_COMPONENT_BRCM_MOCA);
-      diagGetErrsInfo(outBuf, genetErrs, ERROR_CODE_COMPONENT_BRCM_GENET);
-      diagGetErrsInfo(outBuf, mtdNandErrs, ERROR_CODE_COMPONENT_MTD_NAND);
-      diagGetErrsInfo(outBuf, spiErrs, ERROR_CODE_COMPONENT_BRCM_SPI);
+    outBuf[0] = '\0';
+    diagGetErrsInfo(outBuf, mocaErrs, ERROR_CODE_COMPONENT_BRCM_MOCA);
+    diagGetErrsInfo(outBuf, genetErrs, ERROR_CODE_COMPONENT_BRCM_GENET);
+    diagGetErrsInfo(outBuf, mtdNandErrs, ERROR_CODE_COMPONENT_MTD_NAND);
+    diagGetErrsInfo(outBuf, spiErrs, ERROR_CODE_COMPONENT_BRCM_SPI);
 
-      rtn = DIAGD_RC_OK;
-   }
+    rtn = DIAGD_RC_OK;
+  }
 
-   if (rtn == DIAGD_RC_OK) {
-     /* Send the detailed report of monitored kernel error & warning msgs counters to remote */
-     outBuf[strlen(outBuf)] = '\0';
-     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, (uint8_t *)&outBuf[0],
-                  strlen(outBuf)+1); /* total length of output string */
-   } else {
-     /* Failed. Send empty payload to indicate the request failed */
-     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, NULL, 0);
-   }
+  if (rtn == DIAGD_RC_OK) {
+    /* Send the detailed report of monitored kernel error & warning msgs counters to remote */
+    outBuf[strlen(outBuf)] = '\0';
+    diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, (uint8_t *)&outBuf[0],
+        strlen(outBuf)+1); /* total length of output string */
+  } else {
+    /* Failed. Send empty payload to indicate the request failed */
+    diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, NULL, 0);
+  }
 
   DIAGD_EXIT("%s: rtn=0x%x", __func__, rtn);
 
@@ -778,64 +764,64 @@ int diag_GetNetifLinkStats(char *outBuf, char *pNetif_name)
    DIAGD_ENTRY("%s", __func__);
 
 
-   /* Get the starting address of the specified network interface. */
-   diag_GetStartingAddr_NetIfInfo(pNetif_name, &pNetIf);
+  /* Get the starting address of the specified network interface. */
+  diag_GetStartingAddr_NetIfInfo(pNetif_name, &pNetIf);
 
-   if (!pNetIf) {
-      DIAGD_TRACE("%s: No available entry for network interface =%s", __func__, pNetif_name);
-   } else {
-      /*  Get the current link status. */
-      strcpy(pNetIf->name, pNetif_name);
+  if (!pNetIf) {
+    DIAGD_TRACE("%s: No available entry for network interface =%s", __func__, pNetif_name);
+  } else {
+    /*  Get the current link status. */
+    strcpy(pNetIf->name, pNetif_name);
 
-      /* Setup the input parameter of diag_Get_Netif_One_Counter(): netif name */
-      strcpy(netif_counter.netif_name, pNetif_name);
-      netif_counter.pData = &linkup; /* temp use */
-      diag_Get_Netlink_State((netif_netlink_t *)&netif_counter);
+    /* Setup the input parameter of diag_Get_Netif_One_Counter(): netif name */
+    strcpy(netif_counter.netif_name, pNetif_name);
+    netif_counter.pData = &linkup;  /* temp use */
+    diag_Get_Netlink_State((netif_netlink_t *)&netif_counter);
 
-      DIAGD_TRACE("%s: pNetif_name=%s link=%s", __func__,
-                  pNetif_name, (*(netif_counter.pData) == DIAG_NETLINK_UP)? "UP":"DOWN");
-      sprintf(outBuf, "Network interface name = %s, Link Status = %s\n", pNetif_name,
-              (*(netif_counter.pData) == DIAG_NETLINK_UP)? "UP":"DOWN");
+    DIAGD_TRACE("%s: pNetif_name=%s link=%s", __func__,
+        pNetif_name, (*(netif_counter.pData) == DIAG_NETLINK_UP)? "UP":"DOWN");
+    sprintf(outBuf, "Network interface name = %s, Link Status = %s\n", pNetif_name,
+        (*(netif_counter.pData) == DIAG_NETLINK_UP)? "UP":"DOWN");
 
-      strcat(outBuf, "=============================================\n");
+    strcat(outBuf, "=============================================\n");
 
-      diag_Get_Netif_Counters(pNetif_name, true);
+    diag_Get_Netif_Counters(pNetif_name, true);
 
-      pCounter = &(pNetIf->statistics[pNetIf->active_stats_idx]);
+    pCounter = &(pNetIf->statistics[pNetIf->active_stats_idx]);
 
-      sprintf(inBuf, "rx_bytes:%8lu \trx_packets:%lu\n",
-              pCounter->rx_bytes, pCounter->rx_packets);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "rx_bytes:%8lu \trx_packets:%lu\n",
+        pCounter->rx_bytes, pCounter->rx_packets);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "tx_bytes:%8lu \ttx_packets:%lu\n",
-              pCounter->tx_bytes, pCounter->tx_packets);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "tx_bytes:%8lu \ttx_packets:%lu\n",
+        pCounter->tx_bytes, pCounter->tx_packets);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "tx_errors:%lu\n", pCounter->tx_errors);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "tx_errors:%lu\n", pCounter->tx_errors);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "rx_errors:%lu\n", pCounter->rx_errors);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "rx_errors:%lu\n", pCounter->rx_errors);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "rx_crc_errors:%lu\n", pCounter->rx_crc_errors);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "rx_crc_errors:%lu\n", pCounter->rx_crc_errors);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "rx_frame_errors:%lu\n", pCounter->rx_frame_errors);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "rx_frame_errors:%lu\n", pCounter->rx_frame_errors);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "rx_length_errors:%lu\n", pCounter->rx_length_errors);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "rx_length_errors:%lu\n", pCounter->rx_length_errors);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "link_ups:%lu\n", pCounter->link_ups);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "link_ups:%lu\n", pCounter->link_ups);
+    strcat(outBuf, inBuf);
 
-      sprintf(inBuf, "link_downs:%lu\n", pCounter->link_downs);
-      strcat(outBuf, inBuf);
+    sprintf(inBuf, "link_downs:%lu\n", pCounter->link_downs);
+    strcat(outBuf, inBuf);
 
-      strcat(outBuf, "=============================================\n");
+    strcat(outBuf, "=============================================\n");
 
-      rtn = DIAGD_RC_OK;
-   }
+    rtn = DIAGD_RC_OK;
+  }
 
   DIAGD_EXIT("%s: rtn=0x%x", __func__, rtn);
 
@@ -906,8 +892,7 @@ int diag_CmdHandler_GetNetifLinkStats(void)
  * DIAGD_RC_OK  - OK
  * DIAGD_RC_ERR - Failed
  */
-int diag_CmdHandler_ProcessReq(void)
-{
+int diag_CmdHandler_ProcessReq(void) {
   int   rtn = DIAGD_RC_ERR;     /* Default is OK */
   int   cmdIdx;
   diag_msg_header_t  *pReqHdr = (diag_msg_header_t *)pDiagInfo->hostReqData;
@@ -919,9 +904,9 @@ int diag_CmdHandler_ProcessReq(void)
 
     /* Validate Check msg header marker */
     if (memcmp((void *)&pReqHdr->headerMarker,
-               (void *)diagdMsgHeaderMarker, DIAG_MSG_MARKER_LEN) != 0) {
+          (void *)diagdMsgHeaderMarker, DIAG_MSG_MARKER_LEN) != 0) {
       DIAGD_DEBUG("%s: an invalid request: %s",
-                  __func__, (char *)pReqHdr->headerMarker);
+          __func__, (char *)pReqHdr->headerMarker);
       break;
     }
 
@@ -929,21 +914,21 @@ int diag_CmdHandler_ProcessReq(void)
 
     for (cmdIdx=0; cmdIdx < numEntriesInHostCmdTable; cmdIdx++) {
       DIAGD_TRACE("%s: Check cmd entry %d (opcode 0x%02X, addr %p)\n",
-                  __func__, cmdIdx,
-                  diagHostCmdTable[cmdIdx].msgType,
-                  diagHostCmdTable[cmdIdx].CmdFunc);
+          __func__, cmdIdx,
+          diagHostCmdTable[cmdIdx].msgType,
+          diagHostCmdTable[cmdIdx].CmdFunc);
       /* Check host command OpCode. */
       if (pReqHdr->msgType == diagHostCmdTable[cmdIdx].msgType) {
         DIAGD_TRACE("%s: Check cmd entry %d (opcode %02X, addr %p)\n",
-                    __func__, cmdIdx, diagHostCmdTable[cmdIdx].msgType,
-                    diagHostCmdTable[cmdIdx].CmdFunc);
+            __func__, cmdIdx, diagHostCmdTable[cmdIdx].msgType,
+            diagHostCmdTable[cmdIdx].CmdFunc);
         DIAGD_TRACE("%s: --> matched cmd entry @ %d\n", __func__, cmdIdx);
         rtn = DIAGD_RC_OK;
         break;
       }
     }
     if (rtn != DIAGD_RC_OK) {
-        break;
+      break;
     }
 
     /* Run the host command */
@@ -976,8 +961,7 @@ int diag_CmdHandler_ProcessReq(void)
  * DIAGD_RC_OK  - OK
  * DIAGD_RC_ERR - Failed
  */
-void diagd_Cmd_Handler()
-{
+void diagd_Cmd_Handler() {
   int   rtn = DIAGD_RC_ERR;     /* Default is OK */
   int   rc;                     /* Return code of system calls */
   struct sockaddr_in addr_in;   /* Socket parameters for accept */
@@ -988,8 +972,8 @@ void diagd_Cmd_Handler()
    * 2) open socket and start listen
    */
   if (diag_CmdHandler_Init() != DIAGD_RC_OK) {
-    DIAGD_LOG_INFO("Unable to activate host command handler (errno: %s)",
-                   strerror(errno));
+    DIAGD_ERROR("%s: Unable to activate host command handler (errno: %s)",
+        __func__, strerror(errno));
     return;
   }
 
@@ -1001,8 +985,8 @@ void diagd_Cmd_Handler()
 
     /* wait for connect */
     pDiagInfo->hostCmdDesc = accept(pDiagInfo->hostCmdSock,
-                                    (struct sockaddr *)&addr_in,
-                                    (socklen_t *)&addr_in_len);
+        (struct sockaddr *)&addr_in,
+        (socklen_t *)&addr_in_len);
     if (pDiagInfo->hostCmdDesc == DIAG_FD_NOT_OPEN) {
       DIAGD_DEBUG("%s: accept failed: %s\n", __func__, strerror(errno));
       continue;
@@ -1010,8 +994,8 @@ void diagd_Cmd_Handler()
 
     /* Get data from the client */
     rc = recv(pDiagInfo->hostCmdDesc,
-              pDiagInfo->hostReqData,
-              DIAG_HOSTREQ_BUF_LEN, 0);
+        pDiagInfo->hostReqData,
+        DIAG_HOSTREQ_BUF_LEN, 0);
     if (rc == -1) {
       DIAGD_DEBUG("%s: recv failed: %s\n", __func__, strerror(errno));
       diag_CloseFileDesc(&pDiagInfo->hostCmdDesc);

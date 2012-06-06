@@ -91,7 +91,7 @@ int diagtOpenTestResultsLogFile(void)
     testResultsFp = fopen(DIAGD_TEST_RESULTS_FILE, "a");
     if (testResultsFp == NULL) {
       rtn = DIAGD_RC_FAILED_OPEN_LOG_FILE;
-      DIAGD_LOG_SWERR("%s: Failed to open "DIAGD_LOG_FILE, __func__);
+      DIAGD_ERROR("%s: Failed to open "DIAGD_LOG_FILE, __func__);
       break;
     }
 
@@ -182,7 +182,9 @@ void diagtCloseEventLogFile(void)
 
 
 /*
- * Open the diagd MoCA monitoring log file
+ * Open the diagd MoCA monitoring binary log file
+ * comment out for now since Moca log in text
+ * format is already written to diagd.log.
  *
  * Input:
  * None
@@ -195,7 +197,7 @@ int diagtOpenMocaLogFile(void)
 {
   int       rtn = DIAGD_RC_ERR;
 
-#ifdef DIAGD_LOGGING_ON
+#ifdef DIAGD_MOCA_LOGGING_ON
 
   DIR      *dir = NULL;
 
@@ -229,7 +231,7 @@ int diagtOpenMocaLogFile(void)
 
 #else
   rtn = DIAGD_RC_OK;
-#endif /* end of DIAGD_LOGGING_ON */
+#endif /* end of DIAGD_MOCA_LOGGING_ON */
 
   return (rtn);
 } /* end of diagtOpenMocaLogFile */
@@ -237,10 +239,12 @@ int diagtOpenMocaLogFile(void)
 
 void diagtCloseMocaLogFile(void)
 {
+#ifdef DIAGD_MOCA_LOGGING_ON
   if (mocaLogFp != NULL) {
     fclose(mocaLogFp);
     mocaLogFp = NULL;
   }
+#endif
 } /* end of diagtCloseMocaLogFile */
 
 
@@ -257,17 +261,26 @@ void diagLog(const char *msgLvl, const char *format_str, ...)
   va_list   argList;
 
 
+
   /* Don't log if the file is not opened */
   if (logFp != NULL) {
-
     if (msgLvl != NULL) {
       // logging message level
       fprintf(logFp, "%s ", msgLvl);
+      fprintf(stderr, "%s ", msgLvl);
     }
 
+    /* send diag log to stderr as well.
+     * when redirect stderr to logger, this
+     * diag log will go to syslog. For example,
+     * start "diagd" in the init script:
+     * "diagd 2>&1 | logger -t diagd"
+     */
     va_start(argList, format_str);
     vfprintf(logFp, format_str, argList);
     fprintf(logFp, "\n");
+    vfprintf(stderr, format_str, argList);
+    fprintf(stderr, "\n");
     va_end(argList);
     fflush(logFp);
   }
@@ -303,12 +316,21 @@ void tDiagLog(const char *msgLvl, const char *format_str, ...)
     if (msgLvl != NULL) {
       // logging message level
       fprintf(logFp, "%s ", msgLvl);
+      fprintf(stderr, "%s ", msgLvl);
     }
 
+    /* send diag log to stderr as well.
+     * when redirect stderr to logger, this
+     * diag log will go to syslog. For example,
+     * start "diagd" in the init script:
+     * "diagd 2>&1 | logger -t diagd"
+     */
     // Now print the caller's message
     va_start(argList, format_str);
     vfprintf(logFp, format_str, argList);
     fprintf(logFp, "\n");
+    vfprintf(stderr, format_str, argList);
+    fprintf(stderr, "\n");
     va_end(argList);
     fflush(logFp);
   }
@@ -383,6 +405,7 @@ void tDtrLog(const char *format_str, ...)
  */
 void diagMocaLog(char *pLogMsg)
 {
+#ifdef DIAGD_MOCA_LOGGING_ON
   uint32_t  msgSize;
   diag_moca_log_msg_hdr_t  *pMsgHdr = (diag_moca_log_msg_hdr_t *)pLogMsg;
 
@@ -395,6 +418,7 @@ void diagMocaLog(char *pLogMsg)
 
     fflush(mocaLogFp);
   }
+#endif  /* DIAGD_MOCA_LOGGING_ON */
 
 } /* end of diagMocaLog */
 
