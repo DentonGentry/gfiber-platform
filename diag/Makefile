@@ -7,10 +7,9 @@ LIBS		:= -lmocactl -lmoca -lpthread -lm
 SRCS		:= diagd.c diagTest.c
 TARGETS		:= diagd diagTest
 
-#TODO(apenwarr): /user/diag is nonstandard.  Consider /usr/lib/diag.
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/usr/bin
-LIBDIR=$(DESTDIR)$(PREFIX)/user/diag
+LIBDIR=$(DESTDIR)$(PREFIX)/usr/lib/diag
 SODIR=$(DESTDIR)$(PREFIX)/usr/lib
 TESTDIR=$(DESTDIR)$(PREFIX)/home/test
 INSTALL=install

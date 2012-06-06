@@ -43,7 +43,7 @@ int main(void)
   int i, j;
 
 
-  diagd_Init();
+  diagd_Init(NULL);
 
   do {
 

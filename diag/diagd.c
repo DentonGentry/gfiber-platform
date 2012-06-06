@@ -29,12 +29,12 @@
  *--------------------------------------------------------------------------
  */
 /* It is a temp definition. Define to enable the diagd_Cmd_Handler thread */
-#if 1
- #define DIAGD_ENABLE_DIAG_THREAD
+#ifndef DIAGD_ENABLE_DIAG_THREAD
+  #define DIAGD_ENABLE_DIAG_THREAD
 #endif
 
-#if 1
- #define DIAGD_ENABLE_NETLINK_TRHREAD
+#ifndef DIAGD_ENABLE_NETLINK_THREAD
+  #define DIAGD_ENABLE_NETLINK_THREAD
 #endif
 
 
@@ -49,8 +49,7 @@
  * This routine is processing linkup/linkdown monitoring handler.
  *
  */
-void *diagd_NetlinkProcess_Handler()
-{
+void *diagd_NetlinkProcess_Handler() {
   while(true) {
 
     diagd_Rd_Netlink_Msgs();
@@ -64,8 +63,7 @@ void *diagd_NetlinkProcess_Handler()
 /*
  * Process hardware monitoring
  */
-void diagd_HwMon_Handler(void *param)
-{
+void diagd_HwMon_Handler(void *param) {
   int diag_counter = 0;
   int looping = 1;
 
@@ -113,45 +111,65 @@ void diagd_HwMon_Handler(void *param)
 } /* diagd_HwMon_Handler */
 
 
+/* This routine display usage */
+void display_usage() {
+  printf("diagd [-f <kernel messages filename>] [-r <reference data filename>]\n");
+}
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
   pthread_t tdiagHandler, tnetlinkMonHandler, tnetlink;
-  int fnameIdx = 0;
-  char *filename = NULL;
+  char *kernMsgFile = NULL;
+  char *refFile = NULL;
   bool paramChkOk = false;
+  int opt = 0;
+  char *optStr = "hf:r:";
+
+
+  opt = getopt(argc, argv, optStr);
+  while(opt != -1) {
+    switch(opt) {
+      case 'f':
+        kernMsgFile = optarg;
+        paramChkOk = true;
+        break;
+      case 'r':
+        refFile = optarg;
+        paramChkOk = true;
+        break;
+      case 'h':
+        /* print usage and exit */
+      case '?':
+        /* unknown option character
+         * or detect missing <filename>
+         */
+      default:
+        /* should not get here */
+        display_usage();
+        return 0;
+    }
+
+    opt = getopt(argc, argv, optStr);
+  }
 
   if (argc == 1) {
-     paramChkOk = true;
-  }
-  else if ((argc == 2) &&
-     (!strcmp(argv[1], "-h") || !strcmp(argv[1], "-help"))) {
-     goto main_exit;
-  }
-  else if ((argc == 3) && !strcmp(argv[1], "-f")) {
-     fnameIdx = 2;
-     paramChkOk = true;
+  /* no input parameter */
+    paramChkOk = true;
   }
 
-main_exit:
   if (paramChkOk == false) {
-     printf("diagd [-f <filename>]\n");
-     exit(0);
+    display_usage();
+    exit(0);
   }
 
-  if (fnameIdx !=0) {
-     filename = argv[fnameIdx];
-  }
-
-  diagd_Init();
+  diagd_Init(refFile);
 
 #ifdef DIAGD_ENABLE_DIAG_THREAD
   pthread_create(&tdiagHandler, NULL, (void *)diagd_Cmd_Handler, NULL);
 #endif
-  pthread_create(&tnetlinkMonHandler, NULL, (void *)diagd_HwMon_Handler, (void *)filename);
-  
+  pthread_create(&tnetlinkMonHandler, NULL, (void *)diagd_HwMon_Handler,
+      (void *)kernMsgFile);
 
-#ifdef DIAGD_ENABLE_NETLINK_TRHREAD
+#ifdef DIAGD_ENABLE_NETLINK_THREAD
   pthread_create(&tnetlink, NULL, diagd_NetlinkProcess_Handler, NULL);
 #endif
 
@@ -161,7 +179,7 @@ main_exit:
 
   pthread_join(tnetlinkMonHandler, NULL);
 
-#ifdef DIAGD_ENABLE_NETLINK_TRHREAD
+#ifdef DIAGD_ENABLE_NETLINK_THREAD
   pthread_join(tnetlink, NULL);
 #endif
 

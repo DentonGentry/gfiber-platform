@@ -9,7 +9,7 @@
 #define _DIAGD_REF_DATA_H_
 
 /* Diag reference data */
-#define DIAGD_REF_DATA_FILE   "/user/diag/diag_ref_data.txt"
+#define DIAGD_REF_DATA_FILE   "/usr/lib/diag/diag_ref_data.txt"
 
 /*
  * Prototypes
