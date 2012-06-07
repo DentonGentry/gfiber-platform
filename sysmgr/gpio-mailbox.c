@@ -1,0 +1,489 @@
+#include <assert.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
+#include <sys/uio.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+#include "nexus_types.h"
+#include "nexus_platform.h"
+#include "nexus_gpio.h"
+#include "nexus_gpio_init.h"
+#include "nexus_pwm.h"
+#include "nexus_temp_monitor.h"
+#include "nexus_avs.h"
+
+/*
+ * This is disgustingly over-frequent.  But we don't get an accurate fan
+ * speed measurement without a pretty high sampling rate.  At full speed,
+ * the fan ticks about 220 times per second, and we need at least two polls
+ * (rising and falling edge) each.
+ *
+ * We could try using interrupts instead of polling, but it wouldn't make
+ * much difference; 220 edges per second is still 220 edges per second.  It
+ * would be slightly less gross inside the kernel instead.
+ */
+#define POLL_HZ 500    // polls per sec
+#define USEC_PER_TICK (1000000 / POLL_HZ)
+
+#define PWM_50_KHZ 0x7900
+#define PWM_26_KHZ 0x4000
+#define PWM_206_HZ 0x0080
+
+#define SOC_MULTI_VALUE_IN_FLOAT 1000.0
+
+#define CHECK(x) do { \
+    int rv = (x); \
+    if (rv) { \
+      fprintf(stderr, "CHECK: %s returned %d\n", #x, rv); \
+      _exit(99); \
+    } \
+  } while (0)
+
+static int platform_limited_leds;
+
+
+struct Gpio {
+  NEXUS_GpioType type;
+  unsigned int pin;
+  NEXUS_GpioMode mode;
+  NEXUS_GpioInterrupt interrupt_mode;
+
+  NEXUS_GpioHandle handle;
+  int old_val;
+};
+
+
+struct Pwm {
+  unsigned int channel;
+
+  NEXUS_PwmChannelHandle handle;
+};
+
+
+struct Gpio led_red = {
+  NEXUS_GpioType_eAonStandard, 17,
+  NEXUS_GpioMode_eOutputPushPull, NEXUS_GpioInterrupt_eDisabled, 0, -1
+};
+struct Gpio led_blue = {
+  NEXUS_GpioType_eAonStandard, 12,
+  NEXUS_GpioMode_eOutputPushPull, NEXUS_GpioInterrupt_eDisabled, 0, -1
+};
+struct Gpio led_activity = {
+  NEXUS_GpioType_eAonStandard, 13,
+  NEXUS_GpioMode_eOutputPushPull, NEXUS_GpioInterrupt_eDisabled, 0, -1
+};
+struct Gpio led_standby = {
+  NEXUS_GpioType_eAonStandard, 10,
+  NEXUS_GpioMode_eOutputPushPull, NEXUS_GpioInterrupt_eDisabled, 0, -1
+};
+
+struct Gpio reset_button = {
+  NEXUS_GpioType_eAonStandard, 4,
+  NEXUS_GpioMode_eInput, NEXUS_GpioInterrupt_eDisabled/*eEdge*/, 0, -1
+};
+
+struct Gpio fan_tick = {
+  NEXUS_GpioType_eStandard, 98,
+  NEXUS_GpioMode_eInput, NEXUS_GpioInterrupt_eDisabled/*eFallingEdge*/, 0, -1
+};
+
+struct Pwm fan_control = { 0, 0 };
+
+
+// Open the given PWM.  You have to do this before writing it.
+static void pwm_open(struct Pwm *p) {
+  NEXUS_PwmChannelSettings settings;
+  NEXUS_Pwm_GetDefaultChannelSettings(&settings);
+  settings.eFreqMode = NEXUS_PwmFreqModeType_eConstant;
+  p->handle = NEXUS_Pwm_OpenChannel(p->channel, &settings);
+  if (!p->handle) {
+    fprintf(stderr, "Pwm_Open returned null\n");
+    _exit(1);
+  }
+}
+
+
+// Set the given PWM (pulse width modulator) to the given percent duty cycle.
+static void set_pwm(struct Pwm *p, int percent) {
+  if (percent < 0) percent = 0;
+  if (percent > 100) percent = 100;
+  CHECK(NEXUS_Pwm_SetControlWord(p->handle, PWM_26_KHZ));
+  CHECK(NEXUS_Pwm_SetPeriodInterval(p->handle, 99));
+  CHECK(NEXUS_Pwm_SetOnInterval(p->handle, percent));
+  CHECK(NEXUS_Pwm_Start(p->handle));
+}
+
+
+// Get the CPU temperature.  I think it's in Celsius.
+static double get_cpu_temperature(void) {
+  NEXUS_AvsStatus status;
+  CHECK(NEXUS_GetAvsStatus(&status));
+  return status.temperature / SOC_MULTI_VALUE_IN_FLOAT;
+}
+
+
+// Get the CPU voltage.
+static double get_cpu_voltage(void) {
+  NEXUS_AvsStatus status;
+  CHECK(NEXUS_GetAvsStatus(&status));
+  return status.voltage / SOC_MULTI_VALUE_IN_FLOAT;
+}
+
+
+// Open the given GPIO pin.  You have to do this before reading or writing it.
+static void gpio_open(struct Gpio *g) {
+  NEXUS_GpioSettings settings;
+
+  NEXUS_Gpio_GetDefaultSettings(g->type, &settings);
+  settings.mode = g->mode;
+  settings.interruptMode = g->interrupt_mode;
+  settings.value = NEXUS_GpioValue_eLow;
+  g->handle = NEXUS_Gpio_Open(g->type, g->pin, &settings);
+  if (!g->handle) {
+    fprintf(stderr, "Gpio_Open returned null\n");
+    _exit(1);
+  }
+}
+
+
+// Write the given GPIO pin.
+// I don't actually know what's the difference between eHigh and eMax.
+static void set_gpio(struct Gpio *g, int level) {
+  if (g->old_val == level) {
+    // If this is the same value as last time, don't do anything, for two
+    // reasons:
+    //   1) If you set the gpio too often, it seems to stay low (the led
+    //      stays off).
+    //   2) If some process other than us is twiddling a led, this way we
+    //      won't interfere with it.
+    return;
+  }
+
+  NEXUS_GpioValue val;
+  switch (level) {
+    case 0: val = NEXUS_GpioValue_eLow; break;
+    case 1: val = NEXUS_GpioValue_eHigh; break;
+    case 2: val = NEXUS_GpioValue_eMax; break;
+    default:
+      assert(level >= 0);
+      assert(level <= 2);
+      val = NEXUS_GpioValue_eLow;
+      break;
+  }
+
+  NEXUS_GpioSettings settings;
+  NEXUS_Gpio_GetSettings(g->handle, &settings);
+  settings.value = val;
+  NEXUS_Gpio_SetSettings(g->handle, &settings);
+}
+
+
+// Read the given GPIO pin
+static NEXUS_GpioValue get_gpio(struct Gpio *g) {
+  NEXUS_GpioStatus status;
+  CHECK(NEXUS_Gpio_GetStatus(g->handle, &status));
+  return status.value;
+}
+
+
+// Turn the leds on or off depending on the bits in fields.  Currently
+// the bits are:
+//   1: red
+//   2: blue
+//   3: activity (also blue)
+//   4: standby (bright white)
+static void set_leds_from_bitfields(int fields) {
+  if (platform_limited_leds) {
+    // GFMS100 only has red and activity lights.  Substitute activity for blue
+    // (they're both blue anyhow) and red+activity (purple) for standby.
+    if (fields & 0x02) fields |= 0x04;
+    if (fields & 0x08) fields |= 0x05;
+  }
+  set_gpio(&led_red, (fields & 0x01) ? 1 : 0);
+  set_gpio(&led_blue, (fields & 0x02) ? 1 : 0);
+  set_gpio(&led_activity, (fields & 0x04) ? 1 : 0);
+  set_gpio(&led_standby, (fields & 0x08) ? 1 : 0);
+}
+
+
+// read a file containing a single short string.
+// Returns a static buffer.  Be careful!
+static char *read_file(const char *filename) {
+  static char buf[1024];
+  FILE *fp = fopen(filename, "r");
+  if (fp) {
+    size_t got = fread(buf, 1, sizeof(buf) - 1, fp);
+    buf[got] = '\0';
+    fclose(fp);
+    return buf;
+  }
+  buf[0] = '\0';
+  return buf;
+}
+
+
+// write a file containing the given string.
+static void write_file(const char *filename, const char *content) {
+  char *tmpname = malloc(strlen(filename) + 4 + 1);
+  sprintf(tmpname, "%s.tmp", filename);
+  FILE *fp = fopen(tmpname, "w");
+  if (fp) {
+    fwrite(content, 1, strlen(content), fp);
+    fclose(fp);
+    rename(tmpname, filename);
+  }
+  free(tmpname);
+}
+
+
+// write a file containing just a single integer value (as a string, not
+// binary)
+static void write_file_int(const char *filename,
+                           long long *oldv, long long newv) {
+  if (!oldv || *oldv != newv) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%lld", newv);
+    buf[sizeof(buf)-1] = 0;
+    write_file(filename, buf);
+    if (oldv) *oldv = newv;
+  }
+}
+
+
+// write a file containing just a single floating point value (as a string,
+// not binary)
+static void write_file_float(const char *filename,
+                             double *oldv, double newv) {
+  if (!oldv || *oldv != newv) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%.2f", newv);
+    buf[sizeof(buf)-1] = 0;
+    write_file(filename, buf);
+    if (oldv) *oldv = newv;
+  }
+}
+
+
+// read led_sequence from the given file.  For example, if a file contains
+//       0 1 0 2 0 0x0f
+// that means 1/6 of a second off, then red, then off, then blue, then off,
+// then all the lights on at once.
+static char led_sequence[16];
+static unsigned led_sequence_len = 1;
+static void read_led_sequence_file(const char *filename) {
+  char *buf = read_file(filename), *p;
+  led_sequence_len = 0;
+  while ((p = strsep(&buf, " \t\n\r")) != NULL &&
+         led_sequence_len <= sizeof(led_sequence)/sizeof(led_sequence[0])) {
+    if (!*p) continue;
+    led_sequence[led_sequence_len++] = strtol(p, NULL, 0);
+  }
+  if (!led_sequence_len) {
+    led_sequence[0] = 1; // red = error
+    led_sequence_len = 1;
+  }
+}
+
+
+// switch to the next led combination in led_sequence.
+static void led_sequence_next(void) {
+  static unsigned i;
+  if (i >= led_sequence_len)
+    i = 0;
+  set_leds_from_bitfields(led_sequence[i]);
+  i++;
+}
+
+
+// Same as time(), but in milliseconds instead.
+static long long msec_now(void) {
+  struct timespec ts;
+  CHECK(clock_gettime(CLOCK_MONOTONIC, &ts));
+  return (ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
+}
+
+
+static volatile int shutdown_sig = 0;
+static void sig_handler(int sig) {
+  shutdown_sig = sig;
+  signal(sig, SIG_DFL);
+
+  // even in case of a segfault, we still want to try to shut down
+  // politely so we can fix the fan speed etc.  writev() is a syscall
+  // so this sequence should be safe since it has no outside dependencies.
+  // fprintf() is not 100% safe in a signal handler.
+  char buf[] = {
+    '0' + (sig / 100 % 10),
+    '0' + (sig / 10 % 10),
+    '0' + (sig % 10),
+  };
+  struct iovec iov[] = {
+    { "exiting on signal ", 18 },
+    { buf, sizeof(buf)/sizeof(buf[0]) },
+    { "\n", 1 },
+  };
+  writev(2, iov, sizeof(iov)/sizeof(iov[0]));
+}
+
+
+void run_gpio_mailbox(void) {
+  platform_limited_leds = (0 == strncmp(read_file("/etc/platform"),
+                                        "GFMS100", 7));
+  gpio_open(&led_standby);
+  gpio_open(&led_red);
+  gpio_open(&led_activity);
+  gpio_open(&led_blue);
+  gpio_open(&reset_button);
+  gpio_open(&fan_tick);
+  pwm_open(&fan_control);
+
+  // close any extra fds, especially /dev/brcm0.  That way we're
+  // certain we won't interfere with any other nexus process's interrupt
+  // handling.  Only one process can be doing interrupt handling at a time.
+  for (int i = 3; i < 100; i++)
+    close(i);
+
+  fprintf(stderr, "gpio mailbox running.\n");
+  write_file_int("/var/run/gpio-mailbox", NULL, getpid());
+  signal(SIGINT, sig_handler);
+  signal(SIGTERM, sig_handler);
+  signal(SIGSEGV, sig_handler);
+  signal(SIGFPE, sig_handler);
+
+  int ticks_per_led = 0, reads = 0, fan_flips = 0, last_fan = 0, cur_fan;
+  long long last_time = msec_now(), last_print = msec_now(), reset_start = 0;
+  long long fanspeed = 0, reset_amt = 0, readyval = 0;
+  double cpu_temp = 0.0, cpu_volts = 0.0;
+  int wantspeed_warned = 0;
+  while (!shutdown_sig) {
+    // blink the leds
+    read_led_sequence_file("leds");
+    assert(led_sequence_len > 0);
+    led_sequence_next();
+    ticks_per_led = POLL_HZ / led_sequence_len + 1;
+
+    // set the fan speed control
+    char *wantspeed_str = read_file("fanpercent");
+    int wantspeed;
+    if (wantspeed_str[0]) {
+      wantspeed = strtol(wantspeed_str, NULL, 0);
+      wantspeed_warned = 0;
+    } else {
+      if (!wantspeed_warned)
+        fprintf(stderr, "gpio/fanpercent is empty: using default value\n");
+      wantspeed_warned = 1;
+      wantspeed = 30;
+    }
+    set_pwm(&fan_control, wantspeed);
+
+    // capture the fan cycle counter
+    long long now = msec_now();
+    write_file_int("fanspeed", &fanspeed,
+                   fan_flips * 1000 / (now - last_time + 1));
+    last_time = now;
+
+    // capture the CPU temperature and voltage
+    write_file_float("cpu_temperature", &cpu_temp, get_cpu_temperature());
+    write_file_float("cpu_voltage", &cpu_volts, get_cpu_voltage());
+
+    if (now - last_print >= 5000) {
+      fprintf(stderr,
+              "fan_flips:%lld/sec reads:%d button:%d temp:%.2f volts:%.2f\n",
+              fanspeed, reads,
+              get_gpio(&reset_button), cpu_temp, cpu_volts);
+      last_print = now;
+    }
+
+    // handle the reset button
+    int reset = !get_gpio(&reset_button); // 0x1 means *not* pressed
+    if (reset) {
+      if (!reset_start) reset_start = now;
+      write_file_int("reset_button_msecs", &reset_amt, now - reset_start);
+    } else {
+      if (reset_amt) unlink("reset_button_msecs");
+      reset_amt = reset_start = 0;
+    }
+
+    // capture the fan ticks
+    fan_flips = reads = 0;
+    for (int tick = 0; tick < ticks_per_led; tick++) {
+      cur_fan = get_gpio(&fan_tick);
+      if (last_fan && !cur_fan)
+        fan_flips++;
+      reads++;
+      last_fan = cur_fan;
+      if (shutdown_sig) break;
+      usleep(USEC_PER_TICK);
+    }
+
+    // this is last.  it indicates we've made it once through the loop,
+    // so all the files in /tmp/gpio have been written at least once.
+    write_file_int("ready", &readyval, 1);
+  }
+
+  set_leds_from_bitfields(1);
+  set_pwm(&fan_control, 100); // for safety
+
+  // do *not* clean up nicely in the child; we use _exit() instead of
+  // returning or calling exit().  A polite shutdown is what the parent
+  // process should have done.  No need to do it twice.
+  if (shutdown_sig > 0) {
+    kill(getpid(), shutdown_sig);
+  }
+  _exit(0);
+}
+
+
+int main(void) {
+  int status = 98;
+  fprintf(stderr, "starting gpio mailbox in /tmp/gpio.\n");
+
+  mkdir("/tmp/gpio", 0775);
+  if (chdir("/tmp/gpio") != 0) {
+    perror("chdir /tmp/gpio");
+    return 1;
+  }
+
+  NEXUS_PlatformSettings platform_settings;
+  NEXUS_Platform_GetDefaultSettings(&platform_settings);
+  platform_settings.openFrontend = false;
+  if (NEXUS_Platform_Init(&platform_settings) != 0)
+      goto end;
+
+  // Fork into the background so we can shut down most of our copy of nexus.
+  // Otherwise it leaves things like the video threads running, which results
+  // in a mess.  But it happens that the gpio/pwm stuff is just done through
+  // mmap, which will be inherited across a fork, unlike all the extra junk
+  // threads.
+  pid_t pid = fork();
+  if (pid < 0) {
+    perror("fork");
+    _exit(99);
+  } else if (pid == 0) {
+    // child process
+    run_gpio_mailbox();
+    _exit(0);
+  }
+
+  // parent process.  Uninit nexus here, to kill the unnecessary threads.
+  NEXUS_Platform_Uninit();
+
+  // now wait for the child process to exit so we can propagate its exit
+  // code to our own parent, who can make decisions about restarting.
+  while (waitpid(pid, &status, 0) != pid) { }
+
+end:
+  // normally the child process does this step.
+  //
+  // do it again here just in case the child process dies early; the boot
+  // process will wait on this file, and we don't want it to get jammed
+  // forever.
+  write_file_int("/var/run/gpio-mailbox", NULL, getpid());
+
+  exit(status);
+}

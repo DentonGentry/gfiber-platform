@@ -4,7 +4,7 @@
 default: all
 
 DIRS=utest peripheral
-TARGETS=sysmgr $(addsuffix /all,$(DIRS))
+TARGETS=sysmgr gpio-mailbox $(addsuffix /all,$(DIRS))
 INSTALL=install
 DESTDIR=/
 PREFIX=$(DESTDIR)/usr
@@ -12,6 +12,7 @@ BINDIR=$(PREFIX)/bin
 LIBDIR=$(PREFIX)/lib
 INCLUDEDIR=$(PREFIX)/include
 
+CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 RM=rm -f
 INCS=-Iperipheral -I../base
@@ -29,12 +30,13 @@ test: all
 install: all utest/install
 	mkdir -p $(LIBDIR)
 	$(INSTALL) -m 0755 peripheral/libbrunoperipheral.so $(LIBDIR)/
-	$(INSTALL) -m 0755 sysmgr $(BINDIR)/
+	$(INSTALL) -m 0755 sysmgr gpio-mailbox $(BINDIR)/
 
 utest/all: peripheral/all
 sysmgr: |peripheral/all
 utest/install: utest/all
 sysmgr: sysmgr.o
+gpio-mailbox: gpio-mailbox.o
 
 install-libs: all
 	mkdir -p $(INCLUDEDIR)/sysmgr $(LIBDIR)/pkgconfig
@@ -46,12 +48,18 @@ clean: $(addsuffix /clean,$(DIRS))
 	$(RM) *~ *.o $(TARGETS)
 
 %: %.o
-	$(CXX) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(INCS) \
+	@echo "LINK $@"
+	$(Q)$(CXX) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(INCS) \
 		-o $@ \
 		$(filter %.o,$^)
 
 %.o: %.cc
-	$(CXX) $(CLFAGS) $(CPPFLAGS) $(INCS) -o $@ -c $<
+	@echo " CXX $@"
+	$(Q)$(CXX) $(CFLAGS) $(CPPFLAGS) $(INCS) -o $@ -c $<
+
+%.o: %.c
+	@echo " CC  $@"
+	$(Q)$(CC) -std=c99 $(CFLAGS) $(CPPFLAGS) $(INCS) -o $@ -c $<
 
 %/all:
 	$(MAKE) -C $* all

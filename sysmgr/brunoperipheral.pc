@@ -8,4 +8,4 @@ Description: Bruno Peripheral Library
 Version: 1.0.0
 Libs: -L${libdir} -lbrunoperipheral
 Libs.private:
-Cflags: -I${includedir}/sysmgr
+Cflags:
