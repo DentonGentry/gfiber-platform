@@ -4,8 +4,8 @@
 #ifndef BUNO_PLATFORM_PERIPHERAL_PERIPHERALMON_H_
 #define BUNO_PLATFORM_PERIPHERAL_PERIPHERALMON_H_
 
-#include "base/constructormagic.h"
-#include "base/time.h"
+#include "bruno/constructormagic.h"
+#include "bruno/time.h"
 #include "platformnexus.h"
 
 namespace bruno_platform_peripheral {

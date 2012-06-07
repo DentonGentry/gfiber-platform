@@ -5,7 +5,7 @@
 #define BUNO_PLATFORM_PERIPHERAL_GPIOFANSPEED_H_
 
 #include "atomic.h"
-#include "base/constructormagic.h"
+#include "bruno/constructormagic.h"
 #include "platformnexus.h"
 
 namespace bruno_platform_peripheral {

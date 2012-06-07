@@ -3,10 +3,10 @@
 
 #include <sstream>
 #include <string>
-#include "base/logging.h"
-#include "base/scoped_ptr.h"
-#include "base/sigslot.h"
-#include "base/thread.h"
+#include "bruno/logging.h"
+#include "bruno/scoped_ptr.h"
+#include "bruno/sigslot.h"
+#include "bruno/thread.h"
 #include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <mtd/ubi-user.h>

@@ -1,8 +1,8 @@
 // Copyright 2012 Google Inc. All Rights Reserved.
 // Author: alicejwang@google.com (Alice Wang)
 
-#include "base/logging.h"
-#include "base/sigslot.h"
+#include "bruno/logging.h"
+#include "bruno/sigslot.h"
 #include "platform.h"
 
 namespace bruno_platform_peripheral {

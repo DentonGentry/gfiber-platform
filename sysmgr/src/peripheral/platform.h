@@ -7,9 +7,9 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include "base/constructormagic.h"
+#include "bruno/constructormagic.h"
 #include "platformnexus.h"
-#include "base/scoped_ptr.h"
+#include "bruno/scoped_ptr.h"
 
 #define PLATFORM_FILE   "/etc/platform"
 

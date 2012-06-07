@@ -16,6 +16,9 @@ install:
 	mkdir -p $(BINDIR)
 	cp $(TARGETS) $(BINDIR)
 
+install-libs:
+	@echo "No libs to install."
+
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 

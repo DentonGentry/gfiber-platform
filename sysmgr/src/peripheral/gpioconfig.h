@@ -4,7 +4,7 @@
 #ifndef BUNO_PLATFORM_PERIPHERAL_GPIOCONFIG_H_
 #define BUNO_PLATFORM_PERIPHERAL_GPIOCONFIG_H_
 
-#include "base/constructormagic.h"
+#include "bruno/constructormagic.h"
 #include "platformnexus.h"
 
 namespace bruno_platform_peripheral {

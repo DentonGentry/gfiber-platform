@@ -4,11 +4,11 @@
 #ifndef BRUNO_PLATFORM_PERIPHERAL_FACTORYRESETBUTTON_H_
 #define BRUNO_PLATFORM_PERIPHERAL_FACTORYRESETBUTTON_H_
 
-#include "base/constructormagic.h"
-#include "base/scoped_ptr.h"
-#include "base/sigslot.h"
-#include "base/thread.h"
-#include "base/time.h"
+#include "bruno/constructormagic.h"
+#include "bruno/scoped_ptr.h"
+#include "bruno/sigslot.h"
+#include "bruno/thread.h"
+#include "bruno/time.h"
 #include "platformnexus.h"
 
 namespace bruno_platform_peripheral {
