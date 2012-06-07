@@ -47,10 +47,10 @@ test:
 	@echo "Nothing to test."
 
 install: all
-	mkdir -p $(BINDIR) $(LIBDIR) $(SODIR)
-	$(INSTALL) -D -m 0755 diagd $(BINDIR)/diagd
-	$(INSTALL) -D -m 0644 diag_kern_err_msgs.txt $(LIBDIR)
-	$(INSTALL) -D -m 0644 diag_kern_warn_msgs.txt $(LIBDIR)
-	$(INSTALL) -D -m 0644 diag_ref_data.txt $(LIBDIR)
-	$(INSTALL) -D -m 0755 lib/libbrunodiag.so $(SODIR)
-	$(INSTALL) -D -m 0755 utest/test_diaglib $(TESTDIR)
+	mkdir -p $(BINDIR) $(LIBDIR) $(SODIR) $(TESTDIR)
+	$(INSTALL) -m 0755 diagd $(BINDIR)/
+	$(INSTALL) -m 0644 diag_kern_err_msgs.txt $(LIBDIR)/
+	$(INSTALL) -m 0644 diag_kern_warn_msgs.txt $(LIBDIR)/
+	$(INSTALL) -m 0644 diag_ref_data.txt $(LIBDIR)/
+	$(INSTALL) -m 0755 lib/libbrunodiag.so $(SODIR)/
+	$(INSTALL) -m 0755 utest/test_diaglib $(TESTDIR)/
