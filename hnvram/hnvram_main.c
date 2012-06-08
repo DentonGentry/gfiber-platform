@@ -37,7 +37,8 @@ typedef enum {
   HNVRAM_STRING,    // NUL-terminated string
   HNVRAM_MAC,       // 00:11:22:33:44:55
   HNVRAM_HMXSWVERS, // 2.15
-  HNVRAM_UINT8      // a single byte, generally 0/1 for a boolean.
+  HNVRAM_UINT8,     // a single byte, generally 0/1 for a boolean.
+  HNVRAM_GPN        // a hex array which should be printed as a string
 } hnvram_format_e;
 
 typedef struct hnvram_field_s {
@@ -58,7 +59,7 @@ const hnvram_field_t nvram_fields[] = {
   {"PLATFORM_NAME",        NVRAM_FIELD_PLATFORM_NAME,     HNVRAM_STRING},
   {"1ST_SERIAL_NUMBER",    NVRAM_FIELD_1ST_SERIAL_NUMBER, HNVRAM_STRING},
   {"2ND_SERIAL_NUMBER",    NVRAM_FIELD_2ND_SERIAL_NUMBER, HNVRAM_STRING},
-  {"GPN",                  NVRAM_FIELD_GPN,               HNVRAM_STRING},
+  {"GPN",                  NVRAM_FIELD_GPN,               HNVRAM_GPN},
   {"MAC_ADDR_MOCA",        NVRAM_FIELD_MAC_ADDR_MOCA,     HNVRAM_STRING},
   {"MAC_ADDR_BT",          NVRAM_FIELD_MAC_ADDR_BT,       HNVRAM_STRING},
   {"HDCP_KEY",             NVRAM_FIELD_HDCP_KEY,          HNVRAM_STRING},
@@ -104,6 +105,19 @@ void format_uint8(const char* data, char* output, int outlen) {
   snprintf(output, outlen, "%u", d[0]);
 }
 
+void format_hexstring(const char* data, int datalen, char* output, int outlen) {
+  const unsigned char* d = (const unsigned char*)data;
+  int i;
+  if (outlen < (datalen * 2 + 1)) {
+    fprintf(stderr, "%s buffer too small %d < %d",
+            __FUNCTION__, outlen, (datalen * 2 + 1));
+    exit(1);
+  }
+  for (i = 0; i < datalen; ++i) {
+    snprintf(output + (i * 2), 3, "%02x", d[i]);
+  }
+}
+
 char* format_nvram(hnvram_format_e format, const char* data,
                    char* output, int outlen) {
   output[0] = '\0';
@@ -112,6 +126,7 @@ char* format_nvram(hnvram_format_e format, const char* data,
     case HNVRAM_MAC:       format_mac(data, output, outlen); break;
     case HNVRAM_HMXSWVERS: format_hmxswvers(data, output, outlen); break;
     case HNVRAM_UINT8:     format_uint8(data, output, outlen); break;
+    case HNVRAM_GPN:       format_hexstring(data, 4, output, outlen); break;
   }
   return output;
 }
@@ -207,6 +222,18 @@ unsigned char* parse_uint8(const char* input,
   return output;
 }
 
+unsigned char* parse_gpn(const char* input,
+                         unsigned char* output, int* outlen) {
+  if (*outlen < 4) return NULL;
+
+  if (sscanf(input, "%02hhx%02hhx%02hhx%02hhx",
+             &output[0], &output[1], &output[2], &output[3]) != 4) {
+    return NULL;
+  }
+  *outlen = 4;
+  return output;
+}
+
 unsigned char* parse_nvram(hnvram_format_e format, const char* input,
                            unsigned char* output, int* outlen) {
   output[0] = '\0';
@@ -222,6 +249,9 @@ unsigned char* parse_nvram(hnvram_format_e format, const char* input,
       break;
     case HNVRAM_UINT8:
       return parse_uint8(input, output, outlen);
+      break;
+    case HNVRAM_GPN:
+      return parse_gpn(input, output, outlen);
       break;
   }
   return NULL;

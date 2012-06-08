@@ -9,7 +9,7 @@ AR:=$(CROSS_PREFIX)ar
 RANLIB:=$(CROSS_PREFIX)ranlib
 STRIP:=$(CROSS_PREFIX)strip
 
-HUMAX_UPGRADE_DIR ?= ../../../../humax/misc/libupgrade
+HUMAX_UPGRADE_DIR ?= ../../../humax/misc/libupgrade
 CFLAGS = -g -Os -I$(HUMAX_UPGRADE_DIR) -L$(HUMAX_UPGRADE_DIR)
 
 ALL: hnvram
@@ -24,7 +24,7 @@ test: hnvram_test
 	./hnvram_test
 
 hnvram_test: hnvram_test.cc hnvram_main.c $(INCS)
-	$(CPP) $(CFLAGS) hnvram_test.cc -o $@ -lgtest -lhmxupgrade
+	$(CPP) $(CFLAGS) hnvram_test.cc -o $@ -lgtest
 
 clean:
 	rm -f hnvram hnvram_test *.o

@@ -4,9 +4,9 @@
 
 #include <stdio.h>
 #include "gtest/gtest.h"
+#include "hmx_upgrade_nvram.h"
 
-#define TEST_MAIN
-#include "hnvram_main.c"
+int libupgrade_verbose = 1;
 
 const char* HMX_NVRAM_GetField_Data = NULL;
 DRV_Error HMX_NVRAM_GetField(NVRAM_FIELD_T field, unsigned int offset,
@@ -37,6 +37,16 @@ DRV_Error HMX_NVRAM_Init(void) {
 DRV_Error HMX_NVRAM_Dir(void) {
   return DRV_OK;
 }
+
+DRV_Error HMX_NVRAM_GetLength(tagNVRAM_FIELD partition, int *pLen) {
+  *pLen = HMX_NVRAM_SetField_Len;
+  return DRV_OK;
+}
+
+
+#define TEST_MAIN
+#include "hnvram_main.c"
+
 
 class HnvramTest : public ::testing::Test {
   public:
@@ -74,20 +84,21 @@ TEST_F(HnvramTest, TestFormat) {
 
   const char vers[] = {0x02, 0x01};
   EXPECT_STREQ("1.2", format_nvram(HNVRAM_HMXSWVERS, vers, out, sizeof(out)));
+
+  const char gpn[] = {0x86, 0x0, 0x4, 0x0};
+  EXPECT_STREQ("86000400", format_nvram(HNVRAM_GPN, gpn, out, sizeof(out)));
 }
 
 TEST_F(HnvramTest, TestGetNvramField) {
   EXPECT_EQ(NULL, get_nvram_field("nosuchfield"));
   EXPECT_EQ(NVRAM_FIELD_SYSTEM_ID, get_nvram_field("SYSTEM_ID")->nvram_type);
-  EXPECT_EQ(NVRAM_FIELD_NAME_OF_BOARD,
-            get_nvram_field("NAME_OF_BOARD")->nvram_type);
 }
 
 TEST_F(HnvramTest, TestReadNvram) {
   char output[256];
   HMX_NVRAM_GetField_Data = "TestSystemId";
   EXPECT_STREQ("SYSTEM_ID=TestSystemId",
-               read_nvram("SYSTEM_ID", output, sizeof(output)));
+               read_nvram("SYSTEM_ID", output, sizeof(output), 0));
 }
 
 TEST_F(HnvramTest, TestParse) {
@@ -121,6 +132,13 @@ TEST_F(HnvramTest, TestParse) {
   EXPECT_TRUE(NULL != parse_nvram(HNVRAM_HMXSWVERS, input, output, &outlen));
   EXPECT_EQ(2, outlen);
   EXPECT_EQ(0, memcmp(vers, output, outlen));
+
+  outlen = sizeof(output);
+  const char gpn[] = {0x86, 0x0, 0x4, 0x0};
+  snprintf(input, sizeof(input), "86000400");
+  EXPECT_TRUE(NULL != parse_nvram(HNVRAM_GPN, input, output, &outlen));
+  EXPECT_EQ(4, outlen);
+  EXPECT_EQ(0, memcmp(gpn, output, outlen));
 }
 
 TEST_F(HnvramTest, TestWriteNvram) {
