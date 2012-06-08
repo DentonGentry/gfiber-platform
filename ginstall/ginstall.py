@@ -24,6 +24,8 @@ MTDBLOCK = '/dev/mtdblock{0}'
 PROC_MTD = '/proc/mtd'
 SYS_UBI0 = '/sys/class/ubi/ubi0/mtd_num'
 UBIFORMAT = '/usr/sbin/ubiformat'
+GZIP_HEADER = '\x1f\x8b\x08\x00'  # encoded as string to ignore endianness
+
 
 # Verbosity of output
 quiet = False
@@ -150,6 +152,11 @@ def GetMtdDevForPartition(name):
   return None
 
 
+def IsDeviceB0():
+  """Returns true if the device is a BCM7425B0 platform."""
+  return open('/proc/cpuinfo').read().find('BCM7425B0') >= 0
+
+
 def RoundTo(orig, mult):
   """Round orig up to a multiple of mult."""
   return ((orig + mult - 1) // mult) * mult
@@ -209,9 +216,10 @@ def InstallToMtd(f, mtd):
   if EraseMtd(mtd):
     raise IOError('Flash erase failed.')
   mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
+  start = f.tell()
   with open(mtdblockname, 'r+b') as mtdfile:
     written = WriteToFile(f, mtdfile)
-    f.seek(0, os.SEEK_SET)
+    f.seek(start, os.SEEK_SET)
     mtdfile.seek(0, os.SEEK_SET)
     if not IsIdentical(f, mtdfile):
       raise IOError('Flash verify failed')
@@ -318,7 +326,7 @@ class TarImage(object):
       return None
 
   def GetLoader(self):
-    if open('/proc/cpuinfo').read().find('BCM7425B0') >= 0:
+    if IsDeviceB0():
       print 'old B0 device: ignoring loader.bin in tarball'
       return None
     try:
@@ -460,6 +468,17 @@ def main():
     kern = img.GetKernel()
     if kern:
       mtd = GetMtdDevForPartition('kernel' + str(pnum))
+      if IsDeviceB0():
+        buf = kern.read(4100)
+        if buf[0:4] != GZIP_HEADER and buf[4096:4100] == GZIP_HEADER:
+          VerbosePrint('old B0 device: removing kernel signing.\n')
+          kern.seek(4096)
+        elif buf[0:4] == GZIP_HEADER:
+          VerbosePrint('old B0 device: no kernel signing, not removing.\n')
+          kern.seek(0)
+        else:
+          print 'old B0 device: unrecognized kernel format.  Aborting.\n'
+          return 1
       VerbosePrint('Writing kernel to {0}'.format(mtd))
       InstallToMtd(kern, mtd)
       VerbosePrint('\n')
