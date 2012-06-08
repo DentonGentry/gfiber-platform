@@ -64,6 +64,10 @@ typedef enum {
   #undef DIAGD_MOCA_LOGGIN_ON
 #endif
 
+#ifndef DIAGD_LOG_ROTATE_ON
+  #define DIAGD_LOG_ROTATE_ON
+#endif
+
 /*
  * Debugging macro
  */

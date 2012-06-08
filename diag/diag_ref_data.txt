@@ -137,3 +137,6 @@
 #  diagWaitTime_MocaMonPerf - Monitor MoCA performance
     WAITTIME.MOCA_MON_PERF = 300
 
+#  diagWaitTime_LogMonRotate - Monitor Diag log rotation
+    WAITTIME.LOG_MON_ROTATION = 900
+

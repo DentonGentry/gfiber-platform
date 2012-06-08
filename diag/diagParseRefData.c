@@ -30,6 +30,19 @@
  *
  *--------------------------------------------------------------------------
  */
+/* -------------------------------------------------------------------------
+ *
+ * Internal defines, types and variables
+ *
+ *--------------------------------------------------------------------------
+ */
+static diagWaitTimeTbl_t diagWaitTimeTbl[MAX_NUM_OF_MONITOR_TIMER] = {
+  {"GET_NET_STATS", &diagWaitTime_getNetStats},
+  {"CHK_KERN_MSGS", &diagWaitTime_chkKernMsgs},
+  {"MOCA_CHK_ERRS", &diagWaitTime_MocaChkErrs},
+  {"MOCA_MON_PERF", &diagWaitTime_MocaMonPerf},
+  {"LOG_MON_ROTATION", &diagWaitTime_LogMonRotate}
+};
 
 
 /* -------------------------------------------------------------------------
@@ -139,6 +152,31 @@ void diagSetDiagtThresholds(char *pMemberName, char *pValue)
   
 } /* end of diagSetDiagtThresholds */
 
+/*
+ * This routine lookup diagWaitTimeTbl
+ * If pMemberName string matches timerName
+ * return address of global diag wait time variable.
+ *
+ * Input:
+ * pMemberName - Point to a 'Member' string.
+ *
+ * Output:
+ * pDiagWaitTime - if found
+ * NULL          - Otherwise
+ *
+ */
+time_t *diagGetWaitTime(char *pMemberName)
+{
+  int i;
+
+  for (i = 0; i < MAX_NUM_OF_MONITOR_TIMER; i++) {
+    if (strcasecmp(pMemberName, diagWaitTimeTbl[i].timerName) == 0) {
+      return  diagWaitTimeTbl[i].pDiagWaitTime;
+    }
+  }
+
+  return (time_t *) NULL;
+}
 
 /*
  * This routine updates the diag intervals
@@ -152,39 +190,19 @@ void diagSetDiagtThresholds(char *pMemberName, char *pValue)
  */
 void diagSetDiagWaitTime(char *pMemberName, char *pValue)
 {
+  time_t *pDiagWaitTime = NULL;
+
   DIAGD_ENTRY("%s: pMemberName= %s, pValue= %s", __func__, pMemberName, pValue);
 
-  do {
-    /* Wait time of getting net statistics*/
-    if (strcasecmp(pMemberName, "GET_NET_STATS") == 0) {
-      /* Update the data if is valid, otherwise remain the default value */
-      diagSetUint32Value(pValue, (uint32_t *)&diagWaitTime_getNetStats);
-      break;
-    }
+  pDiagWaitTime = diagGetWaitTime(pMemberName);
 
-    /* Wait time of checking kernel messages (printk) */
-    if (strcasecmp(pMemberName, "CHK_KERN_MSGS") == 0) {
-      /* Update the data if is valid, otherwise remain the default value */
-      diagSetUint32Value(pValue, (uint32_t *)&diagWaitTime_chkKernMsgs);
-      break;
-    }
-
-    /* Wait time of monitoring MoCA errs */
-    if (strcasecmp(pMemberName, "MOCA_CHK_ERRS") == 0) {
-      /* Update the data if is valid, otherwise remain the default value */
-      diagSetUint32Value(pValue, (uint32_t *)&diagWaitTime_MocaChkErrs);
-      break;
-    }
-
-    /* Wait time of checking MoCA performance */
-    if (strcasecmp(pMemberName, "MOCA_MON_PERF") == 0) {
-      /* Update the data if is valid, otherwise remain the default value */
-      diagSetUint32Value(pValue, (uint32_t *)&diagWaitTime_MocaMonPerf);
-      break;
-    }
-    
-  } while (false);
-  
+  if (pDiagWaitTime != NULL) {
+    diagSetUint32Value(pValue, (uint32_t *)pDiagWaitTime);
+  }
+  else {
+    DIAGD_DEBUG("%s: pMemberName = %s diagGetWaitTime() return NULL!",
+                __func__, pMemberName);
+  }
 } /* end of diagSetDiagWaitTime */
 
 

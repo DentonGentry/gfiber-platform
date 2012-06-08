@@ -40,9 +40,13 @@ bool   diag_moca_monErrCnts_firstRun = true;
 time_t diagStartTm_moca_monErrCnts = 0;
 
 
-/* Start time of Diag_MonMoca_Err_Counts() */
+/* Start time of Diag_MonMoca_ServicePerf() */
 bool   diag_moca_monServicePerf_firstRun = true;
 time_t diagStartTm_moca_monServicePerf = 0;
+
+/* Start time of Diag_MonLog_Rotate() */
+bool   diag_monLogRotate_firstRun = true;
+time_t diagStartTm_mon_LogRotate = 0;
 
 /* 
  * Monitoring thresholds
@@ -74,6 +78,8 @@ time_t  diagWaitTime_chkKernMsgs = DIAG_WAIT_TIME_RUN_CHK_KMSG;
 time_t  diagWaitTime_MocaChkErrs = DIAG_WAIT_TIME_MOCA_MON_ERR_CNTS;
 /* Wait time of monitoring MoCA performance */
 time_t  diagWaitTime_MocaMonPerf = DIAG_WAIT_TIME_MOCA_MON_SERVICE_PERF;
+/* Wait time of monitoring log rotation */
+time_t  diagWaitTime_LogMonRotate = DIAG_WAIT_TIME_LOG_MON_ROTATION;
 
 
 /* -------------------------------------------------------------------------
@@ -130,6 +136,10 @@ bool checkIfTimeout(int diagdApiIdx)
     else if (diagdApiIdx == DIAG_API_IDX_MOCA_MON_SERVICE_PERF) {
       startTime   = diagStartTm_moca_monServicePerf;
       maxWaitTime = diagWaitTime_MocaMonPerf;
+    }
+    else if (diagdApiIdx == DIAG_API_IDX_LOG_MON_ROTATION) {
+      startTime   = diagStartTm_mon_LogRotate;
+      maxWaitTime = diagWaitTime_LogMonRotate;
     }
     else {
       break;    /* Bad API index (Shouldn't get here). Exit */
@@ -600,6 +610,48 @@ int Diag_MonMoca_ServicePerf(void)
   return(rtn);
 
 } /* end of Diag_MonMoca_ServicePerf */
+
+/*
+ * Monitor Diag log rotation
+ *
+ * Input:
+ * None
+ *
+ * Output:
+ * DIAGD_RC_OK - OK
+ */
+int Diag_MonLog_Rotate(void)
+{
+  int   rtn = DIAGD_RC_OK;          /* default is OK */
+
+  DIAGD_TRACE("%s: enter", __func__);
+
+  do {
+
+    if (diag_monLogRotate_firstRun == false) {
+      /* Check if wait time is expired */
+      if (checkIfTimeout(DIAG_API_IDX_LOG_MON_ROTATION) == false) {
+        break;        /* Wait time is not expired. Exit */
+      }
+    }
+    else {
+      /* It is first time running routine after power-up. */
+      diag_monLogRotate_firstRun= false;     /* Clear the flag. */
+    }
+
+    /* Update the starting time of the api */
+    time(&diagStartTm_mon_LogRotate);
+
+    /* Monitor Log Rotation */
+    diagLogRotate();
+
+  } while (false);
+
+  DIAGD_EXIT("%s: exit", __func__);
+
+  return(rtn);
+
+} /* end of Diag_MonLog_Rotate */
 
 /*
  * Cleanup of diagd
