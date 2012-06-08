@@ -4,7 +4,7 @@
 #ifndef BRUNO_PLATFORM_PERIPHERAL_FANCONTROL_H_
 #define BRUNO_PLATFORM_PERIPHERAL_FANCONTROL_H_
 
-#include "base/constructormagic.h"
+#include "bruno/constructormagic.h"
 #include "platformnexus.h"
 #include "platform.h"
 

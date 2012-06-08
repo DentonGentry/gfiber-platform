@@ -54,3 +54,6 @@ install: all
 	$(INSTALL) -m 0644 diag_ref_data.txt $(LIBDIR)/
 	$(INSTALL) -m 0755 lib/libbrunodiag.so $(SODIR)/
 	$(INSTALL) -m 0755 utest/test_diaglib $(TESTDIR)/
+
+install-libs:
+	@echo "No libs to install."

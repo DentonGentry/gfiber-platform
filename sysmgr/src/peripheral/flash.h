@@ -14,9 +14,9 @@
 #include <unistd.h>
 #include <sys/reboot.h>
 #include <linux/reboot.h>
-#include "base/constructormagic.h"
+#include "bruno/constructormagic.h"
 #include "platformnexus.h"
-#include "base/scoped_ptr.h"
+#include "bruno/scoped_ptr.h"
 #include "common.h"
 #include "factoryresetbutton.h"
 #include "ubifsmon.h"

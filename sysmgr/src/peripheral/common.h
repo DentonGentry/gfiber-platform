@@ -13,7 +13,7 @@
 #include <unistd.h>
 #include <sys/reboot.h>
 #include <linux/reboot.h>
-#include "base/constructormagic.h"
+#include "bruno/constructormagic.h"
 
 namespace bruno_platform_peripheral {
 

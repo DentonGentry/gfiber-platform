@@ -5,7 +5,7 @@
 #define BRUNO_PLATFORM_PERIPHERAL_UNMUTE_H_
 
 #include "atomic.h"
-#include "base/constructormagic.h"
+#include "bruno/constructormagic.h"
 #include "platformnexus.h"
 
 namespace bruno_platform_peripheral {

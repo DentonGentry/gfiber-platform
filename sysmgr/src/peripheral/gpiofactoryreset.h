@@ -4,8 +4,8 @@
 #ifndef BUNO_PLATFORM_PERIPHERAL_GPIOFACTORYRESET_H_
 #define BUNO_PLATFORM_PERIPHERAL_GPIOFACTORYRESET_H_
 
-#include "base/constructormagic.h"
-#include "base/sigslot.h"
+#include "bruno/constructormagic.h"
+#include "bruno/sigslot.h"
 #include "platformnexus.h"
 
 namespace bruno_platform_peripheral {

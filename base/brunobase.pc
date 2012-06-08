@@ -8,4 +8,4 @@ Description: Bruno Base Utility Library
 Version: 1.0.0
 Libs: -L${libdir} -lbrunobase
 Libs.private: 
-Cflags: -DPOSIX -DLINUX -D_DEBUG -DLOGGING=1 -I${includedir}/base
+Cflags: -DPOSIX -DLINUX -D_DEBUG -DLOGGING=1 -I${includedir}/bruno

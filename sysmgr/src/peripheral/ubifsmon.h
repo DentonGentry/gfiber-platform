@@ -4,14 +4,14 @@
 #ifndef BRUNO_PLATFORM_PERIPHERAL_UBIFSMON_H_
 #define BRUNO_PLATFORM_PERIPHERAL_UBIFSMON_H_
 
-#include "base/logging.h"
-#include "base/thread.h"
+#include "bruno/logging.h"
+#include "bruno/thread.h"
 #include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "base/constructormagic.h"
-#include "base/sigslot.h"
-#include "base/time.h"
+#include "bruno/constructormagic.h"
+#include "bruno/sigslot.h"
+#include "bruno/time.h"
 
 
 namespace bruno_platform_peripheral {

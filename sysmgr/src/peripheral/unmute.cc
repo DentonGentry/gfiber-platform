@@ -1,8 +1,8 @@
 // Copyright 2012 Google Inc. All Rights Reserved.
 // Author: roylou@google.com (Roy Lou)
 
-#include "base/logging.h"
-#include "base/sigslot.h"
+#include "bruno/logging.h"
+#include "bruno/sigslot.h"
 #include "gpioconfig.h"
 #include "gpio.h"
 #include "unmute.h"
