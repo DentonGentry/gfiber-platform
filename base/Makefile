@@ -32,7 +32,7 @@ install: all
 install-libs: all
 	echo 'staging-install=$(INSTALL)'
 	mkdir -p $(INCLUDEDIR) $(LIBDIR) $(LIBDIR)/pkgconfig
-	$(INSTALL) -m 0644 *.h $(INCLUDEDIR)/
+	$(INSTALL) -m 0644 bruno/*.h $(INCLUDEDIR)/
 	$(INSTALL) -m 0644 brunobase.pc $(LIBDIR)/pkgconfig/
 	$(INSTALL) -m 0755 libbrunobase.so libbrunobase.a $(LIBDIR)/
 

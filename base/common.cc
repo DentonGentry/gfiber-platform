@@ -39,8 +39,8 @@
 #endif  // OSX
 
 #include <algorithm>
-#include "common.h"
-#include "logging.h"
+#include "bruno/common.h"
+#include "bruno/logging.h"
 
 //////////////////////////////////////////////////////////////////////
 // Assertions

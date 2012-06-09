@@ -27,10 +27,10 @@
 
 #include <algorithm>
 
-#include "taskparent.h"
+#include "bruno/taskparent.h"
 
-#include "task.h"
-#include "taskrunner.h"
+#include "bruno/task.h"
+#include "bruno/taskrunner.h"
 
 namespace bruno_base {
 

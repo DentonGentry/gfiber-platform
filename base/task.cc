@@ -25,9 +25,9 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "task.h"
-#include "common.h"
-#include "taskrunner.h"
+#include "bruno/task.h"
+#include "bruno/common.h"
+#include "bruno/taskrunner.h"
 
 namespace bruno_base {
 

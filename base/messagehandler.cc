@@ -25,8 +25,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "messagehandler.h"
-#include "messagequeue.h"
+#include "bruno/messagehandler.h"
+#include "bruno/messagequeue.h"
 
 namespace bruno_base {
 

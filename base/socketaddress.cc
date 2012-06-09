@@ -37,11 +37,11 @@
 
 #include <sstream>
 
-#include "byteorder.h"
-#include "common.h"
-#include "logging.h"
-#include "nethelpers.h"
-#include "socketaddress.h"
+#include "bruno/byteorder.h"
+#include "bruno/common.h"
+#include "bruno/logging.h"
+#include "bruno/nethelpers.h"
+#include "bruno/socketaddress.h"
 
 #ifdef WIN32
 // Win32 doesn't provide inet_aton, so we add our own version here.
