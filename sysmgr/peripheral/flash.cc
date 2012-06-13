@@ -381,7 +381,8 @@ void Flash::OnMessage(bruno_base::Message* msg) {
   switch (type) {
     case EVENT_FACTORY_RESET:
       LOG(LS_VERBOSE) << "Received message EVENT_FACTORY_RESET" << std::endl;
-      FactoryReset();
+      LOG(LS_VERBOSE) << "EVENT_FACTORY_RESET ignored" << std::endl;
+      // FactoryReset();
       break;
     case EVENT_ERASE_RO_VOL:
       LOG(LS_VERBOSE) << "Received message EVENT_ERASE_RO_VOL" << std::endl;
