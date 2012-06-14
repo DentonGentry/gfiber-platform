@@ -18,9 +18,9 @@ RM=rm -f
 INCS=-Iperipheral -I../base
 CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W
 CPPFLAGS=$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags nexus brunobase)))
-LDFLAGS=-Lperipheral -L../base -lbrunoperipheral \
-	$(shell $(PKG_CONFIG) --libs nexus brunobase)
-OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
+LDFLAGS=$(shell $(PKG_CONFIG) --libs nexus)
+SYSMGR_LDFLAGS=-Lperipheral -L../base -lbrunoperipheral \
+	$(shell $(PKG_CONFIG) --libs brunobase)
 
 all: $(TARGETS)
 
@@ -37,6 +37,8 @@ sysmgr: |peripheral/all
 utest/install: utest/all
 sysmgr: sysmgr.o
 gpio-mailbox: gpio-mailbox.o
+
+sysmgr: LDFLAGS+=$(SYSMGR_LDFLAGS)
 
 install-libs: all
 	mkdir -p $(INCLUDEDIR)/sysmgr $(LIBDIR)/pkgconfig
