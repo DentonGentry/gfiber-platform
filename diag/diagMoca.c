@@ -1355,8 +1355,6 @@ int diagMoca_MonServicePerf()
     /* Check the link status of self node */
     if (pStatus->generalStatus.linkStatus == MoCA_LINK_DOWN) {
       DIAGD_TRACE("%s: linkstatus = DOWN", __func__);
-      DIAGD_LOG_WARN("MoCA: linkstatus = DOWN");
-      diagMocaMyStatusLog("", pStatus);
       break;
     }
 
@@ -1394,7 +1392,6 @@ int diagMoca_MonServicePerf()
     if (pPerfStatus->noConnectedNodes < 2) {
       DIAGD_TRACE("%s: no of connected nodes = %d",
                   __func__, pPerfStatus->noConnectedNodes);
-      diagMocaMyStatusLog("", pStatus);
       break;
     }
 
