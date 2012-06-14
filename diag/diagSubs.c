@@ -1011,14 +1011,14 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode)
  * Initailization of diagd
  *
  * Input:
- * None
+ *  refFile - reference data filename
  *
  * Output:
  * DIAGD_RC_OK  - OK
  * others       - Initialization failed
  *
  */
-int diagd_Init()
+int diagd_Init(char *refFile)
 {
   int   rtn = DIAGD_RC_OK;          /* default is OK */
   int   i;
@@ -1065,7 +1065,12 @@ int diagd_Init()
     }
 
     /* Parse the reference data */
-    diagReadDiagDataFile(DIAGD_REF_DATA_FILE);
+    if (refFile != NULL) {
+      diagReadDiagDataFile(refFile);
+    }
+    else {
+      diagReadDiagDataFile(DIAGD_REF_DATA_FILE);
+    }
 
     DIAGD_TRACE("%s - rtn=0x%X", __func__, rtn);
 

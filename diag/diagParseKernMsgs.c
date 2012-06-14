@@ -31,10 +31,10 @@
 
 
 /* Lists of kernel critical/error messages to be monitoring. */
-#define KERN_ERR_MSGS_FILE    "/user/diag/diag_kern_err_msgs.txt"
+#define KERN_ERR_MSGS_FILE    "/usr/lib/diag/diag_kern_err_msgs.txt"
 
 /* Lists of kernel warning messages to be monitoring. */
-#define KERN_WARN_MSGS_FILE   "/user/diag/diag_kern_warn_msgs.txt"
+#define KERN_WARN_MSGS_FILE   "/usr/lib/diag/diag_kern_warn_msgs.txt"
 
 /* monitoring kernel message from /proc/kmsg */
 #define KERN_PROC_KMSG_FS     "/proc/kmsg"

@@ -306,6 +306,7 @@ extern time_t  diagWaitTime_MocaChkErrs;
 /* Wait time of monitoring MoCA performance */
 extern time_t  diagWaitTime_MocaMonPerf;
 
+
 /*
  * Prototypes
  */

@@ -104,7 +104,7 @@ int diag_Get_Netlink_State(netif_netlink_t *netif_linkstate);
 
 int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode);
 
-int diagd_Init();
+int diagd_Init(char *refFile);
 
 int diag_CmdHandler_Init(void);
 void diag_CmdHandler_Uninit(void);
