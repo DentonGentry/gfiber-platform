@@ -34,8 +34,6 @@
 #define PWM_26_KHZ 0x4000
 #define PWM_206_HZ 0x0080
 
-#define SOC_MULTI_VALUE_IN_FLOAT 1000.0
-
 #define CHECK(x) do { \
     int rv = (x); \
     if (rv) { \
@@ -126,7 +124,7 @@ static void set_pwm(struct Pwm *p, int percent) {
 static double get_cpu_temperature(void) {
   NEXUS_AvsStatus status;
   CHECK(NEXUS_GetAvsStatus(&status));
-  return status.temperature / SOC_MULTI_VALUE_IN_FLOAT;
+  return status.temperature / 100 / 10.0;  // round to nearest 0.1
 }
 
 
@@ -134,7 +132,7 @@ static double get_cpu_temperature(void) {
 static double get_cpu_voltage(void) {
   NEXUS_AvsStatus status;
   CHECK(NEXUS_GetAvsStatus(&status));
-  return status.voltage / SOC_MULTI_VALUE_IN_FLOAT;
+  return status.voltage / 10 / 100.0;  // round to nearest 0.01
 }
 
 
@@ -166,6 +164,7 @@ static void set_gpio(struct Gpio *g, int level) {
     //      won't interfere with it.
     return;
   }
+  g->old_val = level;
 
   NEXUS_GpioValue val;
   switch (level) {
@@ -218,11 +217,11 @@ static void set_leds_from_bitfields(int fields) {
 // Returns a static buffer.  Be careful!
 static char *read_file(const char *filename) {
   static char buf[1024];
-  FILE *fp = fopen(filename, "r");
-  if (fp) {
-    size_t got = fread(buf, 1, sizeof(buf) - 1, fp);
+  int fd = open(filename, O_RDONLY);
+  if (fd >= 0) {
+    size_t got = read(fd, buf, sizeof(buf) - 1);
     buf[got] = '\0';
-    fclose(fp);
+    close(fd);
     return buf;
   }
   buf[0] = '\0';
@@ -234,10 +233,10 @@ static char *read_file(const char *filename) {
 static void write_file(const char *filename, const char *content) {
   char *tmpname = malloc(strlen(filename) + 4 + 1);
   sprintf(tmpname, "%s.tmp", filename);
-  FILE *fp = fopen(tmpname, "w");
-  if (fp) {
-    fwrite(content, 1, strlen(content), fp);
-    fclose(fp);
+  int fd = open(tmpname, O_WRONLY|O_CREAT|O_TRUNC, 0666);
+  if (fd >= 0) {
+    write(fd, content, strlen(content));
+    close(fd);
     rename(tmpname, filename);
   }
   free(tmpname);
@@ -294,12 +293,18 @@ static void read_led_sequence_file(const char *filename) {
 
 
 // switch to the next led combination in led_sequence.
-static void led_sequence_next(void) {
+static void led_sequence_update(bool next) {
   static unsigned i;
+
+  // if the 'activity' file exists, unlink() will succeed, giving us exactly
+  // one inversion of the activity light.  That causes exactly one delightful
+  // blink.
+  int activity_toggle = (unlink("activity") == 0) ? 0x04 : 0;
+
   if (i >= led_sequence_len)
     i = 0;
-  set_leds_from_bitfields(led_sequence[i]);
-  i++;
+  set_leds_from_bitfields(led_sequence[i] ^ activity_toggle);
+  if (next) i++;
 }
 
 
@@ -358,48 +363,74 @@ void run_gpio_mailbox(void) {
   signal(SIGSEGV, sig_handler);
   signal(SIGFPE, sig_handler);
 
-  int ticks_per_led = 0, reads = 0, fan_flips = 0, last_fan = 0, cur_fan;
-  long long last_time = msec_now(), last_print = msec_now(), reset_start = 0;
+  int inner_loop_ticks = 0, msec_per_led = 0;
+  int reads = 0, fan_flips = 0, last_fan = 0, cur_fan;
+  long long last_time = msec_now(), last_print_time = msec_now(),
+      last_led = 0, reset_start = 0;
   long long fanspeed = 0, reset_amt = 0, readyval = 0;
   double cpu_temp = 0.0, cpu_volts = 0.0;
   int wantspeed_warned = 0;
   while (!shutdown_sig) {
-    // blink the leds
-    read_led_sequence_file("leds");
-    assert(led_sequence_len > 0);
-    led_sequence_next();
-    ticks_per_led = POLL_HZ / led_sequence_len + 1;
-
-    // set the fan speed control
-    char *wantspeed_str = read_file("fanpercent");
-    int wantspeed;
-    if (wantspeed_str[0]) {
-      wantspeed = strtol(wantspeed_str, NULL, 0);
-      wantspeed_warned = 0;
-    } else {
-      if (!wantspeed_warned)
-        fprintf(stderr, "gpio/fanpercent is empty: using default value\n");
-      wantspeed_warned = 1;
-      wantspeed = 30;
-    }
-    set_pwm(&fan_control, wantspeed);
-
-    // capture the fan cycle counter
     long long now = msec_now();
-    write_file_int("fanspeed", &fanspeed,
-                   fan_flips * 1000 / (now - last_time + 1));
-    last_time = now;
 
-    // capture the CPU temperature and voltage
-    write_file_float("cpu_temperature", &cpu_temp, get_cpu_temperature());
-    write_file_float("cpu_voltage", &cpu_volts, get_cpu_voltage());
+    // blink the leds
+    if (now - last_led >= msec_per_led) {
+      read_led_sequence_file("leds");
+      assert(led_sequence_len > 0);
+      inner_loop_ticks = POLL_HZ / led_sequence_len + 1;
+      while (inner_loop_ticks > POLL_HZ / 16) {
+        // make sure we poll at least every 1/8 of a second, or else the
+        // activity light won't blink impressively enough.
+        inner_loop_ticks /= 2;
+      }
+      msec_per_led = 1000 / led_sequence_len + 1;
+      led_sequence_update(true);
+      last_led = now;
+    } else {
+      led_sequence_update(false);
+    }
 
-    if (now - last_print >= 5000) {
+    if (now - last_time > 2000) {
+      // set the fan speed control
+      char *wantspeed_str = read_file("fanpercent");
+      int wantspeed;
+      if (wantspeed_str[0]) {
+        wantspeed = strtol(wantspeed_str, NULL, 0);
+        if (wantspeed < 0 || wantspeed > 100) {
+          if (wantspeed_warned != wantspeed) {
+            fprintf(stderr, "gpio/fanpercent (%d) is invalid: must be 0-100\n",
+                    wantspeed);
+            wantspeed_warned = wantspeed;
+          }
+          wantspeed = 100;
+        } else {
+          wantspeed_warned = 0;
+        }
+      } else {
+        if (wantspeed_warned != 1)
+            fprintf(stderr, "gpio/fanpercent is empty: using default value\n");
+        wantspeed_warned = 1;
+        wantspeed = 100;
+      }
+      set_pwm(&fan_control, wantspeed);
+
+      // capture the fan cycle counter
+      write_file_int("fanspeed", &fanspeed,
+                     fan_flips * 1000 / (now - last_time + 1));
+      fan_flips = reads = 0;
+
+      // capture the CPU temperature and voltage
+      write_file_float("cpu_temperature", &cpu_temp, get_cpu_temperature());
+      write_file_float("cpu_voltage", &cpu_volts, get_cpu_voltage());
+      last_time = now;
+    }
+
+    if (now - last_print_time >= 6000) {
       fprintf(stderr,
               "fan_flips:%lld/sec reads:%d button:%d temp:%.2f volts:%.2f\n",
               fanspeed, reads,
               get_gpio(&reset_button), cpu_temp, cpu_volts);
-      last_print = now;
+      last_print_time = now;
     }
 
     // handle the reset button
@@ -413,8 +444,7 @@ void run_gpio_mailbox(void) {
     }
 
     // capture the fan ticks
-    fan_flips = reads = 0;
-    for (int tick = 0; tick < ticks_per_led; tick++) {
+    for (int tick = 0; tick < inner_loop_ticks; tick++) {
       cur_fan = get_gpio(&fan_tick);
       if (last_fan && !cur_fan)
         fan_flips++;
