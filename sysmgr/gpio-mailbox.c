@@ -62,6 +62,7 @@ struct Pwm {
   unsigned int channel;
 
   NEXUS_PwmChannelHandle handle;
+  int old_percent;
 };
 
 
@@ -92,7 +93,7 @@ struct Gpio fan_tick = {
   NEXUS_GpioMode_eInput, NEXUS_GpioInterrupt_eDisabled/*eFallingEdge*/, 0, -1
 };
 
-struct Pwm fan_control = { 0, 0 };
+struct Pwm fan_control = { 0, 0, -1 };
 
 
 // Open the given PWM.  You have to do this before writing it.
@@ -112,6 +113,8 @@ static void pwm_open(struct Pwm *p) {
 static void set_pwm(struct Pwm *p, int percent) {
   if (percent < 0) percent = 0;
   if (percent > 100) percent = 100;
+  if (p->old_percent == percent) return;
+  p->old_percent = percent;
   CHECK(NEXUS_Pwm_SetControlWord(p->handle, PWM_26_KHZ));
   CHECK(NEXUS_Pwm_SetPeriodInterval(p->handle, 99));
   CHECK(NEXUS_Pwm_SetOnInterval(p->handle, percent));
