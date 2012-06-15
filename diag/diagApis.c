@@ -828,9 +828,11 @@ int diag_GetNetifLinkStats(char *outBuf, char *pNetif_name)
   return(rtn);
 }
 
+#define MAX_NUM_OF_NETIF 3
 /*
  * Query to get the network interface's status and statistcs.
- * Currently it provides the information for "eth0" and "eth1" only.
+ * Currently it provides the information for "eth0", "eth1"(MoCA)
+ * and "eth2"(wl).
  * This function could be modified in order to support other
  * network interfaces if they are required in the future.
  *
@@ -844,45 +846,40 @@ int diag_GetNetifLinkStats(char *outBuf, char *pNetif_name)
  */
 int diag_CmdHandler_GetNetifLinkStats(void)
 {
-   int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
-   char outBuf[1024];
-   char *ptr = NULL;
-   int  tmpLen = 0;
-   char *pNetif_name[2] = {"eth0", "eth1"};
+  int rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
+  char outBuf[1024];
+  char *ptr = &outBuf[0];
+  int  tmpLen = 0;
+  char *pNetif_name[MAX_NUM_OF_NETIF] = {"eth0", "eth1", "eth2"};
+  int  i;
 
-   /* get "eth0" link status and statistics */
-   rtn = diag_GetNetifLinkStats(outBuf, pNetif_name[0]);
+  DIAGD_ENTRY("%s", __func__);
 
-   if (rtn == DIAGD_RC_OK) {
-     tmpLen = strlen(outBuf);
-     outBuf[tmpLen] = '\0';
-     ptr = outBuf + tmpLen;
+  for (i = 0; i < MAX_NUM_OF_NETIF; i++) {
+    rtn = diag_GetNetifLinkStats(ptr, pNetif_name[i]);
 
-     /* get "eth1" link status and statistics */
-     rtn = diag_GetNetifLinkStats(ptr, pNetif_name[1]);
+    if (rtn == DIAGD_RC_OK) {
+      tmpLen = strlen(outBuf);
+      outBuf[tmpLen] = '\0';
+      ptr = &outBuf[tmpLen];
+    }
+  }  /* for (i=0; i < MAX_NUM_OF_NETIF; i++) */
 
-     if (rtn == DIAGD_RC_OK) {
-       /* Send network link status to remote */
-       outBuf[strlen(outBuf)] = '\0';
-       diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, (uint8_t *)&outBuf[0],
-                    strlen(outBuf)+1);  /* total length of output string */
-     } else {
-       /* failed to get "eth1" link status and statistics
-        * Send eth0 link status to remote
-        */
-       outBuf[tmpLen] = '\0';
-       diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, (uint8_t *)&outBuf[0],
-                    strlen(outBuf)+1);  /* total length of output string */
-     }
-   } else {
-     /* Failed. Send empty payload to indicate the request failed */
-     diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, NULL, 0);
-   }
+  outBuf[strlen(outBuf)] = '\0';
+  /* check if any available link status & statistics */
+  if (ptr  > outBuf) {
+    diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, (uint8_t *)&outBuf[0],
+        strlen(outBuf)+1);  /* total length of output string */
+    rtn = DIAGD_RC_OK;
+  } else {
+    diag_sendRsp(DIAGD_RSP_GET_NET_LINK_STATS, NULL, 0);
+  }
 
-  DIAGD_EXIT("%s: rtn=0x%x", __func__, rtn);
+  DIAGD_EXIT("%s: rtn=0x%X", __func__, rtn);
 
   return(rtn);
 }
+
 /*
  * Validate and process the received request
  *
