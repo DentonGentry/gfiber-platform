@@ -849,6 +849,13 @@ void diagTest_Print_KernMsgsReport(char *pPayload) {
   printf("%s", pPayload);
 }
 
+display_LoopbackTestMsg() {
+  printf("The thin Bruno will be rebooted once the loopback test is done!\n");
+  printf("To check the loopback test result. You need to wait until\n");
+  printf("the bruno box is up and running. Then select option 2.\n");
+  printf("\n");
+}
+
 int main(int argc, char *argv[]) {
   struct sockaddr_in my_addr;
   char *pBuffer = NULL;
@@ -978,7 +985,7 @@ int main(int argc, char *argv[]) {
           /* ignore for now */
         }
       } while (true);
-    }
+    }  /* if (cmdIdx) */
     else {
       
       pTmpPayload = pPayload;
@@ -1007,6 +1014,7 @@ int main(int argc, char *argv[]) {
           /* command completed */
           printf("\nCommand Completed: total_recv_bytecount=%d.\n\n", 
                  total_recv_bytecount);
+          err = 0;
           break;
         } 
 
@@ -1016,6 +1024,7 @@ int main(int argc, char *argv[]) {
           fprintf(stderr, "Recved too many data(expected=%u, actual=%u)\n",
                   msgLen, (total_recv_bytecount + bytecount));
           break;
+          err = 1;
         }
 
         memcpy(pTmpPayload, pBuffer, bytecount);
@@ -1025,6 +1034,15 @@ int main(int argc, char *argv[]) {
 
       } while (true);
 
+      if (cmdIdx == DIAGD_REQ_RUN_TESTS) {
+        display_LoopbackTestMsg();
+        continue;
+      }
+
+      if (!total_recv_bytecount || err) {
+        printf("No available information is received from the thin Bruno!\n\n");
+        continue;
+      }
       /* Parse the following responses */
       switch (cmdIdx) {
         case DIAGD_REQ_MOCA_GET_CONN_INFO:
@@ -1087,7 +1105,7 @@ int main(int argc, char *argv[]) {
           break;
       }  /* end of switch */
 
-    }  /* if (cmdIdx) */
+    }  /* else (cmdIdx) */
 
   } while (true);
 
