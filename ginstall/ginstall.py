@@ -191,6 +191,8 @@ def WriteToFile(srcfile, dstfile):
 
 def IsIdentical(srcfile, dstfile):
   """Compare srcfile and dstfile. Return true if contents are identical."""
+  srcfile.seek(0, os.SEEK_SET)
+  dstfile.seek(0, os.SEEK_SET)
   sbuf = srcfile.read(BUFSIZE)
   dbuf = dstfile.read(len(sbuf))
   while sbuf and dbuf:
