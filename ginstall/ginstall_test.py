@@ -57,6 +57,20 @@ class ImginstTest(unittest.TestCase):
         open("testdata/img/loader_bad.sig"),
         open("testdata/img/public.der")))
 
+  def testIsIdentical(self):
+    self.assertFalse(ginstall.IsIdentical(
+        open("testdata/img/loader.bin"),
+        open("testdata/img/loader1.bin")))
+
+  def testVerifyAndIsIdentical(self):
+    loader = open("testdata/img/loader.bin")
+    self.assertTrue(ginstall.Verify(
+        loader,
+        open("testdata/img/loader.sig"),
+        open("testdata/img/public.der")))
+    self.assertFalse(ginstall.IsIdentical(
+        loader, open("testdata/img/loader1.bin")))
+
   def testGetMtdNum(self):
     self.assertEqual(ginstall.GetMtdNum(3), 3)
     self.assertEqual(ginstall.GetMtdNum("3"), 3)
@@ -188,8 +202,8 @@ class ImginstTest(unittest.TestCase):
     # check that ubiformat was run.
     ubiout.seek(0, os.SEEK_SET)
     # 2097152 is the eraseblock size in testdata/proc/mtd for mtd9
-    self.assertEqual(ubiout.readline(), "/dev/mtd9 -f - -y -q -S 2097152\n")
-    self.assertEqual(ubiout.readline(), "4096\n")
+    self.assertEqual(ubiout.readline().strip(), "/dev/mtd9 -f - -y -q -S 2097152")
+    self.assertEqual(ubiout.readline().strip(), "4096")
 
   def testWriteUbiException(self):
     ginstall.PROC_MTD = "testdata/proc/mtd"
