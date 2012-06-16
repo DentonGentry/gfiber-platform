@@ -34,8 +34,8 @@
 #include <windows.h>
 #endif
 
-#include "common.h"
-#include "time.h"
+#include "bruno/common.h"
+#include "bruno/time.h"
 
 #define EFFICIENT_IMPLEMENTATION 1
 

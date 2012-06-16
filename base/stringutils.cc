@@ -25,8 +25,8 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "stringutils.h"
-#include "common.h"
+#include "bruno/stringutils.h"
+#include "bruno/common.h"
 
 namespace bruno_base {
 

@@ -47,11 +47,11 @@ static const int kMaxLogLineSize = 1024 - 60;
 #include <iomanip>
 #include <vector>
 
-#include "logging.h"
-#include "stream.h"
-#include "stringencode.h"
-#include "stringutils.h"
-#include "time.h"
+#include "bruno/logging.h"
+#include "bruno/stream.h"
+#include "bruno/stringencode.h"
+#include "bruno/stringutils.h"
+#include "bruno/time.h"
 
 namespace bruno_base {
 

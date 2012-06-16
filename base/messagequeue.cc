@@ -33,10 +33,10 @@
 #include <sys/time.h>
 #endif
 
-#include "common.h"
-#include "logging.h"
-#include "messagequeue.h"
-#include "physicalsocketserver.h"
+#include "bruno/common.h"
+#include "bruno/logging.h"
+#include "bruno/messagequeue.h"
+#include "bruno/physicalsocketserver.h"
 
 
 namespace bruno_base {

@@ -25,10 +25,10 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "nethelpers.h"
+#include "bruno/nethelpers.h"
 
-#include "byteorder.h"
-#include "signalthread.h"
+#include "bruno/byteorder.h"
+#include "bruno/signalthread.h"
 
 namespace bruno_base {
 

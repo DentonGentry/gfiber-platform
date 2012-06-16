@@ -51,13 +51,13 @@
 #include <algorithm>
 #include <map>
 
-#include "basictypes.h"
-#include "byteorder.h"
-#include "common.h"
-#include "logging.h"
-#include "nethelpers.h"
-#include "physicalsocketserver.h"
-#include "time.h"
+#include "bruno/basictypes.h"
+#include "bruno/byteorder.h"
+#include "bruno/common.h"
+#include "bruno/logging.h"
+#include "bruno/nethelpers.h"
+#include "bruno/physicalsocketserver.h"
+#include "bruno/time.h"
 #ifdef WIN32
 #include "winping.h"
 #include "win32socketinit.h"

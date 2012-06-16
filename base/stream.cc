@@ -32,13 +32,13 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <string>
-#include "basictypes.h"
-#include "common.h"
-#include "messagequeue.h"
-#include "stream.h"
-#include "stringencode.h"
-#include "stringutils.h"
-#include "thread.h"
+#include "bruno/basictypes.h"
+#include "bruno/common.h"
+#include "bruno/messagequeue.h"
+#include "bruno/stream.h"
+#include "bruno/stringencode.h"
+#include "bruno/stringutils.h"
+#include "bruno/thread.h"
 
 #ifdef WIN32
 #include "win32.h"

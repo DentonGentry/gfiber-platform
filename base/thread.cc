@@ -25,7 +25,7 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "thread.h"
+#include "bruno/thread.h"
 
 #if defined(WIN32)
 #include <comdef.h>
@@ -33,10 +33,10 @@
 #include <time.h>
 #endif
 
-#include "common.h"
-#include "logging.h"
-#include "stringutils.h"
-#include "time.h"
+#include "bruno/common.h"
+#include "bruno/logging.h"
+#include "bruno/stringutils.h"
+#include "bruno/time.h"
 
 #ifdef USE_COCOA_THREADING
 #if !defined(OSX) && !defined(IOS)

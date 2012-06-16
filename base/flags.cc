@@ -35,7 +35,7 @@
 #include <shellapi.h>
 #endif
 
-#include "flags.h"
+#include "bruno/flags.h"
 
 
 // -----------------------------------------------------------------------------

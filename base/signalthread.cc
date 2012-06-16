@@ -25,9 +25,9 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "signalthread.h"
+#include "bruno/signalthread.h"
 
-#include "common.h"
+#include "bruno/common.h"
 
 namespace bruno_base {
 

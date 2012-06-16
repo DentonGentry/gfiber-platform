@@ -25,14 +25,14 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "stringencode.h"
+#include "bruno/stringencode.h"
 
 #include <cstdio>
 #include <cstdlib>
 
-#include "basictypes.h"
-#include "common.h"
-#include "stringutils.h"
+#include "bruno/basictypes.h"
+#include "bruno/common.h"
+#include "bruno/stringutils.h"
 
 namespace bruno_base {
 

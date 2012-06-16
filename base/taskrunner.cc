@@ -27,12 +27,12 @@
 
 #include <algorithm>
 
-#include "taskrunner.h"
+#include "bruno/taskrunner.h"
 
-#include "common.h"
-#include "scoped_ptr.h"
-#include "task.h"
-#include "logging.h"
+#include "bruno/common.h"
+#include "bruno/scoped_ptr.h"
+#include "bruno/task.h"
+#include "bruno/logging.h"
 
 namespace bruno_base {
 

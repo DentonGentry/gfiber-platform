@@ -1,10 +1,10 @@
 // Copyright 2012 Google Inc. All Rights Reserved.
 // Author: kedong@google.com (Ke Dong)
 
-#include "basictypes.h"
-#include "criticalsection.h"
-#include "logging.h"
-#include "flags.h"
+#include "bruno/basictypes.h"
+#include "bruno/criticalsection.h"
+#include "bruno/logging.h"
+#include "bruno/flags.h"
 #include "nexus_types.h"
 #include "nexus_platform.h"
 #include "platform_peripheral_api.h"
