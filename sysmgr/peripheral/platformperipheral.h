@@ -6,15 +6,9 @@
 
 namespace bruno_platform_peripheral {
 
-class GpIoFanSpeed;
-class LedMain;
-class LedStandby;
-class LedStatus;
 class FanControl;
 class TempMonitor;
-class FactoryResetButton;
 class PeripheralMon;
-class Unmute;
 class Platform;
 class Flash;
 class UbifsMon;
@@ -24,24 +18,13 @@ class PlatformPeripheral {
   static bool Init(unsigned int monitor_interval);
   static void Run(void);
   static bool Terminate(void);
-  static void TurnOnLedMain(void);
-  static void TurnOffLedMain(void);
-  static void TurnOnLedStandby(void);
-  static void TurnOffLedStandby(void);
-  static bool SetLedStatusColor(led_status_color_e color);
-  static void TurnOffLedStatus(void);
 
   PlatformPeripheral(Platform *platform);
   ~PlatformPeripheral();
 
  private:
   bruno_base::Thread* mgr_thread_;
-  bruno_base::scoped_ptr<LedMain> led_main_;
-  bruno_base::scoped_ptr<LedStandby> led_standby_;
-  bruno_base::scoped_ptr<LedStatus> led_status_;
-  bruno_base::scoped_ptr<FactoryResetButton> factory_reset_button_;
   bruno_base::scoped_ptr<PeripheralMon> peripheral_mon_;
-  bruno_base::scoped_ptr<Unmute> unmute_;
   bruno_base::scoped_ptr<UbifsMon> ubifs_mon_;
   bruno_base::scoped_ptr<Flash> flash_;
 

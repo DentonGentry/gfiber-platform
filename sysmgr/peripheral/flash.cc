@@ -27,10 +27,8 @@ const std::string  Flash::kMntOptsDelimiter = ",";
 const std::string  Flash::kMntVolAttr = "ro";
 
 void Flash::Init(bruno_base::Thread*& mgr_thread,
-            bruno_base::scoped_ptr<FactoryResetButton>& factory_reset_button,
             bruno_base::scoped_ptr<UbifsMon>& ubifs_mon) {
   mgr_thread_ = mgr_thread;
-  factory_reset_button->SignalResetEvent.connect(this, &Flash::OnResetEvent);
   ubifs_mon->SignalRecvRoUbiFsEvent.connect(this, &Flash::OnRecvRoUbiFsEvent);
 }
 

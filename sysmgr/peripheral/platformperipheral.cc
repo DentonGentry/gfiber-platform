@@ -4,16 +4,7 @@
 #include "bruno/logging.h"
 #include "bruno/scoped_ptr.h"
 #include "bruno/criticalsection.h"
-#include "gpioconfig.h"
-#include "gpio.h"
-#include "gpiofanspeed.h"
-#include "platformnexus.h"
-#include "ledmain.h"
-#include "ledstandby.h"
-#include "ledstatus.h"
-#include "factoryresetbutton.h"
 #include "fancontrol.h"
-#include "unmute.h"
 #include "flash.h"
 #include "peripheralmon.h"
 #include "platform_peripheral_api.h"
@@ -43,15 +34,9 @@ bool PlatformPeripheral::Init(unsigned int monitor_interval) {
   platformInstance_->Init();
 
   kInstance_->mgr_thread_ = bruno_base::Thread::Current();
-  kInstance_->led_main_->Init();
-  kInstance_->led_standby_->Init();
-  kInstance_->led_status_->Init();
-  kInstance_->factory_reset_button_->Init(kInstance_->mgr_thread_);
   kInstance_->peripheral_mon_->Init(kInstance_->mgr_thread_, monitor_interval);
-  kInstance_->unmute_->Init();
   kInstance_->ubifs_mon_->Init(kInstance_->mgr_thread_, monitor_interval);
   kInstance_->flash_->Init(kInstance_->mgr_thread_,
-                           kInstance_->factory_reset_button_,
                            kInstance_->ubifs_mon_);
   return true;
 }
@@ -65,12 +50,7 @@ bool PlatformPeripheral::Terminate(void) {
     LOG(LS_WARNING) << "Peripherals are already terminated...";
     return false;
   } else {
-    kInstance_->led_main_->Terminate();
-    kInstance_->led_standby_->Terminate();
-    kInstance_->led_status_->Terminate();
-    kInstance_->factory_reset_button_->Terminate();
     kInstance_->peripheral_mon_->Terminate();
-    kInstance_->unmute_->Terminate();
     kInstance_->ubifs_mon_->Terminate();
     delete kInstance_;
     kInstance_ = NULL;
@@ -80,45 +60,8 @@ bool PlatformPeripheral::Terminate(void) {
   return true;
 }
 
-void PlatformPeripheral::TurnOnLedMain(void) {
-  return kInstance_->led_main_->TurnOn();
-}
-
-void PlatformPeripheral::TurnOffLedMain(void) {
-  return kInstance_->led_main_->TurnOff();
-}
-
-void PlatformPeripheral::TurnOnLedStandby(void) {
-  return kInstance_->led_standby_->TurnOn();
-}
-
-void PlatformPeripheral::TurnOffLedStandby(void) {
-  return kInstance_->led_standby_->TurnOff();
-}
-
-bool PlatformPeripheral::SetLedStatusColor(led_status_color_e color) {
-  switch (color) {
-    case LED_STATUS_RED: kInstance_->led_status_->SetRed(); break;
-    case LED_STATUS_ACT_BLUE: kInstance_->led_status_->SetBlue(); break;
-    case LED_STATUS_PURPLE: kInstance_->led_status_->SetPurple(); break;
-    default:
-      return false;
-  }
-  return true;
-}
-
-void PlatformPeripheral::TurnOffLedStatus(void) {
-  return kInstance_->led_status_->TurnOff();
-}
-
 PlatformPeripheral::PlatformPeripheral(Platform *platform)
-  : led_main_(new LedMain()),
-    led_standby_(new LedStandby()),
-    led_status_(new LedStatus()),
-    factory_reset_button_(new FactoryResetButton()),
-    peripheral_mon_(new PeripheralMon(new FanControl(0, platform),
-                    new GpIoFanSpeed())),
-    unmute_(new Unmute()),
+  : peripheral_mon_(new PeripheralMon(new FanControl(platform))),
     ubifs_mon_(new UbifsMon(platform)),
     flash_(new Flash()) {
 }
@@ -148,33 +91,6 @@ int platform_peripheral_terminate(void) {
     return -1;
   }
   return 0;
-}
-
-void platform_peripheral_turn_on_led_main(void) {
-  return bruno_platform_peripheral::PlatformPeripheral::TurnOnLedMain();
-}
-
-void platform_peripheral_turn_off_led_main(void) {
-  return bruno_platform_peripheral::PlatformPeripheral::TurnOffLedMain();
-}
-
-void platform_peripheral_turn_on_led_standby(void) {
-  return bruno_platform_peripheral::PlatformPeripheral::TurnOnLedStandby();
-}
-
-void platform_peripheral_turn_off_led_standby(void) {
-  return bruno_platform_peripheral::PlatformPeripheral::TurnOffLedStandby();
-}
-
-int platform_peripheral_set_led_status_color(led_status_color_e color) {
-  if (bruno_platform_peripheral::PlatformPeripheral::SetLedStatusColor(color)) {
-    return 0;
-  }
-  return -1;
-}
-
-void platform_peripheral_turn_off_led_status(void) {
-  return bruno_platform_peripheral::PlatformPeripheral::TurnOffLedStatus();
 }
 
 #ifdef __cplusplus

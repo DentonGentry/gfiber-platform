@@ -10,6 +10,9 @@
 
 namespace bruno_platform_peripheral {
 
+const std::string Common::kErrorString = "ERROR";
+
+
 std::string Common::ExecCmd(std::string& cmd, std::string *pattern,
                            enum ExecCmdCompareTypes action) {
   char buffer[256];
@@ -20,7 +23,7 @@ std::string Common::ExecCmd(std::string& cmd, std::string *pattern,
                << "pattern= " << ((pattern == NULL)? "NULL": *pattern) << std::endl;
   if (!pipe) {
     LOG(LS_ERROR) << "ExecCmd(): ERROR" << std::endl;
-    return "ERROR";
+    return kErrorString;
   }
   int is_continue = true;
   size_t found;
@@ -104,6 +107,42 @@ bool Common::Reboot() {
     is_ok = false;
   }
   return(is_ok);
+}
+
+
+/* Convert from string to floating point number */
+bool Common::ConvertStringToFloat(const std::string& value_str, float *value) {
+  bool  rtn = true;
+  std::stringstream ss(value_str);
+
+  if((ss >> *value).fail()) {
+    *value = 0.0;
+    rtn = false;
+    LOG(LS_ERROR) << "ConvertStringToFloat: Failed to convert" << std::endl;
+  }
+  return rtn;
+}
+
+/* Convert from string to integer */
+bool Common::ConvertStringToUint16(const std::string& value_str, uint16_t *value) {
+  bool  rtn = true;
+  std::stringstream ss(value_str);
+
+  if((ss >> *value).fail()) {
+    *value = 0;
+    rtn = false;
+    LOG(LS_ERROR) << "ConvertStringToInt: Failed to convert" << std::endl;
+  }
+  return rtn;
+}
+
+
+/* Convert from integer to string */
+void Common::ConvertUint16ToString(const uint16_t& value, std::string *value_str) {
+  std::stringstream ss;
+  ss << value;
+  *value_str = ss.str();
+  LOG(LS_VERBOSE) << "ConvertUint16ToString: value_str=" << *value_str << std::endl;
 }
 
 }  // namespace bruno_platform_peripheral

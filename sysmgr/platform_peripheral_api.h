@@ -13,21 +13,6 @@ int platform_peripheral_init(unsigned int monitor_interval);
 void platform_peripheral_run(void);
 int platform_peripheral_terminate(void);
 
-void platform_peripheral_turn_on_led_main(void);
-void platform_peripheral_turn_off_led_main(void);
-void platform_peripheral_turn_on_led_standby(void);
-void platform_peripheral_turn_off_led_standby(void);
-
-/* From more information, refer to src/peripheral/gpioconfig.h */
-typedef enum led_status_color_e {
-  LED_STATUS_RED,
-  LED_STATUS_ACT_BLUE,
-  LED_STATUS_PURPLE
-} led_status_color_e;
-
-int platform_peripheral_set_led_status_color(led_status_color_e color);
-void platform_peripheral_turn_off_led_status(void);
-
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

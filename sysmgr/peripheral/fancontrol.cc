@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <fstream>
+#include <unistd.h>
 
 namespace bruno_platform_peripheral {
 
@@ -22,6 +23,7 @@ const unsigned int FanControl::kPwmFreq26Khz = 0x4000;
 const unsigned int FanControl::kPwmFreq206hz = 0x0080;
 const unsigned int FanControl::kPwmDefaultTemperatureScale = 0x11;
 const unsigned int FanControl::kPwmDefaultDutyCycleScale = 0x11;
+const unsigned int FanControl::kPwmDefaultStartup = 30;
 
 /*
  * Defaults of Fan control parameters for GFMS100 (Bruno-IS)
@@ -60,14 +62,6 @@ FanControl::~FanControl() {
 }
 
 bool FanControl::Init(uint8_t min_temp, uint8_t max_temp, uint8_t n_levels) {
-  NEXUS_PwmChannelSettings pwm_channel_settings;
-  NEXUS_Pwm_GetDefaultChannelSettings(&pwm_channel_settings);
-  pwm_channel_settings.eFreqMode = NEXUS_PwmFreqModeType_eConstant;
-  pwm_handle_ = NEXUS_Pwm_OpenChannel(pwm_channel_, &pwm_channel_settings);
-  if (NULL == pwm_handle_) {
-    LOG(LS_ERROR) << "NEXUS_Pwm_OpenChannel failed";
-    return false;
-  }
   if (max_temp < min_temp) {
     LOG(LS_ERROR) << "Maximum temperature " << max_temp << " is less than"
                   << " minimum temperature" << min_temp;
@@ -109,7 +103,7 @@ bool FanControl::Init(uint8_t min_temp, uint8_t max_temp, uint8_t n_levels) {
    */
   if (platformInstance_ == NULL) {
     /* The global platform instance is not initialized. Let's handle it. */
-    LOG(LS_INFO) << "Init platformInstance_ in fancontrol" << std::endl;
+    LOG(LS_VERBOSE) << "Init platformInstance_ in fancontrol";
     platformInstance_ = new Platform ("Unknown Platform", BRUNO_UNKNOWN, false);
     platformInstance_->Init();
     allocatedPlatformInstanceLocal_ = true;
@@ -117,14 +111,11 @@ bool FanControl::Init(uint8_t min_temp, uint8_t max_temp, uint8_t n_levels) {
 
   InitParams();
 
-  return InitPwm();
+  /* Fan pwm has been initialized in nexus init script */
+  return true;
 }
 
 void FanControl::Terminate(void) {
-  if (pwm_handle_) {
-    NEXUS_Pwm_CloseChannel(pwm_handle_);
-    pwm_handle_ = NULL;
-  }
   if (pfan_ctrl_params_) {
     delete [] pfan_ctrl_params_;
     pfan_ctrl_params_ = NULL;
@@ -136,35 +127,6 @@ void FanControl::Terminate(void) {
 }
 
 bool FanControl::InitPwm() {
-  NEXUS_Error ret_code = NEXUS_SUCCESS;
-
-  /*
-   * Use constant frequency mode
-   */
-  ret_code = NEXUS_Pwm_SetFreqMode(pwm_handle_,NEXUS_PwmFreqModeType_eConstant);
-  if (NEXUS_SUCCESS != ret_code) {
-    LOG(LS_ERROR) << "NEXUS_Pwm_SetFreqMode failed - " << ret_code;
-    return false;
-  }
-
-  ret_code = NEXUS_Pwm_SetControlWord(pwm_handle_,kPwmFreq50Khz);
-  if (NEXUS_SUCCESS != ret_code) {
-    LOG(LS_ERROR) << "NEXUS_Pwm_SetControlWord failed - " << ret_code;
-    return false;
-  }
-
-  ret_code = NEXUS_Pwm_SetPeriodInterval(pwm_handle_, period_);
-  if (NEXUS_SUCCESS != ret_code) {
-    LOG(LS_ERROR) << "NEXUS_Pwm_SetPeriodInterval failed - " << ret_code;
-    return false;
-  }
-
-  ret_code = NEXUS_Pwm_Start(pwm_handle_);
-  if (NEXUS_SUCCESS != ret_code) {
-    LOG(LS_ERROR) << "NEXUS_Pwm_Start failed - " << ret_code;
-    return false;
-  }
-
   if (!DrivePwm(duty_cycle_pwm_)) {
     LOG(LS_ERROR) << "FanControl::DrivePwm failed";
     return false;
@@ -234,7 +196,7 @@ bool FanControl::SelfStart() {
     }
     state_ = VAR_SPEED;
 
-    BKNI_Sleep (1000);                  /* sleep for 1 second */
+    sleep (1);                  /* sleep for 1 second */
   }
   return ret;
 }
@@ -265,6 +227,8 @@ bool FanControl::AdjustSpeed_PControl(uint16_t soc_temp, uint16_t hdd_temp) {
   uint16_t new_duty_cycle_pwm;
   uint16_t new_hdd_duty_cycle_pwm = 0;
 
+  LOG(LS_VERBOSE) << "AdjustSpeed_PControl: soc_temp=" << soc_temp
+                  << " hdd_temp=" << hdd_temp << std::endl;
   ComputeDutyCycle_PControl(soc_temp, &new_duty_cycle_pwm, BRUNO_SOC);
   if ((platformInstance_->PlatformHasHdd() == true) &&
       (new_duty_cycle_pwm != DUTY_CYCLE_PWM_MAX_VALUE)) {
@@ -325,15 +289,15 @@ void FanControl::GetHddTemperature(uint16_t *phdd_temp) {
 }
 
 bool FanControl::DrivePwm(uint16_t duty_cycle) {
-  NEXUS_Error ret_code=NEXUS_SUCCESS;
 
   LOG(LS_INFO) << "DrivePwm 0x" << std::hex << duty_cycle;
   duty_cycle_pwm_ = duty_cycle;
-  ret_code = NEXUS_Pwm_SetOnInterval(pwm_handle_, duty_cycle);/* period is already set to 255 */
-  if (NEXUS_SUCCESS != ret_code) {
-    LOG(LS_ERROR) << "NEXUS_Pwm_SetOnInterval failed - " << ret_code;
+
+  if (WriteFanDutyCycle(duty_cycle) == false) {
+    LOG(LS_ERROR) << "WriteFanDutyCycle failed";
     return false;
   }
+
   if (duty_cycle == 0) {
     state_ = OFF;
   } else if (duty_cycle == period_+1) {
@@ -449,7 +413,7 @@ void FanControl::ComputeDutyCycle_PControl(
   uint16_t  threshold = pfan_ctrl_params_[idx].threshold;
   uint16_t  duty_cycle_min = pfan_ctrl_params_[idx].duty_cycle_min;
 
-  LOG(LS_INFO) << "FanCtrl::ComputeDutyCycle_PControl - current dutycycle = 0x"
+  LOG(LS_VERBOSE) << "FanCtrl::ComputeDutyCycle_PControl - current dutycycle = 0x"
                << std::hex << duty_cycle_pwm_
                << " i/p temperature = " << std::dec << temp
                << " pfan_ctrl_params_ idx = " << std::dec << (uint16_t)idx
@@ -463,13 +427,11 @@ void FanControl::ComputeDutyCycle_PControl(
     if (duty_cycle_pwm_ != DUTY_CYCLE_PWM_MIN_VALUE) {
       if ((threshold == 0) || (temp < (temp_min - threshold))) {
         compute_duty_cycle = DUTY_CYCLE_PWM_MIN_VALUE;
-      }
-      else {
+      } else {
         /* Set flag to calculate duty cycle PWM */
         calculate_duty_cycle_pwm = true;
       }
-    }
-    else {
+    } else {
       /*
        * 1. duty_cycle_pwm_ is DUTY_CYCLE_PWM_MIN_VALUE.
        * 2. *new_duty_cycle_pwm has been set to duty_cycle_pwm_.
@@ -479,21 +441,18 @@ void FanControl::ComputeDutyCycle_PControl(
         calculate_duty_cycle_pwm = true;
       }
     }
-  }
-  else if (temp >= (temp_max - threshold)) {
+  } else if (temp >= (temp_max - threshold)) {
     /* hysteresis handling */
     if (temp > temp_max) {
       compute_duty_cycle = DUTY_CYCLE_PWM_MAX_VALUE;
-    }
-    else {
+    } else {
       /*
        * (temp_max - threshold) <= temp <= temp_max
        */
       if (duty_cycle_pwm_ != DUTY_CYCLE_PWM_MAX_VALUE) {
         /* Set flag for calculating duty cycle PWM */
         calculate_duty_cycle_pwm = true;
-      }
-      else {
+      } else {
         /* duty_cycle_pwm_ is DUTY_CYCLE_PWM_MAX_VALUE.
          * While (temp_max - threshold) < temp < temp_max,
          * remain DUTY_CYCLE_PWM_MAX_VALUE.
@@ -504,10 +463,9 @@ void FanControl::ComputeDutyCycle_PControl(
         }
       }
     }
-  }
-  else {
-        /* Set flag to calculate duty cycle PWM */
-        calculate_duty_cycle_pwm = true;
+  } else {
+    /* Set flag to calculate duty cycle PWM */
+    calculate_duty_cycle_pwm = true;
   }
 
   if (calculate_duty_cycle_pwm == true) {

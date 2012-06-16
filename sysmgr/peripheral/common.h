@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 #include <stdio.h>
 #include <list>
 #include <vector>
@@ -25,12 +26,18 @@ class Common {
     STRING_RETRUN_ALL_MSGS
   };
 
+  static const std::string kErrorString;
+
   static std::string ExecCmd(std::string& cmd, std::string *pattern,
                              enum ExecCmdCompareTypes action);
   static void Split(const std::string& str,
               const std::string& delimiters, std::vector<std::string>& tokens);
   static bool Reboot();
+  static bool ConvertStringToFloat(const std::string& value_str, float *value);
+  static bool ConvertStringToUint16(const std::string& value_str, uint16_t *value);
+  static void ConvertUint16ToString(const uint16_t& value, std::string *value_str);
 
+  DISALLOW_COPY_AND_ASSIGN(Common);
 };
 
 }  // namespace bruno_platform_peripheral
