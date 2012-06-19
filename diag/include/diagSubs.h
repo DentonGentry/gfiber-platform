@@ -80,6 +80,33 @@
  /* data bits (09:00) : Measure data from PVT monitor and check the "valid_data */
  #define  AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS_DATA_MASK    0x000003FF
 
+/* BRUNO LED CONTROL INTERFACE */
+#define BRUNO_LED_CTRL_FNAME  "/tmp/gpio/leds"
+#define SOLID_RED        "1"
+#define SOLID_BLUE       "2"
+#define BLINK_RED        "1 0"
+#define BLINK_BLUE       "2 0"
+#define FLASH_RED        "1 0 1 0"
+#define FLASH_BLUE       "2 0 2 0"
+#define FAST_FLASH_RED   "1 0 1 0 1 0"
+#define FAST_FLASH_BLUE  "2 0 2 0 2 0"
+
+typedef enum {
+  DIAG_LED_SOLID_RED = 0,
+  DIAG_LED_SOLID_BLUE,
+  DIAG_LED_BLINK_RED,
+  DIAG_LED_BLINK_BLUE,
+  DIAG_LED_FLASH_RED,
+  DIAG_LED_FLASH_BLUE,
+  DIAG_LED_FASTFLASH_RED,
+  DIAG_LED_FASTFLASH_BLUE,
+  DIAG_LED_IND_MAX
+} diag_led_indicator;
+
+typedef struct diag_led_table_t_ {
+  const char *name;
+  const char *num_seq;
+} diag_led_table_t;
 
 /*
  * Declare diagd related global variables.
@@ -112,5 +139,6 @@ void diag_CmdHandler_Uninit(void);
 int diagMoca_GetConfig(diag_moca_config_t *pCfg);
 
 void diag_CloseFileDesc(int *pFd);
+void diagSendAlarm(void);
 
 #endif /* end of _DIAG_SUBS_H_ */
