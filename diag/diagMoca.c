@@ -684,6 +684,57 @@ int diagMoca_GetStatus(PMoCA_STATUS pStatus)
 
 } /* end of diagMoca_GetStatus */
 
+/*
+ * Check if MoCA link status is UP
+ *
+ * Input:
+ * pLinkup -  Pointer to linkup boolean variable.
+ *
+ * Output:
+ * DIAGD_RC_OK  - OK
+ * Others       - FAILED
+ *
+ */
+int diagMoca_IsLinkUp(bool *pLinkup)
+{
+  int rtn = DIAGD_RC_OK;
+  diag_netIf_info_t *pNetIf  = NULL;
+  netIf_counter_t   netif_counter;
+  unsigned long     linkup;
+  char *pMocaif_name = "eth1";
+
+
+  DIAGD_ENTRY("%s", __func__);
+
+  /* Get the starting address of the specified network interface. */
+  diag_GetStartingAddr_NetIfInfo(pMocaif_name, &pNetIf);
+
+  if (!pNetIf) {
+    DIAGD_TRACE("%s: No available entry for network interface =%s", __func__, pMocaif_name);
+    rtn = DIAGD_RC_ERR;
+  } else {
+    /* Setup the input parameter of diag_Get_Netlink_State(): netif_counter */
+    strcpy(netif_counter.netif_name, pMocaif_name);
+    netif_counter.pData = &linkup;  /* temp use */
+    /* Get the current MoCA link status. */
+    diag_Get_Netlink_State((netif_netlink_t *)&netif_counter);
+
+    DIAGD_TRACE("%s: pNetif_name=%s link=%s", __func__,
+        pMocaif_name, (*(netif_counter.pData) == DIAG_NETLINK_UP)? "UP":"DOWN");
+
+    if (*(netif_counter.pData) == DIAG_NETLINK_UP) {
+      *pLinkup = true;
+    }
+    else {
+      *pLinkup = false;
+    }
+  }
+
+  DIAGD_EXIT("%s: rtn = 0x%X linkup =%s", __func__, rtn, (*pLinkup)? "true":"false");
+  return rtn;
+
+}
+
 
 /*
  * Processes getting nodestatus command.
@@ -713,9 +764,22 @@ int diagMoca_GetNodeStatistics(
   struct moca_gen_status          gs;
   MoCA_NODE_STATISTICS_ENTRY      nodeStats[MoCA_MAX_NODES];
   MoCA_NODE_STATISTICS_EXT_ENTRY  nodeStatsExt[MoCA_MAX_NODES];
+  bool      linkup = false;
 
 
   DIAGD_ENTRY("%s", __func__);
+
+  /* Add a check if MoCA link is up to
+   * prevent invalid node statistics information
+   * If it is down, return DIAGD_RC_ERR
+   */
+  rtn = diagMoca_IsLinkUp(&linkup);
+
+  DIAGD_DEBUG("%s: rtn = 0x%X linkup = %s", __func__, rtn, linkup? "true":"false");
+
+  if (rtn != DIAGD_RC_OK || linkup == false) {
+    return DIAGD_RC_ERR;
+  }
 
   do {
 
@@ -843,6 +907,21 @@ int diagMoca_GetNodeStatus(
 {
   int     rtn = DIAGD_RC_ERR;
   CmsRet  nRet = CMSRET_SUCCESS;
+  bool    linkup = false;
+
+  DIAGD_ENTRY("%s", __func__);
+
+  /* Add a check if MoCA link is up to
+   * prevent invalid or all zero node status information
+   * If it is down, return DIAGD_RC_ERR
+   */
+  rtn = diagMoca_IsLinkUp(&linkup);
+
+  DIAGD_DEBUG("%s: rtn = 0x%X linkup = %s", __func__, rtn, linkup? "true":"false");
+
+  if (rtn != DIAGD_RC_OK || linkup == false) {
+    return DIAGD_RC_ERR;
+  }
 
   memset(pNodeStatus, 0x00, *pBufLen);
 
@@ -868,7 +947,6 @@ int diagMoca_GetNodeStatus(
 
 } /* diagMoca_GetNodeStatus */
 
-
 /*
  * Get node connection information via FMR process
  * It is originally from FmrHandler() of mocactl.c
@@ -891,6 +969,21 @@ int diagMoca_GetConnInfo(diag_moca_node_connect_info_t *pConnInfo)
   MoCA_FMR_PARAMS fmrParams ;
   CmsRet          nRet = CMSRET_SUCCESS ;
   pthread_t       event_thread;
+  bool            linkup = false;
+
+  /* Add a check if MoCA link is up to
+   * prevent invalid connection information
+   * or crash.
+   * If it is down, return DIAGD_RC_ERR
+   */
+  rtn = diagMoca_IsLinkUp(&linkup);
+
+  if (rtn != DIAGD_RC_OK || linkup == false) {
+    /* Restore to defaults */
+    pNodeConnInfo = NULL;
+    bConnInfoValid = false;
+    return (DIAGD_RC_ERR);
+  }
 
   memset (&fmrParams, 0x00, sizeof(fmrParams)) ;
 
@@ -1074,7 +1167,11 @@ int diagMoca_MonErrorCounts(void)
      * couldn't be pin-down. So we log more statistics counters.
      */
     /* Update the nodeStats element and ignore the return status */
-    diagMoca_GetNodeStatistics(&pMsg->nodeStats, &nodeStatsSize);
+    rtn = diagMoca_GetNodeStatistics(&pMsg->nodeStats, &nodeStatsSize);
+    if (rtn != DIAGD_RC_OK) {
+      DIAGD_DEBUG("%s: diagMoca_GetNodeStatistics() failed rtn = 0x%X", __func__, rtn);
+      break;
+    }
 
     memset(&cummulativeExtStats, 0, sizeof(MoCA_NODE_STATISTICS_EXT_ENTRY));
     if (pMsg->nodeStats.nodeStatsTblSize > 0) {
@@ -1357,8 +1454,6 @@ int diagMoca_MonServicePerf()
       DIAGD_TRACE("%s: linkstatus = DOWN", __func__);
       break;
     }
-
-
     /* Allocate the memory for performance checking results */
     pPerfStatus = (diag_moca_perf_status_t *)malloc(sizeof(diag_moca_perf_status_t));
     if (pPerfStatus == NULL) {
@@ -1505,7 +1600,7 @@ int diagMoca_MonServicePerf()
       /* Write the message to Moca Log file */
       diagMocaLog((char *)pPerfStatus);
 
-    /* Write to diagd log file in text format */
+      /* Write to diagd log file in text format */
       diagMocaStrLog((char *)pPerfStatus, pStatus);
 
     }
