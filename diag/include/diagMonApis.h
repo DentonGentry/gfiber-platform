@@ -41,6 +41,11 @@
 #define DIAG_WAIT_TIME_MOCA_MON_SERVICE_PERF  \
     (DIAG_MOCA_MON_SERVICE_PERF * DIAG_SECS_PER_MIN)
 
+/* Wait time of monitoring log rotation */
+#define DIAG_LOG_MON_ROTATION  15
+#define DIAG_WAIT_TIME_LOG_MON_ROTATION  \
+    (DIAG_LOG_MON_ROTATION * DIAG_SECS_PER_MIN)
+
 
 /*
  * Definitions of the threshold of error counters occurred during elapsed time.
@@ -110,6 +115,7 @@ typedef enum {
   DIAG_API_IDX_GET_CHK_KERN_KMSG = 1,       /* Diag_Mon_ParseExamine_KernMsg()  */
   DIAG_API_IDX_MOCA_MON_ERR_CNTS = 2,       /* Diag_MonMoca_Err_Counts()        */
   DIAG_API_IDX_MOCA_MON_SERVICE_PERF = 3,   /* Diag_MonMoca_ServicePerf()       */
+  DIAG_API_IDX_LOG_MON_ROTATION = 4,        /* Diag_MonLog_Rotation()           */
   DIAG_APIS_MAX_VALUE
 } diag_api_indexes;
 
@@ -305,6 +311,8 @@ extern time_t  diagWaitTime_chkKernMsgs;
 extern time_t  diagWaitTime_MocaChkErrs;
 /* Wait time of monitoring MoCA performance */
 extern time_t  diagWaitTime_MocaMonPerf;
+/* Wait time of monitoring Diag log rotation */
+extern time_t  diagWaitTime_LogMonRotate;
 
 
 /*

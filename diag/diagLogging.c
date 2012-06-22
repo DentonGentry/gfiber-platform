@@ -247,7 +247,57 @@ void diagtCloseMocaLogFile(void)
 #endif
 } /* end of diagtCloseMocaLogFile */
 
+#ifdef DIAGD_LOG_ROTATE_ON
+extern int get_diagDb_mmap(char **);
+/*
+ * Handle Diag log rotation.
+ * If current log file size is greater
+ * than 256K bytes, perform log rotation.
+ * Maximum number of rotated files is 10
+ * under diag log directory
+ *
+ * If file size limit is set to 1 Mega-byte or more,
+ * there will be more than 10 Mega-byte used from /user
+ * ubi fs for diag log rotation. That's why file size
+ * limit is set to 256K bytes.
+ */
+void diagLogRotate()
+{
+  long fileSize;
+  char newFilename[80];
+  static uint16_t extNum = 0;
+  char *diagdMap = NULL;
+  uint16_t *extNumPtr = NULL;
+  int diagdFd;
 
+  /* get the diag log file size */
+  fileSize = ftell(logFp);
+
+  if (fileSize > MAX_ROTATE_SZ) {
+    /* get mmap of diag databse file */
+    if ((diagdFd = get_diagDb_mmap(&diagdMap)) < 0) {
+      DIAGD_DEBUG("get_diagDb_mmap failed");
+      /* use the current value in extNum */
+      extNumPtr = &extNum;
+    }
+    else {
+      /* read in log rotation extension number from diag database */
+      extNumPtr =  (uint16_t *) &diagdMap[DIAGD_LOG_ROTATE_EXTNUM_INDEX];
+    }
+
+    sprintf(newFilename, "%s.%1d", DIAGD_LOG_FILE, *extNumPtr);
+    fprintf(stderr, "Diag log rotation ------> %s\n", newFilename);
+    rename(DIAGD_LOG_FILE, newFilename);
+    *extNumPtr = (*extNumPtr + 1)%MAX_NUM_OF_ROTATE_FILES;
+
+    if (diagdFd > 0) {
+      close(diagdFd);
+    }
+    /* open a new Diag log file */
+    diagtOpenEventLogFile();
+  }
+}
+#endif
 
 /*
  * Print to the monitoring log file.
@@ -995,3 +1045,44 @@ void diagMocaStrLog(char *pLogMsg, PMoCA_STATUS pStatus)
          break;
    } /* switch (msgType) */
 } /* end of diagMocaStrLog */
+
+/*
+ * Upload the whole log file through logger.
+ * This routine is called only once in diagd_Init()
+ * when diagd starts running.
+ *
+ * Input:
+ * None
+ *
+ * Output:
+ * None
+ */
+void diagUploadLogFile() {
+  FILE  *iFp;
+  char  inBuf[MAX_BUF_LEN];
+
+
+  DIAGD_ENTRY("%s: ", __func__);
+
+  /* Open the diag log file to be uploaded to syslog via logger */
+  iFp = fopen(DIAGD_LOG_FILE, "r");
+  if (iFp == NULL) {
+    DIAGD_DEBUG("%s: open '%s' failed: %s\n",
+        __func__, DIAGD_LOG_FILE, strerror(errno));
+    return;
+  }
+
+  fprintf(stderr, "########## Beginning of Diag Log File Upload ##########\n");
+  while (fgets(inBuf, MAX_BUF_LEN, iFp) != NULL) {
+    fprintf(stderr, "%s", inBuf);
+  }
+
+  fprintf(stderr, "########## End of Diag Log File Upload ##########\n");
+
+  if (iFp != NULL) {
+    /* close descriptor for file that was sent */
+    fclose(iFp);
+  }
+
+  DIAGD_EXIT("%s: ", __func__);
+}

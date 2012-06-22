@@ -1034,6 +1034,9 @@ int diagd_Init(char *refFile)
       break;
     }
 
+    /* Upload diag log file once diagd starts running */
+    diagUploadLogFile();
+
     /* Let's zero the database of diagd */
     memset(pDiagInfo, 0, sizeof(diag_info));
     pDiagInfo->hostCmdSock = DIAG_SOCKET_NOT_OPEN;

@@ -124,6 +124,13 @@
 #define RESULT_LOG_SEPARATOR()  \
           RESULT_LOG("\n---------------------------------------------------")
 
+#ifdef DIAGD_LOG_ROTATE_ON
+  #define KBYTE_SZ 1024
+  #define MAX_ROTATE_SZ  (256 * KBYTE_SZ)
+  #define MAX_NUM_OF_ROTATE_FILES 10
+#endif
+
+#define MAX_BUF_LEN 256
 
 
 /* Prototypes */
@@ -140,5 +147,7 @@ void tDtrLog(const char *format_str, ...);
 void diagMocaLog(char *pLogMsg);
 void diagMocaStrLog(char *pLogMsg, PMoCA_STATUS pStatus);
 void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus);
+void diagLogRotate(void);
+void diagUploadLogFile(void);
 
 #endif  // _DIAG_LOGGING_H

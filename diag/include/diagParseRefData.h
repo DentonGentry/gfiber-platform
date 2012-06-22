@@ -11,6 +11,13 @@
 /* Diag reference data */
 #define DIAGD_REF_DATA_FILE   "/usr/lib/diag/diag_ref_data.txt"
 
+/* Diag monitoring timers table */
+#define  MAX_NUM_OF_MONITOR_TIMER  5
+typedef struct diagWaitTimeTbl_t_ {
+  char   *timerName;
+  time_t *pDiagWaitTime;
+} diagWaitTimeTbl_t;
+
 /*
  * Prototypes
  */

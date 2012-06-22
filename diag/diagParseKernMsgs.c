@@ -438,8 +438,10 @@ int get_diagDb_mmap(char **mapPtr)
     if (isNewFile) {
        /*
         * write default data to diagd database:
-        *    all error and warning counts = 0
+        *   log rotation filename extension number = 0
+        *   all error and warning counts = 0
         */
+        memset(&map[DIAGD_LOG_ROTATE_EXTNUM_INDEX], 0, DIAG_LOG_ROTATE_EXTNUM_SZ);
         DIAGD_DEBUG("\nDIAG_ALL_ERR_COUNTS_SZ = %d\n", DIAG_ALL_ERR_COUNTS_SZ);
         memset(&map[DIAGD_MOCA_ERR_COUNTS_INDEX], 0, DIAG_ALL_ERR_COUNTS_SZ);
     }

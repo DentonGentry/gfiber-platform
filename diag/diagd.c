@@ -95,6 +95,10 @@ void diagd_HwMon_Handler(void *param) {
 
     DIAGD_TRACE("%s: Loop counts - %d", __func__, ++diag_counter );
 
+#ifdef DIAGD_LOG_ROTATE_ON
+    Diag_MonLog_Rotate();
+#endif
+
     pthread_mutex_unlock(&lock);
 
     /* Sleep for DIAG_HW_MONITORING_INTERVAL */
