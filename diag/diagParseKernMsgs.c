@@ -194,7 +194,7 @@ int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char k
     /* Check the "dact" setting if it is a hardware error */
     if (dact == DIAG_PARSE_ACT_HWERR) {
       /* It is hardware related error. */
-      diagSendAlarm();
+      diagSendAlarm(code);
     }
     
     /* For just in case, sanity check */

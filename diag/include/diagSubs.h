@@ -108,6 +108,9 @@ typedef struct diag_led_table_t_ {
   const char *num_seq;
 } diag_led_table_t;
 
+/* TR69 notification interface */
+#define DIAGD_NTFY_TR69_FNAME  "/tmp/cwmp/diagdmsgs"
+
 /*
  * Declare diagd related global variables.
  */
@@ -139,6 +142,6 @@ void diag_CmdHandler_Uninit(void);
 int diagMoca_GetConfig(diag_moca_config_t *pCfg);
 
 void diag_CloseFileDesc(int *pFd);
-void diagSendAlarm(void);
+void diagSendAlarm(unsigned short errCode);
 
 #endif /* end of _DIAG_SUBS_H_ */

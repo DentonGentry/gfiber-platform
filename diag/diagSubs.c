@@ -1099,6 +1099,29 @@ int diagd_Init(char *refFile)
 
 } /* end of diagd_Init */
 
+/* Routine that notifies TR69 agent
+ * by writing content string
+ * to DIAGD__NTFY_TR69_FNAME
+ *
+ * Input:
+ *  content: string to alert tr69
+ *
+ * Output:
+ * NONE
+ */
+void diagNotifyTr69(const char *content)
+{
+  int fd;
+
+
+  fd  = open(DIAGD_NTFY_TR69_FNAME, O_WRONLY|O_APPEND|O_CREAT, 0666);
+
+  if (fd >= 0) {
+    write(fd, content, strlen(content));
+    close(fd);
+  }
+}
+
 /* Routine that turns on LED color
  * (red or blue) by writing content
  * to Bruno LED control file
@@ -1132,16 +1155,43 @@ static void diag_set_LED(diag_led_indicator ledInd)
   }
 }
 
+extern const char *diagGetErrTypeInfo(unsigned short errCode, unsigned short *pCount);
 /* Routine that send alarm
  * by turning on LED solid red
+ * and notifying TR69 agent of
+ * LED change
  *
  * Input:
- * NONE
+ * errCode - diag error code
  *
  * Output:
  * NONE
  */
-void diagSendAlarm()
+void diagSendAlarm(unsigned short errCode)
 {
-    diag_set_LED(DIAG_LED_SOLID_RED);
+  char alertTR69Str[64];
+  unsigned short count = 0;
+  char *errTypeStr = NULL;
+
+
+  /* Turn on LED solid red */
+  diag_set_LED(DIAG_LED_SOLID_RED);
+
+  /* Notify TR69 agent of LED change */
+  errTypeStr = diagGetErrTypeInfo(errCode, &count);
+
+  if (errTypeStr == NULL) {
+    DIAGD_DEBUG("%s: shoudn't happen!! errCode = %d", __func__, errCode);
+    snprintf(alertTR69Str, sizeof(alertTR69Str),
+        "ALERT LED %s ERROR_TYPE_UNKNOWN %d\n",
+        diagLedTbl[DIAG_LED_SOLID_RED].name, errCode);
+
+  }
+  else {
+    snprintf(alertTR69Str, sizeof(alertTR69Str), "ALERT LED %s %s %d\n",
+        diagLedTbl[DIAG_LED_SOLID_RED].name, errTypeStr,
+        (count + 1));  /* plus one for this just detected HW error */
+  }
+
+  diagNotifyTr69(alertTR69Str);
 }
