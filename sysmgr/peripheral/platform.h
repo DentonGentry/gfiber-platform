@@ -8,7 +8,6 @@
 #include <fstream>
 #include <string>
 #include "bruno/constructormagic.h"
-#include "platformnexus.h"
 #include "bruno/scoped_ptr.h"
 
 #define PLATFORM_FILE   "/etc/platform"

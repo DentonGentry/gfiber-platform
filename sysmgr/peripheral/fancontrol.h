@@ -5,8 +5,8 @@
 #define BRUNO_PLATFORM_PERIPHERAL_FANCONTROL_H_
 
 #include "bruno/constructormagic.h"
-#include "platformnexus.h"
 #include "platform.h"
+#include "mailbox.h"
 
 namespace bruno_platform_peripheral {
 
@@ -16,11 +16,10 @@ class Platform;
 #define DUTY_CYCLE_MAX_VALUE      100
 
 #define DUTY_CYCLE_PWM_MIN_VALUE  0
-#define DUTY_CYCLE_PWM_MAX_VALUE  255
+#define DUTY_CYCLE_PWM_MAX_VALUE  100
 
 
-#define SOC_MULTI_VALUE_IN_FLOAT  1000.0
-#define HDD_MULTI_VALUE_IN_FLOAT  100.0
+#define MULTI_VALUE_IN_FLOAT      100.0
 
 #define MULTI_VALUE               100
 /* Adjust the value back = x /(MULTI_VALUE)*/
@@ -63,7 +62,7 @@ typedef struct FanControlParams {
 }FanControlParams;
 
 
-class FanControl {
+class FanControl: public Mailbox {
  public:
   enum StateType {
     OFF,
@@ -78,45 +77,33 @@ class FanControl {
   };
 
 
-  /*
-   * Set the control word to clock rate.
-   * a unit is 411.7 Hz.
-   * PWM Freq = clock_freq/period
-   *
-   * Unit   | Clock rate | Period | PWM Freq
-   * =======================================
-   * 0x7900 |  12.75Mhz  | 255    | 50Khz
-   * 0x4000 |  6.75Mhz   | 255    | 26.47Khz
-   * 0x0080 |  52.7Khz   | 255    | 206.6Hz
-   */
+  /* For PWM setting, refer to gpio_mailbox implemention */
   static const unsigned int kPwmFreq50Khz;
   static const unsigned int kPwmFreq26Khz;
   static const unsigned int kPwmFreq206hz;
   static const unsigned int kPwmDefaultTemperatureScale;
   static const unsigned int kPwmDefaultDutyCycleScale;
+  static const unsigned int kPwmDefaultStartup;
 
   static const FanControlParams kGFMS100FanCtrlSocDefaults;
   static const FanControlParams kGFMS100FanCtrlHddDefaults;
   static const FanControlParams kGFHD100FanCtrlSocDefaults;
 
-  explicit FanControl(uint32_t channel, Platform *platform)
-      : pwm_channel_(channel),
-        pwm_handle_(NULL),
-        state_(OFF),
+  explicit FanControl(Platform *platform)
+      : state_(OFF),
         auto_mode_(true),
         var_speed_on_(false),
-        lut_enabled_(true),
         self_start_enabled_(false),
         duty_cycle_scale_(kPwmDefaultDutyCycleScale),
         duty_cycle_min_(0x5A),
         duty_cycle_max_(0x5A),
         duty_cycle_regulated_(0x00),
         duty_cycle_pwm_(0x5A),
-        duty_cycle_startup_(0x87),
+        duty_cycle_startup_(kPwmDefaultStartup),
         temperature_scale_(kPwmDefaultTemperatureScale),
         temperature_min_(0x33),
         temperature_max_(0xcc),
-        period_(0xfe),
+        period_(DUTY_CYCLE_PWM_MAX_VALUE-1),
         step_(0x02),
         threshold_(0x05),
         platform_(BRUNO_GFHD100),
@@ -152,12 +139,9 @@ class FanControl {
   void dbgUpdateFanControlParams(void);
   bool dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx);
 
-  uint32_t pwm_channel_;
-  NEXUS_PwmChannelHandle pwm_handle_;
   StateType state_;
   bool auto_mode_;
   bool var_speed_on_;
-  bool lut_enabled_;
   bool self_start_enabled_;
   uint16_t duty_cycle_scale_;  /* duty cycle scale */
   uint16_t duty_cycle_min_;  /* minimum duty cycle */

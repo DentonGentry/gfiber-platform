@@ -2,9 +2,6 @@
 #include "bruno/criticalsection.h"
 #include "bruno/logging.h"
 #include "bruno/flags.h"
-#include "nexus_types.h"
-#include "nexus_platform.h"
-#include "nexus_avs.h"
 #include <stdio.h>
 #include <signal.h>
 #include <fstream>
@@ -31,7 +28,7 @@ int main(int argc, char** argv) {
   DEFINE_string(ubidev, "", "ubi device name");
   DEFINE_string(testitem, "", "test item");
 
-  // parse options
+  /* parse options */
   if (0 != FlagList::SetFlagsFromCommandLine(&argc, argv, true)) {
     FlagList::Print(NULL, false);
     return 0;

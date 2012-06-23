@@ -6,17 +6,16 @@
 
 #include "bruno/constructormagic.h"
 #include "bruno/time.h"
-#include "platformnexus.h"
+#include "mailbox.h"
 
 namespace bruno_platform_peripheral {
 
 class GpIoFanSpeed;
-class PeripheralMon : public bruno_base::MessageHandler {
+class PeripheralMon : public bruno_base::MessageHandler, public Mailbox {
  public:
-  PeripheralMon(FanControl* fan_control, GpIoFanSpeed* fan_speed,
-                unsigned int interval = 5000)
-      : fan_speed_(fan_speed), fan_control_(fan_control),
-      interval_(interval), last_time_(0), mgr_thread_(NULL) {
+  PeripheralMon(FanControl* fan_control, unsigned int interval = 5000)
+      : fan_control_(fan_control), interval_(interval),
+        last_time_(0), mgr_thread_(NULL), gpio_mailbox_ready(false) {
   }
   virtual ~PeripheralMon();
 
@@ -25,18 +24,18 @@ class PeripheralMon : public bruno_base::MessageHandler {
   };
 
   void Init(bruno_base::Thread* mgr_thread, unsigned int interval);
-  void Terminate(void);
+  void Terminate(void) {}
 
   void OnMessage(bruno_base::Message* msg);
 
  private:
   void Probe(void);
 
-  bruno_base::scoped_ptr<GpIoFanSpeed> fan_speed_;
   bruno_base::scoped_ptr<FanControl> fan_control_;
   unsigned int interval_;
   bruno_base::TimeStamp last_time_;
   bruno_base::Thread* mgr_thread_;
+  bool  gpio_mailbox_ready;
   DISALLOW_COPY_AND_ASSIGN(PeripheralMon);
 };
 
