@@ -365,10 +365,10 @@ void run_gpio_mailbox(void) {
 
   int inner_loop_ticks = 0, msec_per_led = 0;
   int reads = 0, fan_flips = 0, last_fan = 0, cur_fan;
-  long long last_time = msec_now(), last_print_time = msec_now(),
+  long long last_time = 0, last_print_time = msec_now(),
       last_led = 0, reset_start = 0;
-  long long fanspeed = 0, reset_amt = 0, readyval = 0;
-  double cpu_temp = 0.0, cpu_volts = 0.0;
+  long long fanspeed = -42, reset_amt = 0, readyval = 0;
+  double cpu_temp = -42.0, cpu_volts = -42.0;
   int wantspeed_warned = 0;
   while (!shutdown_sig) {
     long long now = msec_now();
@@ -443,7 +443,11 @@ void run_gpio_mailbox(void) {
       reset_amt = reset_start = 0;
     }
 
-    // capture the fan ticks
+    // this is last.  it indicates we've made it once through the loop,
+    // so all the files in /tmp/gpio have been written at least once.
+    write_file_int("ready", &readyval, 1);
+
+    // poll for fan ticks
     for (int tick = 0; tick < inner_loop_ticks; tick++) {
       cur_fan = get_gpio(&fan_tick);
       if (last_fan && !cur_fan)
@@ -453,10 +457,6 @@ void run_gpio_mailbox(void) {
       if (shutdown_sig) break;
       usleep(USEC_PER_TICK);
     }
-
-    // this is last.  it indicates we've made it once through the loop,
-    // so all the files in /tmp/gpio have been written at least once.
-    write_file_int("ready", &readyval, 1);
   }
 
   set_leds_from_bitfields(1);
