@@ -6,6 +6,8 @@
 #include "fancontrol.h"
 #include "peripheralmon.h"
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 namespace bruno_platform_peripheral {
 
@@ -43,6 +45,8 @@ void PeripheralMon::Probe(void) {
      * for both thin bruno and fat bruno
      */
     if (read_soc_temperature == true) {
+      Overheating(soc_temperature);
+
       fan_control_->AdjustSpeed_PControl(
                     static_cast<uint16_t>(soc_temperature * MULTI_VALUE),
                     hdd_temp);
@@ -57,8 +61,53 @@ void PeripheralMon::Probe(void) {
   mgr_thread_->PostDelayed(interval_, this, static_cast<uint32>(EVENT_TIMEOUT));
 }
 
+void PeripheralMon::Overheating(float soc_temperature)
+{
+  std::ostringstream message;
+
+  if (soc_temperature < OVERHEATING_VALUE) {
+    overheating_ = 0;
+    Common::SetLED(OVERHEATING_LED_OFF, "");
+  }
+  else {
+    overheating_ ++;
+
+    if (overheating_ >= OVERHEATING_COUNT) {
+      message << "System reboot because SOC overheating " << overheating_;
+      LOG(LS_ERROR) << message.str();
+      Common::SetLED(OVERHEATING_LED_OFF, message.str());
+
+      /* Create a 'overheating' file and reboot system. During system booting,
+       * check the 'overheating' file, if it's existed, delay 30 seconds to
+       * start system.
+       */
+      /*
+       * TODO:
+       * 1. Check '/uesr/rw/overheating' file in sysmgr C code instead of S07volcheck script.
+       * 2. While loop for checking '/uesr/rw' directory until it mounted.
+       * 3. If '/user/rw/overheating' is existed, delay 30 seconds to start system
+       *    and delete '/user/rw/overheating' file.
+       */
+      FILE* f = fopen(OVERHEATING_FILE, "w");
+      if (f != NULL) {
+        fprintf(f, "%f", soc_temperature);
+        fclose(f);
+      }
+
+      overheating_ = 0;
+      Common::Reboot();
+    }
+    else {
+      message << "SOC overheating detected " << overheating_;
+      LOG(LS_ERROR) << message.str();
+      Common::SetLED(OVERHEATING_LED_ON, message.str());
+    }
+  }
+}
+
 void PeripheralMon::Init(bruno_base::Thread* mgr_thread, unsigned int interval) {
   interval_ = interval;
+  overheating_ = 0;
   mgr_thread_ = mgr_thread;
   fan_control_->Init(50, 120, 10);
   Probe();

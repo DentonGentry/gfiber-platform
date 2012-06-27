@@ -8,6 +8,13 @@
 #include "bruno/time.h"
 #include "mailbox.h"
 
+#define OVERHEATING_VALUE   125.0
+#define OVERHEATING_COUNT   3
+#define OVERHEATING_FILE    "/user/rw/overheating"
+
+#define OVERHEATING_LED_ON  "1 0 1 0 1 0"
+#define OVERHEATING_LED_OFF "0"
+
 namespace bruno_platform_peripheral {
 
 class GpIoFanSpeed;
@@ -30,9 +37,11 @@ class PeripheralMon : public bruno_base::MessageHandler, public Mailbox {
 
  private:
   void Probe(void);
+  void Overheating(float soc_temperature);
 
   bruno_base::scoped_ptr<FanControl> fan_control_;
   unsigned int interval_;
+  unsigned int overheating_;
   bruno_base::TimeStamp last_time_;
   bruno_base::Thread* mgr_thread_;
   bool  gpio_mailbox_ready;
