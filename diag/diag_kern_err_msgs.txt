@@ -1,3 +1,5 @@
+dtoken=0 dact=hwerr msglvl=1 code=0003 dkmsg=moca_3450_wait: 3450 I2C timed out
+dtoken=1 dact=hwerr msglvl=1 code=0002 dkmsg=moca_3450_init: invalid 3450 chip ID @@@
 dtoken=0 dact=hwerr msglvl=1 code=0001 dkmsg=moca_probe: out of memory
 dtoken=0 dact=hwerr msglvl=1 code=0001 dkmsg=moca_probe: can't allocate minor device
 dtoken=0 dact=hwerr msglvl=1 code=0001 dkmsg=moca_probe: can't get resources

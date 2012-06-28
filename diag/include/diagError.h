@@ -46,6 +46,8 @@ typedef enum {
 /* Errors issued by Broadcom MoCA driver */
 #define MOCA_INIT_ERROR                      0x0000
 #define MOCA_PROBE_ERROR                     0x0001
+#define MOCA_3450_INV_CHIP_ID_ERROR          0x0002
+#define MOCA_3450_I2C_TIMEOUT_ERROR          0x0003
 
 /* Errors issued by Broadcom Giga-bit Ethernet driver */
 #define GENET_OPEN_ERROR                     0x0100
@@ -110,6 +112,8 @@ typedef enum {
 typedef enum {
    DIAG_MOCA_INIT_ERROR = 0,
    DIAG_MOCA_PROBE_ERROR,
+   DIAG_MOCA_3450_INV_CHIP_ID_ERROR,
+   DIAG_MOCA_3450_I2C_TIMEOUT_ERROR,
    DIAG_MOCA_RESERVED_1_ERROR,
    DIAG_MOCA_RESERVED_2_ERROR,
    DIAG_MOCA_RESERVED_3_ERROR,
