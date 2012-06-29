@@ -194,11 +194,7 @@ int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char k
     /* Check the "dact" setting if it is a hardware error */
     if (dact == DIAG_PARSE_ACT_HWERR) {
       /* It is hardware related error. */
-      /* TODO 2011/10/O6 - 
-       *    1) HOW TO alarm the error???
-       *    2) Save the error to file in case of Bruno power-cycle???
-       */
-      DIAGD_DEBUG("%s: TODO - detect (%d) error. Alarm....", __func__, dact);
+      diagSendAlarm();
     }
     
     /* For just in case, sanity check */

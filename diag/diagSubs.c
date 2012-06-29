@@ -54,6 +54,22 @@ static const char diag_netif_stats_cnt_names[DIAG_NET_CNTS][NETIF_STATS_NAME_MAX
   "tx_errors\0",
 };
 
+/* Diag LED control table.
+ * The order of the entries should be same
+ * as the ones within enum diag_led_indicator defined
+ * in include/diagSubs.h
+ */
+
+diag_led_table_t diagLedTbl[DIAG_LED_IND_MAX] = {
+  {"SOLIDRED", SOLID_RED},
+  {"SOLIDBLUE", SOLID_BLUE},
+  {"BLINKRED", BLINK_RED},
+  {"BLINKBLUE", BLINK_BLUE},
+  {"FLASHRED", FLASH_RED},
+  {"FLASHBLUE", FLASH_BLUE},
+  {"FASTFLASHRED", FAST_FLASH_RED},
+  {"FASTFLASHBLUE", FAST_FLASH_BLUE}
+};
 
 /* -------------------------------------------------------------------------
  *
@@ -1083,3 +1099,49 @@ int diagd_Init(char *refFile)
 
 } /* end of diagd_Init */
 
+/* Routine that turns on LED color
+ * (red or blue) by writing content
+ * to Bruno LED control file
+ *
+ * Input:
+ * ledInd: LED indicator
+ *
+ * Output:
+ * NONE
+ */
+static void diag_set_LED(diag_led_indicator ledInd)
+{
+  char filename[64];
+  char *ptr = NULL;
+  int  fd;
+
+
+  if (ledInd >= DIAG_LED_IND_MAX) {
+    DIAGD_DEBUG("%s: ledInd is invalid = %d", __func__, ledInd);
+    return;
+  }
+
+  snprintf(filename, sizeof(filename), "%s.diagd_tmp", BRUNO_LED_CTRL_FNAME);
+  fd = open(filename, O_WRONLY|O_CREAT|O_TRUNC, 0666);
+
+  if (fd >= 0) {
+    ptr = diagLedTbl[ledInd].num_seq;
+    write(fd, ptr, strlen(ptr));
+    close(fd);
+    rename(filename, BRUNO_LED_CTRL_FNAME);
+  }
+}
+
+/* Routine that send alarm
+ * by turning on LED solid red
+ *
+ * Input:
+ * NONE
+ *
+ * Output:
+ * NONE
+ */
+void diagSendAlarm()
+{
+    diag_set_LED(DIAG_LED_SOLID_RED);
+}

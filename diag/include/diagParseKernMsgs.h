@@ -124,6 +124,7 @@ extern int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned
   diagd_log_msg_and_alert(_dact, _timestamp, _kmsgErrLevel, _code, _pDkmsg); \
 }
 
+extern void diagSendAlarm(void);
 extern void diagUpdateErrorCount(char *timestamp, unsigned short errorCode);
 extern void diagUpdateWarnCount(char *timestamp, unsigned short errorCode);
 extern diagMocaErrCounts_t  *diagMocaErrCntsPtr;
