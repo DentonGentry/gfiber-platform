@@ -11,9 +11,9 @@ import re
 import subprocess
 import sys
 import tarfile
-import Crypto.Hash.SHA512 as SHA512  #gpylint: disable-msg=F0401
-import Crypto.PublicKey.RSA as RSA  #gpylint: disable-msg=F0401
-import Crypto.Signature.PKCS1_v1_5 as PKCS1_v1_5  #gpylint: disable-msg=F0401
+from Crypto.Hash import SHA512
+from Crypto.PublicKey import RSA
+from Crypto.Signature import PKCS1_v1_5
 
 
 # unit tests can override these with fake versions
@@ -191,10 +191,12 @@ def WriteToFile(srcfile, dstfile):
 
 def IsIdentical(srcfile, dstfile):
   """Compare srcfile and dstfile. Return true if contents are identical."""
-  srcfile.seek(0, os.SEEK_SET)
-  dstfile.seek(0, os.SEEK_SET)
   sbuf = srcfile.read(BUFSIZE)
   dbuf = dstfile.read(len(sbuf))
+  if not sbuf:
+    raise IOError('IsIdentical: srcfile is empty?')
+  if not dbuf:
+    raise IOError('IsIdentical: dstfile is empty?')
   while sbuf and dbuf:
     if sbuf != dbuf:
       return False
@@ -433,6 +435,7 @@ def main():
 
     loader = img.GetLoader()
     if loader:
+      loader_start = loader.tell()
       if options.skiploader:
         print 'Skip loader installation.'
       else:
@@ -448,12 +451,13 @@ def main():
         mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
         with open(mtdblockname, 'r+b') as mtdfile:
           VerbosePrint('Checking if the loader is up to date')
+          loader.seek(loader_start)
           is_loader_current = IsIdentical(loader, mtdfile)
         VerbosePrint('\n')
         if is_loader_current:
           VerbosePrint('The loader is the latest.\n')
         else:
-          loader.seek(0, os.SEEK_SET)
+          loader.seek(loader_start, os.SEEK_SET)
           print 'DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.'
           VerbosePrint('Writing loader to {0}'.format(mtd))
           InstallToMtd(loader, mtd)

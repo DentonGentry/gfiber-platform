@@ -68,6 +68,12 @@ class ImginstTest(unittest.TestCase):
         loader,
         open("testdata/img/loader.sig"),
         open("testdata/img/public.der")))
+    self.assertRaises(IOError, ginstall.IsIdentical,
+        loader, open("testdata/img/loader.bin"))
+    loader.seek(0)
+    self.assertTrue(IOError, ginstall.IsIdentical(
+        loader, open("testdata/img/loader.bin")))
+    loader.seek(0)
     self.assertFalse(ginstall.IsIdentical(
         loader, open("testdata/img/loader1.bin")))
 
