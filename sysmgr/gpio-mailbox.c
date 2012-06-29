@@ -367,7 +367,7 @@ void run_gpio_mailbox(void) {
   int reads = 0, fan_flips = 0, last_fan = 0, cur_fan;
   long long last_time = 0, last_print_time = msec_now(),
       last_led = 0, reset_start = 0;
-  long long fanspeed = -42, reset_amt = 0, readyval = 0;
+  long long fanspeed = -42, reset_amt = -42, readyval = 0;
   double cpu_temp = -42.0, cpu_volts = -42.0;
   int wantspeed_warned = 0;
   while (!shutdown_sig) {
@@ -436,7 +436,7 @@ void run_gpio_mailbox(void) {
     // handle the reset button
     int reset = !get_gpio(&reset_button); // 0x1 means *not* pressed
     if (reset) {
-      if (!reset_start) reset_start = now;
+      if (!reset_start) reset_start = now - 1;
       write_file_int("reset_button_msecs", &reset_amt, now - reset_start);
     } else {
       if (reset_amt) unlink("reset_button_msecs");
