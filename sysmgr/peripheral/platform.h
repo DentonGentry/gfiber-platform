@@ -11,6 +11,7 @@
 #include "bruno/scoped_ptr.h"
 
 #define PLATFORM_FILE   "/etc/platform"
+#define COMMENT_CHAR '#'
 
 namespace bruno_platform_peripheral {
 
