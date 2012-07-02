@@ -47,12 +47,20 @@ const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
                         };
 /*
  * Defaults of Fan control parameters for GFHD100 (Bruno)
+ * the original duty_cycle_min value is set to 25
+ * but from the measurement, pwm = 25%, fan duty-cycle
+ * (or fan speed) is 45~50%.
+ * the original duty_cycle_max value is set to 100
+ * but from the measurement, pwm = 40% or above, fan duty-cycle
+ * (or fan speed) is 99%. pwm is set to any value greater 40
+ * it will only increase fan speed by less than 1%.
+ * Therefore Dmax is set to 40.
  */
 const FanControlParams FanControl::kGFHD100FanCtrlSocDefaults = {
                           temp_min      : 45,
                           temp_max      : 100,
-                          duty_cycle_min: 25,
-                          duty_cycle_max: 100,
+                          duty_cycle_min: 16,
+                          duty_cycle_max: 40,
                           threshold     : 2,
                           alpha         : 0
                         };
@@ -247,6 +255,25 @@ bool FanControl::AdjustSpeed_PControl(uint16_t soc_temp, uint16_t hdd_temp) {
   LOG(LS_INFO) << "AdjustSpeed_PControl: duty_cycle_pwm = 0x"
                << std::hex << new_duty_cycle_pwm;
   if (new_duty_cycle_pwm != duty_cycle_pwm_){
+    /* For thin Bruno, when fan is at stop position and new_duty_cycle_pwm is
+     * within the boarder range of duty_cycle_min, some fan does not spin.
+     * Therefore set higher pwm to DUTY_CYCLE_PWM_START_VALUE.
+     * After two seconds, then lower down to new_duty_cycle_pwm
+     */
+    if(platformInstance_->PlatformHasHdd() == false) {  /* if Thin Bruno */
+      if ((duty_cycle_pwm_ == DUTY_CYCLE_PWM_MIN_VALUE) &&
+          (new_duty_cycle_pwm < DUTY_CYCLE_PWM_START_VALUE)) {
+        LOG(LS_INFO) << "Set higher pwm=0x" << std::hex << DUTY_CYCLE_PWM_START_VALUE;
+        ret = DrivePwm(DUTY_CYCLE_PWM_START_VALUE);
+        if (!ret) {
+          LOG(LS_ERROR) << "FanControl::DrivePwm failed";
+          return false;
+        }
+        /* wait for two seconds before lower pwm down to new_duty_cycle_pwm */
+        sleep(2);
+      }
+    }
+
     ret = DrivePwm(new_duty_cycle_pwm);
     if (!ret) {
       LOG(LS_ERROR) << "FanControl::DrivePwm failed";
