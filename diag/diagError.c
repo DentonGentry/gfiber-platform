@@ -29,7 +29,9 @@ diagSpiErrCounts_t   *diagSpiErrCntsPtr = NULL;
 
 char *diagMocaErrTypeStr[] = {
    "DIAG_MOCA_INIT_ERROR",
-   "DIAG_MOCA_PROBE_ERROR"
+   "DIAG_MOCA_PROBE_ERROR",
+   "DIAG_MOCA_3450_INV_CHIP_ID_ERROR",
+   "DIAG_MOCA_3450_I2C_TIMEOUT_ERROR"
 };
 
 char *diagGenetErrTypeStr[] = {
@@ -87,7 +89,9 @@ char *diagSpiWarnTypeStr[] = {
 /* Errors issued by Broadcom MoCA driver */
 diagErrorCodeEntry_t diagMocaErrCodeTbl[] = {
    {MOCA_INIT_ERROR, DIAG_MOCA_INIT_ERROR},
-   {MOCA_PROBE_ERROR, DIAG_MOCA_PROBE_ERROR}
+   {MOCA_PROBE_ERROR, DIAG_MOCA_PROBE_ERROR},
+   {MOCA_3450_INV_CHIP_ID_ERROR, DIAG_MOCA_3450_INV_CHIP_ID_ERROR},
+   {MOCA_3450_I2C_TIMEOUT_ERROR, DIAG_MOCA_3450_I2C_TIMEOUT_ERROR}
 };
 
 /* Errors  issued by Broadcom Giga-bit Ethernet driver */
