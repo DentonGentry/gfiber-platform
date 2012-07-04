@@ -5,6 +5,7 @@
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
+import collections
 import optparse
 import os
 import re
@@ -24,6 +25,8 @@ MTDBLOCK = '/dev/mtdblock{0}'
 PROC_MTD = '/proc/mtd'
 SYS_UBI0 = '/sys/class/ubi/ubi0/mtd_num'
 UBIFORMAT = '/usr/sbin/ubiformat'
+UBIPREFIX = '/usr/sbin/ubi'
+ROOTFSUBI_NO = '5'
 GZIP_HEADER = '\x1f\x8b\x08\x00'  # encoded as string to ignore endianness
 
 
@@ -231,7 +234,7 @@ def InstallToMtd(f, mtd):
 
 
 def InstallToUbi(f, mtd):
-  """Write an image to a ubi device.
+  """Write an image with ubi header to a ubi device.
 
   Args:
     f: a file-like object holding the image to be installed.
@@ -247,13 +250,48 @@ def InstallToUbi(f, mtd):
   writesize = RoundTo(fsize, GetEraseSize(mtd))
   devmtd = '/dev/mtd' + str(GetMtdNum(mtd))
   cmd = [UBIFORMAT, devmtd, '-f', '-', '-y', '-q', '-S', str(writesize)]
-  null = open('/dev/null', 'w')
-  ub = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=null)
+  ub = subprocess.Popen(cmd, stdin=subprocess.PIPE)
   siz = WriteToFile(f, ub.stdin)
   ub.stdin.close()  # send EOF to UBIFORMAT
   rc = ub.wait()
   if rc != 0 or siz != fsize:
     raise IOError('ubi format failed')
+  return siz
+
+
+def UbiCmd(name, args):
+  """Wrapper for ubi calls."""
+  cmd = collections.deque(args)
+  cmd.appendleft(UBIPREFIX + name)
+  rc = subprocess.call(cmd)
+  if rc != 0:
+    raise IOError('ubi ' + name + ' failed')
+
+
+def InstallToUbiNoHeader(f, mtd, ubino):
+  """Write an image without ubi header to a ubi device.
+
+  Args:
+    f: a file-like object holding the image to be installed.
+    mtd: the mtd partition to install to.
+    ubino: the ubi device number to attached ubi partition.
+
+  Raises:
+    IOError: when ubi format fails
+
+  Returns:
+    number of bytes written.
+  """
+  devmtd = '/dev/mtd' + str(GetMtdNum(mtd))
+  if os.path.exists('/dev/ubi' + ubino):
+    UbiCmd('detach', ['-d', ubino])
+  UbiCmd('format', [devmtd, '-y', '-q'])
+  UbiCmd('attach', ['-m', str(GetMtdNum(mtd)), '-d', ubino])
+  UbiCmd('mkvol', ['/dev/ubi' + ubino, '-N', 'rootfs-prep', '-m'])
+  mtd = GetMtdDevForPartition('rootfs-prep')
+  siz = InstallToMtd(f, mtd)
+  UbiCmd('rename', ['/dev/ubi' + ubino, 'rootfs-prep', 'rootfs'])
+  UbiCmd('detach', ['-d', ubino])
   return siz
 
 
@@ -263,6 +301,7 @@ class FileImage(object):
   def __init__(self, kernelfile, rootfs, loader, loadersig):
     self.kernelfile = kernelfile
     self.rootfs = rootfs
+    self.rootfstype = rootfs[7:]
     self.loader = loader
     self.loadersig = loadersig
 
@@ -285,6 +324,11 @@ class FileImage(object):
         return None
     else:
       return None
+
+  def IsRootFsUbi(self):
+    if self.rootfstype[-4:] == '_ubi':
+      return True
+    return False
 
   def GetRootFs(self):
     if self.rootfs:
@@ -313,6 +357,11 @@ class TarImage(object):
   def __init__(self, tarfilename):
     self.tarfilename = tarfilename
     self.tar_f = tarfile.open(name=tarfilename)
+    fnames = self.tar_f.getnames()
+    for fname in fnames:
+      if fname[:7] == 'rootfs.':
+        self.rootfstype = fname[7:]
+        break
 
   def GetKernel(self):
     try:
@@ -323,9 +372,14 @@ class TarImage(object):
       except KeyError:
         return None
 
+  def IsRootFsUbi(self):
+    if self.rootfstype[-4:] == '_ubi':
+      return True
+    return False
+
   def GetRootFs(self):
     try:
-      return self.tar_f.extractfile('rootfs.squashfs_ubi')
+      return self.tar_f.extractfile('rootfs.' + self.rootfstype)
     except KeyError:
       return None
 
@@ -466,9 +520,15 @@ def main():
     pnum = gfhd100_partitions[partition]
     rootfs = img.GetRootFs()
     if rootfs:
+      # log rootfs type in case wrong rootfs is installed
+      print ''.join('Installing rootfs with',
+                    ('' if img.IsRootFsUbi() else 'out'), ' ubi header')
       mtd = GetMtdDevForPartition('rootfs' + str(pnum))
       VerbosePrint('Writing rootfs to {0}'.format(mtd))
-      InstallToUbi(rootfs, mtd)
+      if img.IsRootFsUbi():
+        InstallToUbi(rootfs, mtd)
+      else:
+        InstallToUbiNoHeader(rootfs, mtd, ROOTFSUBI_NO)
       VerbosePrint('\n')
 
     kern = img.GetKernel()

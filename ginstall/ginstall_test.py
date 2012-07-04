@@ -133,6 +133,17 @@ class ImginstTest(unittest.TestCase):
     tarimg = ginstall.TarImage("testdata/img/vmboth.tar")
     self.assertEqual(tarimg.GetKernel().read(), "vmlinuz")
     self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs_ubi")
+    tarimg = ginstall.TarImage("testdata/img/vmlinux_slc.tar")
+    self.assertEqual(tarimg.GetKernel().read(), "vmlinux")
+    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs")
+    self.assertEqual(tarimg.GetLoader().read(), "loader.bin")
+    tarimg = ginstall.TarImage("testdata/img/vmlinuz_slc.tar")
+    self.assertEqual(tarimg.GetKernel().read(), "vmlinuz")
+    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs")
+    self.assertEqual(tarimg.GetLoader().read(), "loader.bin")
+    tarimg = ginstall.TarImage("testdata/img/vmboth_slc.tar")
+    self.assertEqual(tarimg.GetKernel().read(), "vmlinuz")
+    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs")
 
   def testFileImage(self):
     fileimg = ginstall.FileImage("testdata/img/vmlinux",

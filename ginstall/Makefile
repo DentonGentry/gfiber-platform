@@ -16,7 +16,7 @@ install-libs:
 test:
 	set -e; \
 	for d in $(wildcard *_test.py); do \
-		./$$d; \
+		$(HOSTDIR)/usr/bin/python $$d; \
 	done
 
 clean:
