@@ -245,6 +245,141 @@ unsigned char diagGetErrType(diag_compType_e componentType, unsigned short error
 }
 
 /*
+ * This routine will return error type string and its associated count
+ * based on component type and error type.
+ *
+ * Input:
+ *    componentType
+ *    errType
+ *    pCount - address of count
+ *
+ * Output:
+ *    errTypeStr - error type string
+ *    *pCount    - error count
+ *
+ *    NULL - If unknown component type. It shouldn't happen if the calling
+ *     routine has qualified componentType before this routine is called.
+ */
+const char *diagGetErrTypeStr(diag_compType_e componentType, unsigned short errType,
+    unsigned short *pCount) {
+  char *errTypeStr = NULL;
+
+
+  switch (componentType) {
+    case ERROR_CODE_COMPONENT_BRCM_MOCA:
+      errTypeStr = diagMocaErrTypeStr[errType];
+      *pCount = diagMocaErrCntsPtr->ErrCount[errType];
+      break;
+    case ERROR_CODE_COMPONENT_BRCM_GENET:
+      errTypeStr = diagGenetErrTypeStr[errType];
+      *pCount = diagGenetErrCntsPtr->ErrCount[errType];
+      break;
+    case ERROR_CODE_COMPONENT_MTD_NAND:
+      errTypeStr = diagMtdNandErrTypeStr[errType];
+      *pCount = diagMtdNandErrCntsPtr->ErrCount[errType];
+      break;
+    case ERROR_CODE_COMPONENT_BRCM_SPI:
+      errTypeStr = diagSpiErrTypeStr[errType];
+      *pCount = diagSpiErrCntsPtr->ErrCount[errType];
+      break;
+    default:
+      break;
+  }
+
+  return errTypeStr;
+}
+
+/*
+ * This routine will return warning type string and its associated count
+ * based on component type and warn type.
+ *
+ * Input:
+ *    componentType
+ *    warnType
+ *    pCount - address of count
+ *
+ * Output:
+ *    warnTypeStr - warning type string
+ *    *pCount     - warning count
+ *
+ *    NULL - If unknown component type. It shouldn't happen if the calling
+ *           routine has qualified componentType before this routine is called.
+ */
+const char *diagGetWarnTypeStr(diag_compType_e componentType, unsigned short warnType,
+    unsigned short *pCount) {
+  char *warnTypeStr = NULL;
+
+
+  switch (componentType) {
+    case ERROR_CODE_COMPONENT_BRCM_MOCA:
+      warnTypeStr = diagMocaWarnTypeStr[warnType];
+      *pCount = diagMocaErrCntsPtr->WarnCount[warnType];
+      break;
+    case ERROR_CODE_COMPONENT_BRCM_GENET:
+      warnTypeStr = diagGenetWarnTypeStr[warnType];
+      *pCount = diagGenetErrCntsPtr->WarnCount[warnType];
+
+      break;
+    case ERROR_CODE_COMPONENT_MTD_NAND:
+      warnTypeStr = diagMtdNandWarnTypeStr[warnType];
+      *pCount = diagMtdNandErrCntsPtr->WarnCount[warnType];
+      break;
+    case ERROR_CODE_COMPONENT_BRCM_SPI:
+      warnTypeStr = diagSpiWarnTypeStr[warnType];
+      *pCount = diagSpiErrCntsPtr->WarnCount[warnType];
+      break;
+    default:
+      break;
+  }
+
+  return warnTypeStr;
+}
+
+/*
+ * This routine will return either error or warning type string, and
+ * its associated count based on error code.
+ *
+ * Input:
+ *    errCode
+ *    pCount - address of count
+ *
+ * Output:
+ *    errTypeStr  - error type string or warning type string
+ *    *pCount     - error or warning count
+ *
+ *    NULL - If unknown component type. It shouldn't happen if the calling
+ *           routine has qualified componentType before this routine is called.
+ */
+const char *diagGetErrTypeInfo(unsigned short errCode, unsigned short *pCount)
+{
+  char *errTypeStr = NULL;
+  unsigned char errType;
+  diag_compType_e componentType = GET_ERROR_CODE_COMPONENT_TYPE(errCode);
+
+
+  if(componentType >= ERROR_CODE_COMPONENT_MAX) {
+    DIAGD_ERROR("%s: Unknown component type %d", __func__, componentType);
+    return errTypeStr;
+  }
+
+  errType = diagGetErrType(componentType, errCode);
+
+  if (errType == DIAG_UNKNOWN_ERROR_TYPE) {
+    DIAGD_ERROR("%s: unknown ERROR TYPE.  errCode = %d", __func__, errCode);
+    return errTypeStr;
+  }
+
+  if(IS_DIAG_WARNING_CODE(errCode)) {
+    errTypeStr = diagGetWarnTypeStr(componentType, errType, pCount);
+  }
+  else {
+    errTypeStr = diagGetErrTypeStr(componentType, errType, pCount);
+  }
+
+  return errTypeStr;
+}
+
+/*
  * This routine will update error or warning count table based on errorCode.
  *
  * If error code is matched in the corresponding diag error counts table:
