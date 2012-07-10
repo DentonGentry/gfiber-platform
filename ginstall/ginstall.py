@@ -301,7 +301,10 @@ class FileImage(object):
   def __init__(self, kernelfile, rootfs, loader, loadersig):
     self.kernelfile = kernelfile
     self.rootfs = rootfs
-    self.rootfstype = rootfs[7:]
+    if self.rootfs:
+      self.rootfstype = rootfs[7:]
+    else:
+      self.rootfstype = None
     self.loader = loader
     self.loadersig = loadersig
 
@@ -521,8 +524,8 @@ def main():
     rootfs = img.GetRootFs()
     if rootfs:
       # log rootfs type in case wrong rootfs is installed
-      print ''.join('Installing rootfs with',
-                    ('' if img.IsRootFsUbi() else 'out'), ' ubi header')
+      print ''.join(['Installing rootfs with',
+                     ('' if img.IsRootFsUbi() else 'out'), ' ubi header'])
       mtd = GetMtdDevForPartition('rootfs' + str(pnum))
       VerbosePrint('Writing rootfs to {0}'.format(mtd))
       if img.IsRootFsUbi():
