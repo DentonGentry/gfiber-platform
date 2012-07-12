@@ -23,5 +23,17 @@ host_%.o: %.cc
 readverity_test: host_readverity.o host_readverity_test.o
 	g++ -o $@ $^ $(HOST_LDFLAGS)
 
+install: readverity
+	$(INSTALL) -D -m 0755 readverity \
+		$(TARGET_DIR)/usr/sbin/readverity &&\
+	$(INSTALL) -D -m 0755 readallfiles.py \
+		$(TARGET_DIR)/usr/bin/readallfiles
+	$(INSTALL) -D -m 0750 S99readallfiles \
+		$(TARGET_DIR)/etc/init.d/S99readallfiles
+
+test: readverity_test
+	./readverity_test && \
+		$(HOST_DIR)/usr/bin/python readallfilestest.py
+
 clean:
 	$(RM) $(EXES)

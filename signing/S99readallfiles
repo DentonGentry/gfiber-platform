@@ -1,0 +1,30 @@
+#!/bin/sh
+#
+# Start read all files
+#
+REG_FAILIURE_COUNT="0x104083FC"
+
+clear_failure_count () {
+  devmem ${REG_FAILIURE_COUNT} 32 0
+}
+
+case "$1" in
+  start)
+    echo -n "Starting readallfiles: "
+    (nice -n 19 readallfiles / 2>&1 | logger -t readall && \
+      clear_failure_count) &
+    echo "OK"
+    ;;
+  stop)
+    pkill -x readallfiles
+    ;;
+  restart|reload)
+    stop
+    start
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart}" >&2
+    exit 1
+esac
+
+exit $?

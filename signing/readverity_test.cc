@@ -7,7 +7,7 @@
 namespace {
 
 TEST(readverityTest, Success) {
-  EXPECT_EQ(0, ::readverity("testdata"));
+  EXPECT_EQ(0, ::readverity("testdata/verityheader"));
 }
 
 }  // namespace
