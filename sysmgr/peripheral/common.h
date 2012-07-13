@@ -16,6 +16,9 @@
 #include <linux/reboot.h>
 #include "bruno/constructormagic.h"
 
+#define GPIO_LED_FILE   "/tmp/gpio/leds"
+#define TR69_MSG_FILE   "/tmp/cwmp/sysmgr"
+
 namespace bruno_platform_peripheral {
 
 class Common {
@@ -33,6 +36,7 @@ class Common {
   static void Split(const std::string& str,
               const std::string& delimiters, std::vector<std::string>& tokens);
   static bool Reboot();
+  static void SetLED(const std::string led, const std::string message);
   static bool ConvertStringToFloat(const std::string& value_str, float *value);
   static bool ConvertStringToUint16(const std::string& value_str, uint16_t *value);
   static void ConvertUint16ToString(const uint16_t& value, std::string *value_str);

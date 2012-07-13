@@ -109,6 +109,21 @@ bool Common::Reboot() {
   return(is_ok);
 }
 
+void Common::SetLED(const std::string led, const std::string message) {
+  std::ofstream file;
+
+  /* Set LED by sending string to GPIO mailbox */
+  file.open (GPIO_LED_FILE);
+  file << led << std::endl;
+  file.close();
+
+  if (!message.empty()) {
+    /* Send the message to TR69 */
+    file.open(TR69_MSG_FILE, std::ios::app);
+    file << message << std::endl;
+    file.close();
+  }
+}
 
 /* Convert from string to floating point number */
 bool Common::ConvertStringToFloat(const std::string& value_str, float *value) {
