@@ -3,11 +3,11 @@ default: all
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
-TARGETS=grep wait-until-created
+TARGETS=grep wait-until-created randomdata
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 
 HOST_CC ?= cc
-CFLAGS += -Wall -g
+CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -g -O
 .PRECIOUS: %.o host-%.o
 
 all: $(TARGETS) $(HOST_TARGETS)
