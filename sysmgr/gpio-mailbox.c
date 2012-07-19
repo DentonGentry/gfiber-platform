@@ -42,7 +42,7 @@
     } \
   } while (0)
 
-static int platform_limited_leds;
+static int platform_limited_leds, platform_b0;
 
 
 struct Gpio {
@@ -196,15 +196,24 @@ static NEXUS_GpioValue get_gpio(struct Gpio *g) {
 // Turn the leds on or off depending on the bits in fields.  Currently
 // the bits are:
 //   1: red
-//   2: blue
-//   3: activity (also blue)
-//   4: standby (bright white)
+//   2: blue (green on B0)
+//   4: activity (blue)
+//   8: standby (bright white)
 static void set_leds_from_bitfields(int fields) {
   if (platform_limited_leds) {
     // GFMS100 only has red and activity lights.  Substitute activity for blue
     // (they're both blue anyhow) and red+activity (purple) for standby.
     if (fields & 0x02) fields |= 0x04;
     if (fields & 0x08) fields |= 0x05;
+  } else if (platform_b0) {
+    // B0 fat devices are as above (limited_leds).
+    // B0 fat devices had the leds switched around, and the polarities
+    //  inverted.
+    fields = ( (fields & 0x8) |
+              ((fields & 0x4) >> 1) |
+              ((fields & 0x2) >> 1) |
+              ((fields & 0x1) << 2));
+    fields ^= 0x0f;
   }
   set_gpio(&led_red, (fields & 0x01) ? 1 : 0);
   set_gpio(&led_blue, (fields & 0x02) ? 1 : 0);
@@ -342,6 +351,7 @@ static void sig_handler(int sig) {
 void run_gpio_mailbox(void) {
   platform_limited_leds = (0 == strncmp(read_file("/etc/platform"),
                                         "GFMS100", 7));
+  platform_b0 = (NULL != strstr(read_file("/proc/cpuinfo"), "BCM7425B0"));
   gpio_open(&led_standby);
   gpio_open(&led_red);
   gpio_open(&led_activity);
