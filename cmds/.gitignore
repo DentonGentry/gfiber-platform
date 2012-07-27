@@ -2,3 +2,4 @@ host-*
 *.o
 grep
 wait-until-created
+randomdata

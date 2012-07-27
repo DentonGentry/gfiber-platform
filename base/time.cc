@@ -46,9 +46,9 @@ const uint32 HALF = 0x80000000;
 
 #ifdef POSIX
 uint32 Time() {
-  struct timeval tv;
-  gettimeofday(&tv, 0);
-  return tv.tv_sec * 1000 + tv.tv_usec / 1000;
+  struct timespec tv;
+  clock_gettime(CLOCK_MONOTONIC, &tv);
+  return tv.tv_sec * 1000 + tv.tv_nsec / 1000000;
 }
 #endif
 
