@@ -27,7 +27,7 @@ SYS_UBI0 = '/sys/class/ubi/ubi0/mtd_num'
 UBIFORMAT = '/usr/sbin/ubiformat'
 UBIPREFIX = '/usr/sbin/ubi'
 ROOTFSUBI_NO = '5'
-GZIP_HEADER = '\x1f\x8b\x08\x00'  # encoded as string to ignore endianness
+GZIP_HEADER = '\x1f\x8b\x08'  # encoded as string to ignore endianness
 
 
 # Verbosity of output
@@ -539,10 +539,10 @@ def main():
       mtd = GetMtdDevForPartition('kernel' + str(pnum))
       if IsDeviceB0():
         buf = kern.read(4100)
-        if buf[0:4] != GZIP_HEADER and buf[4096:4100] == GZIP_HEADER:
+        if buf[0:3] != GZIP_HEADER and buf[4096:4099] == GZIP_HEADER:
           VerbosePrint('old B0 device: removing kernel signing.\n')
           kern.seek(4096)
-        elif buf[0:4] == GZIP_HEADER:
+        elif buf[0:3] == GZIP_HEADER:
           VerbosePrint('old B0 device: no kernel signing, not removing.\n')
           kern.seek(0)
         else:
