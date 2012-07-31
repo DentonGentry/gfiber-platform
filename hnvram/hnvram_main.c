@@ -64,7 +64,8 @@ const hnvram_field_t nvram_fields[] = {
   {"MAC_ADDR_BT",          NVRAM_FIELD_MAC_ADDR_BT,       HNVRAM_MAC},
   {"HDCP_KEY",             NVRAM_FIELD_HDCP_KEY,          HNVRAM_STRING},
   {"GOOGLE_SSL_PEM",       NVRAM_FIELD_GOOGLE_SSL_PEM,    HNVRAM_STRING},
-  {"GOOGLE_SSL_CRT",       NVRAM_FIELD_GOOGLE_SSL_CRT,    HNVRAM_STRING}
+  {"GOOGLE_SSL_CRT",       NVRAM_FIELD_GOOGLE_SSL_CRT,    HNVRAM_STRING},
+  {"PAIRED_DISK",          NVRAM_FIELD_PAIRED_DISK,       HNVRAM_STRING}
 };
 
 const hnvram_field_t* get_nvram_field(const char* name) {
