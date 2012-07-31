@@ -67,7 +67,7 @@ void PeripheralMon::Overheating(float soc_temperature)
 
   if (soc_temperature < OVERHEATING_VALUE) {
     overheating_ = 0;
-    Common::SetLED(OVERHEATING_LED_OFF, "");
+    Common::ClrLED(Common::OVERHEATING, "");
   }
   else {
     overheating_ ++;
@@ -75,7 +75,7 @@ void PeripheralMon::Overheating(float soc_temperature)
     if (overheating_ >= OVERHEATING_COUNT) {
       message << "System reboot because SOC overheating " << overheating_;
       LOG(LS_ERROR) << message.str();
-      Common::SetLED(OVERHEATING_LED_OFF, message.str());
+      Common::ClrLED(Common::OVERHEATING, "");
 
       /* Create a 'overheating' file and reboot system. During system booting,
        * check the 'overheating' file, if it's existed, delay 30 seconds to
@@ -100,7 +100,7 @@ void PeripheralMon::Overheating(float soc_temperature)
     else {
       message << "SOC overheating detected " << overheating_;
       LOG(LS_ERROR) << message.str();
-      Common::SetLED(OVERHEATING_LED_ON, message.str());
+      Common::SetLED(Common::OVERHEATING, message.str());
     }
   }
 }

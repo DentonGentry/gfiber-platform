@@ -498,6 +498,7 @@ int main(void) {
     perror("chdir /tmp/gpio");
     return 1;
   }
+  mkdir("/tmp/leds", 0775);
 
   NEXUS_PlatformSettings platform_settings;
   NEXUS_Platform_GetDefaultSettings(&platform_settings);

@@ -16,8 +16,10 @@
 #include <linux/reboot.h>
 #include "bruno/constructormagic.h"
 
-#define GPIO_LED_FILE   "/tmp/gpio/leds"
+#define OVERHEATING_LED_FILE   "/tmp/leds/overheating"
 #define TR69_MSG_FILE   "/tmp/cwmp/sysmgr"
+
+#define OVERHEATING_LED_ON  "1 0 1 0 1 0"
 
 namespace bruno_platform_peripheral {
 
@@ -29,6 +31,10 @@ class Common {
     STRING_RETRUN_ALL_MSGS
   };
 
+  enum LedControl {
+    OVERHEATING
+  };
+
   static const std::string kErrorString;
 
   static std::string ExecCmd(std::string& cmd, std::string *pattern,
@@ -36,7 +42,8 @@ class Common {
   static void Split(const std::string& str,
               const std::string& delimiters, std::vector<std::string>& tokens);
   static bool Reboot();
-  static void SetLED(const std::string led, const std::string message);
+  static void SetLED(LedControl led, const std::string message);
+  static void ClrLED(LedControl led, const std::string message);
   static bool ConvertStringToFloat(const std::string& value_str, float *value);
   static bool ConvertStringToUint16(const std::string& value_str, uint16_t *value);
   static void ConvertUint16ToString(const uint16_t& value, std::string *value_str);
