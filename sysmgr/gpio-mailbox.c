@@ -379,7 +379,7 @@ void run_gpio_mailbox(void) {
       last_led = 0, reset_start = 0;
   long long fanspeed = -42, reset_amt = -42, readyval = 0;
   double cpu_temp = -42.0, cpu_volts = -42.0;
-  int wantspeed_warned = 0;
+  int wantspeed_warned = -42, wantspeed = 0;
   while (!shutdown_sig) {
     long long now = msec_now();
 
@@ -403,7 +403,6 @@ void run_gpio_mailbox(void) {
     if (now - last_time > 2000) {
       // set the fan speed control
       char *wantspeed_str = read_file("fanpercent");
-      int wantspeed;
       if (wantspeed_str[0]) {
         wantspeed = strtol(wantspeed_str, NULL, 0);
         if (wantspeed < 0 || wantspeed > 100) {
@@ -413,8 +412,16 @@ void run_gpio_mailbox(void) {
             wantspeed_warned = wantspeed;
           }
           wantspeed = 100;
+        } else if (wantspeed < 100 && cpu_temp >= 100.0) {
+          if (wantspeed_warned != wantspeed) {
+            fprintf(stderr,
+                    "DANGER: fanpercent (%d) is too low for CPU temp %.2f; "
+                    "using 100%%.\n", wantspeed, cpu_temp);
+            wantspeed_warned = wantspeed;
+          }
+          wantspeed = 100;
         } else {
-          wantspeed_warned = 0;
+          wantspeed_warned = -42;
         }
       } else {
         if (wantspeed_warned != 1)
@@ -437,8 +444,8 @@ void run_gpio_mailbox(void) {
 
     if (now - last_print_time >= 6000) {
       fprintf(stderr,
-              "fan_flips:%lld/sec reads:%d button:%d temp:%.2f volts:%.2f\n",
-              fanspeed, reads,
+              "fan:%lld/sec:%d%% reads:%d button:%d temp:%.2f volts:%.2f\n",
+              fanspeed, wantspeed, reads,
               get_gpio(&reset_button), cpu_temp, cpu_volts);
       last_print_time = now;
     }
@@ -491,6 +498,7 @@ int main(void) {
     perror("chdir /tmp/gpio");
     return 1;
   }
+  mkdir("/tmp/leds", 0775);
 
   NEXUS_PlatformSettings platform_settings;
   NEXUS_Platform_GetDefaultSettings(&platform_settings);

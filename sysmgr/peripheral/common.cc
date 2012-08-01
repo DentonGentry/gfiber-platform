@@ -109,16 +109,45 @@ bool Common::Reboot() {
   return(is_ok);
 }
 
-void Common::SetLED(const std::string led, const std::string message) {
+void Common::SetLED(LedControl led, const std::string message) {
   std::ofstream file;
+  const char *filename = "/dev/null";
+  const char *led_pattern = "0";
+
+  switch(led) {
+    case OVERHEATING:
+      filename = OVERHEATING_LED_FILE;
+      led_pattern = OVERHEATING_LED_ON;
+      break;
+  }
 
   /* Set LED by sending string to GPIO mailbox */
-  file.open (GPIO_LED_FILE);
-  file << led << std::endl;
+  file.open(filename);
+  file << led_pattern << std::endl;
   file.close();
 
   if (!message.empty()) {
     /* Send the message to TR69 */
+    file.open(TR69_MSG_FILE, std::ios::app);
+    file << message << std::endl;
+    file.close();
+  }
+}
+
+void Common::ClrLED(LedControl led, const std::string message) {
+  std::string filename = "/dev/null";
+
+  switch(led) {
+    case OVERHEATING:
+      filename = OVERHEATING_LED_FILE;
+      break;
+  }
+
+  unlink(filename.c_str());
+
+  if (!message.empty()) {
+    /* Send the message to TR69 */
+    std::ofstream file;
     file.open(TR69_MSG_FILE, std::ios::app);
     file << message << std::endl;
     file.close();

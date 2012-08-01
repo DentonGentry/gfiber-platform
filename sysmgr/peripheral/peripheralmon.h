@@ -12,9 +12,6 @@
 #define OVERHEATING_COUNT   3
 #define OVERHEATING_FILE    "/user/rw/overheating"
 
-#define OVERHEATING_LED_ON  "1 0 1 0 1 0"
-#define OVERHEATING_LED_OFF "0"
-
 namespace bruno_platform_peripheral {
 
 class GpIoFanSpeed;
