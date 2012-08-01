@@ -66,7 +66,9 @@ std::string Platform::GetLine(char *file, std::string *pattern) {
         /* If no pattern specified, return the first read line */
         break;
       }
-      else if (result.compare(0, pattern->size(), *pattern) == 0) {
+      /* skip this line if leading chararcter is '#' */
+      else if (result[0] != COMMENT_CHAR &&
+          result.compare(0, pattern->size(), *pattern) == 0) {
         break;      /* Found the pattern. Exit */
       }
     }
