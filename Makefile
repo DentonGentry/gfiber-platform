@@ -1,6 +1,6 @@
 default: all
 
-DIRS=ginstall diag cmds sysmgr base
+DIRS=ginstall diag cmds sysmgr base antirollback
 
 all:     $(addsuffix /all,$(DIRS))
 test:    $(addsuffix /test,$(DIRS))
