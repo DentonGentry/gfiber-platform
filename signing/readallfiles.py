@@ -13,7 +13,7 @@ import options
 optspec = """
 readallfiles [options...] <dirnames>
 --
-q,quiet=    Suppress unnecessary output.
+q,quiet     Suppress unnecessary output.
 """
 
 PROCMOUNTS = '/proc/mounts'
