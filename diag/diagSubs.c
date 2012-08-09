@@ -665,6 +665,57 @@ static int diag_netlink_socket(void)
 
 
 /*
+ * Verify if it's a wifi network interface
+ *
+ * For broadcom wifi network interface, the contents of
+ * /sys/class/net/<<net_intf>>/device/uenvent" as follows,
+ *    DRIVER=wl
+ *    PCI_CLASS=28000
+ *    PCI_ID=14E4:4359
+ *    PCI_SUBSYS_ID=14E4:057B
+ *    PCI_SLOT_NAME=0000:02:00.0
+ *
+ * Input:
+ * pNetIf     - Pointer of diag_netIf_info_t
+ *
+ * Output:
+ * true:      wifi network interface
+ * false:     otherwise
+ */
+static bool diag_if_wifi_network_interface(diag_netIf_info_t *pNetIf)
+{
+  bool  itsWireless = false;
+  char  buffer[256];
+  char  wlDriverString[] = "DRIVER=wl";     /* Brcm wifi driver name string */
+  FILE  *fp;
+
+  do {
+    /* Compose filename of the network interface */
+    sprintf(buffer, "/sys/class/net/%s/device/uevent", pNetIf->name);
+    DIAGD_TRACE("%s: filename = %s\n", __func__, buffer);
+
+    fp = fopen(buffer, "r");
+    if (NULL == fp)  {
+      /* Could be a virtual driver */
+      DIAGD_TRACE("%s: Fail to open %s", __func__, buffer);
+      break;
+    }
+
+    while (NULL != fgets(buffer, 256, fp)) {
+      DIAGD_TRACE("%s:  data = %s", __func__, buffer);
+      if (strncmp(buffer, wlDriverString, strlen(wlDriverString)) == 0) {
+        itsWireless = true;
+        break;
+      }
+    }
+  } while (0);
+
+  return (itsWireless);
+
+} /* end of diag_if_wifi_network_interface */
+
+
+/*
  * Calculate the delta of statistics of statistics[] field.
  * 1) When interval timeout occurs, or
  * 2) The loopback test
@@ -803,21 +854,24 @@ void diag_Check_netStatistics(diag_netIf_info_t *pNetIf)
     /* Get the starting address of the net interface info. */
     pCurrStats = &pNetIf->statistics[pNetIf->active_stats_idx];
 
-    /* CRC Errors -
-     * 1. Get the number of CRC errors during elapsed time.
-     * 2. Calculate and check if the errors exceeds the CRC error threshold
-     */
-    DIAG_CHK_ERR_THLD(pDelta->rx_packets,
-                      pDelta->rx_crc_errors,
-                      diagNetThld_pctRxCrcErrs,
-                      err);
-    if (err == true) {
-      /* The crc errors exceeds the error threshold */
-      DIAGD_LOG_WARN("%s: Excessive CRC Errors in %d secs  "
-                     "[RxPkts=%lu  CRC Errs=%lu]",
-                     pNetIf->name, DIAG_WAIT_TIME_RUN_GET_NET_STATS,
-                     pDelta->rx_packets, pDelta->rx_crc_errors);
-      logStats = true;        /* indicate to print net statistics */
+    if (pNetIf->check_crc_errs == true) {
+      DIAGD_TRACE("%s: check CRC errors - %s", __func__, pNetIf->name);
+      /* CRC Errors -
+       * 1. Get the number of CRC errors during elapsed time.
+       * 2. Calculate and check if the errors exceeds the CRC error threshold
+       */
+      DIAG_CHK_ERR_THLD(pDelta->rx_packets,
+          pDelta->rx_crc_errors,
+          diagNetThld_pctRxCrcErrs,
+          err);
+      if (err == true) {
+        /* The crc errors exceeds the error threshold */
+        DIAGD_LOG_WARN("%s: Excessive CRC Errors in %d secs  "
+            "[RxPkts=%lu  CRC Errs=%lu]",
+            pNetIf->name, DIAG_WAIT_TIME_RUN_GET_NET_STATS,
+            pDelta->rx_packets, pDelta->rx_crc_errors);
+        logStats = true;        /* indicate to print net statistics */
+      }
     }
 
     /* Frame Errors -
@@ -920,6 +974,8 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode)
          * 3. Set the flag to indicate the interface is in use
          * 4. Increase the number of network interface in use.
          * 5. Get the current link status.
+         * 6. If the network interface is not wifi, set flag to not
+         *    check CRC errors
          */
         pNetIf = &pNetIfs[i];
         strcpy(pNetIf->name, pNetif_name);
@@ -933,9 +989,17 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode)
         /* Save the link status to data base */
         pNetIfs[i].netlink_state = (unsigned char)linkup;
 
-        DIAGD_TRACE("%s: nNetIfs=%d pNetIfs[%d].name=%s, pNetif_name=%s link=%s",
+        pNetIf->check_crc_errs = true;
+        if (diag_if_wifi_network_interface(pNetIf) == true) {
+          pNetIf->check_crc_errs = false;
+        }
+
+        DIAGD_TRACE("%s: nNetIfs=%d pNetIfs[%d].name=%s, pNetif_name=%s link=%s"
+            " check_crc_errs=%s",
             __func__, pDiagInfo->nNetIfs, i, pNetIfs[i].name, pNetif_name,
-            (pNetIfs[i].netlink_state == DIAG_NETLINK_UP)? "UP":"DOWN");
+            (pNetIfs[i].netlink_state == DIAG_NETLINK_UP)? "UP":"DOWN",
+            (pNetIfs[i].check_crc_errs == true)? "true":"false"
+            );
 
         break;
       }
