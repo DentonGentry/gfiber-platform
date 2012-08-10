@@ -221,6 +221,8 @@ typedef struct _diag_netif_info {
 
   /* netlink relate varliable */
   unsigned char   netlink_state;          /* refer to diag_netlink_state */
+
+  bool            check_crc_errs;         /* true - check CRC counts */
 } diag_netIf_info_t;
 
 
@@ -285,8 +287,8 @@ extern time_t diagStartTm_chkKernMsg;
 
 extern pthread_mutex_t lock;
 
-/* 
- * Monitoring thresholds 
+/*
+ * Monitoring thresholds
  */
 /* net statistics releated thresholds */
 extern uint32_t  diagNetThld_pctRxCrcErrs;
@@ -300,8 +302,8 @@ extern uint32_t  diagMocaThld_pctRxDiscardPkts;
 /* Net interface link up/down cnts */
 extern uint32_t  diagNetlinkThld_linkCnts;
 
-/* 
- * Monitoring intervals (wait times in seconds) 
+/*
+ * Monitoring intervals (wait times in seconds)
  * */
 /*  Wait time of getting net statistices (include net link counts) */
 extern time_t  diagWaitTime_getNetStats;
