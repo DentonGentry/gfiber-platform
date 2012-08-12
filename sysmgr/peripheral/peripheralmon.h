@@ -10,7 +10,6 @@
 
 #define OVERHEATING_VALUE   125.0
 #define OVERHEATING_COUNT   3
-#define OVERHEATING_FILE    "/user/rw/overheating"
 
 namespace bruno_platform_peripheral {
 

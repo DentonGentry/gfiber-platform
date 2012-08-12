@@ -73,29 +73,12 @@ void PeripheralMon::Overheating(float soc_temperature)
     overheating_ ++;
 
     if (overheating_ >= OVERHEATING_COUNT) {
-      message << "System reboot because SOC overheating " << overheating_;
+      message << "System power off: SOC overheating " << overheating_;
       LOG(LS_ERROR) << message.str();
       Common::ClrLED(Common::OVERHEATING, "");
 
-      /* Create a 'overheating' file and reboot system. During system booting,
-       * check the 'overheating' file, if it's existed, delay 30 seconds to
-       * start system.
-       */
-      /*
-       * TODO:
-       * 1. Check '/uesr/rw/overheating' file in sysmgr C code instead of S07volcheck script.
-       * 2. While loop for checking '/uesr/rw' directory until it mounted.
-       * 3. If '/user/rw/overheating' is existed, delay 30 seconds to start system
-       *    and delete '/user/rw/overheating' file.
-       */
-      FILE* f = fopen(OVERHEATING_FILE, "w");
-      if (f != NULL) {
-        fprintf(f, "%f", soc_temperature);
-        fclose(f);
-      }
-
       overheating_ = 0;
-      Common::Reboot();
+      Common::Poweroff();
     }
     else {
       message << "SOC overheating detected " << overheating_;

@@ -3,6 +3,7 @@
 
 #include <sstream>
 #include <string>
+#include <stdlib.h>
 #include "bruno/logging.h"
 #include <fcntl.h>
 #include "common.h"
@@ -103,11 +104,25 @@ bool Common::Reboot() {
   sync();
   int ret = reboot(LINUX_REBOOT_CMD_RESTART);
   if (ret < 0) {
-    LOG(LS_ERROR) << "Reboot: Failed reboot (ret= " << ret << ")" << std::endl;
+    LOG(LS_ERROR) << "Reboot: failed (ret=" << ret << ")" << std::endl;
     is_ok = false;
   }
   return(is_ok);
 }
+
+
+bool Common::Poweroff() {
+  bool  is_ok = true;
+
+  sync();
+  int ret = system("poweroff-with-message 'poweroff requested by sysmgr'");
+  if (ret != 0) {
+    LOG(LS_ERROR) << "Poweroff: failed (ret=" << ret << ")" << std::endl;
+    is_ok = false;
+  }
+  return(is_ok);
+}
+
 
 void Common::SetLED(LedControl led, const std::string message) {
   std::ofstream file;

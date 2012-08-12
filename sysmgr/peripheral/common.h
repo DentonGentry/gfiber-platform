@@ -42,6 +42,7 @@ class Common {
   static void Split(const std::string& str,
               const std::string& delimiters, std::vector<std::string>& tokens);
   static bool Reboot();
+  static bool Poweroff();
   static void SetLED(LedControl led, const std::string message);
   static void ClrLED(LedControl led, const std::string message);
   static bool ConvertStringToFloat(const std::string& value_str, float *value);
