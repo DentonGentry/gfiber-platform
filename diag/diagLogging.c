@@ -732,8 +732,10 @@ void diagMocaNodeStatsLog(char *dtstr, diag_moca_node_stats_table_t  *pNodeStats
       DIAGD_LOG_W_TS ("%s NODE_RX_RR_CRC_ERROR                  : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxRrCrcError);
       DIAGD_LOG_W_TS ("%s NODE_RX_RR_TIMEOUT_ERROR              : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxRrTimeoutError);
 
-      DIAGD_LOG_W_TS ("%s NODE_RX_LC_CRC_ERROR                  : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxLcCrcError);
-      DIAGD_LOG_W_TS ("%s NODE_RX_LC_TIMEOUT_ERROR              : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxLcTimeoutError);
+      DIAGD_LOG_W_TS ("%s NODE_RX_LC_UC_CRC_ERROR               : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxLcUcCrcError);
+      DIAGD_LOG_W_TS ("%s NODE_RX_LC_BC_CRC_ERROR               : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxLcBcCrcError);
+      DIAGD_LOG_W_TS ("%s NODE_RX_LC_UC_TIMEOUT_ERROR           : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxLcUcTimeoutError);
+      DIAGD_LOG_W_TS ("%s NODE_RX_LC_BC_TIMEOUT_ERROR           : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxLcBcTimeoutError);
 
       DIAGD_LOG_W_TS ("%s NODE_RX_P1_ERROR                      : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxP2Error);
       DIAGD_LOG_W_TS ("%s NODE_RX_P2_ERROR                      : %d ", dtstr, pNodeStatsEntry->nodeStatsExt.rxP2Error);

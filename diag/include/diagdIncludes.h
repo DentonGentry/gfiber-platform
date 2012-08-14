@@ -48,13 +48,14 @@
 #include "diagParseKernMsgs.h"
 
 #ifdef DIAG_TEST_UTIL
- #include "devctl_moca.h"
  #include "mocalib.h"
+ #include "mocaint.h"
 #else
- #include "moca/dslcompat/devctl_moca.h"
  #include "moca/mocalib.h"
+ #include "moca/mocaint.h"
 #endif /* DIAG_TEST_TUILE */
 
+#include "diagMoca2.h"
 #include "diagMoca.h"
 #include "diagSubs.h"
 #include "diagNetworkTests.h"

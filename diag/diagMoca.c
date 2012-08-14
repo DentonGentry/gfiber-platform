@@ -91,11 +91,11 @@ static pthread_cond_t diagMoca_cond;
 
 /* NOTE -
  * For FMR feature, get fmr data in the fmr callback routine, so
- * 1) Allocate Memory in diagMoca_FmrResponseCb()
+ * 1) Allocate Memory in diagMoca_FmrInitCb()
  * 2) Free the allocated memory in diagMoca_GetConnInfo()
  */
 static diag_moca_node_connect_info_t *pNodeConnInfo = NULL;
-/* bConnInfoValid = false, if If the diagMoca_FmrResponseCb failed */
+/* bConnInfoValid = false, if If the diagMoca_FmrInitCb failed */
 static bool   bConnInfoValid = false;
 
 
@@ -327,7 +327,6 @@ static int diagMoca_WaitForEvent(void *ctx, uint32_t timeout_s)
 
 /*
  * Get mac addresses of active nodes .
- * It is originally from fmr_response_cb() of mocactl.c
  *
  * Input:
  * ctx              - (IN) MoCA handle.
@@ -344,39 +343,39 @@ static int diagMoca_getActiveNodes(
 {
   int   rtn = DIAGD_RC_OK;
   int   i;
-  struct moca_gen_status       gs;
-  struct moca_gen_node_status  gsn;
-  struct moca_init_time        init;
+  struct moca_network_status  ns;
+  struct moca_gen_node_status gsn;
+  struct moca_mac_addr        mac_addr;
   diag_moca_node_mac_t        *pNode = &pNodeMacAddrTbl->nodemacs[0];
 
   DIAGD_ENTRY("%s: ", __func__);
   memset(pNodeMacAddrTbl, 0, sizeof(*pNodeMacAddrTbl));
-  memset(&gs, 0, sizeof(gs));
+  memset(&ns, 0, sizeof(ns));
 
   /* get active node bitmask */
-  moca_get_gen_status(ctx, &gs);
+  moca_get_network_status(ctx, &ns);
 
   /* get status entry for each node */
   for(i = 0; i < MOCA_MAX_NODES; i++) {
 
-    if((gs.connected_nodes & (1 << i)) == 0)
+    if((ns.connected_nodes & (1 << i)) == 0)
        continue;      /* Not active. Next one */
 
     pNodeMacAddrTbl->connected_nodes++;
 
     pNode[i].active = DIAG_MOCA_NODE_ACTIVE;
     /* Check if it is self-node */
-    if(gs.node_id == i)
+    if(ns.node_id == i)
     {
       /* It's a self node */
       pNodeMacAddrTbl->selfNodeId = i;
-      moca_get_init_time(ctx, &init);
-      moca_u32_to_mac(pNode[i].macAddr, init.mac_addr_hi, init.mac_addr_lo);
+      moca_get_mac_addr(ctx, &mac_addr);
+      memcpy(&pNode[i].macAddr[0], &mac_addr.val.addr[0], MAC_ADDR_LEN);
     }
     else
     {
       moca_get_gen_node_status(ctx, i, &gsn);
-      moca_u32_to_mac(pNode[i].macAddr, gsn.eui_hi, gsn.eui_lo);
+      memcpy(&pNode[i].macAddr[0], &gsn.eui.addr[0], MAC_ADDR_LEN);
     }
   }
 
@@ -397,6 +396,7 @@ static int diagMoca_getActiveNodes(
 /*
  * The FMR calls The FMR trap with the FMR information.
  * It is originally from fmr_response_cb() of mocactl.c
+ * It changes to moca_register_fmr_init_cb on MoCA 2.0
  *
  * Input:
  * arg      - (IN) Instance of access mocad
@@ -406,7 +406,7 @@ static int diagMoca_getActiveNodes(
  * DIAGD_RC_OK  -    OK
  * DIAGD_RC_ERR -    failed
  */
-static void diagMoca_FmrResponseCb(void *ctx, struct moca_fmr_response *in)
+static void diagMoca_FmrInitCb(void *ctx, struct moca_fmr_init_out *in)
 {
   int       rtn = DIAGD_RC_ERR;
   int       i, j, node;
@@ -474,7 +474,8 @@ static void diagMoca_FmrResponseCb(void *ctx, struct moca_fmr_response *in)
         pRxNodePhyInfo->rxUcPhyRate = moca_phy_rate(
                                       pRxNodePhyInfo->rxUcPhyRate,
                                       (unsigned long)pRxNodePhyInfo->cp,
-                                      (unsigned long)0);
+                                      (unsigned long)0,
+                                      MoCA_VERSION_2_0);
       } /* end of for (MoCA_MAX_NODES) */
 
       node++;
@@ -541,7 +542,7 @@ static void diagMoca_FmrResponseCb(void *ctx, struct moca_fmr_response *in)
 
   DIAGD_EXIT("%s: ", __func__);
 
-} /* end of diagMoca_FmrResponseCb */
+} /* end of diagMoca_FmrInitCb */
 
 
 
@@ -761,7 +762,7 @@ int diagMoca_GetNodeStatistics(
   diag_moca_node_mac_table_t      nodeMacTbl;
   diag_moca_node_mac_t           *pMacAddr = NULL;
   diag_moca_node_stats_entry_t   *pNodeStatsEntry = NULL;
-  struct moca_gen_status          gs;
+  struct moca_network_status      ns;
   MoCA_NODE_STATISTICS_ENTRY      nodeStats[MoCA_MAX_NODES];
   MoCA_NODE_STATISTICS_EXT_ENTRY  nodeStatsExt[MoCA_MAX_NODES];
   bool      linkup = false;
@@ -786,8 +787,8 @@ int diagMoca_GetNodeStatistics(
     memset(pNodeStats, 0x00, *pSize);
 
     /* get active node bitmask */
-    moca_get_gen_status(g_mocaHandle, &gs);
-    prevConnectedNodes = gs.connected_nodes;
+    moca_get_network_status(g_mocaHandle, &ns);
+    prevConnectedNodes = ns.connected_nodes;
 
     /* Get node statistics w/o reset */
     rtn = (int)MoCACtl2_GetNodeTblStatistics(
@@ -809,11 +810,11 @@ int diagMoca_GetNodeStatistics(
     diagMoca_getActiveNodes(g_mocaHandle, &nodeMacTbl);
 
     /* Get current active node bitmask again to check if topology changed. */
-    moca_get_gen_status(g_mocaHandle, &gs);
-    if (prevConnectedNodes != gs.connected_nodes) {
+    moca_get_network_status(g_mocaHandle, &ns);
+    if (prevConnectedNodes != ns.connected_nodes) {
       if (idx < 2) {
         DIAGD_DEBUG("%s: Topology Changed (connectedNode-Prev=0x%08X, curr=0x%08X.",
-                    __func__, prevConnectedNodes, gs.connected_nodes);
+                    __func__, prevConnectedNodes, ns.connected_nodes);
         break;
       }
       /* */
@@ -1002,9 +1003,9 @@ int diagMoca_GetConnInfo(diag_moca_node_connect_info_t *pConnInfo)
 
   rtn = diagMoca_startEventLoop(g_mocaHandle, &event_thread);
   if (rtn == DIAGD_RC_OK) {
-    moca_register_fmr_response_cb(
+    moca_register_fmr_init_cb(
             g_mocaHandle,
-            &diagMoca_FmrResponseCb,
+            &diagMoca_FmrInitCb,
             g_mocaHandle);
     nRet = MoCACtl2_Fmr(g_mocaHandle, &fmrParams);
     if (nRet == CMSRET_SUCCESS) {
@@ -1135,7 +1136,8 @@ int diagMoca_MonErrorCounts(void)
 
 
     /* Copy the statistics to diag database */
-    memcpy(pCurr, &mocaStats.generalStats, offsetof(diag_mocaIf_stats_t, inOctets_hi));
+    diagMoca_CopyStats(pCurr, &mocaStats);
+
     pCurr->inOctets_hi = mocaStats.BitStats64.inOctets_hi;
     pCurr->outOctets_hi = mocaStats.BitStats64.outOctets_hi;
 
@@ -1620,3 +1622,25 @@ int diagMoca_MonServicePerf()
 
   return(rtn);
 } /* diagMoca_MonServicePerf */
+
+/*
+ * Copy data from MoCA statistics
+ *
+ */
+void diagMoca_CopyStats(diag_mocaIf_stats_t *mocaIf, MoCA_STATISTICS *stats)
+{
+  mocaIf->inUcPkts = stats->generalStats.inUcPkts;
+  mocaIf->inDiscardPktsEcl =
+    stats->generalStats.inUcDiscardPkts + stats->generalStats.inMcDiscardPkts;
+  mocaIf->inDiscardPktsMac = stats->generalStats.inDiscardBufPkts;
+  mocaIf->inUnKnownPkts = stats->generalStats.inUcUnKnownPkts;
+  mocaIf->inMcPkts = stats->generalStats.inMcPkts;
+  mocaIf->inBcPkts = stats->generalStats.inBcPkts;
+  mocaIf->inOctets_low = stats->generalStats.inOctets_low;
+  mocaIf->outUcPkts = stats->generalStats.outUcPkts;
+  mocaIf->outDiscardPkts = stats->generalStats.outUcDiscardPkts +
+    stats->generalStats.outMcDiscardPkts + stats->generalStats.outDiscardBufPkts;
+  mocaIf->outBcPkts = stats->generalStats.outBcPkts;
+  mocaIf->outOctets_low = stats->generalStats.outOctets_low;
+}
+

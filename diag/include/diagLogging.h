@@ -151,3 +151,4 @@ void diagLogRotate(void);
 void diagUploadLogFile(void);
 
 #endif  // _DIAG_LOGGING_H
+

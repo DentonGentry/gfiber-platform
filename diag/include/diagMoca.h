@@ -194,7 +194,7 @@ typedef struct __attribute__((packed,aligned(4))) _diag_moca_node_stats_entry_t 
 /* NOTE - Per BRCM MoCA data structure, BRCM only monitor upto 9
  * responsded (tx) nodes in the current moca code
  */
-#define MAX_RSP_NODES       9
+#define MAX_RSP_NODES       16
 typedef struct __attribute__((packed,aligned(4))) _diag_moca_node_connect_info_t {
 
   /* Self node ID */
@@ -330,5 +330,6 @@ int diagMoca_GetConnInfo(diag_moca_node_connect_info_t *pConnInfo);
 int diagd_MoCA_Init();
 void diagMoca_ConvertUpTime(uint32_t timeInSecs, uint32_t *pTimeInHrs,
                             uint32_t *pTimeInMin, uint32_t *pTimeInSecs);
+void diagMoca_CopyStats(diag_mocaIf_stats_t *mocaIf, MoCA_STATISTICS *stats);
 
 #endif /* end of _DIAG_MOCA_H_ */
