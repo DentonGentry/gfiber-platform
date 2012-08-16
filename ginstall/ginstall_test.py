@@ -213,7 +213,7 @@ class ImginstTest(unittest.TestCase):
     origfile = open("testdata/random", "r")
     origsize = os.fstat(origfile.fileno())[6]
 
-    writesize = ginstall.InstallToUbi(origfile, 9)
+    writesize = ginstall.InstallUbiFileToUbi(origfile, 9)
     self.assertEqual(writesize, origsize)
 
     # check that ubiformat was run.
@@ -228,7 +228,7 @@ class ImginstTest(unittest.TestCase):
     ginstall.UBIFORMAT = ubifmt.name
 
     origfile = open("testdata/random", "r")
-    self.assertRaises(IOError, ginstall.InstallToUbi, origfile, 0)
+    self.assertRaises(IOError, ginstall.InstallUbiFileToUbi, origfile, 0)
 
   def testBootedPartition(self):
     ginstall.PROC_MTD = "testdata/proc/mtd.bruno"
