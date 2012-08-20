@@ -6,7 +6,6 @@
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
 import collections
-import optparse
 import os
 import re
 import subprocess
@@ -15,6 +14,24 @@ import tarfile
 from Crypto.Hash import SHA512
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
+import options
+
+
+optspec = """
+ginstall -p <partition>
+ginstall -p <partition> -t <tarfile> [options...]
+ginstall -p <partition> -k <kernel> -r <rootfs> [options...]
+--
+t,tar=        tar archive containing kernel and rootfs
+k,kernel=     kernel image filename to install
+r,rootfs=     rootfs UBI image filename to install
+skiploader    skip installing bootloader (dev-only)
+loader=       bootloader file to install
+loadersig=    bootloader signature filename
+drm=          drm blob filename to install
+p,partition=  partition to install to (primary, secondary, or other)
+q,quiet       suppress unnecessary output
+"""
 
 
 # unit tests can override these with fake versions
@@ -37,6 +54,11 @@ quiet = False
 gfhd100_partitions = {'primary': 0, 'secondary': 1}
 
 
+class Fatal(Exception):
+  """An exception that we print as just an error, with no backtrace."""
+  pass
+
+
 def Verify(f, s, k):
   key = RSA.importKey(k.read())
   h = SHA512.new(f.read())
@@ -44,10 +66,17 @@ def Verify(f, s, k):
   return v.verify(h, s.read())
 
 
-def VerbosePrint(string):
+def Log(s, *args):
+  sys.stdout.flush()
+  if args:
+    sys.stderr.write(s % args)
+  else:
+    sys.stderr.write(s)
+
+
+def VerbosePrint(s, *args):
   if not quiet:
-    sys.stdout.write(string)
-    sys.stdout.flush()
+    Log(s, *args)
 
 
 def SetBootPartition(partition):
@@ -233,7 +262,7 @@ def InstallToMtd(f, mtd):
     return written
 
 
-def InstallToUbi(f, mtd):
+def InstallUbiFileToUbi(f, mtd):
   """Write an image with ubi header to a ubi device.
 
   Args:
@@ -268,7 +297,7 @@ def UbiCmd(name, args):
     raise IOError('ubi ' + name + ' failed')
 
 
-def InstallToUbiNoHeader(f, mtd, ubino):
+def InstallRawFileToUbi(f, mtd, ubino):
   """Write an image without ubi header to a ubi device.
 
   Args:
@@ -312,9 +341,8 @@ class FileImage(object):
     if self.loader:
       try:
         return open(self.loader, 'rb')
-      except IOError:
-        print 'unable to open loader file %s' % self.loader
-        return None
+      except IOError, e:
+        raise Fatal(e)
     else:
       return None
 
@@ -322,9 +350,8 @@ class FileImage(object):
     if self.kernelfile:
       try:
         return open(self.kernelfile, 'rb')
-      except IOError:
-        print 'unable to open kernel file %s' % self.kernelfile
-        return None
+      except IOError, e:
+        raise Fatal(e)
     else:
       return None
 
@@ -337,9 +364,8 @@ class FileImage(object):
     if self.rootfs:
       try:
         return open(self.rootfs, 'rb')
-      except IOError:
-        print 'unable to open rootfs file %s' % self.rootfs
-        return None
+      except IOError, e:
+        raise Fatal(e)
     else:
       return None
 
@@ -347,9 +373,8 @@ class FileImage(object):
     if self.loadersig:
       try:
         return open(self.loadersig, 'rb')
-      except IOError:
-        print 'unable to open loader file %s' % self.loadersig
-        return None
+      except IOError, e:
+        raise Fatal(e)
     else:
       return None
 
@@ -388,7 +413,7 @@ class TarImage(object):
 
   def GetLoader(self):
     if IsDeviceB0():
-      print 'old B0 device: ignoring loader.bin in tarball'
+      Log('old B0 device: ignoring loader.bin in tarball\n')
       return None
     try:
       return self.tar_f.extractfile('loader.bin')
@@ -404,58 +429,37 @@ class TarImage(object):
 
 def main():
   global quiet  #gpylint: disable-msg=W0603
-  parser = optparse.OptionParser()
-  parser.add_option('-t', '--tar', dest='tar',
-                    help='tar archive containing kernel and rootfs',
-                    default=None)
-  parser.add_option('-k', '--kernel', dest='kern',
-                    help='kernel image to install',
-                    default=None)
-  parser.add_option('-r', '--rootfs', dest='rootfs',
-                    help='rootfs UBI image to install',
-                    default=None)
-  parser.add_option('--loader', dest='loader',
-                    help='bootloader to install',
-                    default=None)
-  parser.add_option('--no-loader', dest='skiploader', action='store_true',
-                    help='skip loader installation (dev-only)',
-                    default=False)
-  parser.add_option('--loadersig', dest='loadersig',
-                    help='bootloader signature',
-                    default=None)
-  parser.add_option('--drm', dest='drmfile',
-                    help='drm blob to install',
-                    default=None)
-  parser.add_option('-p', '--partition', dest='partition', metavar='PART',
-                    type='string', action='store',
-                    help='primary or secondary image partition, or "other"',
-                    default=None)
-  parser.add_option('-q', '--quiet', dest='quiet', action='store_true',
-                    help='suppress unnecessary output.',
-                    default=False)
+  o = options.Options(optspec)
+  opt, flags, extra = o.parse(sys.argv[1:])  #gpylint: disable-msg=W0612
 
-  (options, _) = parser.parse_args()
-  quiet = options.quiet
-  if options.drmfile:
-    print 'DO NOT INTERRUPT OR POWER CYCLE, or you will lose drm capability.'
+  if not (opt.drm or opt.kernel or opt.rootfs or opt.loader or opt.tar or
+          opt.partition):
+    o.fatal('Expected at least one of -p, -k, -r, -t, --loader, or --drm')
+
+  quiet = opt.quiet
+  if opt.drm:
+    Log('DO NOT INTERRUPT OR POWER CYCLE, or you will lose drm capability.\n')
     try:
-      drm = open(options.drmfile, 'rb')
-    except IOError:
-      print 'unable to open drm file %s' % options.drmfile
-      return 1
+      drm = open(opt.drm, 'rb')
+    except IOError, e:
+      raise Fatal(e)
     mtd = GetMtdDevForPartition('drmregion0')
-    VerbosePrint('Writing drm to {0}'.format(mtd))
+    VerbosePrint('Writing drm to %r', mtd)
     InstallToMtd(drm, mtd)
     VerbosePrint('\n')
 
     drm.seek(0)
     mtd = GetMtdDevForPartition('drmregion1')
-    VerbosePrint('Writing drm to {0}'.format(mtd))
+    VerbosePrint('Writing drm to %r', mtd)
     InstallToMtd(drm, mtd)
     VerbosePrint('\n')
 
-  if options.partition:
-    if options.partition == 'other':
+  if (opt.kernel or opt.rootfs or opt.tar) and not opt.partition:
+    # default to the safe option if not given
+    opt.partition = 'other'
+
+  if opt.partition:
+    if opt.partition == 'other':
       boot = GetBootedPartition()
       if boot is None:
         # Policy decision: if we're booted from NFS, install to secondary
@@ -463,51 +467,48 @@ def main():
       else:
         partition = GetOtherPartition(boot)
     else:
-      partition = options.partition
+      partition = opt.partition
+    pnum = gfhd100_partitions[partition]
   else:
     partition = None
+    pnum = None
 
-  if options.tar or options.kern or options.rootfs:
+  if opt.tar or opt.kernel or opt.rootfs:
     if not partition:
-      print 'A --partition option must be provided.'
-      return 1
+      o.fatal('A --partition option must be provided with -k, -r, or -t')
     if partition not in gfhd100_partitions:
-      print '--partition must be one of: ' + str(gfhd100_partitions.keys())
-      return 1
+      o.fatal('--partition must be one of: ' + str(gfhd100_partitions.keys()))
 
-  if options.tar or options.kern or options.rootfs or options.loader:
-    if options.tar:
-      img = TarImage(options.tar)
-      if options.kern or options.rootfs or options.loader or options.loadersig:
-        print ('--tar option provided, ignoring --kernel, --rootfs,'
-               ' --loader and --loadersig')
+  if opt.tar or opt.kernel or opt.rootfs or opt.loader:
+    if opt.tar:
+      img = TarImage(opt.tar)
+      if opt.kernel or opt.rootfs or opt.loader or opt.loadersig:
+        o.fatal('--tar option is incompatible with -k, -r, '
+                '--loader and --loadersig')
     else:
-      img = FileImage(options.kern, options.rootfs, options.loader,
-                      options.loadersig)
+      img = FileImage(opt.kernel, opt.rootfs, opt.loader, opt.loadersig)
 
-    key = open('/etc/gfiber_public.der')
-    if not key:
-      print 'Key file /etc/gfiber_public.der is missing. Abort installation.'
-      return 1
+    try:
+      key = open('/etc/gfiber_public.der')
+    except IOError, e:
+      raise Fatal(e)
 
     loader = img.GetLoader()
     if loader:
       loader_start = loader.tell()
-      if options.skiploader:
-        print 'Skip loader installation.'
+      if opt.skiploader:
+        VerbosePrint('Skipping loader installation.\n')
       else:
         loadersig = img.GetLoaderSig()
         if not loadersig:
-          print 'Loader signature file is missing. Abort installation.'
-          return 1
+          raise Fatal('Loader signature file is missing; try --loadersig')
         if not Verify(loader, loadersig, key):
-          print 'Loader signing check failed. Abort installation.'
-          return 1
+          raise Fatal('Loader signing check failed.')
         mtd = GetMtdDevForPartition('cfe')
         is_loader_current = False
         mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
         with open(mtdblockname, 'r+b') as mtdfile:
-          VerbosePrint('Checking if the loader is up to date')
+          VerbosePrint('Checking if the loader is up to date.')
           loader.seek(loader_start)
           is_loader_current = IsIdentical(loader, mtdfile)
         VerbosePrint('\n')
@@ -515,23 +516,24 @@ def main():
           VerbosePrint('The loader is the latest.\n')
         else:
           loader.seek(loader_start, os.SEEK_SET)
-          print 'DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.'
-          VerbosePrint('Writing loader to {0}'.format(mtd))
+          Log('DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.\n')
+          VerbosePrint('Writing loader to %r', mtd)
           InstallToMtd(loader, mtd)
           VerbosePrint('\n')
 
-    pnum = gfhd100_partitions[partition]
     rootfs = img.GetRootFs()
     if rootfs:
       # log rootfs type in case wrong rootfs is installed
-      print ''.join(['Installing rootfs with',
-                     ('' if img.IsRootFsUbi() else 'out'), ' ubi header'])
-      mtd = GetMtdDevForPartition('rootfs' + str(pnum))
-      VerbosePrint('Writing rootfs to {0}'.format(mtd))
       if img.IsRootFsUbi():
-        InstallToUbi(rootfs, mtd)
+        Log('Installing ubi-formatted rootfs.\n')
       else:
-        InstallToUbiNoHeader(rootfs, mtd, ROOTFSUBI_NO)
+        Log('Installing raw rootfs image to ubi partition.\n')
+      mtd = GetMtdDevForPartition('rootfs' + str(pnum))
+      VerbosePrint('Writing rootfs to %r', mtd)
+      if img.IsRootFsUbi():
+        InstallUbiFileToUbi(rootfs, mtd)
+      else:
+        InstallRawFileToUbi(rootfs, mtd, ROOTFSUBI_NO)
       VerbosePrint('\n')
 
     kern = img.GetKernel()
@@ -546,19 +548,21 @@ def main():
           VerbosePrint('old B0 device: no kernel signing, not removing.\n')
           kern.seek(0)
         else:
-          print 'old B0 device: unrecognized kernel format.  Aborting.\n'
-          return 1
+          raise Fatal('old B0 device: unrecognized kernel format')
       VerbosePrint('Writing kernel to {0}'.format(mtd))
       InstallToMtd(kern, mtd)
       VerbosePrint('\n')
 
   if partition:
-    pnum = gfhd100_partitions[partition]
-    VerbosePrint('Setting boot partition to kernel{0}\n'.format(pnum))
+    VerbosePrint('Setting boot partition to kernel%d\n', pnum)
     SetBootPartition(pnum)
 
   return 0
 
 
 if __name__ == '__main__':
-  sys.exit(main())
+  try:
+    sys.exit(main())
+  except Fatal, e:
+    Log('%s\n', e)
+    sys.exit(1)
