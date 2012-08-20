@@ -77,8 +77,6 @@ int main(int argc, const char **argv) {
 
     for (ptr = buf; ptr < buf + len; ptr += event->len + sizeof(*event)) {
 
-      fprintf(stderr, " new iteration ");
-
       event = (struct inotify_event *)ptr;
       // Check to see if the the event struct is not incomplete.
       if (ptr + sizeof(*event) > buf + len) {
