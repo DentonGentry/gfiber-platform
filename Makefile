@@ -5,10 +5,9 @@ DIRS=ginstall diag cmds sysmgr base antirollback startupvideo
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
-PYLIBDIR=$(LIBDIR)/python2.7
 
 
-all:     $(addsuffix /all,$(DIRS))
+all:     $(addsuffix /all,$(DIRS)) build-optionspy
 test:    $(addsuffix /test,$(DIRS))
 clean:   $(addsuffix /clean,$(DIRS))
 install: $(addsuffix /install,$(DIRS)) install-optionspy
@@ -28,9 +27,11 @@ sysmgr/all: base/all
 %/install:
 	$(MAKE) -C $* install
 
+build-optionspy:
+	PYTHONPATH=$(PYTHONPATH) $(HOST_DIR)/usr/bin/python setup.py build
+
 install-optionspy:
-	mkdir -p $(PYLIBDIR)
-	cp options.py $(PYLIBDIR)/
+	PYTHONPATH=$(PYTHONPATH) $(HOST_DIR)/usr/bin/python setup.py install --prefix=$(DESTDIR)$(PREFIX)
 
 %/install-libs:
 	$(MAKE) -C $* install-libs
