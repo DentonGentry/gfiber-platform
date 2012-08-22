@@ -74,27 +74,27 @@
 
   #define DIAGD_LOG_INFO(format, args...) { \
   {   \
-    printf(format"\n", ## args); \
+    fprintf(stderr, format"\n", ## args); \
   }
   #define DIAGD_LOG_WARN(format, args...) { \
   {   \
-    printf(format"\n", ## args); \
+    fprintf(stderr, format"\n", ## args); \
   }
   #define DIAGD_LOG_SWERR(format, args...) { \
   {   \
-    printf(format"\n", ## args); \
+    fprintf(stderr, format"\n", ## args); \
   }
   #define DIAGD_LOG_ALERT(format, args...) { \
   {   \
-    printf(format"\n", ## args); \
+    fprintf(stderr, format"\n", ## args); \
   }
   #define DIAGD_LOG_CRIT(format, args...) { \
   {   \
-    printf(format"\n", ## args); \
+    fprintf(stderr, format"\n", ## args); \
   }
   #define DIAGD_LOG(format, args...) { \
   {   \
-    printf(format"\n", ## args); \
+    fprintf(stderr, format"\n", ## args); \
   }
 
 #endif /* end of DIAGD_LOGGING_ON */
@@ -112,11 +112,11 @@
 #else
   #define RESULT_TITLE_LOG(format, args...) { \
   {   \
-    printf(format"\n", ## args); \
+    fprintf(stderr, format"\n", ## args); \
   }
   #define RESULT_LOG(format, args...) { \
   {   \
-    printf(format"\n", ## args); \
+    fprintf(stderr, format"\n", ## args); \
   }
 #endif /* end of DIAG_TEST_RESULT_LOGGING_ON */
 
