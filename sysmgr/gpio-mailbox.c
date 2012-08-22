@@ -238,6 +238,14 @@ static char *read_file(const char *filename) {
 }
 
 
+// create the given (empty) file.
+static void create_file(const char *filename) {
+  // use O_EXCL here to save a close() syscall when it already exists
+  int fd = open(filename, O_WRONLY|O_CREAT|O_EXCL, 0666);
+  if (fd >= 0) close(fd);
+}
+
+
 // write a file containing the given string.
 static void write_file(const char *filename, const char *content) {
   char *tmpname = malloc(strlen(filename) + 4 + 1);
@@ -377,7 +385,7 @@ void run_gpio_mailbox(void) {
   int reads = 0, fan_flips = 0, last_fan = 0, cur_fan;
   long long last_time = 0, last_print_time = msec_now(),
       last_led = 0, reset_start = 0;
-  long long fanspeed = -42, reset_amt = -42, readyval = 0;
+  long long fanspeed = -42, reset_amt = -42, readyval = -42;
   double cpu_temp = -42.0, cpu_volts = -42.0;
   int wantspeed_warned = -42, wantspeed = 0;
   while (!shutdown_sig) {
@@ -396,6 +404,7 @@ void run_gpio_mailbox(void) {
       msec_per_led = 1000 / led_sequence_len + 1;
       led_sequence_update(true);
       last_led = now;
+      create_file("leds-ready");
     } else {
       led_sequence_update(false);
     }
@@ -476,8 +485,10 @@ void run_gpio_mailbox(void) {
     }
   }
 
-  set_leds_from_bitfields(1);
-  set_pwm(&fan_control, 100); // for safety
+  // shut down cleanly
+
+  set_leds_from_bitfields(1);  // red light to indicate a problem
+  set_pwm(&fan_control, 100);  // for safety
 
   // do *not* clean up nicely in the child; we use _exit() instead of
   // returning or calling exit().  A polite shutdown is what the parent
