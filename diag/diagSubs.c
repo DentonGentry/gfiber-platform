@@ -949,7 +949,9 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode)
   unsigned long     linkup;
   unsigned long     linkdown;
   unsigned char     stats_idx;
-
+#ifdef DIAGD_TRACE_ON
+  diag_netif_stats_t *pCurr = &pNetIf->statistics[stats_idx];
+#endif
 
   DIAGD_ENTRY("%s", __func__);
 
@@ -1053,7 +1055,6 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode)
     diag_Get_Netif_One_Counter(&netif_counter);
   }
 
-  diag_netif_stats_t  *pCurr = &pNetIf->statistics[stats_idx];
   DIAGD_TRACE("%s: active_stats_idx:%d", __func__, pNetIf->active_stats_idx);
 
   DIAGD_TRACE("rx_bytes:%lu rx_packets:%lu tx_errors:%lu",
@@ -1199,7 +1200,6 @@ void diagNotifyTr69(const char *content)
 static void diag_set_LED(diag_led_indicator ledInd)
 {
   char filename[64];
-  char *ptr = NULL;
   int  fd;
 
 
@@ -1212,7 +1212,7 @@ static void diag_set_LED(diag_led_indicator ledInd)
   fd = open(filename, O_WRONLY|O_CREAT|O_TRUNC, 0666);
 
   if (fd >= 0) {
-    ptr = diagLedTbl[ledInd].num_seq;
+    const char *ptr = diagLedTbl[ledInd].num_seq;
     write(fd, ptr, strlen(ptr));
     close(fd);
     rename(filename, BRUNO_LED_CTRL_FNAME);
@@ -1235,7 +1235,7 @@ void diagSendAlarm(unsigned short errCode)
 {
   char alertTR69Str[64];
   unsigned short count = 0;
-  char *errTypeStr = NULL;
+  const char *errTypeStr = NULL;
 
 
   /* Turn on LED solid red */

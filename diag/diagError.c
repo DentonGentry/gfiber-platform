@@ -356,7 +356,7 @@ const char *diagGetWarnTypeStr(diag_compType_e componentType, unsigned short war
  */
 const char *diagGetErrTypeInfo(unsigned short errCode, unsigned short *pCount)
 {
-  char *errTypeStr = NULL;
+  const char *errTypeStr = NULL;
   unsigned char errType;
   diag_compType_e componentType = GET_ERROR_CODE_COMPONENT_TYPE(errCode);
 
