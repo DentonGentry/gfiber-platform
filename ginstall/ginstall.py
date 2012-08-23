@@ -493,34 +493,6 @@ def main():
     except IOError, e:
       raise Fatal(e)
 
-    loader = img.GetLoader()
-    if loader:
-      loader_start = loader.tell()
-      if opt.skiploader:
-        VerbosePrint('Skipping loader installation.\n')
-      else:
-        loadersig = img.GetLoaderSig()
-        if not loadersig:
-          raise Fatal('Loader signature file is missing; try --loadersig')
-        if not Verify(loader, loadersig, key):
-          raise Fatal('Loader signing check failed.')
-        mtd = GetMtdDevForPartition('cfe')
-        is_loader_current = False
-        mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
-        with open(mtdblockname, 'r+b') as mtdfile:
-          VerbosePrint('Checking if the loader is up to date.')
-          loader.seek(loader_start)
-          is_loader_current = IsIdentical(loader, mtdfile)
-        VerbosePrint('\n')
-        if is_loader_current:
-          VerbosePrint('The loader is the latest.\n')
-        else:
-          loader.seek(loader_start, os.SEEK_SET)
-          Log('DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.\n')
-          VerbosePrint('Writing loader to %r', mtd)
-          InstallToMtd(loader, mtd)
-          VerbosePrint('\n')
-
     rootfs = img.GetRootFs()
     if rootfs:
       # log rootfs type in case wrong rootfs is installed
@@ -552,6 +524,34 @@ def main():
       VerbosePrint('Writing kernel to {0}'.format(mtd))
       InstallToMtd(kern, mtd)
       VerbosePrint('\n')
+
+    loader = img.GetLoader()
+    if loader:
+      loader_start = loader.tell()
+      if opt.skiploader:
+        VerbosePrint('Skipping loader installation.\n')
+      else:
+        loadersig = img.GetLoaderSig()
+        if not loadersig:
+          raise Fatal('Loader signature file is missing; try --loadersig')
+        if not Verify(loader, loadersig, key):
+          raise Fatal('Loader signing check failed.')
+        mtd = GetMtdDevForPartition('cfe')
+        is_loader_current = False
+        mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
+        with open(mtdblockname, 'r+b') as mtdfile:
+          VerbosePrint('Checking if the loader is up to date.')
+          loader.seek(loader_start)
+          is_loader_current = IsIdentical(loader, mtdfile)
+        VerbosePrint('\n')
+        if is_loader_current:
+          VerbosePrint('The loader is the latest.\n')
+        else:
+          loader.seek(loader_start, os.SEEK_SET)
+          Log('DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.\n')
+          VerbosePrint('Writing loader to %r', mtd)
+          InstallToMtd(loader, mtd)
+          VerbosePrint('\n')
 
   if partition:
     VerbosePrint('Setting boot partition to kernel%d\n', pnum)
