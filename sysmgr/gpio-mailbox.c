@@ -502,6 +502,7 @@ void run_gpio_mailbox(void) {
 
 int main(void) {
   int status = 98;
+  int pipefds[2];
   fprintf(stderr, "starting gpio mailbox in /tmp/gpio.\n");
 
   mkdir("/tmp/gpio", 0775);
@@ -517,6 +518,11 @@ int main(void) {
   if (NEXUS_Platform_Init(&platform_settings) != 0)
       goto end;
 
+  if (pipe(pipefds) != 0) {
+    perror("pipe");
+    _exit(99);
+  }
+
   // Fork into the background so we can shut down most of our copy of nexus.
   // Otherwise it leaves things like the video threads running, which results
   // in a mess.  But it happens that the gpio/pwm stuff is just done through
@@ -527,13 +533,25 @@ int main(void) {
     perror("fork");
     _exit(99);
   } else if (pid == 0) {
-    // child process
+    // child process.  First, wait for the parent to finish its setup.
+    char buf[1];
+    close(pipefds[1]);
+    if (read(pipefds[0], buf, 1) != 0) {
+      // this should just always return 0 == EOF.
+      perror("pipe-read");
+      _exit(99);
+    }
+    close(pipefds[0]);
     run_gpio_mailbox();
     _exit(0);
   }
 
   // parent process.  Uninit nexus here, to kill the unnecessary threads.
   NEXUS_Platform_Uninit();
+
+  // release the child process now that our copy of Nexus is shut down
+  close(pipefds[0]);
+  close(pipefds[1]);
 
   // now wait for the child process to exit so we can propagate its exit
   // code to our own parent, who can make decisions about restarting.
