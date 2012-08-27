@@ -325,5 +325,6 @@ int Diag_MonNet_GetNetIfStatistics();
 void diagd_Rd_Netlink_Msgs();
 int Diag_MonMoca_Err_Counts();
 int Diag_MonMoca_ServicePerf(void);
+int Diag_MonLog_Rotate(void);
 
 #endif /* end of _DIAG_MON_APIS_H_ */

@@ -93,7 +93,8 @@ void diagd_HwMon_Handler(void *param) {
     /* Monitor MoCA performance to each connected node in MoCA network */
     Diag_MonMoca_ServicePerf();
 
-    DIAGD_TRACE("%s: Loop counts - %d", __func__, ++diag_counter );
+    diag_counter++;
+    DIAGD_TRACE("%s: Loop counts - %d", __func__, diag_counter);
 
 #ifdef DIAGD_LOG_ROTATE_ON
     Diag_MonLog_Rotate();
