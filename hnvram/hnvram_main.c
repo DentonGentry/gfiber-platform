@@ -67,6 +67,7 @@ const hnvram_field_t nvram_fields[] = {
   {"GOOGLE_SSL_CRT",       NVRAM_FIELD_GOOGLE_SSL_CRT,    HNVRAM_STRING},
   {"PAIRED_DISK",          NVRAM_FIELD_PAIRED_DISK,       HNVRAM_STRING},
   {"PARTITION_VER",        NVRAM_FIELD_PARTITION_VER,     HNVRAM_STRING}
+  {"HW_VER",               NVRAM_FIELD_HW_VER,            HNVRAM_UINT8}
 };
 
 const hnvram_field_t* get_nvram_field(const char* name) {
