@@ -191,8 +191,9 @@ def IsDeviceB0():
 
 def IsDevice4GB():
   """Returns true if the device is using old-style 4GB NAND layout."""
-  partition = GetMtdNum(GetMtdDevForPartition('rootfs0'))
-  return GetFileSize(partition) == 0x40000000  # ie. size of v1 root partition
+  partnum = GetMtdNum(GetMtdDevForPartition('rootfs0'))
+  f = open(MTDBLOCK.format(partnum))
+  return GetFileSize(f) == 0x40000000  # ie. size of v1 root partition
 
 
 def RoundTo(orig, mult):
