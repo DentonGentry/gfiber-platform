@@ -189,6 +189,13 @@ def IsDeviceB0():
   return open('/proc/cpuinfo').read().find('BCM7425B0') >= 0
 
 
+def IsDevice4GB():
+  """Returns true if the device is using old-style 4GB NAND layout."""
+  partnum = GetMtdNum(GetMtdDevForPartition('rootfs0'))
+  f = open(MTDBLOCK.format(partnum))
+  return GetFileSize(f) == 0x40000000  # ie. size of v1 root partition
+
+
 def RoundTo(orig, mult):
   """Round orig up to a multiple of mult."""
   return ((orig + mult - 1) // mult) * mult
@@ -337,6 +344,9 @@ class FileImage(object):
     self.loader = loader
     self.loadersig = loadersig
 
+  def GetVersion(self):
+    return None
+
   def GetLoader(self):
     if self.loader:
       try:
@@ -390,6 +400,11 @@ class TarImage(object):
       if fname[:7] == 'rootfs.':
         self.rootfstype = fname[7:]
         break
+
+  def GetVersion(self):
+    # no point catching this error: if there's no version file, the
+    # whole install image is definitely invalid.
+    return self.tar_f.extractfile('version').read(4096).strip()
 
   def GetKernel(self):
     try:
@@ -492,6 +507,15 @@ def main():
       key = open('/etc/gfiber_public.der')
     except IOError, e:
       raise Fatal(e)
+
+    # old software versions are incompatible with 1 GB NAND partition format
+    # (whether or not you're physically using SLC NAND or not) so don't try
+    # to install on those devices.  But allow old versions on other
+    # platforms, for easier upgrade/downgrade testing.
+    ver = img.GetVersion()
+    if (ver and ver.startswith('bruno-') and ver < 'bruno-octopus-3' and
+        not IsDevice4GB()):
+      raise Fatal("%r is too old for new-style partitions: aborting.\n" % ver)
 
     rootfs = img.GetRootFs()
     if rootfs:
