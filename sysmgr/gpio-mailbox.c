@@ -18,16 +18,15 @@
 #include "nexus_avs.h"
 
 /*
- * This is disgustingly over-frequent.  But we don't get an accurate fan
- * speed measurement without a pretty high sampling rate.  At full speed,
- * the fan ticks about 220 times per second, and we need at least two polls
- * (rising and falling edge) each.
+ * We're polling at a very high frequency, which is a pain.  This would be
+ * slightly less gross inside the kernel (for less context switching and
+ * because it could more easily use the tick interrupt instead of polling).
  *
- * We could try using interrupts instead of polling, but it wouldn't make
- * much difference; 220 edges per second is still 220 edges per second.  It
- * would be slightly less gross inside the kernel instead.
+ * This setting isn't as bad as it sounds, though, because we don't poll
+ * 100% of the time; we only do it for a fraction of a second every now
+ * and then.
  */
-#define POLL_HZ 500    // polls per sec
+#define POLL_HZ 2000    // polls per sec
 #define USEC_PER_TICK (1000000 / POLL_HZ)
 
 #define PWM_50_KHZ 0x7900
@@ -382,9 +381,9 @@ void run_gpio_mailbox(void) {
   signal(SIGFPE, sig_handler);
 
   int inner_loop_ticks = 0, msec_per_led = 0;
-  int reads = 0, fan_flips = 0, last_fan = 0, cur_fan;
+  int reads = 0, fan_flips = 0, fan_loop_count = 0;
   long long last_time = 0, last_print_time = msec_now(),
-      last_led = 0, reset_start = 0;
+      last_led = 0, reset_start = 0, fan_loop_time = 0;
   long long fanspeed = -42, reset_amt = -42, readyval = -42;
   double cpu_temp = -42.0, cpu_volts = -42.0;
   int wantspeed_warned = -42, wantspeed = 0;
@@ -442,8 +441,8 @@ void run_gpio_mailbox(void) {
 
       // capture the fan cycle counter
       write_file_int("fanspeed", &fanspeed,
-                     fan_flips * 1000 / (now - last_time + 1));
-      fan_flips = reads = 0;
+                     fan_flips * 1000 / (fan_loop_time + 1));
+      fan_flips = fan_loop_time = 0;
 
       // capture the CPU temperature and voltage
       write_file_float("cpu_temperature", &cpu_temp, get_cpu_temperature());
@@ -456,6 +455,7 @@ void run_gpio_mailbox(void) {
               "fan:%lld/sec:%d%% reads:%d button:%d temp:%.2f volts:%.2f\n",
               fanspeed, wantspeed, reads,
               get_gpio(&reset_button), cpu_temp, cpu_volts);
+      reads = 0;
       last_print_time = now;
     }
 
@@ -473,15 +473,31 @@ void run_gpio_mailbox(void) {
     // so all the files in /tmp/gpio have been written at least once.
     write_file_int("ready", &readyval, 1);
 
-    // poll for fan ticks
-    for (int tick = 0; tick < inner_loop_ticks; tick++) {
-      cur_fan = get_gpio(&fan_tick);
-      if (last_fan && !cur_fan)
-        fan_flips++;
-      reads++;
-      last_fan = cur_fan;
-      if (shutdown_sig) break;
-      usleep(USEC_PER_TICK);
+    // poll for fan ticks.  This is a bit complicated since we want to be
+    // sure to count the exact time for an integer number of ticks.
+    fan_loop_count = (fan_loop_count + 1) % 16;
+    if (!fan_loop_count) {
+      long long start = 0, end = 0;
+      int start_fan = get_gpio(&fan_tick), last_fan = start_fan;
+      for (int tick = 0; tick < inner_loop_ticks; tick++) {
+        int cur_fan = get_gpio(&fan_tick);
+        if (last_fan != cur_fan && start_fan == cur_fan) {
+          if (!start) {
+            start = msec_now();
+          } else {
+            fan_flips++;
+            end = msec_now();
+          }
+        }
+        reads++;
+        last_fan = cur_fan;
+        if (shutdown_sig) break;
+        usleep(USEC_PER_TICK);
+      }
+      fan_loop_time += end - start;
+    } else {
+      // no need to poll *every* time
+      usleep(USEC_PER_TICK * inner_loop_ticks);
     }
   }
 
