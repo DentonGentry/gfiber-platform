@@ -1,6 +1,10 @@
 default: all
 
-DIRS=ginstall diag cmds sysmgr base antirollback
+DIRS=ginstall sysmgr cmds base antirollback
+
+ifeq ($(HAS_MOCA),y)
+DIRS+=diag
+endif
 
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
