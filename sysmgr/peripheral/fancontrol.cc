@@ -195,7 +195,7 @@ bool FanControl::SelfStart() {
   bool ret = true;
   if (self_start_enabled_){
     /*
-     * Drive the fan with duty_cycle_startup_ for 1 second
+     * Drive the fan with duty_cycle_startup_ to get it spinning
      */
     ret = DrivePwm(duty_cycle_startup_);
     if (!ret) {
@@ -204,7 +204,7 @@ bool FanControl::SelfStart() {
     }
     state_ = VAR_SPEED;
 
-    sleep (1);                  /* sleep for 1 second */
+    sleep (3);
   }
   return ret;
 }
