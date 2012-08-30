@@ -28,10 +28,12 @@ sysmgr/all: base/all
 	$(MAKE) -C $* install
 
 build-optionspy:
-	PYTHONPATH=$(PYTHONPATH) $(HOST_DIR)/usr/bin/python setup.py build
+	PYTHONPATH=$(HOSTPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py build
+	PYTHONPATH=$(TARGETPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py build
 
 install-optionspy:
-	PYTHONPATH=$(PYTHONPATH) $(HOST_DIR)/usr/bin/python setup.py install --prefix=$(DESTDIR)$(PREFIX)
+	PYTHONPATH=$(HOSTPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py install --prefix=$(HOSTDIR)$(PREFIX)
+	PYTHONPATH=$(TARGETPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py install --prefix=$(DESTDIR)$(PREFIX)
 
 %/install-libs:
 	$(MAKE) -C $* install-libs
