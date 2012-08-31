@@ -8,8 +8,8 @@ EXES=readverity readverity_test
 all: $(EXES)
 
 CFLAGS:=-Wall -Wimplicit -Wno-unknown-pragmas
-HOST_CFLAGS=-I/include -I/usr/include -I$(HOST_DIR)/include -I$(HOST_DIR)/usr/include
-HOST_LDFLAGS=-L$(HOST_DIR)/lib -L$(HOST_DIR)/usr/lib -lgtest -lpthread
+HOST_CFLAGS=-I/include -I/usr/include -I$(HOSTDIR)/include -I$(HOSTDIR)/usr/include
+HOST_LDFLAGS=-L$(HOSTDIR)/lib -L$(HOSTDIR)/usr/lib -lgtest -lpthread
 
 readverity: readverity.o main.o
 	$(CC) -o $@ $^ $(CFLAGS)
@@ -33,7 +33,7 @@ install: readverity
 
 test: readverity_test
 	./readverity_test && \
-		$(HOST_DIR)/usr/bin/python readallfilestest.py
+		$(HOSTDIR)/usr/bin/python readallfilestest.py
 
 clean:
 	$(RM) $(EXES)

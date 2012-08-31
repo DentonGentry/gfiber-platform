@@ -6,7 +6,6 @@ default: all
 DIRS=utest peripheral
 TARGETS=sysmgr gpio-mailbox $(addsuffix /all,$(DIRS))
 INSTALL=install
-DESTDIR=/
 PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
 LIBDIR=$(PREFIX)/lib

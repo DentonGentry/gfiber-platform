@@ -9,7 +9,6 @@ CPPFLAGS=-I.. -I../peripheral -I../../base \
 	$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase nexus)))
 LDFLAGS=-L../peripheral -L../../base -lbrunoperipheral \
 	$(shell $(PKG_CONFIG) --libs brunobase nexus)
-DESTDIR=/
 PREFIX=/home/test
 BINDIR=$(DESTDIR)$(PREFIX)
 
