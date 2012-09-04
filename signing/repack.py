@@ -27,7 +27,6 @@ The info is free format. Now it is only a string to hold verity table.
 __author__ = 'kedong@google.com (Ke Dong)'
 
 import binascii
-import optparse
 import os
 import re
 import shutil
@@ -35,6 +34,20 @@ import struct
 import subprocess
 import sys
 import OpenSSL  #gpylint: disable-msg=F0401
+import options
+
+
+optspec = """
+repack.py -r <rootfs> -k <kernel> -o <hostdir> -b <bindir> [options...]
+--
+k,kernel=     kernel image file name
+r,rootfs=     rootfs image file name
+o,hostdir=    host directory
+b,bindir=     binary directory
+s,sign        sign image with production key
+q,quiet       suppress print
+"""
+
 
 BLOCK_SIZE = 4096
 VERITY_START = '[VERITY-START]'
@@ -142,44 +155,25 @@ def PackVerity(kname, vname, info):
 
 def main():
   global quiet  #gpylint: disable-msg=W0603
-  parser = optparse.OptionParser()
-  parser.add_option('-r', '--rootfs', dest='rootfs',
-                    help='rootfs file name',
-                    default='rootfs.squashfs')
-  parser.add_option('-k', '--kernel', dest='kernel',
-                    help='kernel file name',
-                    default='vmlinuz')
-  parser.add_option('-o', '--hostdir', dest='hostdir',
-                    help='host directory',
-                    default=None)
-  parser.add_option('-b', '--bindir', dest='bindir',
-                    help='binary directory',
-                    default=None)
-  parser.add_option('-s', '--sign', dest='sign',
-                    action='store_true',
-                    help='sign image with production key',
-                    default=False)
-  parser.add_option('-q', '--quiet', dest='quiet',
-                    action='store_true',
-                    help='suppress print',
-                    default=False)
-  (options, _) = parser.parse_args()
-  quiet = options.quiet
-  verity_table = GenerateVerityTable(options.hostdir, options.bindir,
-                                     options.rootfs)
-  PackVerity(os.path.join(options.bindir, options.kernel),
-             os.path.join(options.bindir, 'hash.bin'),
+  o = options.Options(optspec)
+  opt, flags, extra = o.parse(sys.argv[1:])  #gpylint: disable-msg=W0612
+
+  quiet = opt.quiet
+  verity_table = GenerateVerityTable(opt.hostdir, opt.bindir,
+                                     opt.rootfs)
+  PackVerity(os.path.join(opt.bindir, opt.kernel),
+             os.path.join(opt.bindir, 'hash.bin'),
              verity_table)
-  if options.sign:
+  if opt.sign:
     olddir = os.getcwd()
-    ifname = os.path.join(options.bindir, 'signing', options.kernel)
-    ofname = os.path.join(options.bindir, options.kernel)
+    ifname = os.path.join(opt.bindir, 'signing', opt.kernel)
+    ofname = os.path.join(opt.bindir, opt.kernel)
     shutil.copy(ofname, ifname)
-    os.chdir(os.path.join(options.bindir, 'signing'))
-    RealSign(options.hostdir, 'gfiber_private.pem', ifname, ofname)
+    os.chdir(os.path.join(opt.bindir, 'signing'))
+    RealSign(opt.hostdir, 'gfiber_private.pem', ifname, ofname)
     os.chdir(olddir)
   else:
-    FakeSign(os.path.join(options.bindir, options.kernel))
+    FakeSign(os.path.join(opt.bindir, opt.kernel))
 
 
 if __name__ == '__main__':
