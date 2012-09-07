@@ -14,6 +14,10 @@ SODIR=$(DESTDIR)$(PREFIX)/usr/lib
 TESTDIR=$(DESTDIR)$(PREFIX)/home/test
 INSTALL=install
 
+ifeq ($(BRUNO_PROD_BUILD),y)
+CFLAGS          += -DBRUNO_PROD_DEFINED
+endif
+
 # It is the diag core files
 CORE_OBJS	:= diagParseKernMsgs.o diagMonApis.o \
 	diagNetworkTests.o diagApis.o diagLogging.o diagSubs.o \

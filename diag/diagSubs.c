@@ -14,7 +14,6 @@
 
 #include "diagdIncludes.h"
 
-
 /*--------------------------------------------------------------------------
  *
  * Global variables
@@ -159,7 +158,14 @@ int diag_CmdHandler_Init(void)
     /* Fill in socket structure */
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
+
+#if ((defined DIAGD_DEBUG_ON) && (!defined BRUNO_PROD_DEFINED))
+    #pragma message ("DIAGD_DEBUG_ON for non-prod build:Open socket for the remote access")
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+#else
+    #pragma message ("DIAGD_DEBUG_ON is off:Open socket for the local access only")
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+#endif
     addr.sin_port = htons(DIAG_HOSTCMD_PORT);
 
     /* Bind socket to the port */
