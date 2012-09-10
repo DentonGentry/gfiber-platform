@@ -40,8 +40,8 @@ import options
 optspec = """
 repack.py -r <rootfs> -k <kernel> -o <hostdir> -b <bindir> [options...]
 --
-k,kernel=     kernel image file name
-r,rootfs=     rootfs image file name
+k,kernel=     kernel image file name [vmlinuz]
+r,rootfs=     rootfs image file name [rootfs.squashfs]
 o,hostdir=    host directory
 b,bindir=     binary directory
 s,sign        sign image with production key
