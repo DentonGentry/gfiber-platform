@@ -611,7 +611,6 @@ int diag_CmdHandler_Moca_GetNodeConnectInfo(void) {
 
 } /* end of diag_CmdHandler_Moca_GetNodeConnectInfo */
 
-extern int get_diagDb_mmap(char **diagdMap);
 
 /*
  * Query to get the summary of the monitored kernel
@@ -670,6 +669,7 @@ int diag_CmdHandler_GetMonKernMsgsCntsSum(void) {
     outBuf[strlen(outBuf)] = '\0';
     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, (uint8_t *)&outBuf[0],
         strlen(outBuf)+1); /* total length of output string */
+    close_diagDb_mmap(diagdFd, diagdMap);
   } else {
     /* Failed. Send empty payload to indicate the request failed */
     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, NULL, 0);
@@ -729,6 +729,7 @@ int diag_CmdHandler_GetMonKernMsgsCntsDet(void) {
     outBuf[strlen(outBuf)] = '\0';
     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, (uint8_t *)&outBuf[0],
         strlen(outBuf)+1); /* total length of output string */
+    close_diagDb_mmap(diagdFd, diagdMap);
   } else {
     /* Failed. Send empty payload to indicate the request failed */
     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, NULL, 0);

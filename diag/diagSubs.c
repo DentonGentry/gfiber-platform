@@ -955,9 +955,6 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode)
   unsigned long     linkup;
   unsigned long     linkdown;
   unsigned char     stats_idx;
-#ifdef DIAGD_TRACE_ON
-  diag_netif_stats_t *pCurr = &pNetIf->statistics[stats_idx];
-#endif
 
   DIAGD_ENTRY("%s", __func__);
 
@@ -1061,6 +1058,9 @@ int diag_Get_Netif_Counters(char *pNetif_name, unsigned char bNormalMode)
     diag_Get_Netif_One_Counter(&netif_counter);
   }
 
+#ifdef DIAGD_TRACE_ON
+  diag_netif_stats_t *pCurr = &pNetIf->statistics[stats_idx];
+#endif
   DIAGD_TRACE("%s: active_stats_idx:%d", __func__, pNetIf->active_stats_idx);
 
   DIAGD_TRACE("rx_bytes:%lu rx_packets:%lu tx_errors:%lu",

@@ -124,6 +124,8 @@ extern int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned
   diagd_log_msg_and_alert(_dact, _timestamp, _kmsgErrLevel, _code, _pDkmsg); \
 }
 
+extern int get_diagDb_mmap(char **mapPtr);
+extern void close_diagDb_mmap(int diagdFd, char *diagdMap);
 extern void diagSendAlarm(unsigned short errorCode);
 extern void diagUpdateErrorCount(char *timestamp, unsigned short errorCode);
 extern void diagUpdateWarnCount(char *timestamp, unsigned short errorCode);

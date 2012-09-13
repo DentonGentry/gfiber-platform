@@ -160,6 +160,15 @@ int diagtOpenEventLogFile(void)
       break;
     }
 
+    /* Somehow fopen(.., "a") in uclibc does NOT implicitly set file position
+     * to eof but glibc DOES.
+     * Need to call fseek(..,SEEK_END) to set file position to eof
+     */
+    if (fseek(logFp, 0L, SEEK_END) < 0) {
+      perror("fseek");
+      break;
+    }
+
     rtn = DIAGD_RC_OK;
 
   } while (false);
@@ -248,7 +257,6 @@ void diagtCloseMocaLogFile(void)
 } /* end of diagtCloseMocaLogFile */
 
 #ifdef DIAGD_LOG_ROTATE_ON
-extern int get_diagDb_mmap(char **);
 /*
  * Handle Diag log rotation.
  * If current log file size is greater
@@ -268,10 +276,11 @@ void diagLogRotate()
   static uint16_t extNum = 0;
   char *diagdMap = NULL;
   uint16_t *extNumPtr = NULL;
-  int diagdFd;
+  int diagdFd = -1;
 
   /* get the diag log file size */
   fileSize = ftell(logFp);
+  DIAGD_DEBUG("fileSize=%ld, MAX_ROTATE_SZ=%d", fileSize, MAX_ROTATE_SZ);
 
   if (fileSize > MAX_ROTATE_SZ) {
     /* get mmap of diag databse file */
@@ -285,13 +294,14 @@ void diagLogRotate()
       extNumPtr =  (uint16_t *) &diagdMap[DIAGD_LOG_ROTATE_EXTNUM_INDEX];
     }
 
+    DIAGD_DEBUG("extNum=%u", *extNumPtr);
     sprintf(newFilename, "%s.%1d", DIAGD_LOG_FILE, *extNumPtr);
     fprintf(stderr, "Diag log rotation ------> %s\n", newFilename);
     rename(DIAGD_LOG_FILE, newFilename);
     *extNumPtr = (*extNumPtr + 1)%MAX_NUM_OF_ROTATE_FILES;
 
-    if (diagdFd > 0) {
-      close(diagdFd);
+    if (diagdFd >= 0) {
+      close_diagDb_mmap(diagdFd, diagdMap);
     }
     /* open a new Diag log file */
     diagtOpenEventLogFile();
