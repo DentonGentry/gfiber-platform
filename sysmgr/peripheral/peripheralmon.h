@@ -8,7 +8,7 @@
 #include "bruno/time.h"
 #include "mailbox.h"
 
-#define OVERHEATING_VALUE   125.0
+#define OVERHEATING_VALUE   120.0
 #define OVERHEATING_COUNT   3
 
 namespace bruno_platform_peripheral {
