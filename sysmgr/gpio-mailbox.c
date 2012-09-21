@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/select.h>
+#include <sys/time.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -309,18 +310,19 @@ static void read_led_sequence_file(const char *filename) {
 
 
 // switch to the next led combination in led_sequence.
-static void led_sequence_update(bool next) {
-  static unsigned i;
+static void led_sequence_update(long long frac) {
+  int i = led_sequence_len * frac / 1000;
+  if (i >= (int)led_sequence_len)
+    i = led_sequence_len;
+  if (i < 0)
+    i = 0;
 
   // if the 'activity' file exists, unlink() will succeed, giving us exactly
   // one inversion of the activity light.  That causes exactly one delightful
   // blink.
   int activity_toggle = (unlink("activity") == 0) ? 0x04 : 0;
 
-  if (i >= led_sequence_len)
-    i = 0;
   set_leds_from_bitfields(led_sequence[i] ^ activity_toggle);
-  if (next) i++;
 }
 
 
@@ -328,7 +330,19 @@ static void led_sequence_update(bool next) {
 static long long msec_now(void) {
   struct timespec ts;
   CHECK(clock_gettime(CLOCK_MONOTONIC, &ts));
-  return (ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
+  return ((long long)ts.tv_sec) * 1000 + (ts.tv_nsec / 1000000);
+}
+
+
+// The offset of msec_now() vs. wall clock time.
+// Don't use this for anything important, since you can't trust wall clock
+// time on our devices.  But it's useful for syncing LED blinking between
+// devices.  Because it's prettier.
+static long long msec_offset(void) {
+  long long mono = msec_now();
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return ((mono - (tv.tv_usec / 1000)) + 1000) % 1000;
 }
 
 
@@ -383,7 +397,7 @@ void run_gpio_mailbox(void) {
   int inner_loop_ticks = 0, msec_per_led = 0;
   int reads = 0, fan_flips = 0, fan_loop_count = 0;
   long long last_time = 0, last_print_time = msec_now(),
-      last_led = 0, reset_start = 0, fan_loop_time = 0;
+      last_led = 0, reset_start = 0, fan_loop_time = 0, offset = msec_offset();
   long long fanspeed = -42, reset_amt = -42, readyval = -42;
   double cpu_temp = -42.0, cpu_volts = -42.0;
   int wantspeed_warned = -42, wantspeed = 0;
@@ -401,12 +415,11 @@ void run_gpio_mailbox(void) {
         inner_loop_ticks /= 2;
       }
       msec_per_led = 1000 / led_sequence_len + 1;
-      led_sequence_update(true);
       last_led = now;
+      offset = msec_offset();
       create_file("leds-ready");
-    } else {
-      led_sequence_update(false);
     }
+    led_sequence_update((now + 1000 - offset) % 1000);
 
     if (now - last_time > 2000) {
       // set the fan speed control
@@ -496,8 +509,13 @@ void run_gpio_mailbox(void) {
       }
       fan_loop_time += end - start;
     } else {
-      // no need to poll *every* time
-      usleep(USEC_PER_TICK * inner_loop_ticks);
+      // no need to poll *every* time.
+      // For the last tick of each second, adjust it slightly so our LED
+      // blinks can be aligned on the one-second boundary.
+      long long time_to_boundary = 1000000 - ((now - offset) * 1000) % 1000000;
+      long long delay = USEC_PER_TICK * inner_loop_ticks;
+      if (delay > time_to_boundary) delay = time_to_boundary;
+      usleep(delay);
     }
   }
 
