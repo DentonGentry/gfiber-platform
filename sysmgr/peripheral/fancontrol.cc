@@ -55,9 +55,14 @@ const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
  * (or fan speed) is 99%. pwm is set to any value greater 40
  * it will only increase fan speed by less than 1%.
  * Therefore Dmax is set to 40.
+ *
+ * Temporary Solution (09/24/2012)
+ * Since we are getting close to FCS, make the immediate change of raising
+ * the Tmin for Thin Bruno from 45C to 85C. This will reduce the overall
+ * fan speed and noise.
  */
 const FanControlParams FanControl::kGFHD100FanCtrlSocDefaults = {
-                          temp_min      : 45,
+                          temp_min      : 85,
                           temp_max      : 100,
                           duty_cycle_min: 16,
                           duty_cycle_max: 40,

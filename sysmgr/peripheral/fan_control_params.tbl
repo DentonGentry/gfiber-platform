@@ -15,4 +15,4 @@ GFMS100_HDD    45    70    25    50    2
 # Therefore Dmax is set to 40.
 
 #GFHD100_SOC    45    100   25    100    2
-GFHD100_SOC    45    100   16    40    2
+GFHD100_SOC    85    100   16    40    2
