@@ -20,8 +20,16 @@ const std::string  Mailbox::kMailboxReadyFile = "/tmp/gpio/ready";
  *  true  - soc_speed - fan spinning count per second
  *  false - soc_speed - an invalid string
  */
-bool Mailbox::ReadFanSpeed(std::string *fan_speed) {
-  return ReadValueString(kMailboxFanSpeedFile, fan_speed);
+bool Mailbox::ReadFanSpeed(uint16_t *fan_speed) {
+  std::string value_str;
+  bool  rtn;
+
+  *fan_speed = 0;
+  rtn = ReadValueString(kMailboxFanSpeedFile, &value_str);
+  if (rtn == true) {
+    rtn = Common::ConvertStringToUint16(value_str, fan_speed);
+  }
+  return rtn;
 }
 
 
