@@ -142,13 +142,10 @@ static void _flush_ratelimited(uint8_t *header, ssize_t headerlen,
   if (!last_add_time) {
     // bucket always starts out full, particularly because programs tend
     // to spew a lot of content at startup.
-    last_add_time = mstime();
+    last_add_time = now;
     bucket = BUCKET_SIZE;
   }
 
-  if (!last_add_time) {
-    last_add_time = now;
-  }
   tdiff = now - last_add_time;
   add = tdiff * max_bytes_per_sec / 1000;
 
@@ -215,9 +212,10 @@ static uint8_t *fix_buf(uint8_t *buf, ssize_t len) {
       *outp++ = *inp;
     } else if (*inp == '\t') {
       // align tabs (ignoring prefixes etc) for nicer-looking output
-      while ((outp - outbuf) % 8 != 0) {
+      do {
         *outp++ = ' ';
-      }
+      } while ((outp - outbuf) % 8 != 0);
+
     } else if (*inp == '\r') {
       // just ignore CR characters
     } else {
@@ -296,8 +294,8 @@ int main(int argc, char **argv) {
   if (argc > 2) {
     max_bytes_per_sec = atoi(argv[2]) / SECS_PER_CYCLE;
     if (max_bytes_per_sec <= 0) {
-      fprintf(stderr, "logos: bytes-per-sec (%s) must be an int >= 0\n",
-              argv[2]);
+      fprintf(stderr, "logos: bytes-per-cycle (%s) must be an int >= %d\n",
+              argv[2], (int)SECS_PER_CYCLE);
       return 6;
     }
   }
@@ -323,8 +321,10 @@ int main(int argc, char **argv) {
       flush(header, headerlen, buf, used);
       goto done;
     } else if (got < 0) {
-      flush(header, headerlen, buf, used);
-      return 1;
+      if (errno != EINTR && errno != EAGAIN) {
+        flush(header, headerlen, buf, used);
+        return 1;
+      }
     } else {
       uint8_t *start = buf, *next = buf + used, *end = buf + used + got, *p;
       while ((p = memchr(next, '\n', end - next)) != NULL) {
@@ -339,8 +339,8 @@ int main(int argc, char **argv) {
         }
         start = next = p + 1;
       }
-      used = end - next;
-      memmove(buf, next, used);
+      used = end - start;
+      memmove(buf, start, used);
     }
   }
 

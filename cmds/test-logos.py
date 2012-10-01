@@ -51,7 +51,7 @@ def testLogos():
   os.write(fd1, 'a\tb\r\nabba\tbbb\naa\t\tb\tc\n')
   WVPASSEQ('<7>fac: a       b\n', _Read())
   WVPASSEQ('<7>fac: abba    bbb\n', _Read())
-  WVPASSEQ('<7>fac: aa      b       c\n', _Read())
+  WVPASSEQ('<7>fac: aa              b       c\n', _Read())
   os.write(fd1, ''.join(chr(i) for i in range(33)) + '\n')
   WVPASSEQ(r'<7>fac: ' +
            r'\x00\x01\x02\x03\x04\x05\x06\x07\x08    '
@@ -64,7 +64,9 @@ def testLogos():
 
   # very long lines should be broken, but not missing any characters
   sent = ('x ' * 2000)
-  os.write(fd1, sent + '\n' + 'booga!')
+  for c in sent:
+    os.write(fd1, c)
+  os.write(fd1, '\nbooga!')
   total = ''
   while total != sent:
     print 'len(total)=%d len(sent)=%d' % (len(total), len(sent))
