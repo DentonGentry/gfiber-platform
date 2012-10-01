@@ -7,3 +7,5 @@ watch-dirs
 logos
 test_dir
 test_file
+realtime
+rtwatcher
