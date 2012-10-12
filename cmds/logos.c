@@ -57,22 +57,22 @@
 #define MAX_LINE_LENGTH    768
 
 
-static int debug = 0;
+static int debug = 0, want_unlimited_mode = 0, unlimited_mode = 0;
 static ssize_t max_bytes_per_sec = DEFAULT_MAX_BYTES_PER_SEC;
 
 
 // Returns 1 if 's' starts with 'contains' (which is null terminated).
-static int startswith(void *s, char *contains) {
+static int startswith(const void *s, const char *contains) {
   return strncasecmp(s, contains, strlen(contains)) == 0;
 }
 
 
 static void _flush_unlimited(uint8_t *header, ssize_t headerlen,
-                             uint8_t *buf, ssize_t len) {
+                             const uint8_t *buf, ssize_t len) {
   ssize_t total = headerlen + len + 1;
   struct iovec iov[] = {
     { header, headerlen },
-    { buf, len },
+    { (uint8_t *)buf, len },
     { "\n", 1 },
   };
   uint8_t lvl;
@@ -141,7 +141,9 @@ static void _flush_ratelimited(uint8_t *header, ssize_t headerlen,
 
   if (!last_add_time) {
     // bucket always starts out full, particularly because programs tend
-    // to spew a lot of content at startup.
+    // to spew a lot of content at startup.  Also, last_add_time gets
+    // reset to 0 when we enable/disable unlimited_mode so the bucket
+    // refills.
     last_add_time = now;
     bucket = BUCKET_SIZE;
   }
@@ -167,7 +169,7 @@ static void _flush_ratelimited(uint8_t *header, ssize_t headerlen,
     last_add_time = now;
   }
 
-  if (bucket >= total) {
+  if (bucket >= total || unlimited_mode) {
     if (num_skipped) {
       char tmp[1024];
       ssize_t n = snprintf(tmp, sizeof(tmp),
@@ -177,7 +179,7 @@ static void _flush_ratelimited(uint8_t *header, ssize_t headerlen,
       num_skipped = 0;
     }
     _flush_unlimited(header, headerlen, buf, len);
-    bucket -= total;
+    bucket -= total;  // in unlimited_mode this could go negative; that's ok
   } else {
     if (!num_skipped) {
       char tmp[1024];
@@ -196,6 +198,21 @@ static void _flush_ratelimited(uint8_t *header, ssize_t headerlen,
 // want to see what's going on this instant.
 static void refill_ratelimiter(int sig) {
   last_add_time = 0;
+}
+
+
+// SIGUSR1 disables the rate limit entirely, for debugging on test devices
+static void disable_ratelimit(int sig) {
+  want_unlimited_mode = 1;
+}
+
+
+// SIGUSR2 does the opposite of SIGUSR1.  We could make SIGUSR1 a toggle
+// instead, but this way you can just do 'pkill -USR1 logos' and make sure
+// all the processes have log limits disabled, where a toggle would leave you
+// uncertain.
+static void enable_ratelimit(int sig) {
+  want_unlimited_mode = 0;
 }
 
 
@@ -266,6 +283,10 @@ static void usage(void) {
 int main(int argc, char **argv) {
   static uint8_t overlong_warning[] =
       "W: previous log line was split. Use shorter lines.";
+  static uint8_t now_unlimited[] =
+      "W: SIGUSR1: rate limit disabled.";
+  static uint8_t now_limited[] =
+      "W: SIGUSR2: rate limit re-enabled.";
   uint8_t buf[MAX_LINE_LENGTH], *header;
   ssize_t used = 0, got, headerlen;
   int overlong = 0;
@@ -282,6 +303,8 @@ int main(int argc, char **argv) {
   }
 
   signal(SIGHUP, refill_ratelimiter);
+  signal(SIGUSR1, disable_ratelimit);
+  signal(SIGUSR2, enable_ratelimit);
 
   headerlen = 3 + strlen(argv[1]) + 1 + 1; // <x>, fac, :, space
   header = malloc(headerlen + 1);
@@ -311,6 +334,20 @@ int main(int argc, char **argv) {
   }
 
   while (1) {
+    if (unlimited_mode != want_unlimited_mode) {
+      // we delay setting these variables until this point, in order to avoid
+      // race conditions caused by changing unlimited_mode and last_add_time
+      // inside a signal handler.
+      unlimited_mode = want_unlimited_mode;
+      last_add_time = 0;
+      if (unlimited_mode) {
+        _flush_unlimited(header, headerlen,
+                         now_unlimited, strlen((char *)now_unlimited));
+      } else {
+        _flush_unlimited(header, headerlen,
+                         now_limited, strlen((char *)now_limited));
+      }
+    }
     if (used == sizeof(buf)) {
       flush(header, headerlen, buf, used);
       overlong = 1;
