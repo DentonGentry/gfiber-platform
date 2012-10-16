@@ -1,6 +1,6 @@
 default: all
 
-DIRS=ginstall diag cmds sysmgr base antirollback startupvideo
+DIRS=ginstall diag cmds sysmgr base antirollback
 
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin

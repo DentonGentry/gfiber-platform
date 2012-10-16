@@ -6,6 +6,6 @@ includedir=${prefix}/include
 Name: Bruno Base
 Description: Bruno Base Utility Library
 Version: 1.0.0
-Libs: -L${libdir} -lbrunobase
+Libs: -L${libdir} -lbrunobase -lpthread
 Libs.private: 
 Cflags: -DPOSIX -DLINUX -D_DEBUG -DLOGGING=1
