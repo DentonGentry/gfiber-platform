@@ -3,7 +3,7 @@ default: all
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
-TARGETS=grep wait-until-created randomdata watch-dirs logos realtime rtwatcher
+TARGETS=grep wait-until-created randomdata watch-dir logos realtime rtwatcher
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 
 HOST_CC ?= cc

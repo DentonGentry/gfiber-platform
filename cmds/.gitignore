@@ -3,7 +3,7 @@ host-*
 grep
 wait-until-created
 randomdata
-watch-dirs
+watch-dir
 logos
 test_dir
 test_file
