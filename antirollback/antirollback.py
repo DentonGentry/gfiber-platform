@@ -32,7 +32,7 @@ u,user=       setuid to this user to run
 
 
 # Unit tests can override these.
-BIRTHDAY = 1342940400.0  # 7/22/2012
+BIRTHDAY = 1349064000.0  # 10/1/2012
 PROC_AR = '/proc/ar_clock'
 PROC_UPTIME = '/proc/uptime'
 SLEEP = time.sleep
