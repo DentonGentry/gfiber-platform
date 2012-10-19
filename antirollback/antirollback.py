@@ -33,6 +33,7 @@ u,user=       setuid to this user to run
 
 # Unit tests can override these.
 BIRTHDAY = 1349064000.0  # 10/1/2012
+BUILD_FILENAME = '/etc/softwaredate'
 PROC_AR = '/proc/ar_clock'
 PROC_UPTIME = '/proc/uptime'
 SLEEP = time.sleep
@@ -42,8 +43,17 @@ TIMENOW = time.time
 def GetPersistTime(ar_filename):
   """Return time stored in ar_filename, or 0.0 if it does not exist."""
   try:
-    with open(ar_filename, 'r') as f:
+    with open(ar_filename) as f:
       return float(f.read())
+  except (IOError, ValueError):
+    return 0.0
+
+
+def GetBuildDate(build_filename):
+  """Return build_date in floating point seconds since epoch."""
+  try:
+    with open(build_filename) as f:
+      return float(f.readline())
   except (IOError, ValueError):
     return 0.0
 
@@ -55,7 +65,8 @@ def GetMonotime():
 
 def GetAntirollbackTime(ar_filename):
   """Return the appropriate antirollback time to use at startup."""
-  now = max(TIMENOW(), GetPersistTime(ar_filename), BIRTHDAY)
+  now = max(TIMENOW(), GetPersistTime(ar_filename),
+            GetBuildDate(BUILD_FILENAME), BIRTHDAY)
   return now
 
 
@@ -65,7 +76,7 @@ def StoreAntirollback(now, ar_filename, kern_f):
   sys.stdout.flush()
   kern_f.write(str(now))
   kern_f.flush()
-  tmpdir=os.path.dirname(ar_filename)
+  tmpdir = os.path.dirname(ar_filename)
   with tempfile.NamedTemporaryFile(mode='w', dir=tmpdir, delete=False) as f:
     f.write(str(now) + '\n')
     f.flush()
