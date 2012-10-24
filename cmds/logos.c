@@ -22,48 +22,151 @@
 #include <time.h>
 #include <unistd.h>
 
+
 // Total size of kernel log buffer.
-#define TOTAL_LOG_SIZE   1000000
+// We use CONFIG_PRINTK_PERSIST in the kernel to keep our log buffer across
+// reboots, then configure the kernel buffer to be extra large, then dump
+// *both* kernel and userspace messages into it.  This gives us a clearly
+// timestamped log of all events across the whole system.
+// The kernel log buffer size is actually set by the log_buf_len kernel
+// parameter; if you change it to be <= BURST_LOG_SIZE, please change it
+// here too.
+#define BURST_LOG_SIZE     (10*1000LL*1000LL)
+
+// Maximum bytes to log per day.
+// This limit reflects our server-side quota (and is also enforced server
+// side).  We need to know it client-side in order to calculate the right
+// default bucket size so we never run into the server-side quota
+// unexpectedly.
+#define DAILY_LOG_SIZE     (100*1000LL*1000LL)
 
 // Amount of time between system-wide log uploads.
-#define SECS_PER_CYCLE   300
+// (The system might actually upload more of than this, which is harmless.
+// If it uploads less often, we risk an overflow, because we're calculating
+// our bucket sizes based on this amount.)
+#define SECS_PER_BURST     300
 
-// Our log buffers are 1MB, uploaded every 300 seconds.  Let's assume a
-// worst-likely-case of two log periods between uploads and up to 10
-// programs logging at excessive speeds all at once.
-//
-// This isn't quite optimal, since generally you won't have *all* the
-// programs logging out of control at once, so it would be better if one
-// program could steal log space from another.  But that gets complicated
-// fast, so let's just be conservative here.  Overflowing the buffer is
-// bad for everyone.
-#define DEFAULT_MAX_BYTES_PER_SEC  (TOTAL_LOG_SIZE/(SECS_PER_CYCLE*2)/10)
+// Amount of time in daily bucket.
+// (That is, DAILY_LOG_SIZE is a limit reflecting this many seconds.)
+#define SECS_PER_DAY       (24*60*60)
 
-// Fill the token bucket with up to this many seconds' worth of tokens, to
-// allow for bursty output.  The per-log-upload time period is a good value
-// to start with, but it's slightly too optimistic since everyone
-// starts off with a full token bucket.  That means during the first
-// BUCKET_SIZE_SECS after booting, tasks could produce twice as much
-// data as they're supposed to.  Let's use slightly less.
-#define BUCKET_SIZE_SECS   (SECS_PER_CYCLE/2)
+// Worst-case number of programs bursting out of control at once
+#define MAX_BURSTING_APPS  10
 
-// BUCKET_SIZE_SECS, but expressed in bytes instead of seconds.
-#define BUCKET_SIZE (max_bytes_per_sec * BUCKET_SIZE_SECS)
+// Worst-case number of programs maxing out the daily byte counter
+#define MAX_DAILY_APPS     20
 
-// This is kind of arbitrary.  It matters more when using syslogd (which
+// Default bytes per burst period
+#define DEFAULT_BYTES_PER_BURST  (BURST_LOG_SIZE / MAX_BURSTING_APPS)
+
+// Default bytes per day
+#define DEFAULT_BYTES_PER_DAY  (DAILY_LOG_SIZE / MAX_DAILY_APPS)
+
+// This is arbitrary.  It matters more when using syslogd (which
 // has pretty strict limits) but we could make this arbitrarily large
 // if we really wanted to allow obscenely long lines.  Anything larger
-// than max_bytes_per_sec*BUCKET_SIZE_SECS makes no sense, of course.
+// than th minimum bucket size makes no sense, of course.
 #define MAX_LINE_LENGTH    768
 
 
+enum BucketIds {
+  B_BURST = 0,     // fast, small bucket (per-cycle limit; allows bursts)
+  B_DAILY,         // slow, big bucket (per-day limit)
+  B_WARNING,       // slow, small bucket (warns if you've made a burst)
+  NUM_BUCKETS
+};
+
+
+enum BucketType {
+  BT_INFORMATIONAL = 0,
+  BT_MANDATORY = 1,
+};
+
+
+struct Bucket {
+  char *name;           // short name of this bucket
+  char *msg_start;      // message when bucket is first exceeded
+  char *msg_end;        // message when bucket has some space again
+  enum BucketType type; // controls whether this bucket causes drops
+  ssize_t max_bytes;    // maximum bytes in this bucket when it's full
+  ssize_t fill_rate;    // bytes added to this bucket per sec when not full
+  ssize_t available;    // bytes currently in this bucket (<= max_bytes)
+  int num_skipped;      // number of messages skipped because of this bucket
+} buckets[NUM_BUCKETS] = {
+  // B_BURST
+  {
+    "burst",
+    "W: burst limit: dropping messages to prevent overflow (%d bytes/sec).",
+    "W: burst limit: %d messages were dropped.",
+    BT_MANDATORY,
+    0, 0, 0, 0,
+  },
+  // B_DAILY
+  {
+    "daily",
+    "W: daily limit: dropping messages (%d bytes/sec).",
+    "W: daily limit: %d messages were dropped.",
+    BT_MANDATORY,
+    0, 0, 0, 0,
+  },
+  // B_WARNING
+  {
+    "warning",
+    "I: burst notice: this log rate is unsustainable (%d bytes/sec).",
+    "I: burst notice: %d messages would have been dropped.",
+    BT_INFORMATIONAL,
+    0, 0, 0, 0,
+  },
+};
+
+
 static int debug = 0, want_unlimited_mode = 0, unlimited_mode = 0;
-static ssize_t max_bytes_per_sec = DEFAULT_MAX_BYTES_PER_SEC;
 
 
 // Returns 1 if 's' starts with 'contains' (which is null terminated).
 static int startswith(const void *s, const char *contains) {
   return strncasecmp(s, contains, strlen(contains)) == 0;
+}
+
+
+// However, we want to allow short-term bursts of more bytes, with a lower
+// average when taken over the course of a longer time period.  So we
+// actually need two token buckets: a "burst" bucket (to control short term
+// burstiness so we don't overflow the local buffer) and a "daily" bucket
+// (to control the long term average so we don't overflow the remote
+// server's quota).
+static void init_buckets(ssize_t bytes_per_burst, ssize_t bytes_per_day) {
+  // Divide by 2 is just in case we go two cycles between successful log
+  // uploads; we want to allow for 2x the buffer usage in that case.
+  // Note that this algorithm still isn't perfect: if your program times
+  // things exactly right, it could have a full bucket at the beginning
+  // of a cycle, empty it out, then it would refill at fill_rate throughout
+  // the cycle, allowing more than max_bytes to be written during a given
+  // cycle.  I hope this is sufficiently rare that we don't have to pessimize
+  // the bucket sizes just to deal with this almost-never occurrence, but it's
+  // still worrisome that the condition can exist at all.
+  //
+  // We initialize buckets with available > 0 to allow for bursts
+  // of messages at startup time (which is a common time to want to log
+  // logs of stuff).
+  buckets[B_BURST].max_bytes = bytes_per_burst / 2;
+  buckets[B_BURST].fill_rate = buckets[B_BURST].max_bytes / SECS_PER_BURST;
+  buckets[B_BURST].available = buckets[B_BURST].max_bytes / 2;
+
+  // max_bytes divide by 2 not needed here because not affected by uploads.
+  buckets[B_DAILY].max_bytes = bytes_per_day;
+  buckets[B_DAILY].fill_rate = buckets[B_DAILY].max_bytes / SECS_PER_DAY;
+  buckets[B_DAILY].available = buckets[B_DAILY].max_bytes / 2;
+
+  // The warning bucket goes off if you would have emptied the slow (daily)
+  // bucket, had it been as small as the burst bucket.  Basically, this
+  // triggers a message when you are relying on the short term "burst"
+  // feature, giving you early warning that if you keep this up, you will
+  // eventually exceed the daily bucket and your bandwidth will be cut.
+  // It doesn't actually prevent you from writing anything though.
+  buckets[B_WARNING].max_bytes = buckets[B_BURST].max_bytes;
+  buckets[B_WARNING].fill_rate = buckets[B_DAILY].fill_rate;
+  buckets[B_WARNING].available = buckets[B_BURST].available;
 }
 
 
@@ -122,73 +225,113 @@ static long long mstime(void) {
     perror("clock_gettime");
     exit(7); // really should never happen, so don't try to recover
   }
-  return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+  return ts.tv_sec * 1000LL + ts.tv_nsec / 1000000;
+}
+
+
+static long long last_add_time;
+static int skipping, backoff = 10*1000 / 2;
+static void maybe_fill_buckets(void) {
+  long long now = mstime(), tdiff;
+  int i;
+
+  if (!last_add_time) {
+    // buckets always start out half-full, particularly because programs tend
+    // to spew a lot of content at startup.  Also, last_add_time gets
+    // reset to 0 when we enable/disable unlimited_mode, so the buckets
+    // refill.
+    last_add_time = now;
+    for (i = 0; i < NUM_BUCKETS; i++) {
+      buckets[i].available = buckets[i].max_bytes / 2;
+    }
+  } else {
+    tdiff = now - last_add_time;
+
+    // only update last_add_time if we added any bytes.  Otherwise there's
+    // an edge case where if bytes_per_millisecond is < 1.0 and there's
+    // a message every millisecond, we'd never add to the bucket.
+    //
+    // Also, if we had to start dropping messages, wait for a minimal
+    // filling of the bucket so we don't just constantly toggle between
+    // empty/nonempty.  It's more useful to show fewer uninterrupted bursts
+    // of messages than just one message here and there.
+    if ((!skipping && tdiff >= 1000) || (skipping && tdiff >= backoff)) {
+      for (int i = 0; i < NUM_BUCKETS; i++) {
+        long long add = tdiff * buckets[i].fill_rate / 1000;
+        assert(add >= 0);
+        buckets[i].available += add;
+        if (buckets[i].available > buckets[i].max_bytes) {
+          buckets[i].available = buckets[i].max_bytes;
+        }
+      }
+      last_add_time = now;
+    }
+  }
+}
+
+
+static int all_buckets_have_room(uint8_t *header, ssize_t headerlen,
+                                 ssize_t total) {
+  int all_ok = 1, now_skipping = 0;
+  for (int i = 0; i < NUM_BUCKETS; i++) {
+    if (buckets[i].available >= total || unlimited_mode) {
+      if (buckets[i].num_skipped) {
+        char tmp[1024];
+        ssize_t n = snprintf(tmp, sizeof(tmp),
+                             buckets[i].msg_end, buckets[i].num_skipped);
+        _flush_unlimited(header, headerlen, (uint8_t *)tmp, n);
+        buckets[i].num_skipped = 0;
+      }
+      // in unlimited_mode this could go negative; that's ok
+      buckets[i].available -= total;
+    } else {
+      if (!buckets[i].num_skipped) {
+        char tmp[1024];
+        ssize_t n = snprintf(tmp, sizeof(tmp),
+                             buckets[i].msg_start, buckets[i].fill_rate);
+        _flush_unlimited(header, headerlen, (uint8_t *)tmp, n);
+        buckets[i].available = 0;
+        if (!now_skipping && !skipping) backoff *= 2;
+        if (backoff > 120*1000) backoff = 120*1000;
+      }
+      now_skipping = 1;
+      buckets[i].num_skipped++;
+      switch (buckets[i].type) {
+        case BT_MANDATORY:
+          all_ok = 0;
+          break;
+        case BT_INFORMATIONAL:
+          break;
+      }
+    }
+  }
+  skipping = now_skipping;
+  return all_ok;
 }
 
 
 // This implements the rate limiting using a token bucket algorithm.
-static long long last_add_time;
 static void _flush_ratelimited(uint8_t *header, ssize_t headerlen,
                                uint8_t *buf, ssize_t len) {
-  static ssize_t bucket;
-  static int num_skipped;
   ssize_t total = headerlen + len + 1;
-  long long now = mstime(), tdiff, add;
 
   if (debug) {
-    fprintf(stderr, "logos: bucket=%zd total=%zd\n", bucket, total);
-  }
-
-  if (!last_add_time) {
-    // bucket always starts out full, particularly because programs tend
-    // to spew a lot of content at startup.  Also, last_add_time gets
-    // reset to 0 when we enable/disable unlimited_mode so the bucket
-    // refills.
-    last_add_time = now;
-    bucket = BUCKET_SIZE;
-  }
-
-  tdiff = now - last_add_time;
-  add = tdiff * max_bytes_per_sec / 1000;
-
-  // only update last_add_time if we added any bytes.  Otherwise there's
-  // an edge case where if bytes_per_millisecond is < 1.0 and there's
-  // a message every millisecond, we'd never add to the bucket.
-  //
-  // Also, if we had to start dropping messages, wait for a minimal
-  // filling of the bucket so we don't just constantly toggle between
-  // empty/nonempty.  It's more useful to show fewer uninterrupted bursts
-  // of messages than just one message here and there.
-  if ((!num_skipped && add) ||
-      (num_skipped && tdiff > 10*1000)) {
-    if (add + bucket > BUCKET_SIZE) {
-      bucket = BUCKET_SIZE;
-    } else {
-      bucket += add;
+    char buf[1024], *p = buf;
+    assert(sizeof(buf) >= 100 * NUM_BUCKETS);
+    p += sprintf(p, "logos: ");
+    for (int i = 0; i < NUM_BUCKETS; i++) {
+      p += sprintf(p, "%s=%zd ", buckets[i].name, buckets[i].available);
+      assert(p < buf + sizeof(buf));
+      assert(p < buf + 100*(i+1));
     }
-    last_add_time = now;
+    p += sprintf(p, "want=%zd\n", total);
+    fputs(buf, stderr);
   }
 
-  if (bucket >= total || unlimited_mode) {
-    if (num_skipped) {
-      char tmp[1024];
-      ssize_t n = snprintf(tmp, sizeof(tmp),
-          "W: rate limit: %d messages were dropped.",
-          num_skipped);
-      _flush_unlimited(header, headerlen, (uint8_t *)tmp, n);
-      num_skipped = 0;
-    }
+  maybe_fill_buckets();
+
+  if (all_buckets_have_room(header, headerlen, total)) {
     _flush_unlimited(header, headerlen, buf, len);
-    bucket -= total;  // in unlimited_mode this could go negative; that's ok
-  } else {
-    if (!num_skipped) {
-      char tmp[1024];
-      ssize_t n = snprintf(tmp, sizeof(tmp),
-          "W: rate limit: dropping messages to prevent overflow.");
-      _flush_unlimited(header, headerlen, (uint8_t *)tmp, n);
-      bucket = 0;
-    }
-    num_skipped++;
   }
 }
 
@@ -269,13 +412,19 @@ static void flush(uint8_t *header, ssize_t headerlen,
 
 static void usage(void) {
   fprintf(stderr,
-          "Usage: [LOGOS_DEBUG=1] logos <facilityname> [bytes/cycle]\n"
-          "  Copies logs from stdin to stdout, formatting them to be\n"
-          "  suitable for /dev/kmsg. If LOGOS_DEBUG is >= 1, writes to\n"
-          "  stdout instead.\n"
-          "  \n"
-          "  Default bytes/cycle = %ld - use the default if possible.\n",
-          (long)DEFAULT_MAX_BYTES_PER_SEC * SECS_PER_CYCLE);
+      "Usage: [LOGOS_DEBUG=1] logos <facilityname> [bytes/burst] [bytes/day]\n"
+      "  Copies logs from stdin to /dev/kmsg, formatting them to be\n"
+      "  suitable for /dev/kmsg. If LOGOS_DEBUG is >= 1, writes to\n"
+      "  stdout instead.\n"
+      "  \n"
+      "  Default bytes/burst = %ld - use 0 (for default) if possible.\n"
+      "  Default bytes/day = %ld - use 0 (for default) if possible.\n"
+      "  Signals:\n"
+      "    SIGHUP: refill the token buckets once.\n"
+      "    SIGUSR1: disable rate limiting.\n"
+      "    SIGUSR2: re-enable rate limiting.\n"
+      "    Example: pkill -USR1 logos  -- disables rate limit on all logos.\n",
+      (long)DEFAULT_BYTES_PER_BURST, (long)DEFAULT_BYTES_PER_DAY);
   exit(99);
 }
 
@@ -298,7 +447,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (argc != 2 && argc != 3) {
+  if (argc < 2 || argc > 4) {
     usage();
   }
 
@@ -314,14 +463,32 @@ int main(int argc, char **argv) {
   }
   snprintf((char *)header, headerlen + 1, "<x>%s: ", argv[1]);
 
+  ssize_t bytes_per_burst = DEFAULT_BYTES_PER_BURST;
   if (argc > 2) {
-    max_bytes_per_sec = atoi(argv[2]) / SECS_PER_CYCLE;
-    if (max_bytes_per_sec <= 0) {
-      fprintf(stderr, "logos: bytes-per-cycle (%s) must be an int >= %d\n",
-              argv[2], (int)SECS_PER_CYCLE);
-      return 6;
-    }
+    bytes_per_burst = atoll(argv[2]);
   }
+  if (!bytes_per_burst) {
+    bytes_per_burst = DEFAULT_BYTES_PER_BURST;
+  }
+  if (bytes_per_burst < SECS_PER_BURST * 2) {
+    fprintf(stderr, "logos: bytes-per-burst (%s) must be an int >= %d\n",
+            argv[2], (int)SECS_PER_BURST * 2);
+    return 6;
+  }
+
+  ssize_t bytes_per_day = 0;
+  if (argc > 3) {
+    bytes_per_day = atoll(argv[3]);
+  }
+  if (!bytes_per_day) {
+    bytes_per_day = DEFAULT_BYTES_PER_DAY;
+  }
+  if (bytes_per_day < SECS_PER_DAY) {
+    fprintf(stderr, "logos: bytes-per-day (%s) must be an int >= %d\n",
+            argv[2], (int)SECS_PER_DAY);
+    return 6;
+  }
+  init_buckets(bytes_per_burst, bytes_per_day);
 
   if (!debug) {
     int fd = open("/dev/kmsg", O_WRONLY);
