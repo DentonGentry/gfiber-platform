@@ -1,6 +1,6 @@
 default: all
 
-DIRS=ginstall sysmgr cmds base antirollback
+DIRS=ginstall sysmgr cmds base antirollback libstacktrace
 
 ifeq ($(HAS_MOCA),y)
 DIRS+=diag
