@@ -402,13 +402,13 @@ const char *diagGetErrTypeInfo(unsigned short errCode, unsigned short *pCount)
  *    none
  */
 
-void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
+void diagUpdateErrorCount(unsigned short errorCode)
 {
    unsigned char errType;
    diag_compType_e componentType = GET_ERROR_CODE_COMPONENT_TYPE(errorCode);
 
    if(IS_DIAG_WARNING_CODE(errorCode)) {
-      diagUpdateWarnCount(timestamp, errorCode);
+      diagUpdateWarnCount(errorCode);
       return;
    }
 
@@ -434,9 +434,8 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
                      diagMocaErrCntsPtr->ErrCount[errType],
                      diagMocaErrCntsPtr->TotalErrCount);
 
-         DIAGD_LOG_W_TS("%s BRCM_MOCA errType = %s" \
+         DIAGD_LOG_W_TS(" BRCM_MOCA errType = %s" \
                    " counter=%d total errorCount=%d",
-                   timestamp,
                    diagMocaErrTypeStr[errType],
                    diagMocaErrCntsPtr->ErrCount[errType],
                    diagMocaErrCntsPtr->TotalErrCount);
@@ -450,9 +449,8 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
                      diagGenetErrCntsPtr->ErrCount[errType],
                      diagGenetErrCntsPtr->TotalErrCount);
 
-         DIAGD_LOG_W_TS("%s BRCM_GENET errtType = %s" \
+         DIAGD_LOG_W_TS(" BRCM_GENET errtType = %s" \
                    " counter=%d total errorCount=%d",
-                   timestamp,
                    diagGenetErrTypeStr[errType],
                    diagGenetErrCntsPtr->ErrCount[errType],
                    diagGenetErrCntsPtr->TotalErrCount);
@@ -466,9 +464,8 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
                      diagMtdNandErrCntsPtr->ErrCount[errType],
                      diagMtdNandErrCntsPtr->TotalErrCount);
 
-         DIAGD_LOG_W_TS("%s MTD_NAND errType = %s" \
+         DIAGD_LOG_W_TS(" MTD_NAND errType = %s" \
                    " counter=%d total errorCount=%d",
-                   timestamp,
                    diagMtdNandErrTypeStr[errType],
                    diagMtdNandErrCntsPtr->ErrCount[errType],
                    diagMtdNandErrCntsPtr->TotalErrCount);
@@ -482,9 +479,8 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
                      diagSpiErrCntsPtr->ErrCount[errType],
                      diagSpiErrCntsPtr->TotalErrCount);
 
-         DIAGD_LOG_W_TS("%s BRCM_SPI errType = %s" \
+         DIAGD_LOG_W_TS(" BRCM_SPI errType = %s" \
                    " counter=%d total errorCount=%d",
-                   timestamp,
                    diagSpiErrTypeStr[errType],
                    diagSpiErrCntsPtr->ErrCount[errType],
                    diagSpiErrCntsPtr->TotalErrCount);
@@ -509,7 +505,7 @@ void diagUpdateErrorCount(char *timestamp, unsigned short errorCode)
  * Output:
  *    none
  */
-void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
+void diagUpdateWarnCount(unsigned short errorCode)
 {
    unsigned char warnType;
    diag_compType_e componentType = GET_ERROR_CODE_COMPONENT_TYPE(errorCode);
@@ -536,9 +532,8 @@ void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
                      diagMocaErrCntsPtr->WarnCount[warnType],
                      diagMocaErrCntsPtr->TotalWarnCount);
 
-         DIAGD_LOG_W_TS("%s BRCM_MOCA warnType = %s" \
+         DIAGD_LOG_W_TS(" BRCM_MOCA warnType = %s" \
                    " counter=%d total warnCount=%d",
-                   timestamp,
                    diagMocaWarnTypeStr[warnType],
                    diagMocaErrCntsPtr->WarnCount[warnType],
                    diagMocaErrCntsPtr->TotalWarnCount);
@@ -552,8 +547,7 @@ void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
                      diagGenetErrCntsPtr->WarnCount[warnType],
                      diagGenetErrCntsPtr->TotalWarnCount);
 
-         DIAGD_LOG_W_TS("%s BRCM_GENET warnType = %s counter=%d total warnCount=%d",
-                   timestamp,
+         DIAGD_LOG_W_TS(" BRCM_GENET warnType = %s counter=%d total warnCount=%d",
                    diagGenetWarnTypeStr[warnType],
                    diagGenetErrCntsPtr->WarnCount[warnType],
                    diagGenetErrCntsPtr->TotalWarnCount);
@@ -567,9 +561,8 @@ void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
                      diagMtdNandErrCntsPtr->WarnCount[warnType],
                      diagMtdNandErrCntsPtr->TotalWarnCount);
 
-         DIAGD_LOG_W_TS("%s MTD_NAND warnType = %s" \
+         DIAGD_LOG_W_TS(" MTD_NAND warnType = %s" \
                    " counter=%d total warnCount=%d",
-                   timestamp,
                    diagMtdNandWarnTypeStr[warnType],
                    diagMtdNandErrCntsPtr->WarnCount[warnType],
                    diagMtdNandErrCntsPtr->TotalWarnCount);
@@ -583,9 +576,8 @@ void diagUpdateWarnCount(char *timestamp, unsigned short errorCode)
                      diagSpiErrCntsPtr->WarnCount[warnType],
                      diagSpiErrCntsPtr->TotalWarnCount);
 
-         DIAGD_LOG_W_TS("%s BRCM_SPI warnType = %s" \
+         DIAGD_LOG_W_TS(" BRCM_SPI warnType = %s" \
                    " counter=%d total warnCount=%d",
-                   timestamp,
                    diagSpiWarnTypeStr[warnType],
                    diagSpiErrCntsPtr->WarnCount[warnType],
                    diagSpiErrCntsPtr->TotalWarnCount);

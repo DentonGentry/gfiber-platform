@@ -280,7 +280,7 @@ void diagGetDiagData(char *pDataBuf)
  */
 void diagSetDiagData(char *pClassName, char *pMemberName, char *pValue)
 {
-  int  i, j;
+  int  i;
   char str[STR_BUF_LEN];
 
   DIAGD_ENTRY("%s: pClassName= %s, pMemberName= %s, pValue= %s", __func__, pClassName, pMemberName, pValue);
@@ -289,7 +289,7 @@ void diagSetDiagData(char *pClassName, char *pMemberName, char *pValue)
     /* Moca connection quality reference table */
     if (strcasecmp(pClassName, "MOCA_CONN") == 0) {
       /* Match the 'refPhyRate' member name */
-      for (i = 0; i < MoCA_MAX_NODES; i ++) {
+      for (i = 0; i < MOCA_MAX_NODES; i ++) {
         sprintf(str, "PHY_RATE[%d]", i);
         if (strcasecmp(pMemberName, str) == 0) {
           /* Update the data if is valid, otherwise remain the default value */
@@ -325,36 +325,18 @@ void diagSetDiagData(char *pClassName, char *pMemberName, char *pValue)
     for (i = 0; i < DIAG_MOCA_PERF_LVL_MAX; i ++) {
       sprintf(str, "MOCA_PERF[%d]", i);
       if (strcasecmp(pClassName, str) == 0) {
-        /* Match the 'rxUcPhyRate' member name */
-        if (strcasecmp(pMemberName, "RATE") == 0) {
+        /* Match the Moca 1.1 'rxUcPhyRate' member name */
+        if (strcasecmp(pMemberName, "RATE_11") == 0) {
           /* Update the data if is valid, otherwise remain the default value */
-          diagSetUint32Value(pValue, &diagMocaPerfReferenceTable[i].rxUcPhyRate);
+          diagSetUint32Value(pValue, &diagMocaPerfReferenceTable[i].rxUcPhyRate_11);
           break;    /* Finish parsing one line. Exit. */
         }
-        /* Match the 'rxUcGain' member name */
-        else if (strcasecmp(pMemberName, "GAIN") == 0) {
+        /* Match the Moca 2.0 'rxUcPhyRate' member name */
+        if (strcasecmp(pMemberName, "RATE_20") == 0) {
           /* Update the data if is valid, otherwise remain the default value */
-          diagSetFloatValue(pValue, &diagMocaPerfReferenceTable[i].rxUcGain);
+          diagSetUint32Value(pValue, &diagMocaPerfReferenceTable[i].rxUcPhyRate_20);
           break;    /* Finish parsing one line. Exit. */
         }
-        /* Match the 'rxUcAvgSnr' member name */
-        else if (strcasecmp(pMemberName, "SNR") == 0) {
-          /* Update the data if is valid, otherwise remain the default value */
-          diagSetFloatValue(pValue, &diagMocaPerfReferenceTable[i].rxUcAvgSnr);
-          break;    /* Finish parsing one line. Exit. */
-        }
-        else {
-          for (j = 0; j < BIT_LOADING_LEN; j ++) {
-            /* Match the 'rxUcBitLoading' member name */
-            sprintf(str, "BIT_LOADING[%d]", j);
-            if (strcasecmp(pMemberName, str) == 0) {
-              /* Update the data if is valid, otherwise remain the default value */
-              diagSetUint32Value(pValue, &diagMocaPerfReferenceTable[i].rxUcBitLoading[j]);
-              break;    /* Fount the member. Exit. */
-            }
-          } /* end of for (DIAG_MOCA_PERF_LVL_MAX) */
-          break;    /* Finish parsing one line. Exit. */
-        } /* end of pClassName */
       }
     } /* end of for */
   } while (false);

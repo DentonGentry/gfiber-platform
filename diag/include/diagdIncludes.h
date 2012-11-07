@@ -55,8 +55,8 @@
  #include "moca/mocaint.h"
 #endif /* DIAG_TEST_TUILE */
 
-#include "diagMoca2.h"
 #include "diagMoca.h"
+#include "diagMocaLog.h"
 #include "diagSubs.h"
 #include "diagNetworkTests.h"
 #include "diagApisHostCmd.h"

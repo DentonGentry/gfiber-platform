@@ -118,15 +118,15 @@ typedef struct _diag_logmsg_info_ {
 } diag_logmsg_info_t;
 
 
-extern int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char kmsgErrLevel, unsigned short code, char *pDkmsg);
+extern int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, unsigned short code, char *pDkmsg);
 
-#define DIAGD_LOG_ALERT_HANDLER(_dact, _timestamp, _kmsgErrLevel, _code, _pDkmsg) { \
-  diagd_log_msg_and_alert(_dact, _timestamp, _kmsgErrLevel, _code, _pDkmsg); \
+#define DIAGD_LOG_ALERT_HANDLER(_dact, _kmsgErrLevel, _code, _pDkmsg) { \
+  diagd_log_msg_and_alert(_dact,  _kmsgErrLevel, _code, _pDkmsg); \
 }
 
 extern void diagSendAlarm(unsigned short errorCode);
-extern void diagUpdateErrorCount(char *timestamp, unsigned short errorCode);
-extern void diagUpdateWarnCount(char *timestamp, unsigned short errorCode);
+extern void diagUpdateErrorCount(unsigned short errorCode);
+extern void diagUpdateWarnCount(unsigned short errorCode);
 extern diagMocaErrCounts_t  *diagMocaErrCntsPtr;
 extern diagGenetErrCounts_t *diagGenetErrCntsPtr;
 extern diagMtdNandErrCounts_t  *diagMtdNandErrCntsPtr;

@@ -40,7 +40,7 @@
 
 int main(void)
 {
-  int i, j;
+  int i;
 
 
   diagd_Init(NULL);
@@ -48,18 +48,14 @@ int main(void)
   do {
 
     printf("diagMoca_connQltyTbl ----\n");
-    for (i = 0; i < MoCA_MAX_NODES; i ++)
+    for (i = 0; i < MOCA_MAX_NODES; i ++)
       printf("\trefPhyRate[%d] = %u\n", i, diagMoca_connQltyTbl.refPhyRate[i]);
     printf("\n");
     
     printf("diagMocaPerfReferenceTable ----\n");
     for (i = 0; i < DIAG_MOCA_PERF_LVL_MAX; i ++) {
-      printf("\trxUcPhyRate[%d] = %u\n", i, diagMocaPerfReferenceTable[i].rxUcPhyRate);
-      printf("\trxUcPhyRate[%d] = %.1f\n", i, diagMocaPerfReferenceTable[i].rxUcGain);
-      printf("\trxUcPhyRate[%d] = %.1f\n", i, diagMocaPerfReferenceTable[i].rxUcAvgSnr);
-      for (j = 0; j < BIT_LOADING_LEN; j ++) {
-        printf("\t\trxUcBitLoading[%d] = 0x%08x\n", j, diagMocaPerfReferenceTable[i].rxUcBitLoading[j]);
-      }
+      printf("\trxUcPhyRate_11[%d] = %u\n", i, diagMocaPerfReferenceTable[i].rxUcPhyRate_11);
+      printf("\trxUcPhyRate_20[%d] = %u\n", i, diagMocaPerfReferenceTable[i].rxUcPhyRate_20);
       printf("\n");
     }
 

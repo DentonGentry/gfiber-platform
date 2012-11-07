@@ -17,7 +17,7 @@ INSTALL=install
 # It is the diag core files
 CORE_OBJS	:= diagParseKernMsgs.o diagMonApis.o \
 	diagNetworkTests.o diagApis.o diagLogging.o diagSubs.o \
-	diagMoca.o diagParseRefData.o diagError.o diagMoca2.o
+	diagMoca.o diagParseRefData.o diagError.o diagMocaLog.o
 
 .PHONY: all
 all: subdirs $(TARGETS)

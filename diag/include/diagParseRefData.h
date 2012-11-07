@@ -24,7 +24,7 @@ typedef struct diagWaitTimeTbl_t_ {
 int  diagReadDiagDataFile(char *pFileName);
 void diagGetDiagData(char *pDataBuf);
 void diagSetDiagData(char *pClassName, char *pMemberName, char *pValue);
-void diagSetUint32Value(char *pValue, UINT32 *pData);
+void diagSetUint32Value(char *pValue, uint32_t *pData);
 void diagSetFloatValue(char *pValue, float *pData);
 
 #endif // end of _DIAGD_REF_DATA_H_
