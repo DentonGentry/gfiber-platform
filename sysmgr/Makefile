@@ -14,10 +14,10 @@ INCLUDEDIR=$(PREFIX)/include
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 RM=rm -f
-INCS=-Iperipheral -I../base
+INCS=-Iperipheral -I../base -I../libstacktrace
 CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W
 CPPFLAGS=$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase)))
-SYSMGR_LDFLAGS=-Lperipheral -L../base -lbrunoperipheral \
+SYSMGR_LDFLAGS=-Lperipheral -L../base -L../libstacktrace -lbrunoperipheral -lstacktrace\
 	$(shell $(PKG_CONFIG) --libs brunobase)
 
 all: $(TARGETS)
