@@ -3,7 +3,7 @@ AR		:= $(CROSS_COMPILE)ar
 RANLIB		:= $(CROSS_COMPILE)ranlib
 
 CFLAGS		+= -Os -Wall -pipe -fno-strict-aliasing -I./include
-LIBS		:= -lmocactl -lmoca -lpthread -lm
+LIBS		:= -lmocactl -lmoca -lpthread -lm -lstacktrace
 SRCS		:= diagd.c diagTest.c
 TARGETS		:= diagd diagTest
 

@@ -41,6 +41,7 @@
 #include <linux/if_ether.h>
 #include <math.h>
 #include <sys/time.h>
+#include <stacktrace.h>
 
 #include "diagdDefs.h"
 #include "diagMonApis.h"
