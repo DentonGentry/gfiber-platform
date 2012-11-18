@@ -2,7 +2,7 @@ CC		:= $(CROSS_COMPILE)gcc
 AR		:= $(CROSS_COMPILE)ar
 RANLIB		:= $(CROSS_COMPILE)ranlib
 
-CFLAGS		+= -Os -Wall -pipe -fno-strict-aliasing -I./include
+CFLAGS		+= -Os -Wall -Werror -pipe -fno-strict-aliasing -I./include -I../libstacktrace
 LIBS		:= -lmocactl -lmoca -lpthread -lm -lstacktrace
 SRCS		:= diagd.c diagTest.c
 TARGETS		:= diagd diagTest
@@ -13,6 +13,8 @@ LIBDIR=$(DESTDIR)$(PREFIX)/usr/lib/diag
 SODIR=$(DESTDIR)$(PREFIX)/usr/lib
 TESTDIR=$(DESTDIR)$(PREFIX)/home/test
 INSTALL=install
+DIAG_LDFLAGS=-L../libstacktrace
+LDFLAGS+=$(DIAG_LDFLAGS)
 
 ifeq ($(BRUNO_PROD_BUILD),y)
 CFLAGS          += -DBRUNO_PROD_DEFINED

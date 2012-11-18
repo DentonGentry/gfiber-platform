@@ -17,7 +17,9 @@ clean:   $(addsuffix /clean,$(DIRS))
 install: $(addsuffix /install,$(DIRS)) install-optionspy
 install-libs: $(addsuffix /install-libs,$(DIRS))
 
-sysmgr/all: base/all
+diag/all: libstacktrace/all
+
+sysmgr/all: base/all libstacktrace/all
 
 %/all:
 	$(MAKE) -C $* all

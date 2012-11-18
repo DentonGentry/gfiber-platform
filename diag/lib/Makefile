@@ -8,7 +8,7 @@ LIBNAME		=brunodiag
 
 all: ./lib$(LIBNAME).so
 
-CFLAGS		:= -fPIC -Os -Wall -pipe -fno-strict-aliasing -I../include
+CFLAGS		:= -fPIC -Os -Wall -pipe -fno-strict-aliasing -I../include -I../../libstacktrace
 SRCS=$(shell ls *.c)
 
 %.o: %.c
