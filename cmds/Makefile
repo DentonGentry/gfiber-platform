@@ -3,12 +3,17 @@ default: all
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
-TARGETS=grep wait-until-created randomdata watch-dir logos realtime rtwatcher
+TARGETS=grep wait-until-created randomdata watch-dir logos realtime rtwatcher dir-monitor
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 
+CC=$(CROSS_COMPILE)gcc
+CXX=$(CROSS_COMPILE)g++
 HOST_CC ?= cc
+HOST_CXX ?= g++
 CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=c99 -D_GNU_SOURCE
+CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
+	-g -O -std=gnu++0x -D_GNU_SOURCE
 .PRECIOUS: %.o host-%.o
 
 all: $(TARGETS) $(HOST_TARGETS)
@@ -31,6 +36,19 @@ host-%.o: %.c
 
 host-%: host-%.o
 	$(HOST_CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
+%.o: %.cc
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+host-%.o: %.cc
+	$(HOST_CXX) $(CXXFLAGS) -o $@ -c $<
+
+%: %.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
+host-%: host-%.o
+	$(HOST_CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
 
 host-logos logos: LIBS+=-lrt
 host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
