@@ -3,7 +3,16 @@ default: all
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
-TARGETS=grep wait-until-created randomdata watch-dir logos realtime rtwatcher dir-monitor
+TARGETS=\
+	dir-monitor \
+	grep \
+	mcastreceive \
+	logos \
+	randomdata \
+	realtime \
+	rtwatcher \
+	wait-until-created \
+	watch-dir
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 
 CC=$(CROSS_COMPILE)gcc
@@ -28,17 +37,11 @@ install-libs:
 %.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-host-%.o: %.c
-	$(HOST_CC) $(CFLAGS) -o $@ -c $<
-
-%: %.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
-
-host-%: host-%.o
-	$(HOST_CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
-
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+host-%.o: %.c
+	$(HOST_CC) $(CFLAGS) -o $@ -c $<
 
 host-%.o: %.cc
 	$(HOST_CXX) $(CXXFLAGS) -o $@ -c $<
