@@ -1,0 +1,11 @@
+This is a draft for the ONT logs scraper, that will use
+- textfsm 
+
+host_connectivity_template is a template example for the 
+oam host-connectivity-verify subscriber \"knssks757884610001\"' command.
+It doesn't extract correctly the ipv6 addresses and prefixes.
+
+Similar templates should be added for each command that should be ran on theONT.
+
+The logExtractor.py contains is not currently functional.
+
