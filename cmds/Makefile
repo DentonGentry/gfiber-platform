@@ -11,6 +11,7 @@ TARGETS=\
 	randomdata \
 	realtime \
 	rtwatcher \
+	usleep \
 	wait-until-created \
 	watch-dir
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
