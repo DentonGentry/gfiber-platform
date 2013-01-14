@@ -45,7 +45,7 @@ class Mailbox {
   explicit Mailbox() {}
   virtual ~Mailbox() {}
 
-  bool ReadFanSpeed(std::string *fan_speed);
+  bool ReadFanSpeed(uint16_t *fan_speed);
   bool ReadSocTemperature(float *soc_temperature);
   bool ReadSocVoltage(std::string *soc_voltage);
   bool WriteFanDutyCycle(uint16_t duty_cycle);

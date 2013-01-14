@@ -18,32 +18,32 @@ namespace bruno_platform_peripheral {
 
 #define FAN_CONTROL_PARAMS_FILE   "/user/sysmgr/fan_control_params.tbl"
 
-const unsigned int FanControl::kPwmFreq50Khz = 0x7900;
-const unsigned int FanControl::kPwmFreq26Khz = 0x4000;
-const unsigned int FanControl::kPwmFreq206hz = 0x0080;
-const unsigned int FanControl::kPwmDefaultTemperatureScale = 0x11;
-const unsigned int FanControl::kPwmDefaultDutyCycleScale = 0x11;
 const unsigned int FanControl::kPwmDefaultStartup = 30;
+const unsigned int FanControl::kPwmMinValue = 0;
+const unsigned int FanControl::kPwmMaxValue = 100;
+
+const unsigned int FanControl::kFanSpeedNotSpinning = 0;
 
 /*
  * Defaults of Fan control parameters for GFMS100 (Bruno-IS)
+ * For GFMS100, Dmin and PWMsetp are used under FMS100_SOC settings.
  */
 const FanControlParams FanControl::kGFMS100FanCtrlSocDefaults = {
-                          temp_min      : 70,
+                          temp_setpt    : 90,
                           temp_max      : 100,
+                          temp_step     : 2,
                           duty_cycle_min: 25,
-                          duty_cycle_max: 75,
-                          threshold     : 2,
-                          alpha         : 0
+                          duty_cycle_max: 100,
+                          pwm_step      : 2
                         };
 
 const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
-                          temp_min      : 45,
-                          temp_max      : 70,
+                          temp_setpt    : 57,
+                          temp_max      : 60,
+                          temp_step     : 2,
                           duty_cycle_min: 25,
-                          duty_cycle_max: 50,
-                          threshold     : 2,
-                          alpha         : 0
+                          duty_cycle_max: 100,
+                          pwm_step      : 2
                         };
 /*
  * Defaults of Fan control parameters for GFHD100 (Bruno)
@@ -55,54 +55,26 @@ const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
  * (or fan speed) is 99%. pwm is set to any value greater 40
  * it will only increase fan speed by less than 1%.
  * Therefore Dmax is set to 40.
+ *
+ * Temporary Solution (09/24/2012)
+ * Since we are getting close to FCS, make the immediate change of raising
+ * the Tmin for Thin Bruno from 45C to 85C. This will reduce the overall
+ * fan speed and noise.
  */
 const FanControlParams FanControl::kGFHD100FanCtrlSocDefaults = {
-                          temp_min      : 45,
+                          temp_setpt    : 90,
                           temp_max      : 100,
-                          duty_cycle_min: 16,
+                          temp_step     : 2,
+                          duty_cycle_min: 12,
                           duty_cycle_max: 40,
-                          threshold     : 2,
-                          alpha         : 0
+                          pwm_step      : 1
                         };
 
 FanControl::~FanControl() {
   Terminate();
 }
 
-bool FanControl::Init(uint8_t min_temp, uint8_t max_temp, uint8_t n_levels) {
-  if (max_temp < min_temp) {
-    LOG(LS_ERROR) << "Maximum temperature " << max_temp << " is less than"
-                  << " minimum temperature" << min_temp;
-    return false;
-  }
-  if (max_temp == min_temp || n_levels == 0) {
-    duty_cycle_scale_ = 0;
-    temperature_scale_ = 0;
-    duty_cycle_pwm_ = duty_cycle_startup_;
-  } else {
-    temperature_max_ = max_temp;
-    temperature_min_ = min_temp;
-    temperature_scale_ = (max_temp-min_temp)/(n_levels-1);
-    duty_cycle_scale_ = (duty_cycle_max_-duty_cycle_min_)/(n_levels-1);
-    if ((max_temp-min_temp)%temperature_scale_) {
-      LOG(LS_WARNING) << "Maximum temperature is rounded to "
-                      <<  min_temp*(n_levels-1)*temperature_scale_
-                      << ", original maximum temperature " << max_temp
-                      << ", minimum temperature " << min_temp
-                      << ", number of levels " << n_levels
-                      << ". To avoid this, set the differential between "
-                      << "maximum and minimum temperatures as a multiple "
-                      << "of number of levels";
-    }
-    threshold_ = duty_cycle_scale_/4;
-    threshold_ = threshold_<2?2:threshold_;
-    step_ = duty_cycle_scale_/2;
-    step_ = step_<4?4:step_;
-  }
-  LOG(LS_INFO) << "Maximum temperature " << temperature_max_
-               << ", minimum temperature " << temperature_min_
-               << ", threshold " << threshold_
-               << ", step " << step_;
+bool FanControl::Init(bool *gpio_mailbox_ready) {
 
   /* Check if the platform instance has been initialized
    * 1) If run sysmgr,  the platformInstance_ would be initalized in
@@ -119,6 +91,22 @@ bool FanControl::Init(uint8_t min_temp, uint8_t max_temp, uint8_t n_levels) {
 
   InitParams();
 
+  if (gpio_mailbox_ready != NULL) {
+    for (int loopno = 4;
+         (*gpio_mailbox_ready == false) && (loopno > 0); loopno--) {
+      sleep(2);
+      *gpio_mailbox_ready = CheckIfMailBoxIsReady();
+      LOG(LS_VERBOSE) << "loopno=" << loopno;
+    }
+  }
+
+  /* Get the current fan duty cycle */
+  if (ReadFanDutyCycle(&duty_cycle_pwm_) == false) {
+    LOG(LS_ERROR) << __func__ << ": failed to get fan duty cycle";
+    duty_cycle_pwm_ = pfan_ctrl_params_[BRUNO_SOC].duty_cycle_min;
+  }
+  LOG(LS_VERBOSE) << "duty_cycle_pwm_=" << duty_cycle_pwm_;
+
   /* Fan pwm has been initialized in nexus init script */
   return true;
 }
@@ -132,15 +120,6 @@ void FanControl::Terminate(void) {
     delete platformInstance_;
     platformInstance_ = NULL;
   }
-}
-
-bool FanControl::InitPwm() {
-  if (!DrivePwm(duty_cycle_pwm_)) {
-    LOG(LS_ERROR) << "FanControl::DrivePwm failed";
-    return false;
-  }
-
-  return true;
 }
 
 void FanControl::InitParams() {
@@ -174,122 +153,67 @@ void FanControl::InitParams() {
   for (idx = 0, pfan_ctrl = pfan_ctrl_params_; idx <= max; idx++, pfan_ctrl++) {
     LOG(LS_INFO) << platformInstance_->PlatformName()
                  << ((idx == BRUNO_SOC)? "_SOC" : "_HDD") << std::endl
-                 << " Tmin: " << pfan_ctrl->temp_min << std::endl
-                 << " Tmax: " << pfan_ctrl->temp_max << std::endl
-                 << " Dmin: " << pfan_ctrl->duty_cycle_min << std::endl
-                 << " Dmax: " << pfan_ctrl->duty_cycle_max << std::endl
-                 << " Threshold: " << pfan_ctrl->threshold << std::endl
-                 << " alpha: " << pfan_ctrl->alpha << std::endl;
-    pfan_ctrl->duty_cycle_min = TIMES_VALUE(pfan_ctrl->duty_cycle_min);
-    pfan_ctrl->duty_cycle_max = TIMES_VALUE(pfan_ctrl->duty_cycle_max);
-    pfan_ctrl->threshold      = TIMES_VALUE(GET_THRESHOLD(pfan_ctrl->temp_min,
-                                                          pfan_ctrl->threshold));
-    pfan_ctrl->alpha = ALPHA(pfan_ctrl->duty_cycle_max, pfan_ctrl->duty_cycle_min,
-                             pfan_ctrl->temp_max, pfan_ctrl->temp_min);
-    pfan_ctrl->temp_min = TIMES_VALUE(pfan_ctrl->temp_min);
-    pfan_ctrl->temp_max = TIMES_VALUE(pfan_ctrl->temp_max);
+                 << " Tsetpt: "  << pfan_ctrl->temp_setpt << std::endl
+                 << " Tmax: "    << pfan_ctrl->temp_max << std::endl
+                 << " Tstep: "   << pfan_ctrl->temp_step << std::endl
+                 << " Dmin: "    << pfan_ctrl->duty_cycle_min << std::endl
+                 << " Dmax: "    << pfan_ctrl->duty_cycle_max << std::endl
+                 << " PWMstep: " << pfan_ctrl->pwm_step << std::endl;
   }
 }
 
-bool FanControl::SelfStart() {
-  bool ret = true;
-  if (self_start_enabled_){
-    /*
-     * Drive the fan with duty_cycle_startup_ to get it spinning
-     */
-    ret = DrivePwm(duty_cycle_startup_);
-    if (!ret) {
-      LOG(LS_ERROR) << "FanControl::DrivePwm failed";
-      return false;
-    }
-    state_ = VAR_SPEED;
 
-    sleep (3);
-  }
-  return ret;
-}
-
-bool FanControl::AdjustSpeed(uint32_t avg_temp) {
+bool FanControl::AdjustSpeed(
+      uint16_t soc_temp, uint16_t hdd_temp, uint16_t fan_speed) {
   bool ret = true;
   uint16_t new_duty_cycle_pwm;
 
-  ComputeDutyCycle(avg_temp, &new_duty_cycle_pwm);
+  LOG(LS_VERBOSE) << __func__ << ": soc_temp=" << soc_temp
+                  << " hdd_temp=" << hdd_temp << " fan_speed=" << fan_speed;
 
-  if (new_duty_cycle_pwm != duty_cycle_pwm_){
-    ret = DrivePwm(new_duty_cycle_pwm);
-    if (!ret) {
-      LOG(LS_ERROR) << "FanControl::DrivePwm failed";
-      return false;
-    }
-  }
+  do {
+    /* Get new SOC PWM per the current SOC and HDD temperatures */
 
-  return true;
-}
+    /* Get new duty cycle per SOC and HDD temperatures */
+    ComputeDutyCycle(soc_temp, hdd_temp, fan_speed, &new_duty_cycle_pwm);
 
-/*
- * soc_temp = MULTI_VALUE times of SOC temperature.
- * hdd_temp = MULTI_VALUE times of HDD temperature.
- */
-bool FanControl::AdjustSpeed_PControl(uint16_t soc_temp, uint16_t hdd_temp) {
-  bool ret = true;
-  uint16_t new_duty_cycle_pwm;
-  uint16_t new_hdd_duty_cycle_pwm = 0;
-
-  LOG(LS_VERBOSE) << "AdjustSpeed_PControl: soc_temp=" << soc_temp
-                  << " hdd_temp=" << hdd_temp << std::endl;
-  ComputeDutyCycle_PControl(soc_temp, &new_duty_cycle_pwm, BRUNO_SOC);
-  if ((platformInstance_->PlatformHasHdd() == true) &&
-      (new_duty_cycle_pwm != DUTY_CYCLE_PWM_MAX_VALUE)) {
-    /* GFMS100 platform, compute HDD duty cycle PWM via HDD temperature */
-    ComputeDutyCycle_PControl(hdd_temp, &new_hdd_duty_cycle_pwm, BRUNO_IS_HDD);
-  }
-
-  /* duty cycle PWM = max(duty_cycle_pwm_soc(soc_temp),
-   *                      duty_cycle_pwm_hdd(hdd_temp))
-   */
-  if (new_hdd_duty_cycle_pwm > new_duty_cycle_pwm) {
-    LOG(LS_INFO) << "HDD duty cycle PWM is larger than SOC duty cycle\n";
-    new_duty_cycle_pwm = new_hdd_duty_cycle_pwm;
-  }
-
-  LOG(LS_INFO) << "AdjustSpeed_PControl: duty_cycle_pwm = 0x"
-               << std::hex << new_duty_cycle_pwm;
-  if (new_duty_cycle_pwm != duty_cycle_pwm_){
-    /* For thin Bruno, when fan is at stop position and new_duty_cycle_pwm is
-     * within the boarder range of duty_cycle_min, some fan does not spin.
-     * Therefore set higher pwm to DUTY_CYCLE_PWM_START_VALUE.
-     * After two seconds, then lower down to new_duty_cycle_pwm
-     */
-    if(platformInstance_->PlatformHasHdd() == false) {  /* if Thin Bruno */
-      if ((duty_cycle_pwm_ == DUTY_CYCLE_PWM_MIN_VALUE) &&
-          (new_duty_cycle_pwm < DUTY_CYCLE_PWM_START_VALUE)) {
-        LOG(LS_INFO) << "Set higher pwm=0x" << std::hex << DUTY_CYCLE_PWM_START_VALUE;
-        ret = DrivePwm(DUTY_CYCLE_PWM_START_VALUE);
-        if (!ret) {
-          LOG(LS_ERROR) << "FanControl::DrivePwm failed";
-          return false;
+    LOG(LS_INFO) << __func__ << ": duty_cycle_pwm = " << new_duty_cycle_pwm;
+    if (new_duty_cycle_pwm != duty_cycle_pwm_) {
+      /* When fan is not spinning and new_duty_cycle_pwm > duty_cycle_pwm_,
+       * 1) Set to higher pwm kPwmDefaultStartup for a period of time to
+       *    make sure the fan starts spinning
+       * 2) then lower down to new_duty_cycle_pwm
+       */
+      if (fan_speed == kFanSpeedNotSpinning) {
+        /* Fan is not rotating */
+        if (new_duty_cycle_pwm > duty_cycle_pwm_) {
+          LOG(LS_INFO) << "Set higher pwm=" << kPwmDefaultStartup;
+          ret = DrivePwm(kPwmDefaultStartup);
+          if (!ret) {
+            LOG(LS_ERROR) << "DrivePwm failed" << kPwmDefaultStartup; 
+            break;
+          }
+          /* Sleep before lower pwm down to new_duty_cycle_pwm */
+          sleep(2);
         }
-        /* wait for two seconds before lower pwm down to new_duty_cycle_pwm */
-        sleep(2);
+      }
+
+      ret = DrivePwm(new_duty_cycle_pwm);
+      if (!ret) {
+        LOG(LS_ERROR) << "DrivePwm failed";
+        break;
       }
     }
 
-    ret = DrivePwm(new_duty_cycle_pwm);
-    if (!ret) {
-      LOG(LS_ERROR) << "FanControl::DrivePwm failed";
-      return false;
-    }
-  }
+  } while (false);
 
-  return true;
+  return ret;
 }
 
-/* The returned hdd temperature = real HDD temperature * TIMES_VALUE */
 void FanControl::GetHddTemperature(uint16_t *phdd_temp) {
   *phdd_temp = 0;
   double  hdd_temp;
 
-  /* TODO - Use ioctl to get SMART data if possible. */
   if (platformInstance_->PlatformHasHdd() == true) {
     std::string pattern = "Current";
     std::string buf = "smartctl -l scttempsts /dev/sda";
@@ -310,14 +234,14 @@ void FanControl::GetHddTemperature(uint16_t *phdd_temp) {
     /* HDD temperature is in the 3rd element */
     std::istringstream(tokens.at(2)) >> hdd_temp;
     /* LOG(LS_INFO) << "hdd_temp: " << hdd_temp << std::endl; */
-    *phdd_temp = (uint16_t)(TIMES_VALUE(hdd_temp));
+    *phdd_temp = static_cast<uint16_t>(hdd_temp);
   }
   return;
 }
 
 bool FanControl::DrivePwm(uint16_t duty_cycle) {
 
-  LOG(LS_INFO) << "DrivePwm 0x" << std::hex << duty_cycle;
+  LOG(LS_INFO) << "DrivePwm = " << duty_cycle;
   duty_cycle_pwm_ = duty_cycle;
 
   if (WriteFanDutyCycle(duty_cycle) == false) {
@@ -336,192 +260,63 @@ bool FanControl::DrivePwm(uint16_t duty_cycle) {
   return true;
 }
 
-void FanControl::ComputeDutyCycle(uint32_t avg_temp, uint16_t *new_duty_cycle_pwm) {
-  uint16_t     compute_duty_cycle, diff;
 
-  LOG(LS_INFO) << "FanControl::ComputeDutyCycle - current dutycycle = 0x" << std::hex << duty_cycle_pwm_;
+void FanControl::ComputeDutyCycle(
+  uint16_t soc_temp,
+  uint16_t hdd_temp,
+  uint16_t fan_speed,
+  uint16_t *new_duty_cycle_pwm) {
 
-  *new_duty_cycle_pwm = duty_cycle_pwm_; /* initialize it to current value */
+  uint16_t  compute_duty_cycle = duty_cycle_pwm_;
+  FanControlParams  *psoc = &pfan_ctrl_params_[BRUNO_SOC];
+  FanControlParams  *phdd = get_hdd_fan_ctrl_parms();
 
-  if (duty_cycle_scale_ == 0 || temperature_scale_ == 0) {
-    return;
+  LOG(LS_VERBOSE) << __func__ << " - duty_cycle_pwm_ = " << duty_cycle_pwm_
+               << " i/p soc_temp=" << soc_temp
+               << " hdd_temp="     << hdd_temp
+               << " fan_speed="    << fan_speed;
+
+  if ((soc_temp > psoc->temp_max) ||
+      (if_hdd_temp_over_temp_max(hdd_temp, phdd) == true)) {
+    compute_duty_cycle = psoc->duty_cycle_max;
   }
-
-  if (avg_temp < temperature_min_){
-    LOG(LS_INFO) << "Set dutycycle to minimum 0x" << std::hex << duty_cycle_min_;
-    *new_duty_cycle_pwm = duty_cycle_min_;
-    return;
-  }
-
-  compute_duty_cycle = duty_cycle_min_ + (avg_temp-temperature_min_)*duty_cycle_scale_/temperature_scale_;
-
-  LOG(LS_INFO) << "FanControl::ComputeDutyCycle - compute_duty_cycle = 0x" << std::hex << compute_duty_cycle;
-
-  /*
-   * Apply dutyCycle limits.  Avg temp limits are already applied when we calculated the
-   * avg temperature.
-   */
-  if (compute_duty_cycle < duty_cycle_min_){
-    LOG(LS_INFO) << "Set dutycycle to minimum 0x" << std::hex << duty_cycle_min_;
-    compute_duty_cycle = duty_cycle_min_;
-  }
-
-  if (compute_duty_cycle > duty_cycle_max_){
-    LOG(LS_INFO) << "Set dutycycle to maximum 0x" << std::hex << duty_cycle_max_;
-    compute_duty_cycle = duty_cycle_max_;
-  }
-
-  LOG(LS_INFO) << "duty_cycle_regulated_ = 0x" << std::hex << duty_cycle_regulated_;
-
-  /*
-   * Calculate regulated duty cycle by applying Diff_max limit
-   */
-  if (duty_cycle_regulated_){
-    if (compute_duty_cycle == duty_cycle_regulated_) {
-      /* no change in duty cycle */
-      return;
-    } else if (compute_duty_cycle > duty_cycle_regulated_) {
-      /* rise in temp */
-      diff = compute_duty_cycle - duty_cycle_regulated_;
-      /*
-       * Difference must be greater than the threshold to affect a change
-       * in duty cycle
-       */
-      if (diff >= threshold_) {
-        duty_cycle_regulated_ += step_;    /* maximum step change */
-        if (duty_cycle_regulated_>duty_cycle_max_) {
-          duty_cycle_regulated_ = duty_cycle_max_;
-        }
-      } else {
-        return;
-      }
-    } else {
-      /* decreasing temp */
-      diff = duty_cycle_regulated_ - compute_duty_cycle;
-      /*
-       * Difference must be greater than the threshold to affect a change
-       * in duty cycle
-       */
-      if (diff >= threshold_) {
-        duty_cycle_regulated_ -= step_;    /* maximum step change */
-        if (duty_cycle_regulated_<duty_cycle_min_) {
-          duty_cycle_regulated_ = duty_cycle_min_;
-        }
-      } else {
-        return;
-      }
+  else if ((soc_temp > (psoc->temp_setpt + psoc->temp_step)) ||
+           (if_hdd_temp_over_temp_setpt(hdd_temp, phdd) == true)) {
+    if (fan_speed == kFanSpeedNotSpinning) {
+      compute_duty_cycle = psoc->duty_cycle_min;
     }
-  } else {
-    /*
-     * First time, set the regulated duty cycle to the computed duty cycle
-     */
-    duty_cycle_regulated_ = compute_duty_cycle;
-  }
-
-  /* do this for now until we get the linearization LUT */
-  *new_duty_cycle_pwm = duty_cycle_regulated_;
-
-  LOG(LS_INFO) << "new_duty_cycle_pwm = 0x" << std::hex << *new_duty_cycle_pwm;
-
-  return;
-}
-
-/* To get better PWM resolution, temperature is MULTI_VALUE times of
- * temperature.
- */
-void FanControl::ComputeDutyCycle_PControl(
-  uint16_t temp, uint16_t *new_duty_cycle_pwm, uint8_t idx) {
-
-  uint16_t  compute_duty_cycle;
-  bool      calculate_duty_cycle_pwm = false;
-  /* Get the fan control parameters based on the device type (hdd or soc) */
-  uint16_t  temp_min = pfan_ctrl_params_[idx].temp_min;
-  uint16_t  temp_max = pfan_ctrl_params_[idx].temp_max;
-  uint16_t  threshold = pfan_ctrl_params_[idx].threshold;
-  uint16_t  duty_cycle_min = pfan_ctrl_params_[idx].duty_cycle_min;
-
-  LOG(LS_VERBOSE) << "FanCtrl::ComputeDutyCycle_PControl - current dutycycle = 0x"
-               << std::hex << duty_cycle_pwm_
-               << " i/p temperature = " << std::dec << temp
-               << " pfan_ctrl_params_ idx = " << std::dec << (uint16_t)idx
-               << std::endl;
-
-  compute_duty_cycle = duty_cycle_pwm_; /* initialize it to current value */
-
-  /* The thermal fan policy is including hysteresis handling */
-  if (temp <= temp_min) {
-    /* hysteresis handling */
-    if (duty_cycle_pwm_ != DUTY_CYCLE_PWM_MIN_VALUE) {
-      if ((threshold == 0) || (temp < (temp_min - threshold))) {
-        compute_duty_cycle = DUTY_CYCLE_PWM_MIN_VALUE;
-      } else {
-        /* Set flag to calculate duty cycle PWM */
-        calculate_duty_cycle_pwm = true;
-      }
-    } else {
-      /*
-       * 1. duty_cycle_pwm_ is DUTY_CYCLE_PWM_MIN_VALUE.
-       * 2. *new_duty_cycle_pwm has been set to duty_cycle_pwm_.
+    else if (duty_cycle_pwm_ < psoc->duty_cycle_max) {
+      /* 1. Possibly, the fan still stops due to duty_cycle_pwm_ is not large
+       *    enough. Continue increase the duty cycle.
+       * 2. Or the fan is running, but it's not fast enough to cool down
+       *    the unit.
        */
-      if (temp == temp_min) {
-        /* Set flag to calculate duty cycle PWM */
-        calculate_duty_cycle_pwm = true;
-      }
+      compute_duty_cycle = duty_cycle_pwm_ + psoc->pwm_step;
+      if (compute_duty_cycle > psoc->duty_cycle_max)
+        compute_duty_cycle = psoc->duty_cycle_max;
     }
-  } else if (temp >= (temp_max - threshold)) {
-    /* hysteresis handling */
-    if (temp > temp_max) {
-      compute_duty_cycle = DUTY_CYCLE_PWM_MAX_VALUE;
-    } else {
-      /*
-       * (temp_max - threshold) <= temp <= temp_max
-       */
-      if (duty_cycle_pwm_ != DUTY_CYCLE_PWM_MAX_VALUE) {
-        /* Set flag for calculating duty cycle PWM */
-        calculate_duty_cycle_pwm = true;
-      } else {
-        /* duty_cycle_pwm_ is DUTY_CYCLE_PWM_MAX_VALUE.
-         * While (temp_max - threshold) < temp < temp_max,
-         * remain DUTY_CYCLE_PWM_MAX_VALUE.
-         */
-        if (temp == (temp_max - threshold)) {
-          /* Set flag to calculate duty cycle PWM */
-          calculate_duty_cycle_pwm = true;
-        }
-      }
-    }
-  } else {
-    /* Set flag to calculate duty cycle PWM */
-    calculate_duty_cycle_pwm = true;
   }
-
-  if (calculate_duty_cycle_pwm == true) {
-    /*
-     * compute_duty_cycle =
-     *    (duty_cycle_min + (temp - temp_min) * alpha) * steps_per_percent)
-     *
-     * Notes -
-     * 1) For having more accurate duty cycle PWM, duty_cycle_min, temp,
-     *    temp_min, alpha and ONE_PWM_ON_PER_PCT are MULTI_VALUE times
-     *    of actual values.
-     */
-    compute_duty_cycle = duty_cycle_min +
-              ADJUST_VALUE(((temp - temp_min) * pfan_ctrl_params_[idx].alpha));
-    /*
-     * 2) Compute_duty_cycle is (MULTI_VALUE * MULTI_VALUE) times.
-     *    Convert it back.
-     */
-    compute_duty_cycle =
-            ADJUST_VALUE_TWICE((compute_duty_cycle * ONE_PWM_ON_PER_PCT));
+  else if ((soc_temp < (psoc->temp_setpt - psoc->temp_step)) &&
+           (if_hdd_temp_lower_than_temp_setpt(hdd_temp, phdd) == true)) {
+    if ((fan_speed == kFanSpeedNotSpinning) ||
+        (duty_cycle_pwm_ < psoc->pwm_step)) {
+      compute_duty_cycle = kPwmMinValue;
+    }
+    else {
+      /* Reduce fan pwm if both soc_temp and hdd_temp are lower than
+       * their (temp_setpt - temp_step) and plus fan is still spinning
+       */
+      compute_duty_cycle = duty_cycle_pwm_ - psoc->pwm_step;
+    }
   }
 
   *new_duty_cycle_pwm = compute_duty_cycle;
 
-  LOG(LS_INFO) << "new_duty_cycle_pwm = 0x" << std::hex
-               << *new_duty_cycle_pwm << std::endl;
+  LOG(LS_INFO) << "new_duty_cycle_pwm = " << *new_duty_cycle_pwm;
 
   return;
 }
+
 
 std::string FanControl::ExecCmd(char* cmd, std::string *pattern) {
   char buffer[256];
@@ -529,7 +324,7 @@ std::string FanControl::ExecCmd(char* cmd, std::string *pattern) {
   FILE* pipe = popen(cmd, "r");
 
   if (!pipe) {
-    LOG(LS_ERROR) << "ExecCmd(): ERROR" << std::endl;
+    LOG(LS_ERROR) << __func__ << ": ERROR";
     return "ERROR";
   }
 
@@ -555,11 +350,53 @@ std::string FanControl::ExecCmd(char* cmd, std::string *pattern) {
   return result;
 }
 
+
+FanControlParams *FanControl::get_hdd_fan_ctrl_parms() {
+  FanControlParams  *ptr = NULL;
+  if (platformInstance_->PlatformHasHdd() == true) {
+    ptr = &pfan_ctrl_params_[BRUNO_IS_HDD];
+  }
+  return ptr;
+}
+
+
+bool FanControl::if_hdd_temp_over_temp_max(const uint16_t hdd_temp, const FanControlParams *phdd) const {
+  bool  ret = false;  /* if no hdd params, default is false */
+  if ((phdd != NULL) && (hdd_temp > phdd->temp_max)) {
+    ret = true;
+  }
+  return ret;
+}
+
+
+bool FanControl::if_hdd_temp_over_temp_setpt(const uint16_t hdd_temp, const FanControlParams *phdd) const {
+  bool  ret = false;  /* if no hdd params, default is false */
+  if ((phdd != NULL) && (hdd_temp > (phdd->temp_setpt + phdd->temp_step))) {
+    ret = true;
+  }
+  return ret;
+}
+
+
+bool FanControl::if_hdd_temp_lower_than_temp_setpt(const uint16_t hdd_temp, const FanControlParams *phdd) const {
+  bool  ret = true;   /* if no hdd params, default is true */
+  if (phdd != NULL) {
+    if (hdd_temp < (phdd->temp_setpt - phdd->temp_step)) {
+      ret = true;
+    }
+    else {
+      ret = false;
+    }
+  }
+  return ret;
+}
+
+
 void FanControl::dbgUpdateFanControlParams(void) {
   /* Check if the external fan control parameter table existing */
   std::ifstream params_table_file (FAN_CONTROL_PARAMS_FILE);
   if (params_table_file.is_open()) {
-    LOG(LS_INFO) << FAN_CONTROL_PARAMS_FILE << " existing...\n";
+    LOG(LS_INFO) << FAN_CONTROL_PARAMS_FILE << " existing...";
     dbgGetFanControlParamsFromParamsFile(BRUNO_SOC);
     if (platformInstance_->PlatformHasHdd() == true) {
       dbgGetFanControlParamsFromParamsFile(BRUNO_IS_HDD);
@@ -608,25 +445,33 @@ bool FanControl::dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx) {
 
   /* LOG(LS_INFO) << "token.size = " << tokens.size() << std::endl; */
 
-  /* Each line in the fan control table must have 6 elements */
-  if (tokens.size() < 6)
+  /* Each line in the fan control table must have 7 elements */
+  if (tokens.size() < 7) {
+    LOG(LS_ERROR) << __func__ << "Incorrect number of params -->" << tokens.size() ;
     return false;       /* Incorrect length. Exit. */
+  }
 
+  /* Compare Tsetpt and Tmax */
   std::istringstream(tokens.at(1)) >> min;
   std::istringstream(tokens.at(2)) >> max;
-  if (min > max)
+  if (min > max) {
+    LOG(LS_ERROR) << __func__ << "Incorrect Tsettp: " << min << " and Tmax: " << max;
     return false;   /* Invalid. Exit */
+  }
 
-  std::istringstream(tokens.at(3)) >> min;
-  std::istringstream(tokens.at(4)) >> max;
-  if (min > max)
+  std::istringstream(tokens.at(4)) >> min;
+  std::istringstream(tokens.at(5)) >> max;
+  if (min > max) {
+    LOG(LS_ERROR) << __func__ << "Dmin: " << min << " and Dmax: " << max;
     return false;   /* Invalid. Exit */
+  }
 
-  std::istringstream(tokens.at(1)) >> pfan_ctrl_params_[fc_idx].temp_min;
+  std::istringstream(tokens.at(1)) >> pfan_ctrl_params_[fc_idx].temp_setpt;
   std::istringstream(tokens.at(2)) >> pfan_ctrl_params_[fc_idx].temp_max;
-  std::istringstream(tokens.at(3)) >> pfan_ctrl_params_[fc_idx].duty_cycle_min;
-  std::istringstream(tokens.at(4)) >> pfan_ctrl_params_[fc_idx].duty_cycle_max;
-  std::istringstream(tokens.at(5)) >> pfan_ctrl_params_[fc_idx].threshold;
+  std::istringstream(tokens.at(3)) >> pfan_ctrl_params_[fc_idx].temp_step;
+  std::istringstream(tokens.at(4)) >> pfan_ctrl_params_[fc_idx].duty_cycle_min;
+  std::istringstream(tokens.at(5)) >> pfan_ctrl_params_[fc_idx].duty_cycle_max;
+  std::istringstream(tokens.at(6)) >> pfan_ctrl_params_[fc_idx].pwm_step;
   return true;
 }
 

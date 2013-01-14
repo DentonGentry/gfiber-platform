@@ -1,0 +1,13 @@
+Value Interface (\S+)
+Value LinkState (\S+)
+Value Ipv4Address ((\d+)\.(\d+)\.(\d+)\.(\d+))
+Value Ipv6Address ([\w:]+\/128)
+Value Ipv6Prefix ([\w:]+\/56)
+#Value Ipv6Address ([\w:]*\/128)
+#Value Ipv6Prefix ([\w:]*\/56)
+
+Start
+  ^.*\[${Interface}\]\s+${Ipv4Address}\s+${LinkState}.*
+  ^.*${Ipv6Prefix}.*
+  ^.*${Ipv6Address}.*-> Record
+

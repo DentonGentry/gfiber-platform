@@ -166,6 +166,7 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
+  stacktrace_setup();
   diagd_Init(refFile);
 
 #ifdef DIAGD_ENABLE_DIAG_THREAD

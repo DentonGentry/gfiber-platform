@@ -4,7 +4,7 @@
 default: all
 
 DIRS=utest peripheral
-TARGETS=sysmgr gpio-mailbox $(addsuffix /all,$(DIRS))
+TARGETS=sysmgr $(addsuffix /all,$(DIRS))
 INSTALL=install
 PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
@@ -14,11 +14,10 @@ INCLUDEDIR=$(PREFIX)/include
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 RM=rm -f
-INCS=-Iperipheral -I../base
+INCS=-Iperipheral -I../base -I../libstacktrace
 CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W
-CPPFLAGS=$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags nexus brunobase)))
-LDFLAGS=$(shell $(PKG_CONFIG) --libs nexus)
-SYSMGR_LDFLAGS=-Lperipheral -L../base -lbrunoperipheral \
+CPPFLAGS=$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase)))
+SYSMGR_LDFLAGS=-Lperipheral -L../base -L../libstacktrace -lbrunoperipheral -lstacktrace\
 	$(shell $(PKG_CONFIG) --libs brunobase)
 
 all: $(TARGETS)
@@ -29,13 +28,12 @@ test: all
 install: all utest/install
 	mkdir -p $(LIBDIR)
 	$(INSTALL) -m 0755 peripheral/libbrunoperipheral.so $(LIBDIR)/
-	$(INSTALL) -m 0755 sysmgr gpio-mailbox $(BINDIR)/
+	$(INSTALL) -m 0755 sysmgr $(BINDIR)/
 
 utest/all: peripheral/all
 sysmgr: |peripheral/all
 utest/install: utest/all
 sysmgr: sysmgr.o
-gpio-mailbox: gpio-mailbox.o
 
 sysmgr: LDFLAGS+=$(SYSMGR_LDFLAGS)
 

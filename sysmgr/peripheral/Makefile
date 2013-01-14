@@ -6,7 +6,7 @@ AR=$(CROSS_COMPILE)ar
 RM=rm -f
 CFLAGS=-fPIC -Wall -W -Wswitch-enum
 CPPFLAGS=-I.. -I../../base \
-	$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags nexus brunobase)))
+	$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase)))
 OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 
 all: libbrunoperipheral.so

@@ -311,7 +311,7 @@ int diag_CmdHandler_RunTests(void) {
  * others       - refer to enum CmsRet in BRCM cms.h
  */
 int diag_CmdHandler_Moca_GetInitParams(void) {
-  MoCA_INITIALIZATION_PARMS  *pInitParms = NULL;
+  diag_moca_init_parms_t *pInitParms = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
 
@@ -319,7 +319,7 @@ int diag_CmdHandler_Moca_GetInitParams(void) {
   DIAGD_ENTRY("%s", __func__);
 
   do {
-    bufLen = sizeof(MoCA_INITIALIZATION_PARMS);
+    bufLen = sizeof(diag_moca_init_parms_t);
     pInitParms = malloc(bufLen);
     if (pInitParms != NULL) {
       rtn = diagMoca_GetInitParms(pInitParms);
@@ -359,7 +359,7 @@ int diag_CmdHandler_Moca_GetInitParams(void) {
  * others       - refer to enum CmsRet in BRCM cms.h
  */
 int diag_CmdHandler_Moca_GetSelfStatus(void) {
-  MoCA_STATUS   *pSelfNode = NULL;
+  diag_moca_status_t *pSelfNode = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
 
@@ -367,7 +367,7 @@ int diag_CmdHandler_Moca_GetSelfStatus(void) {
   DIAGD_ENTRY("%s", __func__);
 
   do {
-    bufLen = sizeof(MoCA_STATUS);
+    bufLen = sizeof(diag_moca_status_t);
     pSelfNode = malloc(bufLen);
     if (pSelfNode != NULL) {
       rtn = diagMoca_GetStatus(pSelfNode);
@@ -515,7 +515,7 @@ int diag_CmdHandler_Moca_GetNodeStatistics(void) {
     /* Calculate the max size of diag_moca_node_stats_table_t
      * which support up to max connected node
      */
-    bufLen = (sizeof(diag_moca_node_stats_entry_t) * MoCA_MAX_NODES) +
+    bufLen = (sizeof(diag_moca_node_stats_entry_t) * MOCA_MAX_NODES) +
       sizeof(uint32_t);
 
     pNodeStats = malloc(bufLen);
@@ -611,7 +611,6 @@ int diag_CmdHandler_Moca_GetNodeConnectInfo(void) {
 
 } /* end of diag_CmdHandler_Moca_GetNodeConnectInfo */
 
-extern int get_diagDb_mmap(char **diagdMap);
 
 /*
  * Query to get the summary of the monitored kernel
@@ -670,6 +669,7 @@ int diag_CmdHandler_GetMonKernMsgsCntsSum(void) {
     outBuf[strlen(outBuf)] = '\0';
     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, (uint8_t *)&outBuf[0],
         strlen(outBuf)+1); /* total length of output string */
+    close_diagDb_mmap(diagdFd, diagdMap);
   } else {
     /* Failed. Send empty payload to indicate the request failed */
     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_SUM, NULL, 0);
@@ -729,6 +729,7 @@ int diag_CmdHandler_GetMonKernMsgsCntsDet(void) {
     outBuf[strlen(outBuf)] = '\0';
     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, (uint8_t *)&outBuf[0],
         strlen(outBuf)+1); /* total length of output string */
+    close_diagDb_mmap(diagdFd, diagdMap);
   } else {
     /* Failed. Send empty payload to indicate the request failed */
     diag_sendRsp(DIAGD_RSP_GET_MON_KERN_MSGS_DET, NULL, 0);

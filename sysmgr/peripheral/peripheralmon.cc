@@ -18,7 +18,7 @@ void PeripheralMon::Probe(void) {
   bruno_base::TimeStamp now = bruno_base::Time();
   uint16_t  hdd_temp;
   float soc_temperature;
-  std::string fan_speed;
+  uint16_t  fan_speed;
   std::string soc_voltage;
 
   fan_control_->GetHddTemperature(&hdd_temp);
@@ -30,16 +30,10 @@ void PeripheralMon::Probe(void) {
     bool read_soc_temperature = ReadSocTemperature(&soc_temperature);
     ReadSocVoltage(&soc_voltage);
 
-    if (0 == last_time_) {
-      LOG(LS_INFO) << "voltage:" << soc_voltage
-                   << "  soc_temperature:" << soc_temperature
-                   << "  hdd_temperature:" << hdd_temp/MULTI_VALUE_IN_FLOAT;
-    } else {
-      LOG(LS_INFO) << "voltage:" << soc_voltage
-                   << "  soc_temperature:" << soc_temperature
-                   << "  hdd_temperature:" << hdd_temp/MULTI_VALUE_IN_FLOAT
-                   << "  fanspeed:" << fan_speed;
-    }
+    LOG(LS_INFO) << "voltage:" << soc_voltage
+                 << "  soc_temperature:" << soc_temperature
+                 << "  hdd_temperature:" << hdd_temp
+                 << "  fanspeed:" << fan_speed;
 
     /* If failed to read soc_temperature, don't change PWM
      * for both thin bruno and fat bruno
@@ -47,9 +41,10 @@ void PeripheralMon::Probe(void) {
     if (read_soc_temperature == true) {
       Overheating(soc_temperature);
 
-      fan_control_->AdjustSpeed_PControl(
-                    static_cast<uint16_t>(soc_temperature * MULTI_VALUE),
-                    hdd_temp);
+      fan_control_->AdjustSpeed(
+                    static_cast<uint16_t>(soc_temperature),
+                    hdd_temp,
+                    fan_speed);
     } else {
       LOG(LS_INFO) << "Not change PWM due to fail to read soc_temperature";
     }
@@ -92,7 +87,7 @@ void PeripheralMon::Init(bruno_base::Thread* mgr_thread, unsigned int interval) 
   interval_ = interval;
   overheating_ = 0;
   mgr_thread_ = mgr_thread;
-  fan_control_->Init(50, 120, 10);
+  fan_control_->Init(&gpio_mailbox_ready);
   Probe();
 }
 

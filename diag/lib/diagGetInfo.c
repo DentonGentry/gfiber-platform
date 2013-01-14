@@ -248,215 +248,11 @@ void diagPrintMoCaStatusKey(char *buffer, char *fmt,
  * Return:
  *   None
  */
-void diagPrintSelfNodeStatus(char *buffer, MoCA_STATUS *pStatus) {
-
-  uint32_t  coreversionMajor, coreversionMinor, coreversionBuild;
-  uint32_t  timeH, timeM, timeS;
-  int count;
-  uint32_t noOfNodes = 0;
-  char inBuf[150];
-
-
-  coreversionMajor = pStatus->generalStatus.swVersion >> 28;
-  coreversionMinor = (pStatus->generalStatus.swVersion << 4) >> 28;
-  coreversionBuild = (pStatus->generalStatus.swVersion << 8) >> 8;
-
-  sprintf (buffer, "           MoCA Status(General)     \n");
-  strcat (buffer, "==================================  \n");
-  sprintf (inBuf, "vendorId                  : %3d \t",
-           pStatus->generalStatus.vendorId);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "  HwVersion                 : 0x%x \n",
-           pStatus->generalStatus.hwVersion);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "SwVersion                 : %d.%d.%d \t",
-           coreversionMajor, coreversionMinor, coreversionBuild);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "  self MoCA Version         : 0x%x \n",
-           pStatus->generalStatus.selfMoCAVersion);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "networkVersionNumber      : 0x%x \t",
-           pStatus->generalStatus.networkVersionNumber);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "  qam256Support             : %s \n",
-          (pStatus->generalStatus.qam256Support == MoCA_QAM_256_SUPPORT_ON) ?
-           "supported" : "unknown" );
-  strcat (buffer, inBuf);
-
-  if (pStatus->generalStatus.operStatus == MoCA_OPER_STATUS_ENABLED)
-    sprintf (inBuf, "operStatus                : Enabled \t");
-  else
-    sprintf (inBuf, "operStatus                : Hw Error \t");
-  strcat (buffer, inBuf);
-
-  if (pStatus->generalStatus.linkStatus == MoCA_LINK_UP)
-    sprintf (inBuf, "  linkStatus                : Up \n");
-  else
-    sprintf (inBuf, "  linkStatus                : Down \n");
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "connectedNodes BitMask    : 0x%x \t",
-           pStatus->generalStatus.connectedNodes);
-  strcat (buffer, inBuf);
-
-  if (pStatus->generalStatus.nodeId >= MoCA_MAX_NODES)
-    sprintf (inBuf, "  nodeId                    : N/A \n");
-  else
-    sprintf (inBuf, "  nodeId                    : %u \n",
-             pStatus->generalStatus.nodeId);
-  strcat (buffer, inBuf);
-
-  if (pStatus->generalStatus.ncNodeId >= MoCA_MAX_NODES)
-    sprintf (inBuf, "ncNodeId                  : N/A \n");
-  else
-    sprintf (inBuf, "ncNodeId                  : %u \t\t",
-             pStatus->generalStatus.ncNodeId);
-  strcat (buffer, inBuf);
-
-  convertUpTime (pStatus->miscStatus.MoCAUpTime, &timeH, &timeM, &timeS);
-  sprintf (inBuf, "  upTime                    : %02uh:%02um:%02us\n",
-           timeH, timeM, timeS);
-  strcat (buffer, inBuf);
-
-  convertUpTime (pStatus->miscStatus.linkUpTime, &timeH, &timeM, &timeS);
-  sprintf (inBuf, "linkUpTime                : %02uh:%02um:%02us",
-           timeH, timeM, timeS);
-  strcat (buffer, inBuf);
-
-  if (pStatus->generalStatus.backupNcId >= MoCA_MAX_NODES)
-    sprintf (inBuf, "  backupNcId                : N/A \n");
-  else
-    sprintf (inBuf, "  backupNcId                : %u \n",
-             pStatus->generalStatus.backupNcId);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "rfChannel                 : %u Mhz\t",
-           pStatus->generalStatus.rfChannel);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "  bwStatus                  : 0x%x \n",
-           pStatus->generalStatus.bwStatus);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "NodesUsableBitMask        : 0x%x \t",
-           pStatus->generalStatus.nodesUsableBitmask);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "  NetworkTabooMask          : 0x%x \n",
-           pStatus->generalStatus.networkTabooMask);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "NetworkTabooStart         : %d \t\t",
-           pStatus->generalStatus.networkTabooStart);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "  txGcdPowerReduction       : %d \n",
-          pStatus->generalStatus.txGcdPowerReduction);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "pqosEgressNumFlows        : %d \t\t",
-           pStatus->generalStatus.pqosEgressNumFlows);
-  strcat (buffer, inBuf);
-  /* find the number of connected nodes from the connected nodes bitmask */
-  for (count = 0; count < MoCA_MAX_NODES; count++) {
-    if (pStatus->generalStatus.connectedNodes & (0x1 << count))
-       noOfNodes++;
-  }
-  sprintf (inBuf, "  Num of connectedNodes     : %d \n", noOfNodes);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "ledStatus                 : %x \n",
-           pStatus->generalStatus.ledStatus);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "==================================  \n");
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "           MoCA Status(Extended)    \n");
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "==================================  \n");
-  strcat (buffer, inBuf);
-
-  convertUpTime (pStatus->extendedStatus.lastPmkExchange, &timeH, &timeM, &timeS);
-  sprintf (inBuf, "lastPmkExchange           : %02uh:%02um:%02us\n",
-           timeH, timeM, timeS );
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "lastPmkInterval           : %d sec\n",
-           pStatus->extendedStatus.lastPmkInterval );
-  strcat (buffer, inBuf);
-
-  convertUpTime (pStatus->extendedStatus.lastTekExchange,
-                 &timeH, &timeM, &timeS);
-  sprintf (inBuf, "lastTekExchange           : %02uh:%02um:%02us\n",
-           timeH, timeM, timeS );
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "lastTekInterval           : %d sec\n", pStatus->extendedStatus.lastTekInterval);
-  strcat (buffer, inBuf);
-
-  diagPrintMoCaStatusKey(inBuf,
-      "PMK Even Key",
-      pStatus->extendedStatus.pmkEvenKey,
-      pStatus->extendedStatus.pmkEvenOdd==0?"(ACTIVE)":"");
-  strcat (buffer, inBuf);
-
-  /* for alignment, tailing an extra space */
-  diagPrintMoCaStatusKey(inBuf,
-      "PMK Odd Key ",
-      pStatus->extendedStatus.pmkOddKey,
-      pStatus->extendedStatus.pmkEvenOdd==1?"(ACTIVE)":"");
-  strcat (buffer, inBuf);
-
-  diagPrintMoCaStatusKey(inBuf,
-      "TEK Even Key",
-      pStatus->extendedStatus.tekEvenKey,
-      pStatus->extendedStatus.tekEvenOdd==0?"(ACTIVE)":"");
-  strcat (buffer, inBuf);
-
-  /* for alignment, tailing an extra space */
-  diagPrintMoCaStatusKey(inBuf,
-      "TEK Odd Key ",
-      pStatus->extendedStatus.tekOddKey,
-      pStatus->extendedStatus.tekEvenOdd==1?"(ACTIVE)":"");
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "==================================  \n");
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "           MoCA Status(Misc)    \n");
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "==================================  \n");
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "MAC GUID                  : %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\n",
-      pStatus->miscStatus.macAddr[0],
-      pStatus->miscStatus.macAddr[1],
-      pStatus->miscStatus.macAddr[2],
-      pStatus->miscStatus.macAddr[3],
-      pStatus->miscStatus.macAddr[4],
-      pStatus->miscStatus.macAddr[5]);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "Are we Network Controller : %s \n", (pStatus->miscStatus.isNC == 1) ? "yes" : "no");
-  strcat (buffer, inBuf);
-
-  convertUpTime (pStatus->miscStatus.driverUpTime, &timeH, &timeM, &timeS);
-  sprintf (inBuf, "Driver Up Time            : %02uh:%02um:%02us \n", timeH, timeM, timeS);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "Link Reset Count          : %u \n", pStatus->miscStatus.linkResetCount);
-  strcat (buffer, inBuf);
-
-  sprintf (inBuf, "==================================  \n");
-  strcat (buffer, inBuf);
+void diagPrintSelfNodeStatus(char *buffer, diag_moca_status_t *pStatus) {
+/* Remove the code for now since this is based on MoCa 1.1 API
+ * and diag_get_info() is not used by other application or diagd program
+ * TODO 10/18/2012 need to rewrite this function based on MoCa 2.0 API
+ */
 }  /* end of diagPrintSelfNodeStatus */
 
 /*
@@ -483,6 +279,22 @@ void diagPrintSelfNodeStatus(char *buffer, MoCA_STATUS *pStatus) {
  *       2. send/recv failure happens or
  *       3. buffer is not big enough to hold the returned diag information
  */
+#if 1
+/* TODO 10/18/2012:
+ *  Return "The information you request is not available!"
+ *  for now.  Need to rewrite diag_get_info() for MoCa 2.0
+ */
+int diag_get_info(char *buffer, int bufSize) {
+  int   err = DIAG_LIB_RC_ERR;
+
+  if (!buffer || bufSize < 4096) {
+    return err;
+  }
+
+  strcpy(buffer, "The information you request is not avaialble!");
+  return DIAG_LIB_RC_OK;
+}
+#else
 int diag_get_info(char *buffer, int bufSize) {
   char  *pBuffer =  NULL;
   int   buffer_len = 0;
@@ -497,6 +309,7 @@ int diag_get_info(char *buffer, int bufSize) {
   if (!buffer || bufSize < 4096) {
     return err;
   }
+
 
   cmdIdx = DIAGD_REQ_GET_NET_LINK_STATS;
 
@@ -540,7 +353,7 @@ int diag_get_info(char *buffer, int bufSize) {
     goto cleanup_exit;
   }
 
-  diagPrintSelfNodeStatus(tmpBufPtr, (MoCA_STATUS *)pPayload);
+  diagPrintSelfNodeStatus(tmpBufPtr, (diag_moca_status_t *)pPayload);
   err = DIAG_LIB_RC_OK;
 
   fprintf(stderr, "%s", buffer);
@@ -559,3 +372,4 @@ cleanup_exit:
 
   return(err);
 }
+#endif

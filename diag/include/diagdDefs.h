@@ -60,9 +60,6 @@ typedef enum {
   #define DIAGD_PERROR_ON
 #endif /* end of DIAG_REL_BUILD */
 
-#ifdef DIAGD_MOCA_LOGGING_ON
-  #undef DIAGD_MOCA_LOGGIN_ON
-#endif
 
 #ifndef DIAGD_LOG_ROTATE_ON
   #define DIAGD_LOG_ROTATE_ON

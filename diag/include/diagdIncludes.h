@@ -41,6 +41,7 @@
 #include <linux/if_ether.h>
 #include <math.h>
 #include <sys/time.h>
+#include <stacktrace.h>
 
 #include "diagdDefs.h"
 #include "diagMonApis.h"
@@ -48,14 +49,15 @@
 #include "diagParseKernMsgs.h"
 
 #ifdef DIAG_TEST_UTIL
- #include "devctl_moca.h"
  #include "mocalib.h"
+ #include "mocaint.h"
 #else
- #include "moca/dslcompat/devctl_moca.h"
  #include "moca/mocalib.h"
+ #include "moca/mocaint.h"
 #endif /* DIAG_TEST_TUILE */
 
 #include "diagMoca.h"
+#include "diagMocaLog.h"
 #include "diagSubs.h"
 #include "diagNetworkTests.h"
 #include "diagApisHostCmd.h"

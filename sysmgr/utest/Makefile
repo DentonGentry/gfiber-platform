@@ -6,9 +6,9 @@ RM=rm -f
 INSTALL=install
 CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W
 CPPFLAGS=-I.. -I../peripheral -I../../base \
-	$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase nexus)))
+	$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase)))
 LDFLAGS=-L../peripheral -L../../base -lbrunoperipheral \
-	$(shell $(PKG_CONFIG) --libs brunobase nexus)
+	$(shell $(PKG_CONFIG) --libs brunobase)
 PREFIX=/home/test
 BINDIR=$(DESTDIR)$(PREFIX)
 

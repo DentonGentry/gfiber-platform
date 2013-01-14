@@ -8,6 +8,7 @@
 #include "platform_peripheral_api.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stacktrace.h>
 
 int main(int argc, char** argv) {
   DEFINE_int(interval, 5000, "Monitor interval in ms");
@@ -24,6 +25,8 @@ int main(int argc, char** argv) {
     FlagList::Print(NULL, false);
     return 0;
   }
+
+  stacktrace_setup();
 
   if (FLAG_debug) {
     bruno_base::LogMessage::LogToDebug(bruno_base::LS_VERBOSE);

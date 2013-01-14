@@ -5,12 +5,12 @@
 
 . ./wvtest/wvtest.sh
 
-WD=./host-watch-dirs
+WD=./host-watch-dir
 TEST_DIR=test_dir
 TEST_FILE=test_file
 OUTPUT_FILE=output_file
 
-WVSTART "watch-dirs test"
+WVSTART "watch-dir test"
 
 # Fails if no arguments are provided.
 WVFAIL $WD
@@ -37,7 +37,7 @@ WVPASS stat $TEST_DIR
 rm -rf $TEST_DIR
 WVFAIL "$(($WD $TEST_DIR) & (sleep 0.05; rmdir $TEST_DIR))"
 
-# Run watch-dirs in parallel with some operations on the directory.
+# Run watch-dir in parallel with some operations on the directory.
 rm -rf $TEST_DIR
 mkdir $TEST_DIR
 touch $TEST_DIR"/file"

@@ -40,6 +40,7 @@
 #define KERN_PROC_KMSG_FS     "/proc/kmsg"
 
 #define DIAGD_DB_FS                   "/user/diag/diagdb.bin"
+#define DIAGD_DB_TMP_FS               "/user/diag/diagdb.bin.tmp"
 #define NUMBYTES                      (1024)
 #define FILESIZE                      (NUMBYTES * sizeof(char))
 
@@ -184,7 +185,7 @@ static int diag_parse_dkmsg_split(char *pMsg, diag_dkmsg_t *pDkmsgInfo)
  * DIAGD_RC_OK  -    OK
  * DIAGD_RC_ERR -    failed
  */
-int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char kmsgErrLevel, unsigned short code, char *pDkmsg)
+int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, unsigned short code, char *pDkmsg)
 {
   int   rtn = DIAGD_RC_OK;
 
@@ -206,8 +207,8 @@ int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char k
     }
 
     if (pDkmsg != NULL) {
-      /* Log the message with timestamp to the diagd log file */
-      DIAGD_LOG_W_TS("%s %s %4x %s", timestamp, diagd_logmsg_lvl[kmsgErrLevel], code, pDkmsg);
+      /* Log the message to the diagd log file */
+      DIAGD_LOG_W_TS("%s %4x %s", diagd_logmsg_lvl[kmsgErrLevel], code, pDkmsg);
     }
   } while (0);
 
@@ -238,7 +239,7 @@ int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char k
  * true   - found a matched message in file.
  * false  - no message matched.
  */
-bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName, char *timestamp)
+bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
 {
   FILE         *ifp;
   char          monitoredKernMsg[DIAG_MSG_MAXLINELEN];
@@ -349,13 +350,12 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName, char *timestamp)
   /* If found a matched message, log the kernel message and handle per the dact setting */
   if (msgMatched == true) {
     DIAGD_LOG_ALERT_HANDLER(dkmsgInfo.dact, 
-                            timestamp,
                             dkmsgInfo.msglvl, 
                             dkmsgInfo.code,
                             pKernMsg);
     
     /* update diag Error or Warning Count */
-    diagUpdateErrorCount(timestamp, dkmsgInfo.code);
+    diagUpdateErrorCount(dkmsgInfo.code);
   }
 
 
@@ -369,83 +369,132 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName, char *timestamp)
 
 int get_diagDb_mmap(char **mapPtr)
 {
-    int result;
-    int fd;
-    char *map = (char *) NULL;
-    bool isNewFile = false;
+  int result;
+  int fd;
+  char *map = (char *) NULL;
+  bool isNewFile = false;
+  struct stat buf;
+  off_t fsize = 0;
 
-    /* Open diagd database file for read and write.
-     *  - Creating the file if it doesn't exist.
-     *
-     */
-    if (access(DIAGD_DB_FS, F_OK) != 0) {
-       /* file does not exist then create */
-       fd = open(DIAGD_DB_FS, O_RDWR | O_CREAT, (mode_t)0644);
-       if (fd == -1) {
-          DIAGD_TRACE("Error create and open file %s for read and write!", DIAGD_DB_FS);
-          return(-1);
-       }
+  /* If diag database file is corrupt. Don't use it
+   * and just delete this file.
+   */
+  if (!stat(DIAGD_DB_FS, &buf)) {
+    if((fsize = buf.st_size) != FILESIZE) {
+      DIAGD_TRACE("%s: %s already exist and fsize=%zd", __func__, DIAGD_DB_FS, fsize);
+      DIAGD_TRACE("%s: %s is corrupt since its filesz != %u = %zd", __func__,
+          DIAGD_DB_FS, FILESIZE, fsize);
+      DIAGD_TRACE("%s: delete %s", __func__, DIAGD_DB_FS);
+      if (unlink(DIAGD_DB_FS) != 0) {
+        perror("unlink");
+      }
+    }
+  }
+  else {
+    if (errno == ENOENT) {
+      DIAGD_TRACE("%s: %s does not exist", __func__, DIAGD_DB_FS);
+    }
+    else {
+      perror("stat");
+    }
+  }
 
-    /* Stretch the file size to the size of the (mmapped) array of ints
-     */
+  /* Open diagd database file for read and write.
+   *  - Creating the file if it doesn't exist.
+   */
+  if (access(DIAGD_DB_FS, F_OK) != 0) {
+    /* file does not exist then create a temp file */
+    fd = open(DIAGD_DB_TMP_FS, O_RDWR | O_CREAT | O_TRUNC, (mode_t)0644);
+    if (fd < 0) {
+      perror(DIAGD_DB_TMP_FS);
+      return(-1);
+    }
 
-       result = lseek(fd, FILESIZE-1, SEEK_SET);
-       if (result == -1) {
-          close(fd);
-          DIAGD_TRACE("Error calling lseek() to stretch the file %s", DIAGD_DB_FS);
-          return(-1);
-       }
+    /* Stretch the file size to the size of the (mmapped) array of ints */
+    result = lseek(fd, FILESIZE-1, SEEK_SET);
+    if (result == -1) {
+      perror(DIAGD_DB_TMP_FS);
+      close(fd);
+      return(-1);
+    }
 
     /* Something needs to be written at the end of the file to
      * have the file actually have the new size.
-     * Just writing an empty string or actually '\0'
-     * at the current file position will do.
-     *
      */
-       result = write(fd, "", 1);
-       if (result != 1) {
-          close(fd);
-          DIAGD_TRACE("Error writing last byte of the file %s", DIAGD_DB_FS);
-          return(-1);
-       }
-       
-       isNewFile = true;
-    }
-    else {
-    /* diagd database file already exist. Open this file for read and write */
-       fd = open(DIAGD_DB_FS, O_RDWR, (mode_t)0644);
-       if (fd == -1) {
-          DIAGD_TRACE("Error opening file %s for writing", DIAGD_DB_FS);
-          return(-1);
-       }
+    result = write(fd, "", 1);
+    if (result != 1) {
+      perror(DIAGD_DB_TMP_FS);
+      close(fd);
+      return(-1);
     }
 
-
-
-    /* Now the file is ready to be mmapped.
+    isNewFile = true;
+  }
+  else {
+    /* diagd database file already exist. Copy it to temp file
+     * Open the temp file for read and write
      */
-    map = mmap(0, FILESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (map == MAP_FAILED) {
-        close(fd);
-        DIAGD_TRACE("Error mmapping the file %s", DIAGD_DB_FS);
-        return(-1);
+    if (system("cp "DIAGD_DB_FS" "DIAGD_DB_TMP_FS) < 0) {
+      perror("cp "DIAGD_DB_FS" "DIAGD_DB_TMP_FS);
+      return(-1);
     }
 
-    if (isNewFile) {
-       /*
-        * write default data to diagd database:
-        *   log rotation filename extension number = 0
-        *   all error and warning counts = 0
-        */
-        memset(&map[DIAGD_LOG_ROTATE_EXTNUM_INDEX], 0, DIAG_LOG_ROTATE_EXTNUM_SZ);
-        DIAGD_DEBUG("\nDIAG_ALL_ERR_COUNTS_SZ = %d\n", DIAG_ALL_ERR_COUNTS_SZ);
-        memset(&map[DIAGD_MOCA_ERR_COUNTS_INDEX], 0, DIAG_ALL_ERR_COUNTS_SZ);
+    fd = open(DIAGD_DB_TMP_FS, O_RDWR, (mode_t)0644);
+    if (fd == -1) {
+      perror(DIAGD_DB_TMP_FS);
+      return(-1);
     }
+  }
 
-    *mapPtr = map;
 
-    return fd;
+  /* Now the file is ready to be mmapped.  */
+  map = mmap(0, FILESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  if (map == MAP_FAILED) {
+    perror("mmap");
+    close(fd);
+    return(-1);
+  }
+
+  if (isNewFile) {
+    /*
+     * write default data to diagd database:
+     *   log rotation filename extension number = 0
+     *   all error and warning counts = 0
+     */
+    memset(&map[DIAGD_LOG_ROTATE_EXTNUM_INDEX], 0, DIAG_LOG_ROTATE_EXTNUM_SZ);
+    DIAGD_DEBUG("\nDIAG_ALL_ERR_COUNTS_SZ = %d\n", DIAG_ALL_ERR_COUNTS_SZ);
+    memset(&map[DIAGD_MOCA_ERR_COUNTS_INDEX], 0, DIAG_ALL_ERR_COUNTS_SZ);
+  }
+
+  *mapPtr = map;
+
+  return fd;
 }
+
+
+void close_diagDb_mmap(int diagdFd, char *diagdMap)
+{
+  /* flush the changes back to disk before close it */
+  if (msync(diagdMap, FILESIZE, MS_SYNC) == -1) {
+    perror("msync");
+  }
+
+  fsync(diagdFd);
+  close(diagdFd);
+
+  /* unmap the mapped virtual memory address space of
+   * the diag database file.
+   */
+  if (munmap(diagdMap, FILESIZE) == -1) {
+    perror("munmap");
+  }
+
+  /* rename temp file to diag database file */
+  if (rename(DIAGD_DB_TMP_FS, DIAGD_DB_FS) < 0) {
+    perror("rename");
+  }
+}
+
 
 extern char *strptime(char *s, char*format, struct tm *tm);
 extern void diagErrCnts_Init(char *diagdMap);
@@ -472,9 +521,6 @@ int Diag_Mon_ParseExamine_KernMsg(char *filename)
    bool  msgFound = false;
    unsigned char  kernMsgErrLevel = DIAG_KERN_MSG_MAX;
    char  *kMsgPtr = NULL;
-   char   nowStr[24];
-   time_t now;
-   struct tm  *ptm;
    int    diagdFd = 0;
    char   *diagdMap = NULL;
 
@@ -607,10 +653,6 @@ int Diag_Mon_ParseExamine_KernMsg(char *filename)
          continue;
       }
 
-      time(&now);
-      ptm = localtime(&now);
-      strftime(nowStr, sizeof(nowStr), "%b %d %Y %T", ptm);
-      nowStr[strlen(nowStr)] = '\0';
 
       switch (kernMsgErrLevel) {
         case DIAG_KERN_EMERG:
@@ -621,7 +663,7 @@ int Diag_Mon_ParseExamine_KernMsg(char *filename)
            * 1) log the message.
            * 2) - issue an alarm
            */
-          DIAGD_LOG_W_TS("%s %s %4x %s", nowStr, diagd_logmsg_lvl[kernMsgErrLevel], 0, kMsgPtr);
+          DIAGD_LOG_W_TS("%s %4x %s", diagd_logmsg_lvl[kernMsgErrLevel], 0, kMsgPtr);
           break;
 
         case DIAG_KERN_CRIT:
@@ -630,9 +672,9 @@ int Diag_Mon_ParseExamine_KernMsg(char *filename)
           /* If it is a monitored kernel critical, error, warning messages,
            * handle it based on the dact setting.
            */
-          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE, nowStr);
+          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE);
           if (msgFound == false) {
-             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE, nowStr);
+             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE);
           }
           break;
 
@@ -650,14 +692,7 @@ parse_exit:
    }
 
    if (diagdFd > 0) {
-      close(diagdFd);
-
-      /* unmap the mapped virtual memory address space of
-       * the diag database file
-       */
-      if (munmap(diagdMap, FILESIZE) == -1) {
-         DIAGD_TRACE("Error un-mmapping the file");
-      }
+      close_diagDb_mmap(diagdFd, diagdMap);
    }
 
    DIAGD_TRACE("%s: exit", __func__);
@@ -665,65 +700,3 @@ parse_exit:
    return(rtn);
 
 } /* end of Diag_Mon_ParseExamine_KernMsg */
-
-
-
-/* ======================================================================= */
-#ifdef AW_COMMENTOUT
-
-int main(void)
-{  
-  int     looping = 0;
-
-  do {
-
-    if (diagtOpenEventLogFile() != DIAGD_RC_OK) {
-      
-      DIAGD_DEBUG("%s: Failed to open diag log file", __func__);
-      break;
-    }
-
-#if 0
-  /* DIAG_LOG_MSG_LVL_CRIT_ERR
-   * DIAG_LOG_MSG_LVL_SIGNIFICANT_ERR
-   * DIAG_LOG_MSG_LVL_SW_ERR
-   * DIAG_LOG_MSG_LVL_WARNING
-   * DIAG_LOG_MSG_LVL_INFO
-   * DIAG_LOG_MSG_LVL_MAX
-   *
-   * DIAG_PARSE_ACT_LOG_ONLY
-   * DIAG_PARSE_ACT_HWERR
-   */
-  DIAGD_LOG_ALERT_HANDLER(DIAG_PARSE_ACT_LOG_ONLY, 
-                          DIAG_LOG_MSG_LVL_SIGNIFICANT_ERR, 
-                          "DIAG_PARSE_ACT_LOG_ONLY  DIAG_LOG_MSG_LVL_SIGNIFICANT_ERR")
-#endif 
-
-#if 0
-    looping = 1;
-    Diag_Mon_ParseExamine_KernMsg();
-    printf("sleep 5sec.....\n");
-    sleep(5);
-#endif 
-
-#if 1
-    diag_parse_cmp_dkmsg("moca_m2m_xfer: DMA interrupt timed out, status 3344", 
-                         KERN_WARN_MSGS_FILE, "");
-#endif /* end of 0 */
-
-#if 0
-  {
-    diag_dkmsg_t    dkmsg_info;
-    char msg[] = "dtoken=0 dact=hwerr msglvl=3 dkmsg=Auto config phy.\0";
-    diag_parse_dkmsg_split(msg, &dkmsg_info);
-  }
-#endif 
-
-  } while (looping);
-
-  /* Close the log file if it's opened */
-  diagtOpenEventLogFile();
-  return 0;
-}
-#endif
-/* ======================================================================= */

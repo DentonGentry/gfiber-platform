@@ -51,14 +51,15 @@ int main(int argc, char** argv) {
   std::string str_value;
   uint16_t  fan_dutycycle = 0;
   uint16_t  fan_percent = static_cast<uint16_t>(FLAG_fan_percent);
+  uint16_t  fan_speed;
   bool rtn;
 
   for (int i=0; i<FLAG_count; ++i) {
     LOG(LS_INFO) << "i=" << i ;
 
     if (FLAG_fan_speed == true) {
-      if (mail_box.ReadFanSpeed(&str_value) == true) {
-        LOG(LS_INFO) << " fan_speed=" << str_value;
+      if (mail_box.ReadFanSpeed(&fan_speed) == true) {
+        LOG(LS_INFO) << " fan_speed=" << fan_speed;
       }
     }
 

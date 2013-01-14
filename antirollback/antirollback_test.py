@@ -24,13 +24,16 @@ def TimeDotTime():
 
 class AntirollbackTest(unittest.TestCase):
   def setUp(self):
+    self.old_build_filename = antirollback.BUILD_FILENAME
     self.old_proc_ar = antirollback.PROC_AR
     self.old_proc_uptime = antirollback.PROC_UPTIME
     self.old_sleep = antirollback.SLEEP
     self.old_timenow = antirollback.TIMENOW
     self.ar_file = tempfile.NamedTemporaryFile()
+    self.build_file = tempfile.NamedTemporaryFile()
     self.proc_file = tempfile.NamedTemporaryFile()
     self.uptime_file = tempfile.NamedTemporaryFile()
+    antirollback.BUILD_FILENAME = self.build_file.name
     antirollback.PROC_AR = self.proc_file.name
     antirollback.PROC_UPTIME = self.uptime_file.name
     antirollback.RUNFOREVER = True
@@ -40,6 +43,7 @@ class AntirollbackTest(unittest.TestCase):
     global_test_vars['timedotsleep'] = None
 
   def tearDown(self):
+    antirollback.BUILD_FILENAME = self.old_build_filename
     antirollback.PROC_AR = self.old_proc_ar
     antirollback.PROC_UPTIME = self.old_proc_uptime
     antirollback.SLEEP = self.old_sleep
@@ -60,6 +64,12 @@ class AntirollbackTest(unittest.TestCase):
     self.WriteToFile(self.ar_file, 12345.0)
     self.assertEqual(antirollback.GetPersistTime(self.ar_file.name), 12345.0)
     self.assertEqual(antirollback.GetPersistTime('/nosuchfile'), 0.0)
+
+  def testBuildDate(self):
+    self.WriteToFile(self.build_file, '1350910920')
+    self.assertEqual(antirollback.GetBuildDate(self.build_file.name),
+                     1350910920.0)
+    self.assertEqual(antirollback.GetBuildDate('/nosuchfile'), 0.0)
 
   def GetKernelArTime(self):
     self.proc_file.seek(0, 0)
@@ -85,12 +95,15 @@ class AntirollbackTest(unittest.TestCase):
   def testGetAntirollbackTime(self):
     global_test_vars['timedottime'] = 99.0
     self.WriteToFile(self.ar_file, 999.0)
+    self.WriteToFile(self.build_file, 888.0)
     n = self.ar_file.name
     self.assertEqual(antirollback.GetAntirollbackTime(n), antirollback.BIRTHDAY)
     global_test_vars['timedottime'] = 1500000000.0
     self.assertEqual(antirollback.GetAntirollbackTime(n), 1500000000.0)
     self.WriteToFile(self.ar_file, 1500000001.0)
     self.assertEqual(antirollback.GetAntirollbackTime(n), 1500000001.0)
+    self.WriteToFile(self.build_file, 1500000002.0)
+    self.assertEqual(antirollback.GetAntirollbackTime(n), 1500000002.0)
 
 
 if __name__ == '__main__':

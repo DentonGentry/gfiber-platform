@@ -1,6 +1,10 @@
 default: all
 
-DIRS=ginstall diag cmds sysmgr base antirollback startupvideo
+DIRS=ginstall sysmgr cmds base antirollback libstacktrace
+
+ifeq ($(HAS_MOCA),y)
+DIRS+=diag
+endif
 
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
@@ -13,7 +17,9 @@ clean:   $(addsuffix /clean,$(DIRS))
 install: $(addsuffix /install,$(DIRS)) install-optionspy
 install-libs: $(addsuffix /install-libs,$(DIRS))
 
-sysmgr/all: base/all
+diag/all: libstacktrace/all
+
+sysmgr/all: base/all libstacktrace/all
 
 %/all:
 	$(MAKE) -C $* all

@@ -1,18 +1,8 @@
-Platform       Tmin  Tmax  Dmin  Dmax  Threshold
+Platform       Tsetpt Tmax  Tstep  Dmin  Dmax  PWMstep
 
-GFMS100_SOC    70    100   25    75    2
+GFMS100_SOC    90     100   2      25    100   2
+# Only check Tsetpt, and Tmax and Tstep of HDD fan control parameters
+# For GFMS100, Dmin and PWMsetp are used under FMS100_SOC settings.
+GFMS100_HDD    57     60    2      25    100   2
 
-GFMS100_HDD    45    70    25    50    2
-
-# Fan control parameters for GFHD100 (Thin Bruno)
-# the original Dmin value is set to 25
-# but from the measurement, pwm = 25%, fan duty-cycle
-# (or fan speed) is 45~50%.
-# the original Dmax is set to 100
-# but from the measurement, pwm = 40% or above, fan duty-cycle
-# (or fan speed) is 99%. pwm is set to any value greater 40
-# it will only increase fan speed by less than 1%.
-# Therefore Dmax is set to 40.
-
-#GFHD100_SOC    45    100   25    100    2
-GFHD100_SOC    45    100   16    40    2
+GFHD100_SOC    90     100   2      12    40    1
