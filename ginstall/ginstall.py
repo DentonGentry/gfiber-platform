@@ -586,6 +586,16 @@ def main():
 
 if __name__ == '__main__':
   try:
+    try:
+      p = subprocess.Popen(['psback'], stdout=subprocess.PIPE)
+      psback = p.stdout.readline().strip()
+      p.wait()
+      p = subprocess.Popen(['logos', 'ginstall'], stdin=subprocess.PIPE)
+      p.stdin.write('args: %r\ncalled by: %s\n' % (sys.argv, psback))
+      p.stdin.close()
+      p.wait()
+    except OSError:
+      Log('W: psback/logos unavailable for tracing.\n')
     sys.exit(main())
   except Fatal, e:
     Log('%s\n', e)
