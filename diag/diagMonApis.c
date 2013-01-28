@@ -317,7 +317,7 @@ void diagd_Rd_Netlink_Msgs()
     /* Search the net interface */
     diag_GetStartingAddr_NetIfInfo(ifname, &pNetIf);
 
-    DIAGD_TRACE("%s - pNetIf=0x%X", __func__, (uint32_t)pNetIf);
+    DIAGD_TRACE("%s - pNetIf=0x%X", __func__, (UINT32)pNetIf);
 
     /*
      * Check if found the net interface.

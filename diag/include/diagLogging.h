@@ -51,27 +51,25 @@
 #ifdef DIAGD_LOGGING_ON
 
   #define DIAGD_LOG_INFO(format, args...) \
-    diagLog(true, true, DIAGD_INFO_MSG, format, ## args)
+    tDiagLog(DIAGD_INFO_MSG, format, ## args)
 
   #define DIAGD_LOG_WARN(format, args...) \
-    diagLog(true, true, DIAGD_WARN_MSG, format,  ## args)
+    tDiagLog(DIAGD_WARN_MSG, format,  ## args)
 
   #define DIAGD_LOG_SWERR(format, args...) \
-    diagLog(true, true, DIAGD_SWERR_MSG, format,  ## args)
+    tDiagLog(DIAGD_SWERR_MSG, format,  ## args)
 
   #define DIAGD_LOG_ALERT(format, args...) \
-    diagLog(true, true, DIAGD_ALERT_MSG, format,  ## args)
+    tDiagLog(DIAGD_ALERT_MSG, format,  ## args)
 
   #define DIAGD_LOG_CRIT(format, args...) \
-    diagLog(true, true, DIAGD_CRIT_MSG, format,  ## args)
+    tDiagLog(DIAGD_CRIT_MSG, format,  ## args)
 
   #define DIAGD_LOG(format, args...) \
-    diagLog(true, true, NULL, format,  ## args)
+    tDiagLog(NULL, format,  ## args)
 
   #define DIAGD_LOG_W_TS(format, args...) \
-    diagLog(true, true, NULL, format,  ## args)
-  #define DIAGD_LOG_WO_TS(logging, format, args...) \
-    diagLog(logging, false, NULL, format,  ## args)
+    diagLog(NULL, format,  ## args)
 #else
 
   #define DIAGD_LOG_INFO(format, args...) { \
@@ -105,11 +103,11 @@
 #ifdef DIAG_TEST_RESULT_LOGGING_ON
 
   /* Log time and test type */
-  #define RESULT_TITLE_LOG(format, args...)   dtrLog(true, format,  ## args)
+  #define RESULT_TITLE_LOG(format, args...)   tDtrLog(format,  ## args)
 
 
   /* More detail information of test results which follows RESULT_TITLE_LOG */
-  #define RESULT_LOG(format, args...)     dtrLog(false, format,  ## args)
+  #define RESULT_LOG(format, args...)     dtrLog(format,  ## args)
 
 #else
   #define RESULT_TITLE_LOG(format, args...) { \
@@ -142,10 +140,14 @@ int diagtOpenEventLogFile(void);
 void diagtCloseEventLogFile(void);
 int diagtOpenMocaLogFile(void);
 void diagtCloseMocaLogFile(void);
-void diagLog(bool logging, bool timestamp, const char *msgLvl, const char *format_str, ...);
-void dtrLog(bool timestamp, const char *format_str, ...);
+void diagLog(const char *msgLvl, const char *format_str, ...);
+void tDiagLog(const char *msgLvl, const char *format_str, ...);
+void dtrLog(const char *format_str, ...);
+void tDtrLog(const char *format_str, ...);
+void diagMocaLog(char *pLogMsg);
+void diagMocaStrLog(char *pLogMsg, PMoCA_STATUS pStatus);
+void diagMocaMyStatusLog(char *dtstr, PMoCA_STATUS pStatus);
 void diagLogRotate(void);
 void diagUploadLogFile(void);
 
 #endif  // _DIAG_LOGGING_H
-
