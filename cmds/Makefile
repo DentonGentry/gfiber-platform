@@ -5,6 +5,7 @@ BINDIR=$(DESTDIR)$(PREFIX)/bin
 
 TARGETS=\
 	dir-monitor \
+	diskbench \
 	grep \
 	mcastreceive \
 	logos \
@@ -54,9 +55,11 @@ host-%: host-%.o
 	$(HOST_CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 
+host-diskbench diskbench: LIBS+=-lpthread -lrt
 host-logos logos: LIBS+=-lrt
 host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
 host-realtime realtime: LIBS+=-lpthread
+diskbench: diskbench.o
 logos: logos.o
 realtime: realtime.o
 rtwatcher: rtwatcher.o
@@ -73,4 +76,5 @@ test:
 	./wvtest/wvtestrun $(MAKE) runtests
 
 clean:
-	rm -f *.o $(TARGETS) $(HOST_TARGETS) *~
+	rm -f *.o $(TARGETS) $(HOST_TARGETS) *~ .*~ */*.pyc test_file
+	rm -rf test_dir
