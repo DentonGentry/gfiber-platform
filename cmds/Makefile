@@ -8,6 +8,7 @@ TARGETS=\
 	diskbench \
 	grep \
 	mcastreceive \
+	memwatcher \
 	logos \
 	randomdata \
 	realtime \
