@@ -132,10 +132,10 @@ static void _page_out(char *buf, size_t count) {
 
 // read one byte every PAGESIZE bytes inside the buffer, thus forcing the
 // kernel to actually page all the accessed pages in from disk.
+static volatile char page_tempbyte;
 static void _page_in(char *buf, size_t count) {
-  volatile char v;
   for (size_t i = 0; i < count; i += _pagesize()) {
-    v = buf[i];
+    page_tempbyte = buf[i];
   }
 }
 
