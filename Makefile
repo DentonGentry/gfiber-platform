@@ -2,6 +2,11 @@ default: all
 
 DIRS=ginstall sysmgr cmds base antirollback libstacktrace
 
+# TODO(apenwarr): only install this on appropriate platforms.
+#  For now, catawampus depends on sfmodule to run its tests, so we'll
+#  just always install it.
+DIRS+=prism/sfmodule
+
 ifeq ($(HAS_MOCA),y)
 DIRS+=diag
 endif
