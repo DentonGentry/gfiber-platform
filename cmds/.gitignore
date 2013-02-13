@@ -1,6 +1,7 @@
 host-*
 *.o
 dir-monitor
+diskbench
 grep
 logos
 mcastreceive
@@ -9,5 +10,6 @@ realtime
 rtwatcher
 test_dir
 test_file
+usleep
 wait-until-created
 watch-dir

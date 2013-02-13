@@ -311,7 +311,7 @@ int diag_CmdHandler_RunTests(void) {
  * others       - refer to enum CmsRet in BRCM cms.h
  */
 int diag_CmdHandler_Moca_GetInitParams(void) {
-  diag_moca_init_parms_t *pInitParms = NULL;
+  MoCA_INITIALIZATION_PARMS  *pInitParms = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
 
@@ -319,7 +319,7 @@ int diag_CmdHandler_Moca_GetInitParams(void) {
   DIAGD_ENTRY("%s", __func__);
 
   do {
-    bufLen = sizeof(diag_moca_init_parms_t);
+    bufLen = sizeof(MoCA_INITIALIZATION_PARMS);
     pInitParms = malloc(bufLen);
     if (pInitParms != NULL) {
       rtn = diagMoca_GetInitParms(pInitParms);
@@ -359,7 +359,7 @@ int diag_CmdHandler_Moca_GetInitParams(void) {
  * others       - refer to enum CmsRet in BRCM cms.h
  */
 int diag_CmdHandler_Moca_GetSelfStatus(void) {
-  diag_moca_status_t *pSelfNode = NULL;
+  MoCA_STATUS   *pSelfNode = NULL;
   uint32_t  bufLen = 0;
   int       rtn = DIAGD_RC_OUT_OF_MEM;  /* Default is fail */
 
@@ -367,7 +367,7 @@ int diag_CmdHandler_Moca_GetSelfStatus(void) {
   DIAGD_ENTRY("%s", __func__);
 
   do {
-    bufLen = sizeof(diag_moca_status_t);
+    bufLen = sizeof(MoCA_STATUS);
     pSelfNode = malloc(bufLen);
     if (pSelfNode != NULL) {
       rtn = diagMoca_GetStatus(pSelfNode);
@@ -515,7 +515,7 @@ int diag_CmdHandler_Moca_GetNodeStatistics(void) {
     /* Calculate the max size of diag_moca_node_stats_table_t
      * which support up to max connected node
      */
-    bufLen = (sizeof(diag_moca_node_stats_entry_t) * MOCA_MAX_NODES) +
+    bufLen = (sizeof(diag_moca_node_stats_entry_t) * MoCA_MAX_NODES) +
       sizeof(uint32_t);
 
     pNodeStats = malloc(bufLen);

@@ -7,7 +7,8 @@
 #include <vector>
 
 
-#define INOTIFY_EVENTS IN_MOVE|IN_CREATE|IN_MODIFY|IN_DELETE_SELF
+#define INOTIFY_DIR_EVENTS IN_MOVE|IN_CREATE|IN_MODIFY|IN_DELETE_SELF|IN_ONLYDIR
+#define INOTIFY_FILE_EVENTS IN_CREATE|IN_DELETE_SELF
 
 #define MAX_EVENTS_BUF_SIZE 65536
 // TODO(irinams) : this value is hardcoded for the moment, it actually should
@@ -21,14 +22,11 @@ public:
 
   void StartMonitoring();
 
-  int AddWatch(const std::string &dir_path, int root_dir_wd);
+  int AddWatch(const std::string &dir_path, int root_dir_wd, int events);
   int AddWatchRecursively(const std::string &dir_path, int root_dir_wd);
 
-  //int RemoveWatch(const std::string  &dir_path, int dir_wd);
-  //int RemoveWatchRecursively(int dir_wd);
-
-  void HandleCreate(const char *name, int wd);
-  void HandleDelete(const char *name, int wd);
+  void HandleDirectoryCreate(const char *name, int wd);
+  void HandleFileCreate(const char *name, int wd);
   void HandleMoveFrom(const char *name, int wd);
 
   void HandleMoveTo(const char *name, int wd);

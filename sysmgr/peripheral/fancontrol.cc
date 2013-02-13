@@ -212,29 +212,23 @@ bool FanControl::AdjustSpeed(
 
 void FanControl::GetHddTemperature(uint16_t *phdd_temp) {
   *phdd_temp = 0;
-  double  hdd_temp;
+  uint16_t hdd_temp;
 
   if (platformInstance_->PlatformHasHdd() == true) {
-    std::string pattern = "Current";
-    std::string buf = "smartctl -l scttempsts /dev/sda";
+    std::string buf = "hdd-temperature /dev/sda";
     /* Create vector to hold hdd temperature words */
     std::vector<std::string> tokens;
 
     /* Insert the HDD temperature string into a stream */
-    std::string result = ExecCmd((char *)buf.c_str(), &pattern);
+    std::string result = ExecCmd((char *)buf.c_str(), NULL);
     if ((result == "ERROR") || (result.empty() == true)) {
       /* Failed to get HDD temperature. Exit */
       LOG(LS_ERROR) << "GetHddTemperature: Can't get HDD temperature";
       return;
     }
-    std::stringstream ss(result);
-    while (ss >> buf) {
-      tokens.push_back(buf);
-    }
-    /* HDD temperature is in the 3rd element */
-    std::istringstream(tokens.at(2)) >> hdd_temp;
+    std::istringstream(result) >> hdd_temp;
     /* LOG(LS_INFO) << "hdd_temp: " << hdd_temp << std::endl; */
-    *phdd_temp = static_cast<uint16_t>(hdd_temp);
+    *phdd_temp = hdd_temp;
   }
   return;
 }

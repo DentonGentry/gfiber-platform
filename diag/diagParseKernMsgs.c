@@ -185,7 +185,7 @@ static int diag_parse_dkmsg_split(char *pMsg, diag_dkmsg_t *pDkmsgInfo)
  * DIAGD_RC_OK  -    OK
  * DIAGD_RC_ERR -    failed
  */
-int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, unsigned short code, char *pDkmsg)
+int diagd_log_msg_and_alert(unsigned char dact, char *timestamp, unsigned char kmsgErrLevel, unsigned short code, char *pDkmsg)
 {
   int   rtn = DIAGD_RC_OK;
 
@@ -207,8 +207,8 @@ int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, unsi
     }
 
     if (pDkmsg != NULL) {
-      /* Log the message to the diagd log file */
-      DIAGD_LOG_W_TS("%s %4x %s", diagd_logmsg_lvl[kmsgErrLevel], code, pDkmsg);
+      /* Log the message with timestamp to the diagd log file */
+      DIAGD_LOG_W_TS("%s %s %4x %s", timestamp, diagd_logmsg_lvl[kmsgErrLevel], code, pDkmsg);
     }
   } while (0);
 
@@ -239,7 +239,7 @@ int diagd_log_msg_and_alert(unsigned char dact, unsigned char kmsgErrLevel, unsi
  * true   - found a matched message in file.
  * false  - no message matched.
  */
-bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
+bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName, char *timestamp)
 {
   FILE         *ifp;
   char          monitoredKernMsg[DIAG_MSG_MAXLINELEN];
@@ -350,12 +350,13 @@ bool diag_parse_cmp_dkmsg(char *pKernMsg, char *pFileName)
   /* If found a matched message, log the kernel message and handle per the dact setting */
   if (msgMatched == true) {
     DIAGD_LOG_ALERT_HANDLER(dkmsgInfo.dact, 
+                            timestamp,
                             dkmsgInfo.msglvl, 
                             dkmsgInfo.code,
                             pKernMsg);
     
     /* update diag Error or Warning Count */
-    diagUpdateErrorCount(dkmsgInfo.code);
+    diagUpdateErrorCount(timestamp, dkmsgInfo.code);
   }
 
 
@@ -521,6 +522,9 @@ int Diag_Mon_ParseExamine_KernMsg(char *filename)
    bool  msgFound = false;
    unsigned char  kernMsgErrLevel = DIAG_KERN_MSG_MAX;
    char  *kMsgPtr = NULL;
+   char   nowStr[24];
+   time_t now;
+   struct tm  *ptm;
    int    diagdFd = 0;
    char   *diagdMap = NULL;
 
@@ -653,6 +657,10 @@ int Diag_Mon_ParseExamine_KernMsg(char *filename)
          continue;
       }
 
+      time(&now);
+      ptm = localtime(&now);
+      strftime(nowStr, sizeof(nowStr), "%b %d %Y %T", ptm);
+      nowStr[strlen(nowStr)] = '\0';
 
       switch (kernMsgErrLevel) {
         case DIAG_KERN_EMERG:
@@ -663,7 +671,7 @@ int Diag_Mon_ParseExamine_KernMsg(char *filename)
            * 1) log the message.
            * 2) - issue an alarm
            */
-          DIAGD_LOG_W_TS("%s %4x %s", diagd_logmsg_lvl[kernMsgErrLevel], 0, kMsgPtr);
+          DIAGD_LOG_W_TS("%s %s %4x %s", nowStr, diagd_logmsg_lvl[kernMsgErrLevel], 0, kMsgPtr);
           break;
 
         case DIAG_KERN_CRIT:
@@ -672,9 +680,9 @@ int Diag_Mon_ParseExamine_KernMsg(char *filename)
           /* If it is a monitored kernel critical, error, warning messages,
            * handle it based on the dact setting.
            */
-          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE);
+          msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_ERR_MSGS_FILE, nowStr);
           if (msgFound == false) {
-             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE);
+             msgFound = diag_parse_cmp_dkmsg(kMsgPtr, KERN_WARN_MSGS_FILE, nowStr);
           }
           break;
 
@@ -700,3 +708,65 @@ parse_exit:
    return(rtn);
 
 } /* end of Diag_Mon_ParseExamine_KernMsg */
+
+
+
+/* ======================================================================= */
+#ifdef AW_COMMENTOUT
+
+int main(void)
+{  
+  int     looping = 0;
+
+  do {
+
+    if (diagtOpenEventLogFile() != DIAGD_RC_OK) {
+      
+      DIAGD_DEBUG("%s: Failed to open diag log file", __func__);
+      break;
+    }
+
+#if 0
+  /* DIAG_LOG_MSG_LVL_CRIT_ERR
+   * DIAG_LOG_MSG_LVL_SIGNIFICANT_ERR
+   * DIAG_LOG_MSG_LVL_SW_ERR
+   * DIAG_LOG_MSG_LVL_WARNING
+   * DIAG_LOG_MSG_LVL_INFO
+   * DIAG_LOG_MSG_LVL_MAX
+   *
+   * DIAG_PARSE_ACT_LOG_ONLY
+   * DIAG_PARSE_ACT_HWERR
+   */
+  DIAGD_LOG_ALERT_HANDLER(DIAG_PARSE_ACT_LOG_ONLY, 
+                          DIAG_LOG_MSG_LVL_SIGNIFICANT_ERR, 
+                          "DIAG_PARSE_ACT_LOG_ONLY  DIAG_LOG_MSG_LVL_SIGNIFICANT_ERR")
+#endif 
+
+#if 0
+    looping = 1;
+    Diag_Mon_ParseExamine_KernMsg();
+    printf("sleep 5sec.....\n");
+    sleep(5);
+#endif 
+
+#if 1
+    diag_parse_cmp_dkmsg("moca_m2m_xfer: DMA interrupt timed out, status 3344", 
+                         KERN_WARN_MSGS_FILE, "");
+#endif /* end of 0 */
+
+#if 0
+  {
+    diag_dkmsg_t    dkmsg_info;
+    char msg[] = "dtoken=0 dact=hwerr msglvl=3 dkmsg=Auto config phy.\0";
+    diag_parse_dkmsg_split(msg, &dkmsg_info);
+  }
+#endif 
+
+  } while (looping);
+
+  /* Close the log file if it's opened */
+  diagtOpenEventLogFile();
+  return 0;
+}
+#endif
+/* ======================================================================= */

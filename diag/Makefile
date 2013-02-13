@@ -3,7 +3,7 @@ AR		:= $(CROSS_COMPILE)ar
 RANLIB		:= $(CROSS_COMPILE)ranlib
 
 CFLAGS		+= -Os -Wall -pipe -fno-strict-aliasing -I./include -I../libstacktrace
-LIBS		:= -lmoca -lmoca -lpthread -lm -lstacktrace
+LIBS		:= -lmocactl -lmoca -lpthread -lm -lstacktrace
 SRCS		:= diagd.c diagTest.c
 TARGETS		:= diagd diagTest
 
@@ -27,7 +27,7 @@ endif
 # It is the diag core files
 CORE_OBJS	:= diagParseKernMsgs.o diagMonApis.o \
 	diagNetworkTests.o diagApis.o diagLogging.o diagSubs.o \
-	diagMoca.o diagParseRefData.o diagError.o diagMocaLog.o
+	diagMoca.o diagParseRefData.o diagError.o
 
 .PHONY: all
 all: subdirs $(TARGETS)

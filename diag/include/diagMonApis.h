@@ -171,50 +171,41 @@ typedef enum {
 
 
 
-/* MoCA interface statistics counters which query from
- * moca_get_gen_stats(), moca_get_ext_octet_count()
- * and  moca_get_error_stats()
+/* MoCA interface statistics counters which query from MoCA core
+ * The counter is struct generalStats in MoCA_STATISTICS data structure.
+ * Note - Please don't change the following order which must match the
+ *        generalStats in MoCA_STATISTICS.
  */
 typedef struct _diag_mocaIf_stats_t {
-  /* extract from struct moca_gen_stats */
-  uint32_t                ecl_tx_total_pkts;
-  uint32_t                ecl_tx_ucast_pkts;
-  uint32_t                ecl_tx_bcast_pkts;
-  uint32_t                ecl_tx_mcast_pkts;
-  uint32_t                ecl_tx_ucast_unknown;
-  uint32_t                ecl_tx_mcast_unknown;
-  uint32_t                ecl_tx_ucast_drops;
-  uint32_t                ecl_tx_mcast_drops;
-  uint32_t                ecl_tx_buff_drop_pkts;
-  uint32_t                ecl_rx_total_pkts;
-  uint32_t                ecl_rx_ucast_pkts;
-  uint32_t                ecl_rx_bcast_pkts;
-  uint32_t                ecl_rx_mcast_pkts;
-  uint32_t                ecl_rx_ucast_drops;
-  uint32_t                mac_tx_low_drop_pkts;
-  uint32_t                mac_rx_buff_drop_pkts;
-  uint32_t                rx_beacons;
-  uint32_t                rx_map_packets;
-  uint32_t                rx_rr_packets;
-  uint32_t                rx_control_uc_packets;
-  uint32_t                rx_control_bc_packets;
+  uint32_t  inUcPkts;         /**< Number of unicast packets sent from this node into the MoCA network */
+  uint32_t  inDiscardPktsEcl; /**< Number of packets to be sent into the MoCA network that were dropped at ECL layer */
+  uint32_t  inDiscardPktsMac; /**< Number of packets to be sent into the MoCA network that were dropped at MAC layer */
+  uint32_t  inUnKnownPkts;    /**< Number of packets sent into the MoCA network destined to an unknown node */
+  uint32_t  inMcPkts;         /**< Number of multicast packets sent from this node into the MoCA network */
+  uint32_t  inBcPkts;         /**< Number of broadcast packets sent from this node into the MoCA network */
+  uint32_t  inOctets_low;     /**< Count of octets sent from this node. Lower 32-bits. Upper 32-bits in inOctets_hi */
+  uint32_t  outUcPkts;        /**< Number of unicast packets received by this node out from the MoCA network */
+  uint32_t  outDiscardPkts;   /**< Number of packets received by this node out from the MoCA network in error (i.e. CRC) */
+  uint32_t  outBcPkts;        /**< Number of broadcast packets received by this node out from the MoCA network */
+  uint32_t  outOctets_low;    /**< Count of octets received by this node. Lower 32-bits. Upper 32-bits in outOctets_hi */
+  uint32_t  inOctets_hi;      /**< Count of octets sent from this node. Upper 32-bits. */
+  uint32_t  outOctets_hi;     /**< Count of octets received by this node. Upper 32-bits. */
 
-  /* extract from struct moca_ext_octet_count */
-  uint32_t                in_octets_hi;
-  uint32_t                in_octets_lo;
-  uint32_t                out_octets_hi;
-  uint32_t                out_octets_lo;
+  /* The counters in _extendedStats of MoCA_STATISTICS */
+  uint32_t  rxMapPkts;        /**< MAP packets received from MoCA network */
+  uint32_t  rxRRPkts;         /**< Reservation requests received from MoCA network */
+  uint32_t  rxBeacons;        /**< Beacons received from MoCA network */
+  uint32_t  rxCtrlPkts;       /**< Link control packets received from MoCA network */
 
-  /* extract from struct moca_error_stats */
-  uint32_t                rx_uc_crc_error;
-  uint32_t                rx_bc_crc_error;
-  uint32_t                rx_map_crc_error;
-  uint32_t                rx_beacon_crc_error;
-  uint32_t                rx_rr_crc_error;
-  uint32_t                rx_lc_uc_crc_error;
-  uint32_t                rx_lc_bc_crc_error;
+  uint32_t  rxLcAdmReqCrcErr; /**< Number of Admission Requests received with CRC errors. If a node has mis-matched
+                                         privacy settings, its admission requests will be counted in this field. */
+
+  /* CRC error counters via MoCACtl2_GetNodeStatisticsExt()*/
+  uint32_t  rxMapCrcError;
+  uint32_t  rxBeaconCrcError;
+  uint32_t  rxRrCrcError;
+  uint32_t  rxLcCrcError;
 } diag_mocaIf_stats_t;
-
 
 
 /* Network interface related data structure */
