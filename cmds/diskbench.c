@@ -37,7 +37,7 @@ static int ioprio_set(int which, int who, int ioprio) {
 #endif
 
 static int _posix_fallocate(int fd, __off64_t offset, __off64_t len) {
-#ifdef __MIPSEL__
+#ifdef __UCLIBC__
   return syscall(
       SYS_fallocate, fd, 0,
       __LONG_LONG_PAIR((uint32_t)(offset >> 32), (uint32_t)offset),
