@@ -19,8 +19,14 @@ LIBDIR=$(DESTDIR)$(PREFIX)/lib
 all:     $(addsuffix /all,$(DIRS)) build-optionspy
 test:    $(addsuffix /test,$(DIRS))
 clean:   $(addsuffix /clean,$(DIRS))
-install: $(addsuffix /install,$(DIRS)) install-optionspy
 install-libs: $(addsuffix /install-libs,$(DIRS))
+
+# The install targets in the recursive call use setuptools to build the python
+# packages. These cannot be run in parallel, as they appear to race with each
+# other to write site-packages/easy-install.pth.
+install:
+	set -e; for d in $(DIRS); do $(MAKE) -C $$d install; done
+	$(MAKE) install-optionspy
 
 diag/all: libstacktrace/all
 
