@@ -1,13 +1,16 @@
 #define _LARGEFILE64_SOURCE
 #define __STDC_FORMAT_MACROS
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -85,12 +88,16 @@ uint64_t get_kpageflags(uint64_t pfn) {
 }
 
 void log_page_difference(uint8_t *honeypot, uint8_t *expected,
-                         int len, unsigned int seed) {
+                         int len, unsigned int seed, int is_child) {
   uint64_t pagemap;
   uint64_t pfn;
-  printf("Unexpected memory difference detected, len=%d, seed=0x%08x\n",
-         len, seed);
-
+  if (!is_child) {
+    printf("Unexpected memory difference detected in parent, len=%d, "
+           "seed=0x%08x\n", len, seed);
+  } else {
+    printf("Unexpected memory difference detected in child, len=%d, "
+           "seed=0x%08x\n", len, seed);
+  }
   pagemap = get_pagemap(expected);
   pfn = pagemap & ((1ULL << PFN_BITS) - 1);
   printf("Expected: %p pm=0x%" PRIx64 " kc=0x%" PRIx64 " kf=0x%" PRIx64 "\n",
@@ -105,7 +112,7 @@ void log_page_difference(uint8_t *honeypot, uint8_t *expected,
   fflush(stdout);
 }
 
-void check_memory(uint8_t *honeypot, unsigned int seed) {
+void check_memory(uint8_t *honeypot, unsigned int seed, int is_child) {
   uint8_t *expected = malloc(honeypotsize);
   unsigned int i;
   long j;
@@ -120,10 +127,23 @@ void check_memory(uint8_t *honeypot, unsigned int seed) {
     }
     if (start != -1) {
       int len = end - start + 1;
-      log_page_difference(honeypot + start, expected + start, len, seed);
+      log_page_difference(honeypot + start, expected + start,
+                          len, seed, is_child);
     }
   }
   free(expected);
+}
+
+void corrupt_memory(uint8_t *honeypot) {
+  if ((rand() % 8) == 0) {
+    int offset, len, i;
+    offset = rand() % honeypotsize;
+    len = rand() % 128;
+    printf("Test mode corrupting bytes off=%d, len=%d\n", offset, len);
+    for (i = 0; i < len; ++i) {
+      honeypot[offset + i] ^= rand();
+    }
+  }
 }
 
 void usage(char *progname) {
@@ -157,26 +177,32 @@ int main(int argc, char **argv)
   rc = posix_memalign((void **)&honeypot, pagesize, honeypotsize);
   assert(rc == 0);
 
+  // Initialize to 0 to force on demand paging for the honeypot.
+  // If the honeypot is not mapped into memory, then no copy on write
+  // will happen for the first fork.
+  memset(honeypot, 0, honeypotsize);
+
   while (1) {
-    // reinitialize on each loop. We only want to log corruption once.
+    // Reinitialize on each loop. We only want to log corruption once.
     int sleeptime = (testmode) ? 2 : 600;
-    unsigned int seed = time(NULL);
+    unsigned int seed;
 
-    initialize_memory(honeypot, seed);
-    sleep(sleeptime);
-
-    if (testmode) {
-      if ((rand() % 8) == 0) {
-        int offset, len, i;
-        offset = rand() % honeypotsize;
-        len = rand() % 128;
-        printf("Test mode corrupting bytes off=%d, len=%d\n", offset, len);
-        for (i = 0; i < len; ++i) {
-          honeypot[offset + i] ^= rand();
-        }
-      }
+    pid_t child_pid = fork();
+    if (child_pid == -1) {
+      perror("Error forking");
     }
 
-    check_memory(honeypot, seed);
+    seed = time(NULL) + child_pid;
+    initialize_memory(honeypot, seed);
+    sleep(sleeptime);
+    if (testmode)
+      corrupt_memory(honeypot);
+    if (child_pid == 0) {
+      check_memory(honeypot, seed, 1);
+      exit(0);
+    }
+
+    check_memory(honeypot, seed, 0);
+    wait(NULL);
   }
 }
