@@ -12,6 +12,7 @@ TARGETS=\
 	randomdata \
 	realtime \
 	rtwatcher \
+	setuid \
 	usleep \
 	wait-until-created \
 	watch-dir
