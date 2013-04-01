@@ -2,7 +2,6 @@ host-*
 *.o
 dir-monitor
 diskbench
-grep
 logos
 mcastreceive
 randomdata

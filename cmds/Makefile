@@ -6,7 +6,6 @@ BINDIR=$(DESTDIR)$(PREFIX)/bin
 TARGETS=\
 	dir-monitor \
 	diskbench \
-	grep \
 	mcastreceive \
 	memwatcher \
 	logos \
