@@ -4,6 +4,7 @@ PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
 TARGETS=\
+	balloon \
 	dir-monitor \
 	diskbench \
 	mcastreceive \

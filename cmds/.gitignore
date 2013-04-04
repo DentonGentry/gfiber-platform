@@ -1,9 +1,11 @@
 host-*
 *.o
+balloon
 dir-monitor
 diskbench
 logos
 mcastreceive
+memwatcher
 randomdata
 realtime
 rtwatcher
