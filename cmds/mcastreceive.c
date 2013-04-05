@@ -41,6 +41,7 @@ int main(int argc, char *argv[]) {
 
   int sock;                     /* socket descriptor */
   int flag_on = 1;              /* socket option flag */
+  int recv_buf_size = 1024*1024;/* maximum socket receive buffer in bytes */
   struct sockaddr_in mc_addr;   /* socket address structure */
   char recvBuff[MAX_LEN+1];     /* buffer to receive string */
   int recv_len;                 /* length of string received */
@@ -58,8 +59,6 @@ int main(int argc, char *argv[]) {
   fd_set socks;
   int readSocks=0;
   struct timeval timeout;
-  timeout.tv_sec = 1;
-  timeout.tv_usec = 0;
 
   /* validate number of arguments */
   if (argc < 4) {
@@ -118,10 +117,16 @@ int main(int argc, char *argv[]) {
     exit(4);
   }
 
+  if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recv_buf_size,
+                  sizeof(recv_buf_size)) != 0 ) {
+    perror("setsockopt() failed");
+    exit(4);
+  }
+
   /* construct a multicast address structure */
   memset(&mc_addr, 0, sizeof(mc_addr));
   mc_addr.sin_family      = AF_INET;
-  mc_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  mc_addr.sin_addr.s_addr = inet_addr(mc_addr_str);
   mc_addr.sin_port        = htons(mc_port);
 
   /* bind to multicast address to socket */
@@ -151,6 +156,8 @@ int main(int argc, char *argv[]) {
   for (;;) {          /* loop forever */
     FD_ZERO(&socks);
     FD_SET(sock,&socks);
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
     readSocks=select(sock+1,&socks,NULL,NULL,&timeout);
 
     if ( readSocks > 0 ) {
