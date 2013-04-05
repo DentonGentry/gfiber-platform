@@ -1,0 +1,25 @@
+{
+  "STBService": [
+    {
+      "MainStream": [
+        {
+          "StreamId": 2,
+          "MPEG2TSStats": {
+            "TSPacketsReceived": 700,
+            "PacketDiscontinuityCounter": 70,
+            "DropBytes": 7000,
+            "DropPackets": 701,
+            "PacketErrorCount": 7
+          },
+          "MulticastStats": {
+            "MulticastGroup": "225.0.0.7:7",
+            "StartupLagUsecs": 15000,
+            "StalledUsecs": 7000,
+            "bps": 7000000,
+            "MissingSchedule": 70
+          }
+        }
+      ]
+    }
+  ]
+}
