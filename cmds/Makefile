@@ -14,6 +14,7 @@ TARGETS=\
 	realtime \
 	rtwatcher \
 	setuid \
+	stun \
 	usleep \
 	wait-until-created \
 	watch-dir
@@ -55,6 +56,12 @@ host-%.o: %.cc
 
 host-%: host-%.o
 	$(HOST_CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
+%: %.py
+	ln -s $< $@
+
+host-%: %.py
+	ln -s $< $@
 
 
 host-diskbench diskbench: LIBS+=-lpthread -lrt
