@@ -8,8 +8,7 @@ all:
 
 install:
 	mkdir -p $(BINDIR)
-	cp ginstall.py $(BINDIR)
-	ln -sf ginstall.py $(BINDIR)/ginstall
+	cp tvstat.py $(BINDIR)/tvstat
 
 install-libs:
 	@echo "No libs to install."

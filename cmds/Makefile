@@ -4,14 +4,17 @@ PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
 TARGETS=\
+	balloon \
 	dir-monitor \
 	diskbench \
-	grep \
 	mcastreceive \
+	memwatcher \
 	logos \
 	randomdata \
 	realtime \
 	rtwatcher \
+	setuid \
+	stun \
 	usleep \
 	wait-until-created \
 	watch-dir
@@ -53,6 +56,12 @@ host-%.o: %.cc
 
 host-%: host-%.o
 	$(HOST_CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
+%: %.py
+	ln -s $< $@
+
+host-%: %.py
+	ln -s $< $@
 
 
 host-diskbench diskbench: LIBS+=-lpthread -lrt

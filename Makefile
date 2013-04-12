@@ -1,6 +1,6 @@
 default: all
 
-DIRS=ginstall sysmgr cmds base antirollback libstacktrace
+DIRS=ginstall sysmgr cmds base antirollback libstacktrace tvstat
 
 # TODO(apenwarr): only install this on appropriate platforms.
 #  For now, catawampus depends on sfmodule to run its tests, so we'll

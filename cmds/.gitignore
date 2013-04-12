@@ -1,13 +1,16 @@
 host-*
 *.o
+balloon
 dir-monitor
 diskbench
-grep
 logos
 mcastreceive
+memwatcher
 randomdata
 realtime
 rtwatcher
+setuid
+stun
 test_dir
 test_file
 usleep
