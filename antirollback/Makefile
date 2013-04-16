@@ -1,5 +1,6 @@
 default:
 
+PYTHON?=python
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/usr/bin
 
@@ -16,7 +17,7 @@ install-libs:
 test:
 	set -e; \
 	for d in $(wildcard *_test.py); do \
-		$(HOSTDIR)/usr/bin/python $$d; \
+		$(PYTHON) $$d; \
 	done
 
 clean:

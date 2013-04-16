@@ -1,6 +1,7 @@
 # Copyright 2012 Google Inc. All Rights Reserved.
 # Author: kedong@google.com (Ke Dong)
 
+PYTHON?=python
 CC:=$(CROSS_COMPILE)gcc
 RM:=rm -f
 EXES=readverity readverity_test
@@ -33,7 +34,7 @@ install: readverity
 
 test: readverity_test
 	./readverity_test && \
-		$(HOSTDIR)/usr/bin/python readallfilestest.py
+		$(PYTHON) readallfilestest.py
 
 clean:
 	$(RM) $(EXES)
