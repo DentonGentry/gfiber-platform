@@ -13,6 +13,7 @@ TARGETS=\
 	randomdata \
 	realtime \
 	rtwatcher \
+	sdbbp \
 	setuid \
 	stun \
 	usleep \
