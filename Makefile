@@ -2,10 +2,6 @@ default: all
 
 DIRS=ginstall sysmgr cmds base antirollback libstacktrace tvstat
 
-ifeq ($(HAS_MOCA),y)
-DIRS+=diag
-endif
-
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
@@ -16,8 +12,6 @@ test:    $(addsuffix /test,$(DIRS))
 clean:   $(addsuffix /clean,$(DIRS))
 install: $(addsuffix /install,$(DIRS)) install-optionspy
 install-libs: $(addsuffix /install-libs,$(DIRS))
-
-diag/all: libstacktrace/all
 
 sysmgr/all: base/all libstacktrace/all
 
