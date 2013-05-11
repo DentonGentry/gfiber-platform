@@ -13,7 +13,6 @@ TARGETS=\
 	randomdata \
 	realtime \
 	rtwatcher \
-	sdbbp \
 	setuid \
 	stun \
 	usleep \
@@ -21,6 +20,11 @@ TARGETS=\
 	watch-dir
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 
+ifeq ($(BRUNO_ARCH),mips)
+ARCH_TARGETS = sdbbp bigbin
+endif
+
+AS=$(CROSS_COMPILE)as
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 HOST_CC ?= cc
@@ -31,11 +35,12 @@ CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=gnu++0x -D_GNU_SOURCE
 .PRECIOUS: %.o host-%.o
 
-all: $(TARGETS) $(HOST_TARGETS)
+all: $(TARGETS) $(HOST_TARGETS) $(ARCH_TARGETS)
 
 install:
 	mkdir -p $(BINDIR)
 	cp $(TARGETS) $(BINDIR)
+	cp $(ARCH_TARGETS) $(BINDIR)
 
 install-libs:
 	@echo "No libs to install."
@@ -74,6 +79,12 @@ logos: logos.o
 realtime: realtime.o
 rtwatcher: rtwatcher.o
 
+bigtext.o: bigtext.S
+	 $(AS) -mabi=32 -mips32 -EL -o $@ $^
+
+bigbin: bigbin.o bigtext.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+
 TESTS=$(wildcard test-*.sh) $(wildcard test-*.py)
 runtests: all $(TESTS)
 	set -e; \
@@ -86,5 +97,5 @@ test:
 	./wvtest/wvtestrun $(MAKE) runtests
 
 clean:
-	rm -f *.o $(TARGETS) $(HOST_TARGETS) *~ .*~ */*.pyc test_file
+	rm -f *.o $(TARGETS) $(HOST_TARGETS) $(ARCH_TARGETS) *~ .*~ */*.pyc test_file
 	rm -rf test_dir
