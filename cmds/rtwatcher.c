@@ -59,26 +59,6 @@ static void *realtime_thread(void *arg) {
           perror("ps");
         }
 
-        // get up to 50 lines of strace from each runnable realtime process.
-        // This isn't perfect, since just because a given process becomes
-        // runnable during this time doesn't mean he was the one causing
-        // our problem.  But it might help a bit.
-        if (system("ps axrhH -o pid,tid,rtprio,comm | "
-                   "while read pid tid prio comm junk; do "
-                   "  [ \"$prio\" != \"-\" ] && "
-                   "  [ \"$pid\" != \"$tid\" ] && "
-                   "  [ \"$comm\" != \"strace\" ] && "
-                   "  [ \"$comm\" != \"rtwatcher\" ] && "
-                   "  echo \"(stracing $tid: $comm)\" && "
-                   "  strace -fp $tid 2>&1 | "
-                   "  while read line; do "
-                   "    echo \"rtwatcher: $tid: $line\"; "
-                   "  done | "
-                   "  head -n 50 & "
-                   "done &") < 0) {
-          perror("ps-strace");
-        }
-
         sleep(5);
         _log("<4>(5 seconds later...)\n");
         if (system("ps axrH -o pid,rtprio,bsdtime,state,cmd --cols=80") < 0) {
