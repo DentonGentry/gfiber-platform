@@ -7,11 +7,6 @@ DIRS=ginstall sysmgr cmds base antirollback libstacktrace tvstat
 #  just always install it.
 DIRS+=prism/sfmodule
 
-ifeq ($(HAS_MOCA),y)
-DIRS+=diag
-endif
-
-PYTHON?=python
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
@@ -29,8 +24,6 @@ install:
 	set -e; for d in $(DIRS); do $(MAKE) -C $$d install; done
 	$(MAKE) install-optionspy
 
-diag/all: libstacktrace/all
-
 sysmgr/all: base/all libstacktrace/all
 
 %/all:
@@ -46,12 +39,12 @@ sysmgr/all: base/all libstacktrace/all
 	$(MAKE) -C $* install
 
 build-optionspy:
-	$(PYTHON) setup.py build
-	$(PYTHON) setup.py build
+	PYTHONPATH=$(HOSTPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py build
+	PYTHONPATH=$(TARGETPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py build
 
 install-optionspy:
-	$(PYTHON) setup.py install --prefix=$(HOSTDIR)$(PREFIX)
-	$(PYTHON) setup.py install --prefix=$(DESTDIR)$(PREFIX)
+	PYTHONPATH=$(HOSTPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py install --prefix=$(HOSTDIR)$(PREFIX)
+	PYTHONPATH=$(TARGETPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py install --prefix=$(DESTDIR)$(PREFIX)
 
 %/install-libs:
 	$(MAKE) -C $* install-libs

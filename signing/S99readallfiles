@@ -11,10 +11,9 @@ clear_failure_count () {
 case "$1" in
   start)
     (
-      echo "Starting"
       nice -n 19 readallfiles -q / &&
       clear_failure_count
-    ) 2>&1 | logger -t readall &
+    ) 2>&1 | logos readall &
     ;;
   stop)
     pkillwait -x readallfiles
