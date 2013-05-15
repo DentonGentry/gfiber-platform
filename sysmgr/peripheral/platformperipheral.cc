@@ -19,7 +19,8 @@ bruno_base::CriticalSection PlatformPeripheral::kCrit_;
 
 extern Platform* platformInstance_;
 
-bool PlatformPeripheral::Init(unsigned int monitor_interval) {
+bool PlatformPeripheral::Init(unsigned int monitor_interval,
+                              unsigned int hdd_temp_interval) {
   {
     bruno_base::CritScope lock(&kCrit_);
     if ((kInstance_ != NULL) || (platformInstance_ != NULL)) {
@@ -34,7 +35,8 @@ bool PlatformPeripheral::Init(unsigned int monitor_interval) {
   platformInstance_->Init();
 
   kInstance_->mgr_thread_ = bruno_base::Thread::Current();
-  kInstance_->peripheral_mon_->Init(kInstance_->mgr_thread_, monitor_interval);
+  kInstance_->peripheral_mon_->Init(kInstance_->mgr_thread_, monitor_interval,
+                                    hdd_temp_interval);
   kInstance_->ubifs_mon_->Init(kInstance_->mgr_thread_, monitor_interval);
   kInstance_->flash_->Init(kInstance_->mgr_thread_,
                            kInstance_->ubifs_mon_);
@@ -75,8 +77,10 @@ PlatformPeripheral::~PlatformPeripheral() {
 extern "C" {
 #endif
 
-int platform_peripheral_init(unsigned int monitor_interval) {
-  if (!bruno_platform_peripheral::PlatformPeripheral::Init(monitor_interval)) {
+int platform_peripheral_init(unsigned int monitor_interval,
+                             unsigned int hdd_temp_interval) {
+  if (!bruno_platform_peripheral::PlatformPeripheral::Init(
+          monitor_interval, hdd_temp_interval)) {
     return -1;
   }
   return 0;
