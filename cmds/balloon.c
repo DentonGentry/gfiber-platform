@@ -20,10 +20,34 @@ void *alloc_and_fill_block(void) {
   return block;
 }
 
+void usage(char *progname) {
+  printf("%s: [-e] [-m N]\n", progname);
+  printf("  -e: exit after allocating memory.\n");
+  printf("  -m N: allocate at most N blocks (of %d bytes each)\n", BLOCKSIZE);
+  exit(1);
+}
 
-int main() {
+int main(int argc, char **argv) {
+  int opt;
   int blocks = 0;
-  for (blocks = 0; blocks < MAXBLOCKS; blocks++) {
+  int exit_when_done = 0;
+  int maxblocks = MAXBLOCKS;
+
+  while ((opt = getopt(argc, argv, "em:")) != -1) {
+    switch (opt) {
+      case 'e':
+        exit_when_done = 1;
+        break;
+      case 'm':
+        maxblocks = atoi(optarg);
+        break;
+      default:
+        usage(argv[0]);
+        break;
+    }
+  }
+
+  for (blocks = 0; blocks < maxblocks; blocks++) {
     if (alloc_and_fill_block() == NULL) {
       break;
     }
@@ -34,9 +58,13 @@ int main() {
     printf("WARNING: maximum blocks allocated. Stopping for safety.\n");
   }
 
+  if (exit_when_done) {
+    exit(0);
+  }
+
   // just in case some memory becomes available
   while (1) {
-    if (blocks < MAXBLOCKS && alloc_and_fill_block() != NULL) {
+    if (blocks < maxblocks && alloc_and_fill_block() != NULL) {
       blocks++;
     } else {
       sleep(1);
