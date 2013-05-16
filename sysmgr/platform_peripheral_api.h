@@ -9,7 +9,8 @@
 extern "C" {
 #endif
 
-int platform_peripheral_init(unsigned int monitor_interval);
+int platform_peripheral_init(unsigned int monitor_interval,
+                             unsigned int hdd_temp_interval);
 void platform_peripheral_run(void);
 int platform_peripheral_terminate(void);
 
