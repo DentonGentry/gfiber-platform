@@ -39,8 +39,7 @@ all: $(TARGETS) $(HOST_TARGETS) $(ARCH_TARGETS)
 
 install:
 	mkdir -p $(BINDIR)
-	cp $(TARGETS) $(BINDIR)
-	cp $(ARCH_TARGETS) $(BINDIR)
+	cp $(TARGETS) $(ARCH_TARGETS) $(BINDIR)
 
 install-libs:
 	@echo "No libs to install."
