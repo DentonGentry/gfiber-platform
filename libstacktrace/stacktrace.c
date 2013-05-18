@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 
-#define WRITE(s) write(2, s, sizeof(s))
+#define WRITE(s) (void)write(2, s, sizeof(s))
 
 
 // We need this because sprintf() isn't safe to call from a signal handler.
@@ -47,19 +47,18 @@ void stacktrace(void)
     char *argv[] = {"stacktrace", format_uint(trace_tid), NULL};
     execv("/usr/bin/stacktrace", argv);
   } else {
-    int e = errno, n;
-    n = WRITE("ERROR: fork failed?!  code=");
-    n = WRITE(format_uint(e));
+    int e = errno;
+    WRITE("ERROR: fork failed?!  code=");
+    WRITE(format_uint(e));
   }
 }
 
 
 void stacktrace_sighandler(int sig)
 {
-  int n;
-  n = WRITE("\nExiting on signal ");
-  n = WRITE(format_uint(sig));
-  n = WRITE("\n");
+  WRITE("\nExiting on signal ");
+  WRITE(format_uint(sig));
+  WRITE("\n");
 
   stacktrace();
 
