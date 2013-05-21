@@ -19,7 +19,7 @@ OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 	$(CXX) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
 
 libbrunobase.so: $(OBJS)
-	$(CXX) -shared -Wl,-soname,libbrunobase.so -o $@ $^
+	$(CXX) -shared -Wl,-soname,libbrunobase.so -o $@ $^ -lrt
 
 libbrunobase.a: $(OBJS)
 	$(AR) rcs libbrunobase.a $^
