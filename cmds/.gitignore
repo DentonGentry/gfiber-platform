@@ -1,5 +1,6 @@
 host-*
 *.o
+alivemonitor
 balloon
 dir-monitor
 diskbench
