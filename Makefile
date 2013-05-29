@@ -2,11 +2,6 @@ default: all
 
 DIRS=ginstall sysmgr cmds base antirollback libstacktrace tvstat
 
-# TODO(apenwarr): only install this on appropriate platforms.
-#  For now, catawampus depends on sfmodule to run its tests, so we'll
-#  just always install it.
-DIRS+=prism/sfmodule
-
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
