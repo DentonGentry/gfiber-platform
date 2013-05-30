@@ -5,6 +5,7 @@ BINDIR=$(DESTDIR)$(PREFIX)/bin
 
 TARGETS=\
 	balloon \
+	chg_mod_own \
 	dir-monitor \
 	diskbench \
 	mcastreceive \
