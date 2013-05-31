@@ -15,7 +15,8 @@ class UbifsMon;
 
 class PlatformPeripheral {
  public:
-  static bool Init(unsigned int monitor_interval);
+  static bool Init(unsigned int monitor_interval,
+                   unsigned int hdd_temp_interval);
   static void Run(void);
   static bool Terminate(void);
 
