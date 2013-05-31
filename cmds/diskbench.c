@@ -18,18 +18,8 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include "ioprio.h"
 
-
-#ifndef IOPRIO_WHO_PROCESS
-#define IOPRIO_WHO_PROCESS 1
-#define IOPRIO_PRIO_VALUE(cls, data) (((cls) << 13) | (data))
-#define IOPRIO_CLASS_RT 1
-#define IOPRIO_CLASS_BE 2
-#define IOPRIO_CLASS_IDLE 3
-static int ioprio_set(int which, int who, int ioprio) {
-  return syscall(SYS_ioprio_set, which, who, ioprio);
-}
-#endif
 
 #ifndef SCHED_IDLE
 // not defined in glibc nor uclibc for some reason, but in Linux since 2.6.23
