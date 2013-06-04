@@ -12,6 +12,7 @@ realtime
 rtwatcher
 sdbbp
 setuid
+soft_rc
 stun
 test_dir
 test_file

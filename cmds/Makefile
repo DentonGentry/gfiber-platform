@@ -15,6 +15,7 @@ TARGETS=\
 	realtime \
 	rtwatcher \
 	setuid \
+	soft_rc \
 	stun \
 	usleep \
 	wait-until-created \
