@@ -21,6 +21,9 @@
 #include <sys/uio.h>
 #include <time.h>
 #include <unistd.h>
+#ifndef COMPILE_FOR_HOST
+#include <stacktrace.h>
+#endif  // COMPILE_FOR_HOST
 
 
 // Total size of kernel log buffer.
@@ -451,6 +454,9 @@ int main(int argc, char **argv) {
     usage();
   }
 
+#ifndef COMPILE_FOR_HOST
+  stacktrace_setup();
+#endif  // COMPILE_FOR_HOST
   signal(SIGHUP, refill_ratelimiter);
   signal(SIGUSR1, disable_ratelimit);
   signal(SIGUSR2, enable_ratelimit);

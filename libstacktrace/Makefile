@@ -1,6 +1,6 @@
 # Copyright 2012 Google Inc. All Rights Reserved.
 # Author: irinams@google.com (Irina Stanescu)
-CXX=$(CROSS_COMPILE)g++
+CC=$(CROSS_COMPILE)gcc
 RM=rm -f
 INSTALL=install
 PREFIX=/usr
@@ -13,11 +13,11 @@ CFLAGS=-Wall -fPIC -Os -Wextra -Werror -Wswitch-enum
 CPPFLAGS=-DPOSIX -DLINUX -D_DEBUG -DLOGGING=1
 OBJS=$(patsubst %.c,%.o,$(wildcard *.c))
 
-%.o: %.cc
-	$(CXX) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
+%.o: %.c
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
 
 libstacktrace.so: $(OBJS)
-	$(CXX) -shared -Wl,-soname,libstacktrace.so -o $@ $^
+	$(CC) -shared -Wl,-soname,libstacktrace.so -Wl,-export-dynamic -o $@ $^
 
 install: all
 	echo 'target-install=$(INSTALL)'
