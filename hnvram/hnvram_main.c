@@ -13,6 +13,9 @@
 // Max length of data in an NVRAM field
 #define NVRAM_MAX_DATA  4096
 
+// Number of bytes of GPN to be represented as hex data
+#define GPN_HEX_BYTES 4
+
 /* To avoid modifying the HMX code, we supply dummy versions of two
  * missing routines to satisfy the linker. These are used when writing
  * the complete NVRAM partiton, which we do not need in this utility. */
@@ -38,7 +41,10 @@ typedef enum {
   HNVRAM_MAC,       // 00:11:22:33:44:55
   HNVRAM_HMXSWVERS, // 2.15
   HNVRAM_UINT8,     // a single byte, generally 0/1 for a boolean.
-  HNVRAM_GPN        // a hex array which should be printed as a string
+  HNVRAM_GPN        // Two formats:
+                    // - 4 bytes (old format): printed as 8 digit hex.
+                    // - > 4 bytes (new format): printed as NULL-terminated
+                    //  string.
 } hnvram_format_e;
 
 typedef struct hnvram_field_s {
@@ -121,15 +127,24 @@ void format_hexstring(const char* data, int datalen, char* output, int outlen) {
   }
 }
 
+void format_gpn(const char* data, const int data_len, char* output,
+                int outlen) {
+  // Format first 4 bytes as 8 digit hex.
+  if (data_len == GPN_HEX_BYTES)
+    format_hexstring(data, GPN_HEX_BYTES, output, outlen);
+  else
+    format_string(data, output, outlen);
+}
+
 char* format_nvram(hnvram_format_e format, const char* data,
-                   char* output, int outlen) {
+                   const int data_len, char* output, int outlen) {
   output[0] = '\0';
   switch(format) {
     case HNVRAM_STRING:    format_string(data, output, outlen); break;
     case HNVRAM_MAC:       format_mac(data, output, outlen); break;
     case HNVRAM_HMXSWVERS: format_hmxswvers(data, output, outlen); break;
     case HNVRAM_UINT8:     format_uint8(data, output, outlen); break;
-    case HNVRAM_GPN:       format_hexstring(data, 4, output, outlen); break;
+    case HNVRAM_GPN:       format_gpn(data, data_len, output, outlen); break;
   }
   return output;
 }
@@ -163,11 +178,13 @@ char* read_nvram(const char* name, char* output, int outlen, int quiet) {
   }
 
   char data[NVRAM_MAX_DATA] = {0};
-  if (HMX_NVRAM_GetField(field->nvram_type, 0, data, sizeof(data)) != DRV_OK) {
+  int data_len = 0;
+  if (HMX_NVRAM_GetField(field->nvram_type, 0, data, sizeof(data)) != DRV_OK ||
+      HMX_NVRAM_GetLength(field->nvram_type, &data_len) != DRV_OK) {
     return NULL;
   }
   char formatbuf[NVRAM_MAX_DATA * 2];
-  char* nv = format_nvram(field->format, data, formatbuf, sizeof(formatbuf));
+  char* nv = format_nvram(field->format, data, data_len, formatbuf, sizeof(formatbuf));
   if (quiet) {
     snprintf(output, outlen, "%s", nv);
   } else {
@@ -225,16 +242,35 @@ unsigned char* parse_uint8(const char* input,
   return output;
 }
 
+int is_hexstring(const char* input, int hex_len) {
+  int i = 0;
+  for (i = 0; i < hex_len; i++) {
+    if (!isxdigit(input[i])) {
+      return 0;
+    }
+  }
+  if (input[hex_len] != '\0') {
+    return 0;
+  }
+  return 1;
+}
+
 unsigned char* parse_gpn(const char* input,
                          unsigned char* output, int* outlen) {
   if (*outlen < 4) return NULL;
 
-  if (sscanf(input, "%02hhx%02hhx%02hhx%02hhx",
-             &output[0], &output[1], &output[2], &output[3]) != 4) {
-    return NULL;
+  // Old GPN format: 8-digit hex string
+  if (is_hexstring(input, GPN_HEX_BYTES * 2)) {
+    if (sscanf(input, "%02hhx%02hhx%02hhx%02hhx",
+               &output[0], &output[1], &output[2], &output[3]) != GPN_HEX_BYTES) {
+      return NULL;
+    }
+    *outlen = GPN_HEX_BYTES;
+    return output;
   }
-  *outlen = 4;
-  return output;
+
+  // New GPN format: regular string
+  return parse_string(input, output, outlen);
 }
 
 unsigned char* parse_nvram(hnvram_format_e format, const char* input,
