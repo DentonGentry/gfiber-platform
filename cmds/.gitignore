@@ -4,6 +4,7 @@ balloon
 chg_mod_own
 dir-monitor
 diskbench
+ionice
 logos
 mcastreceive
 memwatcher

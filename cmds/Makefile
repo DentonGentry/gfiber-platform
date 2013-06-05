@@ -8,6 +8,7 @@ TARGETS=\
 	chg_mod_own \
 	dir-monitor \
 	diskbench \
+	ionice \
 	mcastreceive \
 	memwatcher \
 	logos \
