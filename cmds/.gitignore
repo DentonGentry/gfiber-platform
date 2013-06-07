@@ -1,5 +1,6 @@
 host-*
 *.o
+alivemonitor
 balloon
 chg_mod_own
 dir-monitor

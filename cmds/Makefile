@@ -4,6 +4,7 @@ PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
 TARGETS=\
+	alivemonitor \
 	balloon \
 	chg_mod_own \
 	dir-monitor \
