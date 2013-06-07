@@ -59,7 +59,7 @@ int main(int argc, const char **argv) {
       perror("alivemonitor: setpgid failed");
       return -1;
     }
-    execv(argv[2], (char *const*) (argv + 2));
+    execvp(argv[2], (char *const*) (argv + 2));
     perror("alivemonitor: execv failed");
     return -1;
   default:
