@@ -24,6 +24,7 @@ int main(int argc, const char **argv) {
   struct stat fst;
   int rc, status = -1;
   int fd;
+  mode_t old_mask;
 
   if (argc < 3) {
     fprintf(stderr, "Usage: %s <keepalive_file> <command>\n"
@@ -41,11 +42,16 @@ int main(int argc, const char **argv) {
   // create the keepalive file if it doesn't already exist
   memset(&fst, 0, sizeof(fst));
   if (stat(argv[1], &fst) != 0) {
+    old_mask = umask(0000);
     fd = creat(argv[1], 0666);
     if (fd < 0) {
       perror("alivemonitor: creat failed");
       return -1;
     }
+    // Revert the umask to default so that the child doesn't
+    // inherit the changed value.
+    umask(old_mask);
+    close(fd);
   }
   old_time = fst.st_mtime;
   // spawn the child process
