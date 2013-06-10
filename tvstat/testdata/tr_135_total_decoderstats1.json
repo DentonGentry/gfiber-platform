@@ -1,0 +1,42 @@
+{
+  "STBService": [
+    {
+      "MainStream": [
+        {
+          "StreamId": 1,
+          "DecoderStats": {
+            "SessionId": 1,
+            "ReceivedPictures": 2,
+            "DecodedPictures": 3,
+            "VideoDecodeErrors": 4,
+            "DecodeOverflows": 5,
+            "DecodeDrops": 6,
+            "DisplayedPictures": 7,
+            "DisplayErrors": 8,
+            "DisplayDrops": 9,
+            "DisplayUnderflows": 10,
+            "VideoWatchdogs": 11,
+            "VideoBytesDecoded": 12,
+            "VideoPtsStcDifference": 13,
+            "VideoFifoDepth": 14,
+            "VideoDisplayQueueDepth": 15,
+            "VideoCabacQueueDepth": 16,
+            "VideoEnhancementFifoDepth": 17,
+            "VideoPts": 18,
+            "AudioDecodedFrames": 19,
+            "AudioDecodeErrors": 20,
+            "AudioDummyFrames": 21,
+            "AudioFifoOverflows": 22,
+            "AudioFifoUnderflows": 23,
+            "AudioWatchdogs": 24,
+            "AudioBytesDecoded": 25,
+            "AudioPtsStcDifference": 26,
+            "AudioFifoDepth": 27,
+            "AudioQueuedFrames": 28,
+            "AudioPts": 29
+          }
+        }
+      ]
+    }
+  ]
+}

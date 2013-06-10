@@ -20,6 +20,8 @@ import tvstat
 class TvstatTest(unittest.TestCase):
 
   def setUp(self):
+    tvstat.DC_JSON = 'testdata/tr_135_total_decoderstats%d.json'
+    tvstat.DJ_JSON = 'testdata/tr_135_total_djstats%d.json'
     tvstat.PROC_NET_DEV = 'testdata/proc_net_dev'
     tvstat.PROC_NET_UDP = 'testdata/proc_net_udp'
     tvstat.TS_JSON = 'testdata/tr_135_total_tsstats%d.json'
@@ -44,6 +46,21 @@ class TvstatTest(unittest.TestCase):
   def testGetIfErrors(self):
     errs = tvstat.GetIfErrors('foo0')
     self.assertEqual(errs, (3, 4, 5, 6))
+
+  def testGetVideoHardwareErrors(self):
+    errs = tvstat.GetVideoHardwareErrors()
+    self.assertEqual(errs['VideoDecodeErrors'], 4)
+    self.assertEqual(errs['DecodeOverflows'], 5)
+    self.assertEqual(errs['DecodeDrops'], 6)
+    self.assertEqual(errs['DisplayErrors'], 8)
+    self.assertEqual(errs['DisplayDrops'], 9)
+    self.assertEqual(errs['DisplayUnderflows'], 10)
+    self.assertEqual(errs['VideoWatchdogs'], 11)
+    self.assertEqual(errs['AudioDecodeErrors'], 20)
+    self.assertEqual(errs['AudioFifoOverflows'], 22)
+    self.assertEqual(errs['AudioFifoUnderflows'], 23)
+    self.assertEqual(errs['AudioWatchdogs'], 24)
+    self.assertEqual(errs['AVPtsDifference'], 11)
 
 
 if __name__ == '__main__':

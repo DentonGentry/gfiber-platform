@@ -1,0 +1,17 @@
+{
+  "STBService": [
+    {
+      "MainStream": [
+        {
+          "StreamId": 1,
+          "DejitteringStats": {
+            "SessionId": 107,
+            "Overrruns": 0,
+            "Underruns": 0,
+            "EmptyBufferTime": 0
+          }
+        }
+      ]
+    }
+  ]
+}

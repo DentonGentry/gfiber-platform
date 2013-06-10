@@ -35,8 +35,11 @@ tvstat [options...] <interval>
 
 
 # unit tests can override these with fake versions
+PLATFORM = '/etc/platform'
 PROC_NET_DEV = '/proc/net/dev'
 PROC_NET_UDP = '/proc/net/udp'
+DC_JSON = '/tmp/cwmp/monitoring/dejittering/tr_135_total_decoderstats%d.json'
+DJ_JSON = '/tmp/cwmp/monitoring/dejittering/tr_135_total_djstats%d.json'
 TS_JSON = '/tmp/cwmp/monitoring/ts/tr_135_total_tsstats%d.json'
 
 
@@ -149,6 +152,109 @@ def GetTsErrors():
   return errs
 
 
+def GetVideoHardwareErrors():
+  """Return Errors from miniclient JSON files for the Video hardware.
+
+  Returns:
+    a dict populated with stats from the hardware pipelines.
+  """
+  errs = {
+      'VideoDecodeErrors': 0, 'DecodeOverflows': 0, 'DecodeDrops': 0,
+      'DisplayErrors': 0, 'DisplayDrops': 0, 'DisplayUnderflows': 0,
+      'VideoWatchdogs': 0, 'AudioDecodeErrors': 0, 'AudioFifoOverflows': 0,
+      'AudioFifoUnderflows': 0, 'AudioWatchdogs': 0, 'AVPtsDifference' : 0
+  }
+  for i in range(1, 9):
+    try:
+      d = json.load(open(DC_JSON % i))
+      decode = d['STBService'][0]['MainStream'][0]['DecoderStats']
+    except IOError:
+      continue
+    errs['VideoDecodeErrors'] += int(decode.get('VideoDecodeErrors', 0))
+    errs['DecodeOverflows'] += int(decode.get('DecodeOverflows', 0))
+    errs['DecodeDrops'] += int(decode.get('DecodeDrops', 0))
+    errs['DisplayErrors'] += int(decode.get('DisplayErrors', 0))
+    errs['DisplayDrops'] += int(decode.get('DisplayDrops', 0))
+    errs['DisplayUnderflows'] += int(decode.get('DisplayUnderflows', 0))
+    errs['VideoWatchdogs'] += int(decode.get('VideoWatchdogs', 0))
+    errs['AudioDecodeErrors'] += int(decode.get('AudioDecodeErrors', 0))
+    errs['AudioFifoOverflows'] += int(decode.get('AudioFifoOverflows', 0))
+    errs['AudioFifoUnderflows'] += int(decode.get('AudioFifoUnderflows', 0))
+    errs['AudioWatchdogs'] += int(decode.get('AudioWatchdogs', 0))
+    audio_pts = int(decode.get('AudioPts', 0))
+    video_pts = int(decode.get('VideoPts', 0))
+    if audio_pts and video_pts:
+      errs['AVPtsDifference'] = audio_pts - video_pts
+  return errs
+
+
+def GetVideoSoftwareErrors():
+  """Return Errors from miniclient JSON files for software errors.
+
+  Returns:
+    a dict populated with Overrruns, Underruns, and EmptyBufferTime.
+  """
+  errs = {
+      'Overrruns': 0, 'Underruns': 0, 'EmptyBufferTime': 0
+  }
+  for i in range(1, 9):
+    try:
+      d = json.load(open(DJ_JSON % i))
+      decode = d['STBService'][0]['MainStream'][0]['DejitteringStats']
+    except IOError:
+      continue
+    errs['Overrruns'] += int(decode.get('Overrruns', 0))
+    errs['Underruns'] += int(decode.get('Underruns', 0))
+    errs['EmptyBufferTime'] += int(decode.get('EmptyBufferTime', 0))
+  return errs
+
+
+
+def TvBoxStats(old):
+  new = dict()
+  new.update(GetVideoHardwareErrors())
+  new.update(GetVideoSoftwareErrors())
+  print '%6d %5d %5d %5d  %5d %5d %5d %5d %5d %6d %4d %4d' % (
+      Delta(new, old, 'VideoDecodeErrors'),
+      Delta(new, old, 'DecodeOverflows'),
+      Delta(new, old, 'DecodeDrops'),
+      Delta(new, old, 'AudioDecodeErrors'),
+      Delta(new, old, 'DisplayErrors'),
+      Delta(new, old, 'DisplayDrops'),
+      Delta(new, old, 'DisplayUnderflows'),
+      Delta(new, old, 'AudioFifoOverflows'),
+      Delta(new, old, 'AudioFifoUnderflows'),
+      Delta(new, old, 'AVPtsDifference'),
+      Delta(new, old, 'VideoWatchdogs'),
+      Delta(new, old, 'AudioWatchdogs'))
+  return new
+
+
+def StorageBoxStats(old):
+  new = dict()
+  (new['eth0_rxerr'], new['eth0_rxdrop'],
+   new['eth0_rxfifo'], new['eth0_rxframe']) = GetIfErrors('eth0')
+  (new['br0_rxerr'], new['br0_rxdrop'],
+   new['br0_rxfifo'], new['br0_rxframe']) = GetIfErrors('br0')
+  new.update(GetTsErrors())
+  new['UdpDrops'] = GetUDPDrops()
+  print '%7d %5d %5d %6d %7d %4d %4d %4d %5d %4d %4d %4d %5d' % (
+      Delta(new, old, 'PacketDiscontinuityCounter'),
+      Delta(new, old, 'DropBytes'),
+      Delta(new, old, 'DropPackets'),
+      Delta(new, old, 'PacketErrorCount'),
+      Delta(new, old, 'UdpDrops'),
+      Delta(new, old, 'eth0_rxerr'),
+      Delta(new, old, 'eth0_rxdrop'),
+      Delta(new, old, 'eth0_rxfifo'),
+      Delta(new, old, 'eth0_rxframe'),
+      Delta(new, old, 'br0_rxerr'),
+      Delta(new, old, 'br0_rxdrop'),
+      Delta(new, old, 'br0_rxfifo'),
+      Delta(new, old, 'br0_rxframe'))
+  return new
+
+
 def Delta(new, old, field):
   """Return difference new - old for field."""
   if field in old:
@@ -157,42 +263,39 @@ def Delta(new, old, field):
     return new[field]
 
 
+def IsTVBox():
+  platform = open(PLATFORM).read()
+  return True if 'GFHD' in platform else False
+
+
 def main():
   o = options.Options(optspec)
   _, _, extra = o.parse(sys.argv[1:])
 
-  interval = int(extra[0]) if len(extra) else 1
+  interval = int(extra[0]) if len(extra) else -1
+  tvbox = IsTVBox()
 
   new = dict()
   old = dict()
 
-  print '---------sagesrv------------------ --------eth0-------- --------br0---------'
-  print ' discon dropb dropp pkterr udpdrop  err drop fifo frame  err drop fifo frame'
+  if tvbox:
+    print '--------decoder---------- ------------------display---------------------'
+    print 'verror vover vdrop aerror  verr vdrop vundr aover aundr a2vpts vwch awch'
+  else:
+    print '---------sagesrv------------------ --------eth0-------- --------br0---------'
+    print ' discon dropb dropp pkterr udpdrop  err drop fifo frame  err drop fifo frame'
+
   while True:
-    (new['eth0_rxerr'], new['eth0_rxdrop'],
-     new['eth0_rxfifo'], new['eth0_rxframe']) = GetIfErrors('eth0')
-    (new['br0_rxerr'], new['br0_rxdrop'],
-     new['br0_rxfifo'], new['br0_rxframe']) = GetIfErrors('br0')
-    new.update(GetTsErrors())
-    new['UdpDrops'] = GetUDPDrops()
-    print '%7d %5d %5d %6d %7d %4d %4d %4d %5d %4d %4d %4d %5d' % (
-        Delta(new, old, 'PacketDiscontinuityCounter'),
-        Delta(new, old, 'DropBytes'),
-        Delta(new, old, 'DropPackets'),
-        Delta(new, old, 'PacketErrorCount'),
-        Delta(new, old, 'UdpDrops'),
-        Delta(new, old, 'eth0_rxerr'),
-        Delta(new, old, 'eth0_rxdrop'),
-        Delta(new, old, 'eth0_rxfifo'),
-        Delta(new, old, 'eth0_rxframe'),
-        Delta(new, old, 'br0_rxerr'),
-        Delta(new, old, 'br0_rxdrop'),
-        Delta(new, old, 'br0_rxfifo'),
-        Delta(new, old, 'br0_rxframe'))
+    if tvbox:
+      new = TvBoxStats(old)
+    else:
+      new = StorageBoxStats(old)
+
+    if interval <= 0:
+      return 0
 
     time.sleep(interval)
     old = new
-    new = dict()
 
   return 0
 
