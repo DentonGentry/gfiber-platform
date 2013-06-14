@@ -37,6 +37,8 @@ CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=c99 -D_GNU_SOURCE
 CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=gnu++0x -D_GNU_SOURCE
+INCS=-I../libstacktrace
+
 .PRECIOUS: %.o host-%.o
 
 all: $(TARGETS) $(HOST_TARGETS) $(ARCH_TARGETS)
@@ -48,17 +50,18 @@ install:
 install-libs:
 	@echo "No libs to install."
 
+
 %.o: %.c
-	$(CC) $(CFLAGS) -o $@ -c $<
+	$(CC) $(CFLAGS) $(INCS) -o $@ -c $<
 
 %.o: %.cc
-	$(CXX) $(CXXFLAGS) -o $@ -c $<
+	$(CXX) $(CXXFLAGS) $(INCS) -o $@ -c $<
 
 host-%.o: %.c
-	$(HOST_CC) $(CFLAGS) -o $@ -c $<
+	$(HOST_CC) $(CFLAGS) $(INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 host-%.o: %.cc
-	$(HOST_CXX) $(CXXFLAGS) -o $@ -c $<
+	$(HOST_CXX) $(CXXFLAGS) $(INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 %: %.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
@@ -81,6 +84,9 @@ diskbench: diskbench.o
 logos: logos.o
 realtime: realtime.o
 rtwatcher: rtwatcher.o
+
+logos: logos.o
+	$(CC) $(CFLAGS) -o $@ $^ -L../libstacktrace -lstacktrace
 
 bigtext.o: bigtext.S
 	 $(AS) -mabi=32 -mips32 -EL -o $@ $^

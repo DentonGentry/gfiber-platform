@@ -44,7 +44,7 @@ void stacktrace(void)
     syscall(__NR_waitpid, pid, 0);
 #endif
   } else if (pid == 0) {
-    char *argv[] = {"stacktrace", format_uint(trace_tid), NULL};
+    char *argv[] = {(char*)"stacktrace", format_uint(trace_tid), NULL};
     execv("/usr/bin/stacktrace", argv);
   } else {
     int e = errno;

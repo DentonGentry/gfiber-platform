@@ -20,6 +20,7 @@ install:
 	$(MAKE) install-optionspy
 
 sysmgr/all: base/all libstacktrace/all
+logos/all: libstacktrace/all
 
 %/all:
 	$(MAKE) -C $* all
