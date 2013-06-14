@@ -298,7 +298,7 @@ class RcServer(object):
   def GetKeyUp(self, keycode):
     return keycode & 0x0000ffff
 
-  def WriteKeyCode(self, keycode):
+  def WriteKeyCodeToDevice(self, keycode):
     if self.simu_mode:
       self.Log(LOG_INFO, "Send (simulated) keycode = %x" % keycode)
     else:
@@ -313,6 +313,18 @@ class RcServer(object):
       except (IOError, OSError):
         print "Cannot write keycode %x to device %r" % (keycode, BTHID_DEV)
         raise
+
+  def SendKeyCode(self, token, keycode):
+    self.Log(LOG_VERB, "Enter: %r -> 0x%x" % (token, keycode))
+    self.WriteKeyCodeToDevice(keycode)
+
+    # if not in raw-mode and key is key-down, sleep a little and send key-up
+    if self.autorelease and (keycode & 0xffff0000):
+      time.sleep(SLEEP_BEFORE_RELEASE_TIME)
+      keycode = self.GetKeyUp(keycode)
+      self.Log(LOG_VERB, "Enter:'REL' -> 0x%x" % keycode)
+      self.WriteKeyCodeToDevice(keycode)
+    self.prev_key_code = keycode
 
   def Run(self):
     finished = False
@@ -341,15 +353,12 @@ class RcServer(object):
         # 'HELP'
         if token == MAGIC_KEY_HELP:
           PrintKeys()
-          continue
 
         # 'END'
-        if token == MAGIC_KEY_END:
+        elif token == MAGIC_KEY_END:
           # clean up if possible
           if self.prev_key_code:
-            keycode = self.GetKeyUp(self.prev_key_code)
-            self.Log(LOG_VERB, "Enter:'REL' -> 0x%x" % keycode)
-            self.WriteKeyCode(keycode)
+            self.SendKeyCode("REL", self.GetKeyUp(self.prev_key_code))
           finished = True
           break
 
@@ -364,16 +373,14 @@ class RcServer(object):
                      "use default %d secs instead" % (tstr, t))
           self.Log(LOG_INFO, "Sleeping %f secs" % t)
           time.sleep(t)
-          continue
 
         # 'REL'
         elif token == MAGIC_KEY_REL:
           if self.prev_key_code:
-            keycode = self.GetKeyUp(self.prev_key_code)
+            self.SendKeyCode(token, self.GetKeyUp(self.prev_key_code))
           else:
             self.Log(LOG_WARN, "%r not valid, no previous key-down exists!" %
                      MAGIC_KEY_REL)
-            continue
 
         # 'BATT_LEVEL'
         elif token.find(MAGIC_KEY_BATLV, 0, len(MAGIC_KEY_BATLV)) == 0:
@@ -385,6 +392,10 @@ class RcServer(object):
               level = 100
             self.Log(LOG_INFO, "Send battery-level = %d" % level)
             keycode = keymap.get(token) | (level << 16)
+            self.SendKeyCode(token, keycode)
+          else:
+            self.Log(LOG_WARN, "%r is not a valid battery level string!" %
+                     levelstr)
 
         # 'RAWMODEx'
         elif token.find(MAGIC_KEY_RAWMODE, 0, len(MAGIC_KEY_RAWMODE)) == 0:
@@ -395,7 +406,6 @@ class RcServer(object):
           else:
             self.Log(LOG_ALL, "Enable raw-mode (autorelease = off)")
             self.autorelease = False
-          continue
 
         # 'DEBUG'
         elif token.find(MAGIC_KEY_DEBUG, 0, len(MAGIC_KEY_DEBUG)) == 0:
@@ -409,27 +419,23 @@ class RcServer(object):
           # error case
           self.Log(LOG_ERR, "Unknown debug level %r, must be [%d..%d]."
                    % (dlevelstr, LOG_ERR, LOG_VERB))
-          continue
+
+        # Just-a-number (e.g. "302")
+        # convert to individual digit presses followed by OK
+        # e.g.: "302" -> "DIGIT_3 DIGIT_0 DIGIT_2 OK"
+        elif token.isdigit():
+          for d in token:
+            tok = "DIGIT_" + d
+            self.SendKeyCode(tok, keymap.get(tok))
+          self.SendKeyCode("OK", keymap.get("OK"))
 
         # regular key
         else:
           keycode = keymap.get(token, UNKNOWN_KEY)
           if keycode == UNKNOWN_KEY:
             self.Log(LOG_WARN, "Unknown keystr %r, ignore." % token)
-            continue
-
-        # Send into the driver
-        self.Log(LOG_VERB, "Enter: %r -> 0x%x" % (token, keycode))
-        self.WriteKeyCode(keycode)
-
-        # if not in raw-mode sleep a little and send key-up
-        if self.autorelease and (keycode & 0xffff0000):
-          time.sleep(SLEEP_BEFORE_RELEASE_TIME)
-          keycode = self.GetKeyUp(keycode)
-          self.Log(LOG_VERB, "Enter:'REL' -> 0x%x" % keycode)
-          self.WriteKeyCode(keycode)
-
-        self.prev_key_code = keycode
+          else:
+            self.SendKeyCode(token, keycode)
 
 
 def main(argv):
