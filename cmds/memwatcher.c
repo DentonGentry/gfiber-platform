@@ -190,6 +190,11 @@ int main(int argc, char **argv)
     pid_t child_pid = fork();
     if (child_pid == -1) {
       perror("Error forking");
+    } else if (child_pid == 0) {
+      close(pagemap_fd);
+      // close the pagemap fd inherited from the parent
+      pagemap_fd = open("/proc/self/pagemap", O_RDONLY);
+      assert(pagemap_fd >= 0);
     }
 
     seed = time(NULL) + child_pid;
