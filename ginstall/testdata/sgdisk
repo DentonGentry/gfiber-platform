@@ -1,0 +1,19 @@
+#!/bin/sh
+
+if [ "$1" = "-p" ] && [ "$2" = "/dev/mmcblk0" ]; then
+echo "Disk /dev/mmcblk0: 7634944 sectors, 3.6 GiB
+Logical sector size: 512 bytes
+Disk identifier (GUID): E587DEE7-F588-4628-BD75-569AF1CD296C
+Partition table holds up to 128 entries
+First usable sector is 34, last usable sector is 7634910
+Partitions will be aligned on 2048-sector boundaries
+Total free space is 950205 sectors (464.0 MiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1           34816         1083391   512.0 MiB   0700  image0
+   2         1083392         2131967   512.0 MiB   0700  image1
+   3         2131968         2263039   64.0 MiB    0700  emergency
+   4         2263040         2525183   128.0 MiB   8300  config
+   5         2525184         6719487   2.0 GiB     8300  user
+"
+fi

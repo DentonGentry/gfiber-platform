@@ -7,6 +7,7 @@ __author__ = 'dgentry@google.com (Denton Gentry)'
 
 import os
 import stat
+import StringIO
 import tempfile
 import unittest
 import ginstall
@@ -15,20 +16,32 @@ import ginstall
 class ImginstTest(unittest.TestCase):
   def setUp(self):
     self.old_bufsize = ginstall.BUFSIZE
+    self.old_etcplatform = ginstall.ETCPLATFORM
     self.old_flash_erase = ginstall.FLASH_ERASE
     self.old_hnvram = ginstall.HNVRAM
+    self.old_mmcblk = ginstall.MMCBLK
+    self.old_mkdosfs = ginstall.MKDOSFS
     self.old_mtdblock = ginstall.MTDBLOCK
     self.old_proc_mtd = ginstall.PROC_MTD
+    self.old_sgdisk = ginstall.SGDISK
     self.old_sys_ubi0 = ginstall.SYS_UBI0
     self.old_ubiformat = ginstall.UBIFORMAT
+    ginstall.ETCPLATFORM = 'testdata/etc/platform'
+    ginstall.PROC_MTD = "testdata/proc/mtd"
+    ginstall.SGDISK = 'testdata/sgdisk'
+    ginstall.SIGNINGKEY = 'testdata/signing_key.der'
     self.files_to_remove = list()
 
   def tearDown(self):
     ginstall.BUFSIZE = self.old_bufsize
+    ginstall.ETCPLATFORM = self.old_etcplatform
     ginstall.FLASH_ERASE = self.old_flash_erase
     ginstall.HNVRAM = self.old_hnvram
+    ginstall.MMCBLK = self.old_mmcblk
+    ginstall.MKDOSFS = self.old_mkdosfs
     ginstall.MTDBLOCK = self.old_mtdblock
     ginstall.PROC_MTD = self.old_proc_mtd
+    ginstall.SGDISK = self.old_sgdisk
     ginstall.SYS_UBI0 = self.old_sys_ubi0
     ginstall.UBIFORMAT = self.old_ubiformat
     for file in self.files_to_remove:
@@ -85,7 +98,6 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(ginstall.GetMtdNum("invalid4"), False)
 
   def testGetEraseSize(self):
-    ginstall.PROC_MTD = "testdata/proc/mtd"
     siz = ginstall.GetEraseSize("mtd3")
     self.assertEqual(siz, 128)
     siz = ginstall.GetEraseSize("3")
@@ -97,12 +109,18 @@ class ImginstTest(unittest.TestCase):
     siz = ginstall.GetEraseSize("nonexistent")
     self.assertEqual(siz, 0)
 
-  def testGetMtdDevForPartition(self):
-    ginstall.PROC_MTD = "testdata/proc/mtd"
-    self.assertEqual(ginstall.GetMtdDevForPartition("foo1"), "mtd1")
-    self.assertEqual(ginstall.GetMtdDevForPartition("foo2"), "mtd2")
-    self.assertEqual(ginstall.GetMtdDevForPartition("foo9"), "mtd9")
-    self.assertEqual(ginstall.GetMtdDevForPartition("nonexistant"), None)
+  def testGetMtdDevForName(self):
+    self.assertEqual(ginstall.GetMtdDevForName("foo1"), "mtd1")
+    self.assertEqual(ginstall.GetMtdDevForName("foo2"), "mtd2")
+    self.assertEqual(ginstall.GetMtdDevForName("foo9"), "mtd9")
+    self.assertEqual(ginstall.GetMtdDevForName("nonexistant"), None)
+
+  def testGetGptPartitionForName(self):
+    getgpt = ginstall.GetGptPartitionForName
+    self.assertEqual(getgpt("image0"), "/dev/mmcblk0p1")
+    self.assertEqual(getgpt("image1"), "/dev/mmcblk0p2")
+    self.assertEqual(getgpt("emergency"), "/dev/mmcblk0p3")
+    self.assertEqual(getgpt("nonexistant"), None)
 
   def testRoundTo(self):
     self.assertEqual(ginstall.RoundTo(255, 256), 256)
@@ -145,11 +163,19 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(tarimg.GetKernel().read(), "vmlinuz")
     self.assertEqual(tarimg.GetRootFs().read(), "rootfs.squashfs")
 
+  def testTarImageV3(self):
+    tarimg = ginstall.TarImage("testdata/img/image_v3.gi")
+    self.assertEqual(tarimg.GetKernel().read(), "kernel.img")
+    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.img")
+    self.assertEqual(tarimg.GetLoader().read(), "loader.img")
+    self.assertEqual(tarimg.GetVersion(), "image_version")
+
   def testFileImage(self):
     fileimg = ginstall.FileImage("testdata/img/vmlinux",
                                  "testdata/img/rootfs.ubi",
                                  "testdata/img/loader.bin",
-                                 "testdata/img/loader.sig")
+                                 "testdata/img/loader.sig",
+                                 "testdata/img/manifest")
     self.assertEqual(fileimg.GetKernel().read(), "vmlinux")
     self.assertEqual(fileimg.GetRootFs().read(), "rootfs.ubi")
     self.assertEqual(fileimg.GetLoader().read(), "loader.bin")
@@ -204,7 +230,6 @@ class ImginstTest(unittest.TestCase):
     self.assertRaises(IOError, ginstall.InstallToMtd, origfile, 4)
 
   def testWriteUbi(self):
-    ginstall.PROC_MTD = "testdata/proc/mtd"
     s = "#!/bin/sh\necho $* >> {0}\nwc -c >> {0}\nexit 0"
     (ubifmt, ubiout) = self.MakeTestScript(s)
     ginstall.UBIFORMAT = ubifmt.name
@@ -223,7 +248,6 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(ubiout.readline().strip(), "4096")
 
   def testWriteUbiException(self):
-    ginstall.PROC_MTD = "testdata/proc/mtd"
     (ubifmt, out) = self.MakeTestScript("#!/bin/sh\nexit 1\n")
     ginstall.UBIFORMAT = ubifmt.name
 
@@ -262,6 +286,49 @@ class ImginstTest(unittest.TestCase):
     nvout.seek(0, os.SEEK_SET)
     self.assertEqual(nvout.readline(),
                      '-w MTD_TYPE_FOR_KERNEL=RAW -w ACTIVATED_KERNEL_NAME=kernel1 -w EXTRA_KERNEL_OPT=ubi.mtd=rootfs1 root=mtdblock:rootfs rootfstype=squashfs\n')
+
+  def testFormatGptPartition(self):
+    s = '#!/bin/sh\necho "$*" > {0}\nexit 0'
+    (mkdosfs, out) = self.MakeTestScript(s)
+    ginstall.MKDOSFS = mkdosfs.name
+
+    ginstall.FormatGptPartition(blkdev="/dev/blkfoo")
+    self.assertEqual(out.readline(), '/dev/blkfoo\n')
+
+    out.seek(0, os.SEEK_SET)
+    out.truncate()
+    ginstall.FormatGptPartition(blkdev="/dev/blkfoo", name="namefoo")
+    self.assertEqual(out.readline(), '-n namefoo /dev/blkfoo\n')
+
+  def testIsDeviceMMC(self):
+    ginstall.MMCBLK = 'testdata/dev_mmcblk0'
+    self.assertTrue(ginstall.IsDeviceMMC())
+    ginstall.MMCBLK = 'testdata/this_file_does_not_exist'
+    self.assertFalse(ginstall.IsDeviceMMC())
+
+  def testParseManifest(self):
+    l = 'installer_version: 99\nimage_type: fake\nplatforms: [ GFHD100, GFMS100 ]\n'
+    in_f = StringIO.StringIO(l)
+    actual = ginstall.ParseManifest(in_f)
+    expected = {'installer_version': '99', 'image_type': 'fake',
+                'platforms': [ 'GFHD100', 'GFMS100' ]}
+    self.assertEqual(actual, expected)
+    l = 'installer_version: 99\nimage_type: fake\nplatforms: GFHD007\n'
+    in_f = StringIO.StringIO(l)
+    actual = ginstall.ParseManifest(in_f)
+    expected = {'installer_version': '99', 'image_type': 'fake',
+                'platforms': 'GFHD007'}
+    self.assertEqual(actual, expected)
+
+  def testGetKey(self):
+    f = ginstall.GetKey()
+    self.assertEqual(f.read(), 'This is a signing key.\n')
+
+  def testPlatformRoutines(self):
+    self.assertEqual(ginstall.GetPlatform(), 'GFUNITTEST')
+    in_f = StringIO.StringIO('platforms: [ GFUNITTEST, GFFOOBAR ]\n')
+    manifest = ginstall.ParseManifest(in_f)
+    self.assertTrue(ginstall.CheckPlatform(manifest))
 
 
 if __name__ == '__main__':

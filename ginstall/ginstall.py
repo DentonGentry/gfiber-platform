@@ -28,6 +28,7 @@ r,rootfs=     rootfs UBI image filename to install
 skiploader    skip installing bootloader (dev-only)
 loader=       bootloader file to install
 loadersig=    bootloader signature filename
+manifest=     manifest file
 drm=          drm blob filename to install
 p,partition=  partition to install to (primary, secondary, or other)
 q,quiet       suppress unnecessary output
@@ -36,13 +37,20 @@ q,quiet       suppress unnecessary output
 
 # unit tests can override these with fake versions
 BUFSIZE = 256 * 1024
-FLASH_ERASE = '/usr/sbin/flash_erase'
-HNVRAM = '/usr/bin/hnvram'
+ETCPLATFORM = '/etc/platform'
+FLASH_ERASE = 'flash_erase'
+HNVRAM = 'hnvram'
+MKDOSFS = 'mkdosfs'
+MMCBLK = '/dev/mmcblk0'
+MOUNT = 'mount'
 MTDBLOCK = '/dev/mtdblock{0}'
 PROC_MTD = '/proc/mtd'
+SGDISK = 'sgdisk'
+SIGNINGKEY = '/etc/gfiber_public.der'
 SYS_UBI0 = '/sys/class/ubi/ubi0/mtd_num'
-UBIFORMAT = '/usr/sbin/ubiformat'
-UBIPREFIX = '/usr/sbin/ubi'
+UBIFORMAT = 'ubiformat'
+UBIPREFIX = 'ubi'
+UMOUNT = 'umount'
 ROOTFSUBI_NO = '5'
 GZIP_HEADER = '\x1f\x8b\x08'  # encoded as string to ignore endianness
 
@@ -52,6 +60,12 @@ quiet = False
 
 # Partitions supported
 gfhd100_partitions = {'primary': 0, 'secondary': 1}
+
+default_manifest_v2 = {
+    'installer_version': '2',
+    'platforms': ['GFHD100', 'GFMS100'],
+    'image_type': 'unlocked'
+}
 
 
 class Fatal(Exception):
@@ -79,6 +93,14 @@ def VerbosePrint(s, *args):
     Log(s, *args)
 
 
+def GetPlatform():
+  try:
+    with open(ETCPLATFORM) as f:
+      return f.read().strip()
+  except IOError as e:
+    raise Fatal(e)
+
+
 def SetBootPartition(partition):
   extra = 'ubi.mtd=rootfs{0} root=mtdblock:rootfs rootfstype=squashfs'.format(
       partition)
@@ -104,7 +126,7 @@ def GetBootedPartition():
   booted_mtd = 'mtd' + str(int(line))
   for (pname, pnum) in gfhd100_partitions.items():
     rootfs = 'rootfs' + str(pnum)
-    mtd = GetMtdDevForPartition(rootfs)
+    mtd = GetMtdDevForName(rootfs)
     if booted_mtd == mtd:
       return pname
   return None
@@ -157,7 +179,7 @@ def GetEraseSize(mtd):
   return 0
 
 
-def GetMtdDevForPartition(name):
+def GetMtdDevForName(name):
   """Find the mtd# for a named partition.
 
   In /proc/mtd we have:
@@ -184,16 +206,79 @@ def GetMtdDevForPartition(name):
   return None
 
 
-def IsDeviceB0():
+def GetGptPartitionForName(name):
+  """Find the mmcmlk0p# for a named partition.
+
+  From sgdisk -p we have:
+
+  Number  Start (sector)    End (sector)  Size       Code  Name
+     1           34816         1083391   512.0 MiB   0700  image0
+     2         1083392         2131967   512.0 MiB   0700  image1
+     3         2131968         2263039   64.0 MiB    0700  emergency
+     4         2263040         2525183   128.0 MiB   8300  config
+     5         2525184         6719487   2.0 GiB     8300  user
+  """
+  cmd = [SGDISK, '-p', MMCBLK]
+  p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+  mmcpart = None
+  for line in p.stdout:
+    fields = line.strip().split()
+    if len(fields) == 7 and fields[6] == name:
+      mmcpart = MMCBLK + 'p' + fields[0]
+  p.wait()
+  return mmcpart
+
+
+def FormatGptPartition(blkdev, name=None):
+  """Make a new VFAT filesystem in blkdev."""
+  if name:
+    cmd = [MKDOSFS, '-n', name, blkdev]
+  else:
+    cmd = [MKDOSFS, blkdev]
+  return subprocess.call(cmd)
+
+
+def MountGptPartition(blkdev):
+  """Mount blkdev as a VFAT filesystem."""
+  cmd = [MOUNT, '-t', 'vfat', '-o', 'nosuid,nodev,noexec', blkdev, '/install']
+  return subprocess.call(cmd)
+
+
+def UnmountInstallFilesystem(path):
+  """Unmount filesystem."""
+  cmd = [UMOUNT, path]
+  return subprocess.call(cmd)
+
+
+def IsDeviceNoSigning():
+  """Returns true if the platform does not handle a kernel header prepended."""
+  return True if IsDevice7425B0() or IsDevice7429B0() else False
+
+
+def IsDevice7425B0():
   """Returns true if the device is a BCM7425B0 platform."""
   return open('/proc/cpuinfo').read().find('BCM7425B0') >= 0
 
 
+def IsDevice7429B0():
+  """Returns true if the device is a BCM7429B0 platform."""
+  return open('/proc/cpuinfo').read().find('BCM7429B0') >= 0
+
+
 def IsDevice4GB():
   """Returns true if the device is using old-style 4GB NAND layout."""
-  partnum = GetMtdNum(GetMtdDevForPartition('rootfs0'))
+  partnum = GetMtdNum(GetMtdDevForName('rootfs0'))
   f = open(MTDBLOCK.format(partnum))
   return GetFileSize(f) == 0x40000000  # ie. size of v1 root partition
+
+
+def IsDeviceMMC():
+  """Returns true if the platform uses eMMC flash."""
+  try:
+    os.stat(MMCBLK)
+  except OSError:
+    return False
+  return True
 
 
 def RoundTo(orig, mult):
@@ -269,6 +354,18 @@ def InstallToMtd(f, mtd):
     return written
 
 
+def InstallToMMC(orig_f, destination):
+  """Write the file-like object orig_f to file named destination."""
+  orig_start = orig_f.tell()
+  with open(destination, 'w+b') as dest_f:
+    written = WriteToFile(orig_f, dest_f)
+    orig_f.seek(orig_start, os.SEEK_SET)
+    dest_f.seek(0, os.SEEK_SET)
+    if not IsIdentical(orig_f, dest_f):
+      raise IOError('Flash verify failed')
+    return written
+
+
 def InstallUbiFileToUbi(f, mtd):
   """Write an image with ubi header to a ubi device.
 
@@ -324,17 +421,75 @@ def InstallRawFileToUbi(f, mtd, ubino):
   UbiCmd('format', [devmtd, '-y', '-q'])
   UbiCmd('attach', ['-m', str(GetMtdNum(mtd)), '-d', ubino])
   UbiCmd('mkvol', ['/dev/ubi' + ubino, '-N', 'rootfs-prep', '-m'])
-  mtd = GetMtdDevForPartition('rootfs-prep')
+  mtd = GetMtdDevForName('rootfs-prep')
   siz = InstallToMtd(f, mtd)
   UbiCmd('rename', ['/dev/ubi' + ubino, 'rootfs-prep', 'rootfs'])
   UbiCmd('detach', ['-d', ubino])
   return siz
 
 
+def WriteDrm(opt):
+  """Write DRM Keyboxes."""
+  Log('DO NOT INTERRUPT OR POWER CYCLE, or you will lose drm capability.\n')
+  try:
+    drm = open(opt.drm, 'rb')
+  except IOError, e:
+    raise Fatal(e)
+  mtd = GetMtdDevForName('drmregion0')
+  VerbosePrint('Writing drm to %r', mtd)
+  InstallToMtd(drm, mtd)
+  VerbosePrint('\n')
+
+  drm.seek(0)
+  mtd = GetMtdDevForName('drmregion1')
+  VerbosePrint('Writing drm to %r', mtd)
+  InstallToMtd(drm, mtd)
+  VerbosePrint('\n')
+
+
+def GetKey():
+  """Return the key to check file signatures."""
+  try:
+    return open(SIGNINGKEY)
+  except IOError, e:
+    raise Fatal(e)
+
+
+def ParseManifest(f):
+  """Parse a ginstall image manifest.
+  Example:
+    installer_version: 99
+    image_type: fake
+    platforms: [ GFHD100, GFMS100 ]
+  Args:
+    f: a file-like object for the manifest file
+  Returns:
+    a dict of the fields in the manifest.
+  """
+  result = {}
+  for line in f:
+    fields = line.split(':')
+    if len(fields) == 2:
+      key = fields[0].strip()
+      val = fields[1].strip()
+      if '[' in val:  # [ GFHD100, GFMS100 ]
+        val = val.translate(None, '[] ').strip().split(',')
+      result[key] = val
+  return result
+
+
+def CheckPlatform(manifest):
+  platform = GetPlatform()
+  platforms = manifest['platforms']
+  if not platform in platforms:
+    raise Fatal('image=%s, platform=%s' % (platforms, platform))
+  return True
+
+
 class FileImage(object):
   """A system image packaged as separate kernel, rootfs and loader files."""
 
-  def __init__(self, kernelfile, rootfs, loader, loadersig):
+  def __init__(self, kernelfile, rootfs, loader, loadersig, manifest):
     self.kernelfile = kernelfile
     self.rootfs = rootfs
     if self.rootfs:
@@ -343,6 +498,11 @@ class FileImage(object):
       self.rootfstype = None
     self.loader = loader
     self.loadersig = loadersig
+    self.manifest = manifest
+
+  def V(self):
+    manifest = self.GetManifest()
+    return manifest['installer_version']
 
   def GetVersion(self):
     return None
@@ -388,6 +548,15 @@ class FileImage(object):
     else:
       return None
 
+  def GetManifest(self):
+    if self.manifest:
+      try:
+        return ParseManifest(open(self.manifest, 'r'))
+      except IOError, e:
+        raise Fatal(e)
+    else:
+      return default_manifest_v2.copy()
+
 
 class TarImage(object):
   """A system image packaged as a tar file."""
@@ -395,20 +564,21 @@ class TarImage(object):
   def __init__(self, tarfilename):
     self.tarfilename = tarfilename
     self.tar_f = tarfile.open(name=tarfilename)
-    fnames = self.tar_f.getnames()
-    for fname in fnames:
-      if fname[:7] == 'rootfs.':
-        self.rootfstype = fname[7:]
-        break
+
+  def V(self):
+    manifest = self.GetManifest()
+    return int(manifest['installer_version'])
 
   def GetVersion(self):
     # no point catching this error: if there's no version file, the
     # whole install image is definitely invalid.
-    return self.tar_f.extractfile('version').read(4096).strip()
+    m = self.GetManifest()
+    return m.get('version', None)
 
   def GetKernel(self):
     try:
-      return self.tar_f.extractfile('vmlinuz')
+      filename = 'kernel.img' if self.V() > 2 else 'vmlinuz'
+      return self.tar_f.extractfile(filename)
     except KeyError:
       try:
         return self.tar_f.extractfile('vmlinux')
@@ -416,22 +586,37 @@ class TarImage(object):
         return None
 
   def IsRootFsUbi(self):
-    if self.rootfstype[-4:] == '_ubi':
+    if self.V() > 2:
+      return False
+    fnames = self.tar_f.getnames()
+    rootfstype = ''
+    for fname in fnames:
+      if fname[:7] == 'rootfs.':
+        rootfstype = fname[7:]
+        break
+    if rootfstype[-4:] == '_ubi':
       return True
     return False
 
   def GetRootFs(self):
+    if self.V() > 2:
+      filename = 'rootfs.img'
+    elif self.IsRootFsUbi():
+      filename = 'rootfs.squashfs_ubi'
+    else:
+      filename = 'rootfs.squashfs'
     try:
-      return self.tar_f.extractfile('rootfs.' + self.rootfstype)
+      return self.tar_f.extractfile(filename)
     except KeyError:
       return None
 
   def GetLoader(self):
-    if IsDeviceB0():
-      Log('old B0 device: ignoring loader.bin in tarball\n')
+    if IsDevice7425B0() or IsDevice7429B0():
+      Log('Incompatible device: ignoring bootloader in image\n')
       return None
     try:
-      return self.tar_f.extractfile('loader.bin')
+      filename = 'loader.img' if self.V() > 2 else 'loader.bin'
+      return self.tar_f.extractfile(filename)
     except KeyError:
       return None
 
@@ -440,6 +625,22 @@ class TarImage(object):
       return self.tar_f.extractfile('loader.sig')
     except KeyError:
       return None
+
+  def _GetDefaultManifest(self):
+    m = default_manifest_v2.copy()
+    try:
+      version = self.tar_f.extractfile('version').read(4096).strip()
+      m['version'] = version
+    except KeyError:
+      pass
+    return m
+
+  def GetManifest(self):
+    try:
+      f = self.tar_f.extractfile('manifest')
+      return ParseManifest(f)
+    except KeyError:
+      return self._GetDefaultManifest()
 
 
 def main():
@@ -453,21 +654,7 @@ def main():
 
   quiet = opt.quiet
   if opt.drm:
-    Log('DO NOT INTERRUPT OR POWER CYCLE, or you will lose drm capability.\n')
-    try:
-      drm = open(opt.drm, 'rb')
-    except IOError, e:
-      raise Fatal(e)
-    mtd = GetMtdDevForPartition('drmregion0')
-    VerbosePrint('Writing drm to %r', mtd)
-    InstallToMtd(drm, mtd)
-    VerbosePrint('\n')
-
-    drm.seek(0)
-    mtd = GetMtdDevForPartition('drmregion1')
-    VerbosePrint('Writing drm to %r', mtd)
-    InstallToMtd(drm, mtd)
-    VerbosePrint('\n')
+    WriteDrm(opt)
 
   if (opt.kernel or opt.rootfs or opt.tar) and not opt.partition:
     # default to the safe option if not given
@@ -495,18 +682,15 @@ def main():
       o.fatal('--partition must be one of: ' + str(gfhd100_partitions.keys()))
 
   if opt.tar or opt.kernel or opt.rootfs or opt.loader:
+    key = GetKey()
     if opt.tar:
       img = TarImage(opt.tar)
       if opt.kernel or opt.rootfs or opt.loader or opt.loadersig:
         o.fatal('--tar option is incompatible with -k, -r, '
                 '--loader and --loadersig')
     else:
-      img = FileImage(opt.kernel, opt.rootfs, opt.loader, opt.loadersig)
-
-    try:
-      key = open('/etc/gfiber_public.der')
-    except IOError, e:
-      raise Fatal(e)
+      img = FileImage(opt.kernel, opt.rootfs, opt.loader, opt.loadersig,
+                      opt.manifest)
 
     # old software versions are incompatible with 1 GB NAND partition format
     # (whether or not you're physically using SLC NAND or not) so don't try
@@ -517,37 +701,68 @@ def main():
         not IsDevice4GB()):
       raise Fatal("%r is too old for new-style partitions: aborting.\n" % ver)
 
+    manifest = img.GetManifest()
+    CheckPlatform(manifest)
+
+    if IsDeviceMMC():
+      image = 'image' + str(pnum)
+      mmcblk = GetGptPartitionForName(image)
+      if not mmcblk:
+        raise Fatal('Cannot determine partition for %s' % image)
+      if img.GetRootFs() and img.GetKernel():
+        Log('Formatting %s\n' % mmcblk)
+        FormatGptPartition(blkdev=mmcblk, name=image)
+      Log('Mounting VFAT %s\n' % mmcblk)
+      UnmountInstallFilesystem('/install')
+      MountGptPartition(mmcblk)
+
     rootfs = img.GetRootFs()
     if rootfs:
       # log rootfs type in case wrong rootfs is installed
-      if img.IsRootFsUbi():
+      if IsDeviceMMC():
+        Log('Installing rootfs to MMC partition.\n')
+      elif img.IsRootFsUbi():
         Log('Installing ubi-formatted rootfs.\n')
       else:
         Log('Installing raw rootfs image to ubi partition.\n')
-      mtd = GetMtdDevForPartition('rootfs' + str(pnum))
-      VerbosePrint('Writing rootfs to %r', mtd)
-      if img.IsRootFsUbi():
-        InstallUbiFileToUbi(rootfs, mtd)
+
+      if IsDeviceMMC():
+        destination = '/install/rootfs.img'
+        VerbosePrint('Writing rootfs to %s', destination)
+        InstallToMMC(rootfs, destination)
       else:
-        InstallRawFileToUbi(rootfs, mtd, ROOTFSUBI_NO)
+        mtd = GetMtdDevForName('rootfs' + str(pnum))
+        VerbosePrint('Writing rootfs to %r', mtd)
+        if img.IsRootFsUbi():
+          InstallUbiFileToUbi(rootfs, mtd)
+        else:
+          InstallRawFileToUbi(rootfs, mtd, ROOTFSUBI_NO)
       VerbosePrint('\n')
 
     kern = img.GetKernel()
     if kern:
-      mtd = GetMtdDevForPartition('kernel' + str(pnum))
-      if IsDeviceB0():
+      if IsDeviceNoSigning():
         buf = kern.read(4100)
         if buf[0:3] != GZIP_HEADER and buf[4096:4099] == GZIP_HEADER:
-          VerbosePrint('old B0 device: removing kernel signing.\n')
+          VerbosePrint('Incompatible device: removing kernel signing.\n')
           kern.seek(4096)
         elif buf[0:3] == GZIP_HEADER:
-          VerbosePrint('old B0 device: no kernel signing, not removing.\n')
           kern.seek(0)
         else:
-          raise Fatal('old B0 device: unrecognized kernel format')
-      VerbosePrint('Writing kernel to {0}'.format(mtd))
-      InstallToMtd(kern, mtd)
+          raise Fatal('Incompatible device: unrecognized kernel format')
+      if IsDeviceMMC():
+        destination = '/install/kernel.img'
+        VerbosePrint('Writing kernel to %s' % destination)
+        InstallToMMC(kern, destination)
+      else:
+        mtd = GetMtdDevForName('kernel' + str(pnum))
+        VerbosePrint('Writing kernel to {0}'.format(mtd))
+        InstallToMtd(kern, mtd)
       VerbosePrint('\n')
+
+    if IsDeviceMMC():
+      Log('Unmounting VFAT /install\n')
+      UnmountInstallFilesystem('/install')
 
     loader = img.GetLoader()
     if loader:
@@ -560,7 +775,7 @@ def main():
           raise Fatal('Loader signature file is missing; try --loadersig')
         if not Verify(loader, loadersig, key):
           raise Fatal('Loader signing check failed.')
-        mtd = GetMtdDevForPartition('cfe')
+        mtd = GetMtdDevForName('cfe')
         is_loader_current = False
         mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
         with open(mtdblockname, 'r+b') as mtdfile:
