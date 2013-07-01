@@ -86,9 +86,22 @@ int main(int argc, const char **argv) {
     for (i = 1; i < argc; ++i) {
       char *fn = strdup(argv[i]);
       const char *dir = dirname(fn);
-      err = inotify_add_watch(inotify, dir, want);
-      if (err < 0)
-        close_and_die(inotify, dir);
+      int error_printed = 0;
+      do {
+        err = inotify_add_watch(inotify, dir, want);
+        if (err < 0) {
+          if (errno == ENOENT) {
+            if (!error_printed) {
+              perror(dir);
+              fprintf(stderr, "Sleeping until directory exists...\n");
+              error_printed = 1;
+            }
+            sleep(1);
+          } else {
+            close_and_die(inotify, dir);
+          }
+        }
+      } while (err < 0);
       descriptors[i] = err;
       free(fn);
     }
