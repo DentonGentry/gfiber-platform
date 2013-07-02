@@ -40,9 +40,6 @@ WVPASS $WUC "$PWD/f1"
 # returns instantly if any one file exists
 WVPASS $WUC f1 ../file-does-not-exist
 
-# fails instantly if the dirname of the target file doesn't even exist
-WVFAIL $WUC f1 /path/does/not/exist
-
 # returns instantly if the file does exist (verifying try_timeout)
 WVPASS try_timeout 5 $WUC f1
 
@@ -57,5 +54,17 @@ echo 'creating f2'
 touch f2
 echo 'waiting'
 wait
+
+# does return if directory is created during test
+echo 'starting wait for d2/f2'
+WVPASS try_timeout 5 $WUC d2/f2 &
+echo 'bg process running'
+echo 'creating d2'
+mkdir d2
+echo 'creating d2/f2'
+touch d2/f2
+echo 'waiting'
+wait
+
 
 rm -f f1 f2
