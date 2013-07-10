@@ -14,6 +14,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef mips
+#include <sys/cachectl.h>
+#define CACHEFLUSH(p, l, f) cacheflush(p, l, f)
+#else
+#define CACHEFLUSH(p, l, f)
+#endif
+
 #define BYTES_PER_LINE  32
 #define HONEYPOTPAGES   256
 #define LINESIZ         64
@@ -129,6 +136,15 @@ void check_memory(uint8_t *honeypot, unsigned int seed, int is_child) {
       int len = end - start + 1;
       log_page_difference(honeypot + start, expected + start,
                           len, seed, is_child);
+      // flush cache and log it again.
+      CACHEFLUSH(honeypot + start, len, DCACHE);
+      CACHEFLUSH(expected + start, len, DCACHE);
+      log_page_difference(honeypot + start, expected + start,
+                          len, seed, is_child);
+      // And finally regenerate the expected and log it again.
+      initialize_memory(expected, seed);
+      log_page_difference(honeypot + start, expected + start,
+                          len, seed, is_child);
     }
   }
   free(expected);
@@ -188,6 +204,7 @@ int main(int argc, char **argv)
     unsigned int seed;
 
     pid_t child_pid = fork();
+    int is_child = child_pid == 0;
     if (child_pid == -1) {
       perror("Error forking");
     } else if (child_pid == 0) {
@@ -199,15 +216,17 @@ int main(int argc, char **argv)
 
     seed = time(NULL) + child_pid;
     initialize_memory(honeypot, seed);
+    CACHEFLUSH(honeypot, honeypotsize, DCACHE);
+    check_memory(honeypot, seed, is_child);
+
     sleep(sleeptime);
     if (testmode)
       corrupt_memory(honeypot);
+    check_memory(honeypot, seed, is_child);
     if (child_pid == 0) {
-      check_memory(honeypot, seed, 1);
       exit(0);
     }
 
-    check_memory(honeypot, seed, 0);
     wait(NULL);
   }
 }
