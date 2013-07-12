@@ -6,6 +6,7 @@ BINDIR=$(DESTDIR)$(PREFIX)/bin
 TARGETS=\
 	alivemonitor \
 	balloon \
+	isoping \
 	chg_mod_own \
 	dir-monitor \
 	diskbench \
@@ -76,11 +77,13 @@ host-%: %.py
 	ln -s $< $@
 
 
+host-isoping isoping: LIBS+=-lrt
 host-diskbench diskbench: LIBS+=-lpthread -lrt
 host-logos logos: LIBS+=-lrt
 logos: LIBS+=-L../libstacktrace -lstacktrace
 host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
 host-realtime realtime: LIBS+=-lpthread
+isoping: isoping.o
 diskbench: diskbench.o
 logos: logos.o
 realtime: realtime.o
