@@ -67,6 +67,12 @@ default_manifest_v2 = {
     'image_type': 'unlocked'
 }
 
+default_manifest_files = {
+    'installer_version': '2',
+    'platforms': [],
+    'image_type': 'unlocked'
+}
+
 
 class Fatal(Exception):
   """An exception that we print as just an error, with no backtrace."""
@@ -229,27 +235,6 @@ def GetGptPartitionForName(name):
   return mmcpart
 
 
-def FormatGptPartition(blkdev, name=None):
-  """Make a new VFAT filesystem in blkdev."""
-  if name:
-    cmd = [MKDOSFS, '-n', name, blkdev]
-  else:
-    cmd = [MKDOSFS, blkdev]
-  return subprocess.call(cmd)
-
-
-def MountGptPartition(blkdev):
-  """Mount blkdev as a VFAT filesystem."""
-  cmd = [MOUNT, '-t', 'vfat', '-o', 'nosuid,nodev,noexec', blkdev, '/install']
-  return subprocess.call(cmd)
-
-
-def UnmountInstallFilesystem(path):
-  """Unmount filesystem."""
-  cmd = [UMOUNT, path]
-  return subprocess.call(cmd)
-
-
 def IsDeviceNoSigning():
   """Returns true if the platform does not handle a kernel header prepended."""
   return True if IsDevice7425B0() or IsDevice7429B0() else False
@@ -270,15 +255,6 @@ def IsDevice4GB():
   partnum = GetMtdNum(GetMtdDevForName('rootfs0'))
   f = open(MTDBLOCK.format(partnum))
   return GetFileSize(f) == 0x40000000  # ie. size of v1 root partition
-
-
-def IsDeviceMMC():
-  """Returns true if the platform uses eMMC flash."""
-  try:
-    os.stat(MMCBLK)
-  except OSError:
-    return False
-  return True
 
 
 def RoundTo(orig, mult):
@@ -354,7 +330,7 @@ def InstallToMtd(f, mtd):
     return written
 
 
-def InstallToMMC(orig_f, destination):
+def InstallToFile(orig_f, destination):
   """Write the file-like object orig_f to file named destination."""
   orig_start = orig_f.tell()
   with open(destination, 'w+b') as dest_f:
@@ -481,7 +457,7 @@ def ParseManifest(f):
 def CheckPlatform(manifest):
   platform = GetPlatform()
   platforms = manifest['platforms']
-  if not platform in platforms:
+  if platforms and not platform in platforms:
     raise Fatal('image=%s, platform=%s' % (platforms, platform))
   return True
 
@@ -555,7 +531,7 @@ class FileImage(object):
       except IOError, e:
         raise Fatal(e)
     else:
-      return default_manifest_v2.copy()
+      return default_manifest_files.copy()
 
 
 class TarImage(object):
@@ -704,39 +680,25 @@ def main():
     manifest = img.GetManifest()
     CheckPlatform(manifest)
 
-    if IsDeviceMMC():
-      image = 'image' + str(pnum)
-      mmcblk = GetGptPartitionForName(image)
-      if not mmcblk:
-        raise Fatal('Cannot determine partition for %s' % image)
-      if img.GetRootFs() and img.GetKernel():
-        Log('Formatting %s\n' % mmcblk)
-        FormatGptPartition(blkdev=mmcblk, name=image)
-      Log('Mounting VFAT %s\n' % mmcblk)
-      UnmountInstallFilesystem('/install')
-      MountGptPartition(mmcblk)
-
     rootfs = img.GetRootFs()
     if rootfs:
-      # log rootfs type in case wrong rootfs is installed
-      if IsDeviceMMC():
-        Log('Installing rootfs to MMC partition.\n')
-      elif img.IsRootFsUbi():
-        Log('Installing ubi-formatted rootfs.\n')
-      else:
-        Log('Installing raw rootfs image to ubi partition.\n')
-
-      if IsDeviceMMC():
-        destination = '/install/rootfs.img'
-        VerbosePrint('Writing rootfs to %s', destination)
-        InstallToMMC(rootfs, destination)
-      else:
-        mtd = GetMtdDevForName('rootfs' + str(pnum))
-        VerbosePrint('Writing rootfs to %r', mtd)
+      partition_name = 'rootfs' + str(pnum)
+      mtd = GetMtdDevForName(partition_name)
+      gpt = GetGptPartitionForName(partition_name)
+      if mtd:
         if img.IsRootFsUbi():
+          Log('Installing ubi-formatted rootfs.\n')
+          VerbosePrint('Writing ubi rootfs to %r', mtd)
           InstallUbiFileToUbi(rootfs, mtd)
         else:
+          Log('Installing raw rootfs image to ubi partition.\n')
+          VerbosePrint('Writing raw rootfs to %r', mtd)
           InstallRawFileToUbi(rootfs, mtd, ROOTFSUBI_NO)
+      elif gpt:
+        if img.IsRootFsUbi():
+          raise Fatal('Cannot install UBI rootfs to non-MTD %s' % gpt)
+        VerbosePrint('Writing raw rootfs to %r', gpt)
+        InstallToFile(rootfs, gpt)
       VerbosePrint('\n')
 
     kern = img.GetKernel()
@@ -750,19 +712,16 @@ def main():
           kern.seek(0)
         else:
           raise Fatal('Incompatible device: unrecognized kernel format')
-      if IsDeviceMMC():
-        destination = '/install/kernel.img'
-        VerbosePrint('Writing kernel to %s' % destination)
-        InstallToMMC(kern, destination)
-      else:
-        mtd = GetMtdDevForName('kernel' + str(pnum))
-        VerbosePrint('Writing kernel to {0}'.format(mtd))
+      partition_name = 'kernel' + str(pnum)
+      mtd = GetMtdDevForName('kernel' + str(pnum))
+      gpt = GetGptPartitionForName(partition_name)
+      if mtd:
+        VerbosePrint('Writing kernel to %s' % mtd)
         InstallToMtd(kern, mtd)
+      elif gpt:
+        VerbosePrint('Writing kernel to %s' % gpt)
+        InstallToFile(kern, gpt)
       VerbosePrint('\n')
-
-    if IsDeviceMMC():
-      Log('Unmounting VFAT /install\n')
-      UnmountInstallFilesystem('/install')
 
     loader = img.GetLoader()
     if loader:
