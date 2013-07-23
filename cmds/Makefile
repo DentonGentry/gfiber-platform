@@ -6,6 +6,7 @@ BINDIR=$(DESTDIR)$(PREFIX)/bin
 TARGETS=\
 	alivemonitor \
 	balloon \
+	isoping \
 	chg_mod_own \
 	dir-monitor \
 	diskbench \
@@ -76,23 +77,21 @@ host-%: %.py
 	ln -s $< $@
 
 
+host-isoping isoping: LIBS+=-lrt
 host-diskbench diskbench: LIBS+=-lpthread -lrt
 host-logos logos: LIBS+=-lrt
+logos: LIBS+=-L../libstacktrace -lstacktrace
 host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
 host-realtime realtime: LIBS+=-lpthread
+isoping: isoping.o
 diskbench: diskbench.o
 logos: logos.o
 realtime: realtime.o
 rtwatcher: rtwatcher.o
-
-logos: logos.o
-	$(CC) $(CFLAGS) -o $@ $^ -L../libstacktrace -lstacktrace
+bigbin: bigbin.o bigtext.o
 
 bigtext.o: bigtext.S
 	 $(AS) -mabi=32 -mips32 -EL -o $@ $^
-
-bigbin: bigbin.o bigtext.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 TESTS=$(wildcard test-*.sh) $(wildcard test-*.py)
 runtests: all $(TESTS)

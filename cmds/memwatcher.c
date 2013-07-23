@@ -14,6 +14,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef mips
+#include <sys/cachectl.h>
+#define CACHEFLUSH(p, l, f) cacheflush(p, l, f)
+#else
+#define CACHEFLUSH(p, l, f)
+#endif
+
 #define BYTES_PER_LINE  32
 #define HONEYPOTPAGES   256
 #define LINESIZ         64
@@ -129,6 +136,15 @@ void check_memory(uint8_t *honeypot, unsigned int seed, int is_child) {
       int len = end - start + 1;
       log_page_difference(honeypot + start, expected + start,
                           len, seed, is_child);
+      // flush cache and log it again.
+      CACHEFLUSH(honeypot + start, len, DCACHE);
+      CACHEFLUSH(expected + start, len, DCACHE);
+      log_page_difference(honeypot + start, expected + start,
+                          len, seed, is_child);
+      // And finally regenerate the expected and log it again.
+      initialize_memory(expected, seed);
+      log_page_difference(honeypot + start, expected + start,
+                          len, seed, is_child);
     }
   }
   free(expected);
@@ -147,14 +163,18 @@ void corrupt_memory(uint8_t *honeypot) {
 }
 
 void usage(char *progname) {
-  printf("usage: %s [-t]\n", progname);
+  printf("usage: %s [-t] [-m #pages] [-s sleeptime]\n", progname);
   printf("\t-t\ttest mode, deliberately introduce random corruption.\n");
+  printf("\t-m\tmemory to monitor, in megabytes\n");
+  printf("\t-s\tnumber of seconds to sleep before checking for corruption\n");
   exit(1);
 }
 
 int main(int argc, char **argv)
 {
+  size_t honeypotpages = HONEYPOTPAGES;
   int testmode = 0;
+  int sleeptime = -1;
   int rc, c;
 
   pagesize = sysconf(_SC_PAGESIZE);
@@ -166,14 +186,26 @@ int main(int argc, char **argv)
   kpageflags_fd = open("/proc/kpageflags", O_RDONLY);
   assert(kpageflags_fd >= 0);
 
-  while ((c = getopt(argc, argv, "t")) != -1) {
+  while ((c = getopt(argc, argv, "tm:s:")) != -1) {
     switch(c) {
       case 't': testmode = 1; break;
+      case 'm': {
+        ssize_t mbytes = atoi(optarg) * 1024 * 1024;
+        ssize_t pages = mbytes / pagesize;
+        honeypotpages = (pages > 0) ? pages : 1;  // -m 0 == minimum memory
+        break;
+      }
+      case 's': sleeptime = atoi(optarg); break;
       default: usage(argv[0]); break;
     }
   }
 
-  honeypotsize = HONEYPOTPAGES * pagesize;
+  if (sleeptime < 0) {
+    sleeptime = testmode ? 2 : 600;
+  }
+
+  honeypotsize = honeypotpages * pagesize;
+  printf ("Monitoring %zu bytes every %d seconds\n", honeypotsize, sleeptime);
   rc = posix_memalign((void **)&honeypot, pagesize, honeypotsize);
   assert(rc == 0);
 
@@ -184,10 +216,10 @@ int main(int argc, char **argv)
 
   while (1) {
     // Reinitialize on each loop. We only want to log corruption once.
-    int sleeptime = (testmode) ? 2 : 600;
     unsigned int seed;
 
     pid_t child_pid = fork();
+    int is_child = child_pid == 0;
     if (child_pid == -1) {
       perror("Error forking");
     } else if (child_pid == 0) {
@@ -199,15 +231,17 @@ int main(int argc, char **argv)
 
     seed = time(NULL) + child_pid;
     initialize_memory(honeypot, seed);
+    CACHEFLUSH(honeypot, honeypotsize, DCACHE);
+    check_memory(honeypot, seed, is_child);
+
     sleep(sleeptime);
     if (testmode)
       corrupt_memory(honeypot);
+    check_memory(honeypot, seed, is_child);
     if (child_pid == 0) {
-      check_memory(honeypot, seed, 1);
       exit(0);
     }
 
-    check_memory(honeypot, seed, 0);
     wait(NULL);
   }
 }

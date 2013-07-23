@@ -11,33 +11,37 @@
 #include <time.h>
 #include <unistd.h>
 
-#define CHECK_INTERVAL 300 // seconds
+#define DEFAULT_CHECK_INTERVAL 300 // seconds
 
-int kill_child = 0;
+int kill_parent = 0;
 
 void sighandler(int sig) {
-  kill_child = 1;
+  kill_parent = 1;
 }
 
 int main(int argc, const char **argv) {
   time_t old_time;
   struct stat fst;
-  int rc, status = -1;
   int fd;
   mode_t old_mask;
+  int check_interval;
 
-  if (argc < 3) {
-    fprintf(stderr, "Usage: %s <keepalive_file> <command>\n"
+  if (argc < 4) {
+    fprintf(stderr,
+            "Usage: %s <keepalive_file> <check_interval> <command>\n"
             " This tool spawns the command given as argument in a separate"
             " process and it keeps checking on both the process and its"
-            " <keepalive_file> every %d seconds, to see if the process is still"
-            " running and the file was updated in the meantime.\n",
-            argv[0], CHECK_INTERVAL);
+            " <keepalive_file> every <check_interval> seconds, to see if"
+            " the process is still running and the file was updated in the"
+            " meantime.\n", argv[0]);
     return -1;
   }
 
   signal(SIGTERM, sighandler);
   signal(SIGHUP, sighandler);
+
+  check_interval = strtol(argv[2], NULL, 10);
+  if (check_interval <= 0) check_interval = DEFAULT_CHECK_INTERVAL;
 
   // create the keepalive file if it doesn't already exist
   memset(&fst, 0, sizeof(fst));
@@ -54,38 +58,41 @@ int main(int argc, const char **argv) {
     close(fd);
   }
   old_time = fst.st_mtime;
-  // spawn the child process
-  pid_t pid = fork();
-  switch (pid) {
-  case -1:
-    perror("alivemonitor: fork failed");
+
+  fprintf(stderr, "alivemonitor: Start monitoring '%s' via '%s' every "
+          "%d secs.\n", argv[3], argv[1], check_interval);
+
+  // create a new process group with pgid=pid
+  if (setpgid(0, 0)) {
+    perror("alivemonitor: setpgid failed");
     return -1;
-  case 0:
-    if (setpgid(0, 0)) {
-      perror("alivemonitor: setpgid failed");
-      return -1;
-    }
-    execvp(argv[2], (char *const*) (argv + 2));
-    perror("alivemonitor: execv failed");
-    return -1;
-  default:
-    break;
   }
 
-  sleep(CHECK_INTERVAL);
-  while (!kill_child) {
-    rc = waitpid(pid, &status, WNOHANG);
-    switch (rc) {
-    case -1:
-      perror("alivemonitor: waitpid failed");
-      return -1;
-    case 0:
-      // child hasn't changed its status
-      break;
-    default:
-      fprintf(stderr, "alivemonitor: child pid %d exited with status %d\n",
-              pid, status);
-      return WEXITSTATUS(status);
+  // spawn the child process
+  pid_t p_pid = getpid();
+  pid_t pid = fork();
+  if (pid == -1) {
+    perror("alivemonitor: fork failed");
+    return -1;
+  } else if (pid > 0) { // parent
+    execvp(argv[3], (char *const*) (argv + 3));
+    perror("alivemonitor: execv failed");
+    return -1;
+  }
+
+  // from here: child
+
+  sleep(check_interval);
+  while (!kill_parent) {
+    // check on the parent
+    if (kill(p_pid, 0) == -1) {
+      if (errno == ESRCH) {
+        fprintf(stderr, "alivemonitor: parent pid %d exited.\n", p_pid);
+        return 0;
+      } else {
+        perror("alivemonitor: kill(p_pid, 0) failed");
+        break;
+      }
     }
 
     memset(&fst, 0, sizeof(fst));
@@ -96,16 +103,20 @@ int main(int argc, const char **argv) {
 
     if (fst.st_mtime == old_time) {
       fprintf(stderr, "alivemonitor: keepalive file has not been changed"
-              " in the last %d seconds; last access: %s",
-              CHECK_INTERVAL, ctime(&old_time));
+              " in the last %d seconds; last access: %s\n",
+              check_interval, ctime(&old_time));
       break;
     }
     old_time = fst.st_mtime;
-    sleep(CHECK_INTERVAL);
+    sleep(check_interval);
   }
 
-  fprintf(stderr, "alivemonitor: will kill child pid %d\n", pid);
+  fprintf(stderr, "alivemonitor: kill parent process group %d\n", p_pid);
   // Send kill signal to whole process group.
-  kill(-pid, SIGKILL);
+  if (kill(-p_pid, SIGKILL))
+    perror("alivemonitor: killing parent process group failed");
+
+  // NOTE: Code after this point will not run since we just killed ourselves
+
   return -1;
 }
