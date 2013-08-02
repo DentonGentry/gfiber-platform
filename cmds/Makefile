@@ -83,6 +83,7 @@ host-logos logos: LIBS+=-lrt
 logos: LIBS+=-L../libstacktrace -lstacktrace
 host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
 host-realtime realtime: LIBS+=-lpthread
+host-alivemonitor: LIBS+=-lrt
 isoping: isoping.o
 diskbench: diskbench.o
 logos: logos.o
