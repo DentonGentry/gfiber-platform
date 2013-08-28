@@ -1,6 +1,6 @@
 default: all
 
-DIRS=ginstall sysmgr cmds base antirollback libstacktrace tvstat i2c
+DIRS=ginstall sysmgr cmds base antirollback libstacktrace tvstat
 
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
