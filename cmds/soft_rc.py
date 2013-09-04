@@ -122,6 +122,8 @@ import options
 VER_MAJOR = 0
 VER_MINOR = 1
 
+DEFAULT_BD_ADDR = "\xba\xd0\xFA\xCE\xb0\x0C"
+
 UNKNOWN_KEY = 0xdeadbeef
 BTHID_DEV = "/dev/bthid"
 
@@ -144,6 +146,7 @@ SLEEP_BEFORE_RELEASE_TIME = 0.1  # secs
 optspec = """
 soft_rc.py [options]
 --
+b,bdaddr=   BT device address (e.g.: '"\\xba\\xd1\\xFA\\xCE\\xb0\\x0C"')
 i,input=    Provides an input script of key presses
 r,raw       Raw-mode, disabling auto key-release
 s,simumode  Enables simulation mode, i.e., no key codes are send
@@ -197,7 +200,7 @@ keymap = {
 }
 
 
-def GetBthidControlStruct():
+def GetBthidControlStruct(bd_addr):
   """Build BTHID_CONTROL data structure.
 
   Returns:
@@ -225,7 +228,6 @@ def GetBthidControlStruct():
       "\xFF\x00\x91\x02\x85\xF3\x09\x03\x75\x08\x95\x10\x15\x00\x26\xFF"
       "\x00\x81\x02")
   data = descr + (800 - len(descr)) * "\x00"
-  bd_addr = "\xba\xd0\xFA\xCE\xb0\x0C"
   total = size + data + bd_addr
   return buffer(total, 0, len(total))
 
@@ -257,7 +259,7 @@ class RcServer(object):
     if level == LOG_ALL or level <= self.debug_level:
       print text
 
-  def __init__(self, autorelease, simu_mode, inScript, debug_level):
+  def __init__(self, bd_addr, autorelease, simu_mode, inScript, debug_level):
     self.autorelease = autorelease
     self.simu_mode = simu_mode
     self.dev_fd = None
@@ -290,7 +292,7 @@ class RcServer(object):
       else:
         # Register to bthid
         try:
-          fcntl.ioctl(self.dev_fd, 1, GetBthidControlStruct())
+          fcntl.ioctl(self.dev_fd, 1, GetBthidControlStruct(bd_addr))
         except (IOError, OSError):
           print "Cannot ioctl to device %r" % BTHID_DEV
           raise
@@ -455,8 +457,13 @@ def main(argv):
   except ValueError:
     debug_level = LOG_WARN
 
+  if opt.bdaddr:
+    bd_addr = eval(opt.bdaddr)
+  else:
+    bd_addr = DEFAULT_BD_ADDR
+
   try:
-    RcServer(autorelease, simumode, opt.input, debug_level).Run()
+    RcServer(bd_addr, autorelease, simumode, opt.input, debug_level).Run()
   except (IOError, OSError) as e:
     sys.stdout.flush()
     sys.stderr.write("Error: %s\n\n" % e)
