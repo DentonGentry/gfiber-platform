@@ -111,6 +111,7 @@ Change debug level to 'x' (useful in interactive mode).
 __author__ = "ckuiper@google.com (Chris Kuiper)"
 
 
+import binascii
 import fcntl
 import os
 import sys
@@ -120,9 +121,7 @@ import options
 
 # pylint: disable=g-wrong-space
 VER_MAJOR = 0
-VER_MINOR = 1
-
-DEFAULT_BD_ADDR = "\xba\xd0\xFA\xCE\xb0\x0C"
+VER_MINOR = 2
 
 UNKNOWN_KEY = 0xdeadbeef
 BTHID_DEV = "/dev/bthid"
@@ -146,7 +145,7 @@ SLEEP_BEFORE_RELEASE_TIME = 0.1  # secs
 optspec = """
 soft_rc.py [options]
 --
-b,bdaddr=   BT device address (e.g.: '"\\xba\\xd1\\xFA\\xCE\\xb0\\x0C"')
+b,bdaddr=   BT device address as a 12-digit hex number [abbaface1234]
 i,input=    Provides an input script of key presses
 r,raw       Raw-mode, disabling auto key-release
 s,simumode  Enables simulation mode, i.e., no key codes are send
@@ -203,6 +202,8 @@ keymap = {
 def GetBthidControlStruct(bd_addr):
   """Build BTHID_CONTROL data structure.
 
+  Args:
+    bd_addr: Bluetooth device address
   Returns:
     BTHID_CONTROL structure as a byte-buffer
 
@@ -457,10 +458,16 @@ def main(argv):
   except ValueError:
     debug_level = LOG_WARN
 
-  if opt.bdaddr:
-    bd_addr = eval(opt.bdaddr)
-  else:
-    bd_addr = DEFAULT_BD_ADDR
+  # remove '0x'
+  bd_str = str(opt.bdaddr)
+  if bd_str.startswith("0x"):
+    bd_str = bd_str[2:]
+
+  try:
+    bd_addr = binascii.a2b_hex(str(bd_str))
+  except TypeError:
+    print "Error, --bdaddr needs to be a 12-digit hex-number"
+    exit(0)
 
   try:
     RcServer(bd_addr, autorelease, simumode, opt.input, debug_level).Run()
