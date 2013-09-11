@@ -31,6 +31,7 @@ loadersig=    bootloader signature filename
 drm=          drm blob filename to install
 p,partition=  partition to install to (primary, secondary, or other)
 q,quiet       suppress unnecessary output
+skiploadersig suppress checking the loader signature
 """
 
 
@@ -97,6 +98,8 @@ def GetBootedPartition():
     "primary" or "secondary" boot partition, or None if not booted from flash.
   """
   try:
+    # TODO(jnewlin): Need to fix this to work on gflt, right now it will
+    # always fail causing the kernel1 partition to be written.
     f = open(SYS_UBI0)
     line = f.readline().strip()
   except IOError:
@@ -181,6 +184,22 @@ def GetMtdDevForPartition(name):
     fields = splt.split(line.strip())
     if len(fields) >= 4 and fields[3] == quotedname:
       return fields[0]
+  return None
+
+
+def GetMtdDevForPartitionList(names):
+  """Iterate through partition names and return a device for the first match.
+
+  Args:
+    names: List of partitions names.
+
+  Returns:
+    The mtd of the first name to match, or None of there is no match.
+  """
+  for name in names:
+    mtd = GetMtdDevForPartition(name)
+    if mtd is not None:
+      return mtd
   return None
 
 
@@ -396,6 +415,7 @@ class TarImage(object):
     self.tarfilename = tarfilename
     self.tar_f = tarfile.open(name=tarfilename)
     fnames = self.tar_f.getnames()
+    self.rootfstype = None
     for fname in fnames:
       if fname[:7] == 'rootfs.':
         self.rootfstype = fname[7:]
@@ -407,20 +427,26 @@ class TarImage(object):
     return self.tar_f.extractfile('version').read(4096).strip()
 
   def GetKernel(self):
-    try:
-      return self.tar_f.extractfile('vmlinuz')
-    except KeyError:
+    # TV boxes use a raw vmlinu* file, the gflt* install a uImage to
+    # the kernel partition.
+    kernel_names = ['vmlinuz', 'vmlinux', 'uImage']
+    for name in kernel_names:
       try:
-        return self.tar_f.extractfile('vmlinux')
+        return self.tar_f.extractfile(name)
       except KeyError:
-        return None
+        pass
+    return None
 
   def IsRootFsUbi(self):
-    if self.rootfstype[-4:] == '_ubi':
+    if self.rootfstype is None:
+      return False
+    if self.rootfstype and self.rootfstype[-4:] == '_ubi':
       return True
     return False
 
   def GetRootFs(self):
+    if self.rootfstype is None:
+      return None
     try:
       return self.tar_f.extractfile('rootfs.' + self.rootfstype)
     except KeyError:
@@ -443,9 +469,9 @@ class TarImage(object):
 
 
 def main():
-  global quiet  #gpylint: disable-msg=W0603
+  global quiet  # gpylint: disable-msg=global-statement
   o = options.Options(optspec)
-  opt, flags, extra = o.parse(sys.argv[1:])  #gpylint: disable-msg=W0612
+  opt, unused_flags, unused_extra = o.parse(sys.argv[1:])
 
   if not (opt.drm or opt.kernel or opt.rootfs or opt.loader or opt.tar or
           opt.partition):
@@ -515,7 +541,7 @@ def main():
     ver = img.GetVersion()
     if (ver and ver.startswith('bruno-') and ver < 'bruno-octopus-3' and
         not IsDevice4GB()):
-      raise Fatal("%r is too old for new-style partitions: aborting.\n" % ver)
+      raise Fatal('%r is too old for new-style partitions: aborting.\n' % ver)
 
     rootfs = img.GetRootFs()
     if rootfs:
@@ -555,12 +581,17 @@ def main():
       if opt.skiploader:
         VerbosePrint('Skipping loader installation.\n')
       else:
-        loadersig = img.GetLoaderSig()
-        if not loadersig:
-          raise Fatal('Loader signature file is missing; try --loadersig')
-        if not Verify(loader, loadersig, key):
-          raise Fatal('Loader signing check failed.')
-        mtd = GetMtdDevForPartition('cfe')
+        # TODO(jnewlin): Temporary hackage.  v3 of ginstall will have a
+        # signature over the entire file as opposed to just on the loader and
+        # we can drop this loader signature.  For now allow a command line
+        # opt to disable signature checking.
+        if not opt.skiploadersig:
+          loadersig = img.GetLoaderSig()
+          if not loadersig:
+            raise Fatal('Loader signature file is missing; try --loadersig')
+          if not Verify(loader, loadersig, key):
+            raise Fatal('Loader signing check failed.')
+        mtd = GetMtdDevForPartitionList(['loader', 'cfe'])
         is_loader_current = False
         mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
         with open(mtdblockname, 'r+b') as mtdfile:
