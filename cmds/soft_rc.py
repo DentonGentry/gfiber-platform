@@ -121,7 +121,7 @@ import options
 
 # pylint: disable=g-wrong-space
 VER_MAJOR = 0
-VER_MINOR = 2
+VER_MINOR = 3
 
 UNKNOWN_KEY = 0xdeadbeef
 BTHID_DEV = "/dev/bthid"
@@ -150,7 +150,7 @@ i,input=    Provides an input script of key presses
 r,raw       Raw-mode, disabling auto key-release
 s,simumode  Enables simulation mode, i.e., no key codes are send
 k,keys      Print the supported key names
-d,dlevel=   Sets debugs log level (0:ERR, 1:WARN, 2:INFO, 3:VERB) [1]
+d,dlevel=   Sets debugs log level (0:ERR, 1:WARN, 2:INFO, 3:VERB) [2]
 """
 
 keymap = {
@@ -251,6 +251,7 @@ def PrintKeys():
   print "  'DEBUGx': change debug level to x (useful in interactive mode)"
   print "\nRemote Control key names:\n-------------------------"
   print "%s\n" % sorted(keymap.keys())
+  sys.stdout.flush()
 
 
 class RcServer(object):
@@ -258,7 +259,8 @@ class RcServer(object):
 
   def Log(self, level, text):
     if level == LOG_ALL or level <= self.debug_level:
-      print text
+      sys.stdout.write(text + "\n")
+      sys.stdout.flush()
 
   def __init__(self, bd_addr, autorelease, simu_mode, inScript, debug_level):
     self.autorelease = autorelease
@@ -276,9 +278,9 @@ class RcServer(object):
     else:
       self.Log(LOG_INFO, "Opening input script %r" % inScript)
       try:
-        self.in_script_fd = open(inScript, "r")
+        self.in_script_fd = open(inScript, "r+")
       except IOError:
-        print "Cannot open input script %r" % inScript
+        self.Log(LOG_ERR, "Cannot open input script %r" % inScript)
         raise
 
     if self.simu_mode:
@@ -288,14 +290,14 @@ class RcServer(object):
       try:
         self.dev_fd = os.open(BTHID_DEV, os.O_RDWR)
       except (IOError, OSError):
-        print "Cannot open device %r" % BTHID_DEV
+        self.Log(LOG_ERR, "Cannot open device %r" % BTHID_DEV)
         raise
       else:
         # Register to bthid
         try:
           fcntl.ioctl(self.dev_fd, 1, GetBthidControlStruct(bd_addr))
         except (IOError, OSError):
-          print "Cannot ioctl to device %r" % BTHID_DEV
+          self.Log(LOG_ERR, "Cannot ioctl to device %r" % BTHID_DEV)
           raise
 
   def GetKeyUp(self, keycode):
@@ -314,7 +316,8 @@ class RcServer(object):
       try:
         os.write(self.dev_fd, wbuf)
       except (IOError, OSError):
-        print "Cannot write keycode %x to device %r" % (keycode, BTHID_DEV)
+        self.Log(LOG_ERR, "Cannot write keycode %x to device %r" % (
+            keycode, BTHID_DEV))
         raise
 
   def SendKeyCode(self, token, keycode):
@@ -338,9 +341,9 @@ class RcServer(object):
       if self.in_script_fd:
         line = self.in_script_fd.readline().rstrip("\r\n")
         if line:
-          print line
+          self.Log(LOG_INFO, line)
         else:
-          print "EOF -> send %r" % MAGIC_KEY_END
+          self.Log(LOG_INFO, "EOF -> send %r" % MAGIC_KEY_END)
           line = MAGIC_KEY_END
       else:
         try:
