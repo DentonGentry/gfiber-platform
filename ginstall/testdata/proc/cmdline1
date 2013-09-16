@@ -1,0 +1,1 @@
+console=ttyS0,115200 mtdparts=spi_flash:768k(loader),256k(env),128k(var1),128k(var2),128k(sysvar1),128k(sysvar2),14m(kernel0),14m(kernel1),-(user_data) debug=1 console=ttyS0,115200 log_buf_len=1048576

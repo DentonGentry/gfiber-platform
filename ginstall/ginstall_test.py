@@ -263,6 +263,17 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(nvout.readline(),
                      '-w MTD_TYPE_FOR_KERNEL=RAW -w ACTIVATED_KERNEL_NAME=kernel1 -w EXTRA_KERNEL_OPT=ubi.mtd=rootfs1 root=mtdblock:rootfs rootfstype=squashfs\n')
 
+  def testGetBootedFromCmdLine(self):
+    ginstall.PROC_CMDLINE = "testdata/proc/cmdline1"
+    self.assertEqual(ginstall.GetBootedPartitionCmdLine(), None)
+    self.assertEqual(ginstall.GetBootedPartition(), None)
+    ginstall.PROC_CMDLINE = "testdata/proc/cmdline2"
+    self.assertEqual(ginstall.GetBootedPartitionCmdLine(), 'primary')
+    self.assertEqual(ginstall.GetBootedPartition(), 'primary')
+    ginstall.PROC_CMDLINE = "testdata/proc/cmdline3"
+    self.assertEqual(ginstall.GetBootedPartitionCmdLine(), 'secondary')
+    self.assertEqual(ginstall.GetBootedPartition(), 'secondary')
+
 
 if __name__ == '__main__':
   unittest.main()
