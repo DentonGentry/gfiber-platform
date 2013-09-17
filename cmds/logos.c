@@ -124,6 +124,7 @@ struct Bucket {
 
 
 static int debug = 0, want_unlimited_mode = 0, unlimited_mode = 0;
+static char **g_argv = NULL;
 
 
 // Returns 1 if 's' starts with 'contains' (which is null terminated).
@@ -362,6 +363,30 @@ static void enable_ratelimit(int sig) {
 }
 
 
+// strlen is not async-safe, supply one which is.
+static size_t my_strlen(const char *string) {
+  size_t i;
+  for (i = 0; string[i] != '\0'; ++i);
+  return i;
+}
+
+// We don't have a way to babysit logos externally, as it is in
+// a pipe from some other process. Make it try again if it fails.
+static void rejuvinate_process(int sig) {
+  char *restart = "<2>logos: restarting on fatal signal\n";
+  char *giveup = "<2>logos: Cannot find logos binary to exec\n";
+  size_t unused __attribute__((unused));
+  unused = write(1, restart, my_strlen(restart));
+
+  // execvp is not async-signal safe, so check likely paths.
+  execve("/bin/logos", g_argv, environ);
+  execve("/usr/bin/logos", g_argv, environ);
+  execve("/sbin/logos", g_argv, environ);
+  execve("/usr/sbin/logos", g_argv, environ);
+  unused = write(1, giveup, my_strlen(giveup));
+  exit(99);
+}
+
 // Return a malloc()ed buffer that's a copy of buf, with a terminating
 // nul and control characters replaced by printable characters.
 static uint8_t *fix_buf(uint8_t *buf, ssize_t len) {
@@ -457,9 +482,13 @@ int main(int argc, char **argv) {
 #ifndef COMPILE_FOR_HOST
   stacktrace_setup();
 #endif  // COMPILE_FOR_HOST
+  g_argv = argv;
   signal(SIGHUP, refill_ratelimiter);
   signal(SIGUSR1, disable_ratelimit);
   signal(SIGUSR2, enable_ratelimit);
+  signal(SIGILL, rejuvinate_process);
+  signal(SIGBUS, rejuvinate_process);
+  signal(SIGSEGV, rejuvinate_process);
 
   headerlen = 3 + strlen(argv[1]) + 1 + 1; // <x>, fac, :, space
   header = malloc(headerlen + 1);
