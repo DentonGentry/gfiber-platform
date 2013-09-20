@@ -40,6 +40,7 @@ BUFSIZE = 256 * 1024
 FLASH_ERASE = '/usr/sbin/flash_erase'
 HNVRAM = '/usr/bin/hnvram'
 MTDBLOCK = '/dev/mtdblock{0}'
+PROC_CMDLINE = '/proc/cmdline'
 PROC_MTD = '/proc/mtd'
 SYS_UBI0 = '/sys/class/ubi/ubi0/mtd_num'
 UBIFORMAT = '/usr/sbin/ubiformat'
@@ -91,15 +92,9 @@ def SetBootPartition(partition):
   return subprocess.call(cmd, stdout=devnull)
 
 
-def GetBootedPartition():
-  """Get the role of partition where the running system is booted from.
-
-  Returns:
-    "primary" or "secondary" boot partition, or None if not booted from flash.
-  """
+def GetBootedPartitionUbi():
+  """Get the boot partition from the value in UBI."""
   try:
-    # TODO(jnewlin): Need to fix this to work on gflt, right now it will
-    # always fail causing the kernel1 partition to be written.
     f = open(SYS_UBI0)
     line = f.readline().strip()
   except IOError:
@@ -111,6 +106,38 @@ def GetBootedPartition():
     if booted_mtd == mtd:
       return pname
   return None
+
+
+def GetBootedPartitionCmdLine():
+  """Get the boot partition by reading the cmdline."""
+  try:
+    with open(PROC_CMDLINE) as f:
+      cmdline = f.read().strip()
+  except IOError:
+    return None
+  for arg in cmdline.split(' '):
+    if arg.startswith('root='):
+      partition = arg.split('=')[1]
+      if partition == 'rootfs0':
+        return 'primary'
+      elif partition == 'rootfs1':
+        return 'secondary'
+  return None
+
+
+def GetBootedPartition():
+  """Get the role of partition where the running system is booted from.
+
+  Returns:
+    "primary" or "secondary" boot partition, or None if not booted from flash.
+  """
+  # For devices that have UBI, read the booted partition from ubi
+  # otherwise check the kernel command line to see for the root= option
+  # passed in from the bootloader.
+  if os.path.exists(SYS_UBI0):
+    return GetBootedPartitionUbi()
+  else:
+    return GetBootedPartitionCmdLine()
 
 
 def GetOtherPartition(partition):
