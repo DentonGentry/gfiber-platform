@@ -7,7 +7,19 @@
 #include <unistd.h>
 
 
-#define WRITE(s) (void)write(2, s, sizeof(s))
+#define WRITE(s) (void)write(2, s, my_strlen(s))
+
+static size_t my_strlen(char* s)
+{
+  size_t length = 0;
+
+  if (s != NULL) {
+    while (*s++ != '\0') {
+      length++;
+    }
+  }
+  return length;
+}
 
 
 // We need this because sprintf() isn't safe to call from a signal handler.

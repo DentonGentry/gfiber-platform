@@ -2,6 +2,7 @@ default: all
 
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
+LIBDIR=$(DESTDIR)$(PREFIX)/lib
 
 TARGETS=\
 	alivemonitor \
@@ -24,6 +25,8 @@ TARGETS=\
 	wait-until-created \
 	watch-dir
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
+LIB_TARGETS=\
+	stdoutline.so
 
 ifeq ($(BRUNO_ARCH),mips)
 ARCH_TARGETS = sdbbp bigbin
@@ -42,11 +45,12 @@ INCS=-I../libstacktrace
 
 .PRECIOUS: %.o host-%.o
 
-all: $(TARGETS) $(HOST_TARGETS) $(ARCH_TARGETS)
+all: $(TARGETS) $(HOST_TARGETS) $(LIB_TARGETS) $(ARCH_TARGETS)
 
 install:
-	mkdir -p $(BINDIR)
+	mkdir -p $(BINDIR) $(LIBDIR)
 	cp $(TARGETS) $(ARCH_TARGETS) $(BINDIR)
+	cp $(LIB_TARGETS) $(LIBDIR)
 
 install-libs:
 	@echo "No libs to install."
@@ -55,8 +59,14 @@ install-libs:
 %.o: %.c
 	$(CC) $(CFLAGS) $(INCS) -o $@ -c $<
 
+%.po: %.c
+	$(CC) $(CFLAGS) -fPIC $(INCS) -o $@ -c $<
+
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $(INCS) -o $@ -c $<
+
+%.po: %.cc
+	$(CXX) $(CXXFLAGS) -fPIC $(INCS) -o $@ -c $<
 
 host-%.o: %.c
 	$(HOST_CC) $(CFLAGS) $(INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
@@ -76,6 +86,9 @@ host-%: host-%.o
 host-%: %.py
 	ln -s $< $@
 
+%.so: %.po
+	$(CC) $(CFLAGS) $(INCS) -o $@ -fPIC -shared -Wl,-soname,$@ $<
+
 
 host-isoping isoping: LIBS+=-lrt
 host-diskbench diskbench: LIBS+=-lpthread -lrt
@@ -83,6 +96,8 @@ host-logos logos: LIBS+=-lrt
 logos: LIBS+=-L../libstacktrace -lstacktrace
 host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
 host-realtime realtime: LIBS+=-lpthread
+host-alivemonitor alivemonitor: LIBS+=-lrt
+alivemonitor: alivemonitor.o
 isoping: isoping.o
 diskbench: diskbench.o
 logos: logos.o

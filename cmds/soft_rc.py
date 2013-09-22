@@ -111,6 +111,7 @@ Change debug level to 'x' (useful in interactive mode).
 __author__ = "ckuiper@google.com (Chris Kuiper)"
 
 
+import binascii
 import fcntl
 import os
 import sys
@@ -120,7 +121,7 @@ import options
 
 # pylint: disable=g-wrong-space
 VER_MAJOR = 0
-VER_MINOR = 1
+VER_MINOR = 3
 
 UNKNOWN_KEY = 0xdeadbeef
 BTHID_DEV = "/dev/bthid"
@@ -144,11 +145,12 @@ SLEEP_BEFORE_RELEASE_TIME = 0.1  # secs
 optspec = """
 soft_rc.py [options]
 --
+b,bdaddr=   BT device address as a 12-digit hex number [abbaface1234]
 i,input=    Provides an input script of key presses
 r,raw       Raw-mode, disabling auto key-release
 s,simumode  Enables simulation mode, i.e., no key codes are send
 k,keys      Print the supported key names
-d,dlevel=   Sets debugs log level (0:ERR, 1:WARN, 2:INFO, 3:VERB) [1]
+d,dlevel=   Sets debugs log level (0:ERR, 1:WARN, 2:INFO, 3:VERB) [2]
 """
 
 keymap = {
@@ -197,9 +199,11 @@ keymap = {
 }
 
 
-def GetBthidControlStruct():
+def GetBthidControlStruct(bd_addr):
   """Build BTHID_CONTROL data structure.
 
+  Args:
+    bd_addr: Bluetooth device address
   Returns:
     BTHID_CONTROL structure as a byte-buffer
 
@@ -225,7 +229,6 @@ def GetBthidControlStruct():
       "\xFF\x00\x91\x02\x85\xF3\x09\x03\x75\x08\x95\x10\x15\x00\x26\xFF"
       "\x00\x81\x02")
   data = descr + (800 - len(descr)) * "\x00"
-  bd_addr = "\xba\xd0\xFA\xCE\xb0\x0C"
   total = size + data + bd_addr
   return buffer(total, 0, len(total))
 
@@ -248,6 +251,7 @@ def PrintKeys():
   print "  'DEBUGx': change debug level to x (useful in interactive mode)"
   print "\nRemote Control key names:\n-------------------------"
   print "%s\n" % sorted(keymap.keys())
+  sys.stdout.flush()
 
 
 class RcServer(object):
@@ -255,9 +259,10 @@ class RcServer(object):
 
   def Log(self, level, text):
     if level == LOG_ALL or level <= self.debug_level:
-      print text
+      sys.stdout.write(text + "\n")
+      sys.stdout.flush()
 
-  def __init__(self, autorelease, simu_mode, inScript, debug_level):
+  def __init__(self, bd_addr, autorelease, simu_mode, inScript, debug_level):
     self.autorelease = autorelease
     self.simu_mode = simu_mode
     self.dev_fd = None
@@ -273,9 +278,9 @@ class RcServer(object):
     else:
       self.Log(LOG_INFO, "Opening input script %r" % inScript)
       try:
-        self.in_script_fd = open(inScript, "r")
+        self.in_script_fd = open(inScript, "r+")
       except IOError:
-        print "Cannot open input script %r" % inScript
+        self.Log(LOG_ERR, "Cannot open input script %r" % inScript)
         raise
 
     if self.simu_mode:
@@ -285,14 +290,14 @@ class RcServer(object):
       try:
         self.dev_fd = os.open(BTHID_DEV, os.O_RDWR)
       except (IOError, OSError):
-        print "Cannot open device %r" % BTHID_DEV
+        self.Log(LOG_ERR, "Cannot open device %r" % BTHID_DEV)
         raise
       else:
         # Register to bthid
         try:
-          fcntl.ioctl(self.dev_fd, 1, GetBthidControlStruct())
+          fcntl.ioctl(self.dev_fd, 1, GetBthidControlStruct(bd_addr))
         except (IOError, OSError):
-          print "Cannot ioctl to device %r" % BTHID_DEV
+          self.Log(LOG_ERR, "Cannot ioctl to device %r" % BTHID_DEV)
           raise
 
   def GetKeyUp(self, keycode):
@@ -311,7 +316,8 @@ class RcServer(object):
       try:
         os.write(self.dev_fd, wbuf)
       except (IOError, OSError):
-        print "Cannot write keycode %x to device %r" % (keycode, BTHID_DEV)
+        self.Log(LOG_ERR, "Cannot write keycode %x to device %r" % (
+            keycode, BTHID_DEV))
         raise
 
   def SendKeyCode(self, token, keycode):
@@ -335,9 +341,9 @@ class RcServer(object):
       if self.in_script_fd:
         line = self.in_script_fd.readline().rstrip("\r\n")
         if line:
-          print line
+          self.Log(LOG_INFO, line)
         else:
-          print "EOF -> send %r" % MAGIC_KEY_END
+          self.Log(LOG_INFO, "EOF -> send %r" % MAGIC_KEY_END)
           line = MAGIC_KEY_END
       else:
         try:
@@ -455,8 +461,19 @@ def main(argv):
   except ValueError:
     debug_level = LOG_WARN
 
+  # remove '0x'
+  bd_str = str(opt.bdaddr)
+  if bd_str.startswith("0x"):
+    bd_str = bd_str[2:]
+
   try:
-    RcServer(autorelease, simumode, opt.input, debug_level).Run()
+    bd_addr = binascii.a2b_hex(str(bd_str))
+  except TypeError:
+    print "Error, --bdaddr needs to be a 12-digit hex-number"
+    exit(0)
+
+  try:
+    RcServer(bd_addr, autorelease, simumode, opt.input, debug_level).Run()
   except (IOError, OSError) as e:
     sys.stdout.flush()
     sys.stderr.write("Error: %s\n\n" % e)

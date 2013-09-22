@@ -32,6 +32,7 @@ manifest=     manifest file
 drm=          drm blob filename to install
 p,partition=  partition to install to (primary, secondary, or other)
 q,quiet       suppress unnecessary output
+skiploadersig suppress checking the loader signature
 """
 
 
@@ -44,6 +45,7 @@ MKDOSFS = 'mkdosfs'
 MMCBLK = '/dev/mmcblk0'
 MOUNT = 'mount'
 MTDBLOCK = '/dev/mtdblock{0}'
+PROC_CMDLINE = '/proc/cmdline'
 PROC_MTD = '/proc/mtd'
 SGDISK = 'sgdisk'
 SIGNINGKEY = '/etc/gfiber_public.der'
@@ -118,12 +120,8 @@ def SetBootPartition(partition):
   return subprocess.call(cmd, stdout=devnull)
 
 
-def GetBootedPartition():
-  """Get the role of partition where the running system is booted from.
-
-  Returns:
-    "primary" or "secondary" boot partition, or None if not booted from flash.
-  """
+def GetBootedPartitionUbi():
+  """Get the boot partition from the value in UBI."""
   try:
     f = open(SYS_UBI0)
     line = f.readline().strip()
@@ -136,6 +134,38 @@ def GetBootedPartition():
     if booted_mtd == mtd:
       return pname
   return None
+
+
+def GetBootedPartitionCmdLine():
+  """Get the boot partition by reading the cmdline."""
+  try:
+    with open(PROC_CMDLINE) as f:
+      cmdline = f.read().strip()
+  except IOError:
+    return None
+  for arg in cmdline.split(' '):
+    if arg.startswith('root='):
+      partition = arg.split('=')[1]
+      if partition == 'rootfs0':
+        return 'primary'
+      elif partition == 'rootfs1':
+        return 'secondary'
+  return None
+
+
+def GetBootedPartition():
+  """Get the role of partition where the running system is booted from.
+
+  Returns:
+    "primary" or "secondary" boot partition, or None if not booted from flash.
+  """
+  # For devices that have UBI, read the booted partition from ubi
+  # otherwise check the kernel command line to see for the root= option
+  # passed in from the bootloader.
+  if os.path.exists(SYS_UBI0):
+    return GetBootedPartitionUbi()
+  else:
+    return GetBootedPartitionCmdLine()
 
 
 def GetOtherPartition(partition):
@@ -238,6 +268,22 @@ def GetGptPartitionForName(name):
 def IsDeviceNoSigning():
   """Returns true if the platform does not handle a kernel header prepended."""
   return True if IsDevice7425B0() or IsDevice7429B0() else False
+
+
+def GetMtdDevForPartitionList(names):
+  """Iterate through partition names and return a device for the first match.
+
+  Args:
+    names: List of partitions names.
+
+  Returns:
+    The mtd of the first name to match, or None of there is no match.
+  """
+  for name in names:
+    mtd = GetMtdDevForPartition(name)
+    if mtd is not None:
+      return mtd
+  return None
 
 
 def IsDevice7425B0():
@@ -540,6 +586,12 @@ class TarImage(object):
   def __init__(self, tarfilename):
     self.tarfilename = tarfilename
     self.tar_f = tarfile.open(name=tarfilename)
+    fnames = self.tar_f.getnames()
+    self.rootfstype = None
+    for fname in fnames:
+      if fname[:7] == 'rootfs.':
+        self.rootfstype = fname[7:]
+        break
 
   def V(self):
     manifest = self.GetManifest()
@@ -552,29 +604,29 @@ class TarImage(object):
     return m.get('version', None)
 
   def GetKernel(self):
-    try:
-      filename = 'kernel.img' if self.V() > 2 else 'vmlinuz'
-      return self.tar_f.extractfile(filename)
-    except KeyError:
+    # TV boxes use a raw vmlinu* file, the gflt* install a uImage to
+    # the kernel partition.
+    if self.V() > 2:
+      kernel_names = ['kernel.img']
+    else:
+      kernel_names = ['vmlinuz', 'vmlinux', 'uImage']
+    for name in kernel_names:
       try:
-        return self.tar_f.extractfile('vmlinux')
+        return self.tar_f.extractfile(name)
       except KeyError:
-        return None
+        pass
+    return None
 
   def IsRootFsUbi(self):
-    if self.V() > 2:
+    if self.rootfstype is None or self.V() > 2:
       return False
-    fnames = self.tar_f.getnames()
-    rootfstype = ''
-    for fname in fnames:
-      if fname[:7] == 'rootfs.':
-        rootfstype = fname[7:]
-        break
-    if rootfstype[-4:] == '_ubi':
+    if self.rootfstype and self.rootfstype[-4:] == '_ubi':
       return True
     return False
 
   def GetRootFs(self):
+    if self.rootfstype is None:
+      return None
     if self.V() > 2:
       filename = 'rootfs.img'
     elif self.IsRootFsUbi():
@@ -620,9 +672,9 @@ class TarImage(object):
 
 
 def main():
-  global quiet  #gpylint: disable-msg=W0603
+  global quiet  # gpylint: disable-msg=global-statement
   o = options.Options(optspec)
-  opt, flags, extra = o.parse(sys.argv[1:])  #gpylint: disable-msg=W0612
+  opt, unused_flags, unused_extra = o.parse(sys.argv[1:])
 
   if not (opt.drm or opt.kernel or opt.rootfs or opt.loader or opt.tar or
           opt.partition):
@@ -675,7 +727,7 @@ def main():
     ver = img.GetVersion()
     if (ver and ver.startswith('bruno-') and ver < 'bruno-octopus-3' and
         not IsDevice4GB()):
-      raise Fatal("%r is too old for new-style partitions: aborting.\n" % ver)
+      raise Fatal('%r is too old for new-style partitions: aborting.\n' % ver)
 
     manifest = img.GetManifest()
     CheckPlatform(manifest)
@@ -729,12 +781,17 @@ def main():
       if opt.skiploader:
         VerbosePrint('Skipping loader installation.\n')
       else:
-        loadersig = img.GetLoaderSig()
-        if not loadersig:
-          raise Fatal('Loader signature file is missing; try --loadersig')
-        if not Verify(loader, loadersig, key):
-          raise Fatal('Loader signing check failed.')
-        mtd = GetMtdDevForName('cfe')
+        # TODO(jnewlin): Temporary hackage.  v3 of ginstall will have a
+        # signature over the entire file as opposed to just on the loader and
+        # we can drop this loader signature.  For now allow a command line
+        # opt to disable signature checking.
+        if not opt.skiploadersig:
+          loadersig = img.GetLoaderSig()
+          if not loadersig:
+            raise Fatal('Loader signature file is missing; try --loadersig')
+          if not Verify(loader, loadersig, key):
+            raise Fatal('Loader signing check failed.')
+        mtd = GetMtdDevForPartitionList(['loader', 'cfe'])
         is_loader_current = False
         mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
         with open(mtdblockname, 'r+b') as mtdfile:
