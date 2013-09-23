@@ -255,7 +255,8 @@ def GetGptPartitionForName(name):
      5         2525184         6719487   2.0 GiB     8300  user
   """
   cmd = [SGDISK, '-p', MMCBLK]
-  p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+  devnull = open('/dev/null', 'w')
+  p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=devnull)
   mmcpart = None
   for line in p.stdout:
     fields = line.strip().split()
@@ -270,7 +271,7 @@ def IsDeviceNoSigning():
   return True if IsDevice7425B0() or IsDevice7429B0() else False
 
 
-def GetMtdDevForPartitionList(names):
+def GetMtdDevForNameList(names):
   """Iterate through partition names and return a device for the first match.
 
   Args:
@@ -280,7 +281,7 @@ def GetMtdDevForPartitionList(names):
     The mtd of the first name to match, or None of there is no match.
   """
   for name in names:
-    mtd = GetMtdDevForPartition(name)
+    mtd = GetMtdDevForName(name)
     if mtd is not None:
       return mtd
   return None
@@ -791,7 +792,7 @@ def main():
             raise Fatal('Loader signature file is missing; try --loadersig')
           if not Verify(loader, loadersig, key):
             raise Fatal('Loader signing check failed.')
-        mtd = GetMtdDevForPartitionList(['loader', 'cfe'])
+        mtd = GetMtdDevForNameList(['loader', 'cfe'])
         is_loader_current = False
         mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
         with open(mtdblockname, 'r+b') as mtdfile:
