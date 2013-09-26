@@ -1,0 +1,4 @@
+installer_version: 3
+image_type: unittest
+version: image_version
+platforms: [ GFUNITTEST ]
