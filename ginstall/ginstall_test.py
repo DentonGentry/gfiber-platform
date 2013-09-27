@@ -115,13 +115,6 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(ginstall.GetMtdDevForName("foo9"), "mtd9")
     self.assertEqual(ginstall.GetMtdDevForName("nonexistant"), None)
 
-  def testGetGptPartitionForName(self):
-    getgpt = ginstall.GetGptPartitionForName
-    self.assertEqual(getgpt("image0"), "/dev/mmcblk0p1")
-    self.assertEqual(getgpt("image1"), "/dev/mmcblk0p2")
-    self.assertEqual(getgpt("emergency"), "/dev/mmcblk0p3")
-    self.assertEqual(getgpt("nonexistant"), None)
-
   def testRoundTo(self):
     self.assertEqual(ginstall.RoundTo(255, 256), 256)
     self.assertEqual(ginstall.RoundTo(1, 256), 256)
@@ -286,25 +279,6 @@ class ImginstTest(unittest.TestCase):
     nvout.seek(0, os.SEEK_SET)
     self.assertEqual(nvout.readline(),
                      '-w MTD_TYPE_FOR_KERNEL=RAW -w ACTIVATED_KERNEL_NAME=kernel1 -w EXTRA_KERNEL_OPT=ubi.mtd=rootfs1 root=mtdblock:rootfs rootfstype=squashfs\n')
-
-  def testFormatGptPartition(self):
-    s = '#!/bin/sh\necho "$*" > {0}\nexit 0'
-    (mkdosfs, out) = self.MakeTestScript(s)
-    ginstall.MKDOSFS = mkdosfs.name
-
-    ginstall.FormatGptPartition(blkdev="/dev/blkfoo")
-    self.assertEqual(out.readline(), '/dev/blkfoo\n')
-
-    out.seek(0, os.SEEK_SET)
-    out.truncate()
-    ginstall.FormatGptPartition(blkdev="/dev/blkfoo", name="namefoo")
-    self.assertEqual(out.readline(), '-n namefoo /dev/blkfoo\n')
-
-  def testIsDeviceMMC(self):
-    ginstall.MMCBLK = 'testdata/dev_mmcblk0'
-    self.assertTrue(ginstall.IsDeviceMMC())
-    ginstall.MMCBLK = 'testdata/this_file_does_not_exist'
-    self.assertFalse(ginstall.IsDeviceMMC())
 
   def testParseManifest(self):
     l = 'installer_version: 99\nimage_type: fake\nplatforms: [ GFHD100, GFMS100 ]\n'
