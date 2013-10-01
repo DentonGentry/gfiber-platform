@@ -7,6 +7,7 @@ LIBDIR=$(DESTDIR)$(PREFIX)/lib
 TARGETS=\
 	alivemonitor \
 	balloon \
+	buttonmon \
 	isoping \
 	chg_mod_own \
 	dir-monitor \
@@ -97,6 +98,7 @@ logos: LIBS+=-L../libstacktrace -lstacktrace
 host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
 host-realtime realtime: LIBS+=-lpthread
 host-alivemonitor alivemonitor: LIBS+=-lrt
+host-buttonmon buttonmon: LIBS+=-lrt
 alivemonitor: alivemonitor.o
 isoping: isoping.o
 diskbench: diskbench.o
@@ -104,6 +106,7 @@ logos: logos.o
 realtime: realtime.o
 rtwatcher: rtwatcher.o
 bigbin: bigbin.o bigtext.o
+buttonmon: buttonmon.o
 
 bigtext.o: bigtext.S
 	 $(AS) -mabi=32 -mips32 -EL -o $@ $^
