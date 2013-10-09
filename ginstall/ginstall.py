@@ -71,7 +71,6 @@ default_manifest_v2 = {
 
 default_manifest_files = {
     'installer_version': '2',
-    'platforms': [],
     'image_type': 'unlocked'
 }
 
@@ -256,7 +255,10 @@ def GetGptPartitionForName(name):
   """
   cmd = [SGDISK, '-p', MMCBLK]
   devnull = open('/dev/null', 'w')
-  p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=devnull)
+  try:
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=devnull)
+  except OSError:
+    return None  # no sgdisk, must not be a platform that supports it
   mmcpart = None
   for line in p.stdout:
     fields = line.strip().split()
@@ -268,7 +270,7 @@ def GetGptPartitionForName(name):
 
 def IsDeviceNoSigning():
   """Returns true if the platform does not handle a kernel header prepended."""
-  return True if IsDevice7425B0() or IsDevice7429B0() else False
+  return False
 
 
 def GetMtdDevForNameList(names):
@@ -285,23 +287,6 @@ def GetMtdDevForNameList(names):
     if mtd is not None:
       return mtd
   return None
-
-
-def IsDevice7425B0():
-  """Returns true if the device is a BCM7425B0 platform."""
-  return open('/proc/cpuinfo').read().find('BCM7425B0') >= 0
-
-
-def IsDevice7429B0():
-  """Returns true if the device is a BCM7429B0 platform."""
-  return open('/proc/cpuinfo').read().find('BCM7429B0') >= 0
-
-
-def IsDevice4GB():
-  """Returns true if the device is using old-style 4GB NAND layout."""
-  partnum = GetMtdNum(GetMtdDevForName('rootfs0'))
-  f = open(MTDBLOCK.format(partnum))
-  return GetFileSize(f) == 0x40000000  # ie. size of v1 root partition
 
 
 def RoundTo(orig, mult):
@@ -491,22 +476,24 @@ def ParseManifest(f):
   """
   result = {}
   for line in f:
-    fields = line.split(':')
+    fields = line.split(':', 1)
     if len(fields) == 2:
       key = fields[0].strip()
       val = fields[1].strip()
-      if '[' in val:  # [ GFHD100, GFMS100 ]
-        val = val.translate(None, '[] ').strip().split(',')
+      if val.startswith('['):  # [ GFHD100, GFMS100 ]
+        val = re.sub(r'[\[\],\s]', r' ', val).split()
       result[key] = val
   return result
 
 
 def CheckPlatform(manifest):
-  platform = GetPlatform()
+  platform = GetPlatform().lower()
   platforms = manifest['platforms']
-  if platforms and not platform in platforms:
-    raise Fatal('image=%s, platform=%s' % (platforms, platform))
-  return True
+  for p in platforms:
+    if p.lower() == platform:
+      return True
+  raise Fatal('Package supports %r, but this device is %r'
+              % (platforms, platform))
 
 
 class FileImage(object):
@@ -523,7 +510,7 @@ class FileImage(object):
     self.loadersig = loadersig
     self.manifest = manifest
 
-  def V(self):
+  def ManifestVersion(self):
     manifest = self.GetManifest()
     return manifest['installer_version']
 
@@ -578,7 +565,9 @@ class FileImage(object):
       except IOError, e:
         raise Fatal(e)
     else:
-      return default_manifest_files.copy()
+      m = default_manifest_files.copy()
+      m['platforms'] = [GetPlatform()]
+      return m
 
 
 class TarImage(object):
@@ -594,7 +583,7 @@ class TarImage(object):
         self.rootfstype = fname[7:]
         break
 
-  def V(self):
+  def ManifestVersion(self):
     manifest = self.GetManifest()
     return int(manifest['installer_version'])
 
@@ -602,12 +591,15 @@ class TarImage(object):
     # no point catching this error: if there's no version file, the
     # whole install image is definitely invalid.
     m = self.GetManifest()
-    return m.get('version', None)
+    try:
+      return m['version']
+    except KeyError:
+      raise Fatal('Fatal: image file has no version field')
 
   def GetKernel(self):
     # TV boxes use a raw vmlinu* file, the gflt* install a uImage to
     # the kernel partition.
-    if self.V() > 2:
+    if self.ManifestVersion() > 2:
       kernel_names = ['kernel.img']
     else:
       kernel_names = ['vmlinuz', 'vmlinux', 'uImage']
@@ -619,7 +611,7 @@ class TarImage(object):
     return None
 
   def IsRootFsUbi(self):
-    if self.rootfstype is None or self.V() > 2:
+    if self.rootfstype is None or self.ManifestVersion() > 2:
       return False
     if self.rootfstype and self.rootfstype[-4:] == '_ubi':
       return True
@@ -628,7 +620,7 @@ class TarImage(object):
   def GetRootFs(self):
     if self.rootfstype is None:
       return None
-    if self.V() > 2:
+    if self.ManifestVersion() > 2:
       filename = 'rootfs.img'
     elif self.IsRootFsUbi():
       filename = 'rootfs.squashfs_ubi'
@@ -640,11 +632,8 @@ class TarImage(object):
       return None
 
   def GetLoader(self):
-    if IsDevice7425B0() or IsDevice7429B0():
-      Log('Incompatible device: ignoring bootloader in image\n')
-      return None
     try:
-      filename = 'loader.img' if self.V() > 2 else 'loader.bin'
+      filename = 'loader.img' if self.ManifestVersion() > 2 else 'loader.bin'
       return self.tar_f.extractfile(filename)
     except KeyError:
       return None
@@ -667,9 +656,10 @@ class TarImage(object):
   def GetManifest(self):
     try:
       f = self.tar_f.extractfile('manifest')
-      return ParseManifest(f)
     except KeyError:
       return self._GetDefaultManifest()
+    else:
+      return ParseManifest(f)
 
 
 def main():
@@ -721,14 +711,15 @@ def main():
       img = FileImage(opt.kernel, opt.rootfs, opt.loader, opt.loadersig,
                       opt.manifest)
 
-    # old software versions are incompatible with 1 GB NAND partition format
-    # (whether or not you're physically using SLC NAND or not) so don't try
-    # to install on those devices.  But allow old versions on other
-    # platforms, for easier upgrade/downgrade testing.
+    # old software versions are incompatible with this version of ginstall.
+    # In particular, we want to leave out versions that:
+    #  - don't support 1GB NAND layout.
+    #  - use pre-ubinized files instead of raw rootfs images.
     ver = img.GetVersion()
-    if (ver and ver.startswith('bruno-') and ver < 'bruno-octopus-3' and
-        not IsDevice4GB()):
-      raise Fatal('%r is too old for new-style partitions: aborting.\n' % ver)
+    if ver and (
+        ver.startswith('bruno-') or
+        (ver.startswith('gfibertv-') and ver < 'gfibertv-24')):
+      raise Fatal('%r is too old: aborting.\n' % ver)
 
     manifest = img.GetManifest()
     CheckPlatform(manifest)
