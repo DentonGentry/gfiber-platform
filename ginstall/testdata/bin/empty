@@ -1,0 +1,3 @@
+#!/bin/sh
+echo Running: "$0" "$@"
+exit 0

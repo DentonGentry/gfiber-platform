@@ -5,7 +5,6 @@
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
-import collections
 import os
 import re
 import subprocess
@@ -39,29 +38,18 @@ skiploadersig suppress checking the loader signature
 # unit tests can override these with fake versions
 BUFSIZE = 256 * 1024
 ETCPLATFORM = '/etc/platform'
-FLASH_ERASE = 'flash_erase'
 HNVRAM = 'hnvram'
-MKDOSFS = 'mkdosfs'
+MTD_PREFIX = '/dev/mtd'
 MMCBLK = '/dev/mmcblk0'
-MOUNT = 'mount'
-MTDBLOCK = '/dev/mtdblock{0}'
 PROC_CMDLINE = '/proc/cmdline'
 PROC_MTD = '/proc/mtd'
 SGDISK = 'sgdisk'
 SIGNINGKEY = '/etc/gfiber_public.der'
-SYS_UBI0 = '/sys/class/ubi/ubi0/mtd_num'
-UBIFORMAT = 'ubiformat'
-UBIPREFIX = 'ubi'
-UMOUNT = 'umount'
-ROOTFSUBI_NO = '5'
 GZIP_HEADER = '\x1f\x8b\x08'  # encoded as string to ignore endianness
 
 
 # Verbosity of output
 quiet = False
-
-# Partitions supported
-gfhd100_partitions = {'primary': 0, 'secondary': 1}
 
 default_manifest_v2 = {
     'installer_version': '2',
@@ -81,7 +69,7 @@ class Fatal(Exception):
 
 
 def Verify(f, s, k):
-  key = RSA.importKey(k.read())
+  key = RSA.importKey(k)
   h = SHA512.new(f.read())
   v = PKCS1_v1_5.new(key)
   return v.verify(h, s.read())
@@ -92,7 +80,7 @@ def Log(s, *args):
   if args:
     sys.stderr.write(s % args)
   else:
-    sys.stderr.write(s)
+    sys.stderr.write(str(s))
 
 
 def VerbosePrint(s, *args):
@@ -101,42 +89,21 @@ def VerbosePrint(s, *args):
 
 
 def GetPlatform():
-  try:
-    with open(ETCPLATFORM) as f:
-      return f.read().strip()
-  except IOError as e:
-    raise Fatal(e)
+  return open(ETCPLATFORM).read().strip()
 
 
 def SetBootPartition(partition):
-  extra = 'ubi.mtd=rootfs{0} root=mtdblock:rootfs rootfstype=squashfs'.format(
-      partition)
-  cmd = [HNVRAM,
-         '-w', 'MTD_TYPE_FOR_KERNEL=RAW',
-         '-w', 'ACTIVATED_KERNEL_NAME=kernel{0}'.format(partition),
-         '-w', 'EXTRA_KERNEL_OPT={0}'.format(extra)]
-  devnull = open('/dev/null', 'w')
-  return subprocess.call(cmd, stdout=devnull)
+  VerbosePrint('Setting boot partition to kernel%d\n', partition)
+  cmd = [HNVRAM, '-q', '-w', 'ACTIVATED_KERNEL_NAME=kernel%d' % partition]
+  return subprocess.call(cmd)
 
 
-def GetBootedPartitionUbi():
-  """Get the boot partition from the value in UBI."""
-  try:
-    f = open(SYS_UBI0)
-    line = f.readline().strip()
-  except IOError:
-    return None
-  booted_mtd = 'mtd' + str(int(line))
-  for (pname, pnum) in gfhd100_partitions.items():
-    rootfs = 'rootfs' + str(pnum)
-    mtd = GetMtdDevForName(rootfs)
-    if booted_mtd == mtd:
-      return pname
-  return None
+def GetBootedPartition():
+  """Get the role of partition where the running system is booted from.
 
-
-def GetBootedPartitionCmdLine():
-  """Get the boot partition by reading the cmdline."""
+  Returns:
+    0 or 1 for rootfs0 and rootfs1, or None if not booted from flash.
+  """
   try:
     with open(PROC_CMDLINE) as f:
       cmdline = f.read().strip()
@@ -146,75 +113,20 @@ def GetBootedPartitionCmdLine():
     if arg.startswith('root='):
       partition = arg.split('=')[1]
       if partition == 'rootfs0':
-        return 'primary'
+        return 0
       elif partition == 'rootfs1':
-        return 'secondary'
+        return 1
   return None
 
 
-def GetBootedPartition():
-  """Get the role of partition where the running system is booted from.
-
-  Returns:
-    "primary" or "secondary" boot partition, or None if not booted from flash.
-  """
-  # For devices that have UBI, read the booted partition from ubi
-  # otherwise check the kernel command line to see for the root= option
-  # passed in from the bootloader.
-  if os.path.exists(SYS_UBI0):
-    return GetBootedPartitionUbi()
-  else:
-    return GetBootedPartitionCmdLine()
+def PickFreeUbi():
+  for i in range(32):
+    if not os.path.exists('/dev/ubi%d' % i):
+      return i
+  raise Fatal('no free /dev/ubi devices found')
 
 
-def GetOtherPartition(partition):
-  """Get the role of the other partition.
-
-  Args:
-    partition: current parition role.
-
-  Returns:
-    The name of the other partition.
-    If partion=primary, will return 'secondary'.
-  """
-  for (pname, _) in gfhd100_partitions.items():
-    if pname != partition:
-      return pname
-  return None
-
-
-def GetMtdNum(arg):
-  """Return the integer number of an mtd device, given its name or number."""
-  try:
-    return int(arg)
-  except ValueError:
-    pass
-  m = re.match(r'(/dev/){0,1}mtd(\d+)', arg)
-  if m:
-    return int(m.group(2))
-  return False
-
-
-def GetEraseSize(mtd):
-  """Find the erase block size of an mtd device.
-
-  Args:
-    mtd: integer number of the MTD device, or its name. Ex: 3, or "mtd3"
-
-  Returns:
-    The erase size as an integer, 0 if not found.
-  """
-  mtd = 'mtd' + str(GetMtdNum(mtd))
-  splt = re.compile('[ :]+')
-  f = open(PROC_MTD)
-  for line in f:
-    fields = splt.split(line.strip())
-    if len(fields) >= 3 and fields[0] == mtd:
-      return int(fields[2], 16)
-  return 0
-
-
-def GetMtdDevForName(name):
+def GetMtdDevForNameOrNone(partname):
   """Find the mtd# for a named partition.
 
   In /proc/mtd we have:
@@ -226,19 +138,44 @@ def GetMtdDevForName(name):
   mtd3: 10000000 00100000 "kernel1"
 
   Args:
-    name: the partition to find. For example, "kernel0"
+    partname: the partition to find. For example, "kernel0"
 
   Returns:
     The mtd device, for example "mtd2"
   """
-  splt = re.compile('[ :]+')
-  quotedname = '"' + name + '"'
-  f = open(PROC_MTD)
-  for line in f:
-    fields = splt.split(line.strip())
+  quotedname = '"%s"' % partname
+  # read the whole file at once to avoid race conditions in case it changes
+  data = open(PROC_MTD).read().split('\n')
+  for line in data:
+    fields = line.strip().split()
     if len(fields) >= 4 and fields[3] == quotedname:
-      return fields[0]
-  return None
+      assert fields[0].startswith('mtd')
+      assert fields[0].endswith(':')
+      return '%s%d' % (MTD_PREFIX, int(fields[0][3:-1]))
+  return None  # no match
+
+
+def GetMtdDevForName(partname):
+  """Like GetMtdDevForNameOrNone, but raises an exception on failure."""
+  mtd = GetMtdDevForNameOrNone(partname)
+  if not mtd:
+    raise KeyError(partname)
+  return mtd
+
+
+def GetMtdDevForNameList(names):
+  """Find the first mtd partition with any of the given names.
+
+  Args:
+    names: List of partition names.
+
+  Returns:
+    The mtd of the first name to match, or None of there is no match.
+  """
+  for name in names:
+    mtd = GetMtdDevForNameOrNone(name)
+    if mtd: return mtd
+  raise KeyError(names)
 
 
 def GetGptPartitionForName(name):
@@ -273,56 +210,12 @@ def IsDeviceNoSigning():
   return False
 
 
-def GetMtdDevForNameList(names):
-  """Iterate through partition names and return a device for the first match.
-
-  Args:
-    names: List of partitions names.
-
-  Returns:
-    The mtd of the first name to match, or None of there is no match.
-  """
-  for name in names:
-    mtd = GetMtdDevForName(name)
-    if mtd is not None:
-      return mtd
-  return None
-
-
-def RoundTo(orig, mult):
-  """Round orig up to a multiple of mult."""
-  return ((orig + mult - 1) // mult) * mult
-
-
-def EraseMtd(mtd):
-  """Erase an mtd partition.
-
-  Args:
-    mtd: integer number of the MTD device, or its name. Ex: 3, or "mtd3"
-
-  Returns:
-    true if successful.
-  """
-  devmtd = '/dev/mtd' + str(GetMtdNum(mtd))
-  cmd = [FLASH_ERASE, '--quiet', devmtd, '0', '0']
-  devnull = open('/dev/null', 'w')
-  return subprocess.call(cmd, stdout=devnull)
-
-
-def WriteToFile(srcfile, dstfile):
-  """Copy all bytes from srcfile to dstfile."""
-  buf = srcfile.read(BUFSIZE)
-  totsize = 0
-  while buf:
-    totsize += len(buf)
-    dstfile.write(buf)
-    buf = srcfile.read(BUFSIZE)
-    VerbosePrint('.')
-  return totsize
-
-
-def IsIdentical(srcfile, dstfile):
+# TODO(apenwarr): instead of re-reading the source file, use a checksum.
+#  This will be especially important later when we want to avoid ever reading
+#  the input file twice, so we can stream it from stdin.
+def IsIdentical(description, srcfile, dstfile):
   """Compare srcfile and dstfile. Return true if contents are identical."""
+  VerbosePrint('Verifying %s.\n', description)
   sbuf = srcfile.read(BUFSIZE)
   dbuf = dstfile.read(len(sbuf))
   if not sbuf:
@@ -335,6 +228,7 @@ def IsIdentical(srcfile, dstfile):
     sbuf = srcfile.read(BUFSIZE)
     dbuf = dstfile.read(len(sbuf))
     VerbosePrint('.')
+  VerbosePrint('\n')
   return True
 
 
@@ -347,75 +241,87 @@ def GetFileSize(f):
   return size
 
 
-def InstallToMtd(f, mtd):
-  """Write an image to an mtd device."""
-  if EraseMtd(mtd):
-    raise IOError('Flash erase failed.')
-  mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
-  start = f.tell()
-  with open(mtdblockname, 'r+b') as mtdfile:
-    written = WriteToFile(f, mtdfile)
-    f.seek(start, os.SEEK_SET)
-    mtdfile.seek(0, os.SEEK_SET)
-    if not IsIdentical(f, mtdfile):
-      raise IOError('Flash verify failed')
-    return written
+def SilentCmd(name, *args):
+  """Wrapper for program calls that doesn't print or check errors."""
+  null = open('/dev/null', 'w')
+  cmd = [name] + list(args)
+  subprocess.call(cmd, stderr=null)
 
 
-def InstallToFile(orig_f, destination):
-  """Write the file-like object orig_f to file named destination."""
-  orig_start = orig_f.tell()
-  with open(destination, 'w+b') as dest_f:
-    written = WriteToFile(orig_f, dest_f)
-    orig_f.seek(orig_start, os.SEEK_SET)
-    dest_f.seek(0, os.SEEK_SET)
-    if not IsIdentical(orig_f, dest_f):
-      raise IOError('Flash verify failed')
-    return written
-
-
-def InstallUbiFileToUbi(f, mtd):
-  """Write an image with ubi header to a ubi device.
-
-  Args:
-    f: a file-like object holding the image to be installed.
-    mtd: the mtd partition to install to.
-
-  Raises:
-    IOError: when ubi format fails
-
-  Returns:
-    number of bytes written.
-  """
-  fsize = GetFileSize(f)
-  writesize = RoundTo(fsize, GetEraseSize(mtd))
-  devmtd = '/dev/mtd' + str(GetMtdNum(mtd))
-  cmd = [UBIFORMAT, devmtd, '-f', '-', '-y', '-q', '-S', str(writesize)]
-  ub = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-  siz = WriteToFile(f, ub.stdin)
-  ub.stdin.close()  # send EOF to UBIFORMAT
-  rc = ub.wait()
-  if rc != 0 or siz != fsize:
-    raise IOError('ubi format failed')
-  return siz
-
-
-def UbiCmd(name, args):
-  """Wrapper for ubi calls."""
-  cmd = collections.deque(args)
-  cmd.appendleft(UBIPREFIX + name)
+def Cmd(name, *args):
+  """Wrapper for program calls."""
+  cmd = [name] + list(args)
+  VerbosePrint('%s\n' % cmd)
   rc = subprocess.call(cmd)
   if rc != 0:
-    raise IOError('ubi ' + name + ' failed')
+    raise IOError('Error: %r' % (cmd,))
 
 
-def InstallRawFileToUbi(f, mtd, ubino):
-  """Write an image without ubi header to a ubi device.
+def EraseMtd(mtddevname):
+  """Erase an mtd partition."""
+  VerbosePrint('Erasing flash partition %r\n', mtddevname)
+  cmd = ['flash_erase', '--quiet', mtddevname, '0', '0']
+  return subprocess.call(cmd)
+
+
+def Pad(data, bufsize):
+  if len(data) < bufsize:
+    return data + '\xff' * (bufsize - len(data))
+  else:
+    return data
+
+
+def WriteToFile(srcfile, dstfile):
+  """Copy all bytes from srcfile to dstfile."""
+  buf = srcfile.read(BUFSIZE)
+  totsize = 0
+  while buf:
+    totsize += len(buf)
+    dstfile.write(Pad(buf, BUFSIZE))
+    buf = srcfile.read(BUFSIZE)
+    VerbosePrint('.')
+  dstfile.flush()
+  VerbosePrint('\n')
+  return totsize
+
+
+def _CopyAndVerify(description, inf, outf):
+  """Copy data from file object inf to file object outf, then verify it."""
+  start = inf.tell()
+  written = WriteToFile(inf, outf)
+  inf.seek(start, os.SEEK_SET)
+  outf.seek(0, os.SEEK_SET)
+  if not IsIdentical(description, inf, outf):
+    raise IOError('Read-after-write verification failed')
+  return written
+
+
+# TODO(apenwarr): consider using the nandwrite command here.
+#  Otherwise we won't correctly skip NAND badblocks. However, before we
+#  do that we should validate whether the bootloader also handles badblocks
+#  (the exact same badblocks as the kernel) or it could maybe make things
+#  worse.
+def InstallToMtd(f, mtddevname):
+  """Write an image to an mtd device."""
+  if EraseMtd(mtddevname):
+    raise IOError('Flash erase failed.')
+  VerbosePrint('Writing to mtd partition %r\n', mtddevname)
+  return _CopyAndVerify(mtddevname, f, open(mtddevname, 'r+b'))
+
+
+def InstallToFile(f, outfilename):
+  """Write the file-like object f to file named outfilename."""
+  VerbosePrint('Writing to raw file %r\n', outfilename)
+  return _CopyAndVerify(outfilename, f, open(outfilename, 'w+b'))
+
+
+def InstallRawFileToUbi(f, mtddevname):
+  """Write an image without its own ubi header to a ubi device.
 
   Args:
     f: a file-like object holding the image to be installed.
-    mtd: the mtd partition to install to.
-    ubino: the ubi device number to attached ubi partition.
+    mtddevname: the device filename of the mtd partition to install to.
+    ubino: the ubi device number to use.
 
   Raises:
     IOError: when ubi format fails
@@ -423,42 +329,38 @@ def InstallRawFileToUbi(f, mtd, ubino):
   Returns:
     number of bytes written.
   """
-  devmtd = '/dev/mtd' + str(GetMtdNum(mtd))
-  if os.path.exists('/dev/ubi' + ubino):
-    UbiCmd('detach', ['-d', ubino])
-  UbiCmd('format', [devmtd, '-y', '-q'])
-  UbiCmd('attach', ['-m', str(GetMtdNum(mtd)), '-d', ubino])
-  UbiCmd('mkvol', ['/dev/ubi' + ubino, '-N', 'rootfs-prep', '-m'])
-  mtd = GetMtdDevForName('rootfs-prep')
-  siz = InstallToMtd(f, mtd)
-  UbiCmd('rename', ['/dev/ubi' + ubino, 'rootfs-prep', 'rootfs'])
-  UbiCmd('detach', ['-d', ubino])
+  ubino = PickFreeUbi()
+  SilentCmd('ubidetach', '-p', mtddevname)
+  Cmd('ubiformat', mtddevname, '-y', '-q')
+  Cmd('ubiattach', '-p', mtddevname, '-d', str(ubino))
+  try:
+    Cmd('ubimkvol', '/dev/ubi%d' % ubino, '-N', 'rootfs-prep', '-m')
+    newmtd = GetMtdDevForName('rootfs-prep')
+    siz = InstallToMtd(f, newmtd)
+    Cmd('ubirename', '/dev/ubi%d' % ubino, 'rootfs-prep', 'rootfs')
+  finally:
+    SilentCmd('ubidetach', '-d', str(ubino))
   return siz
 
 
 def WriteDrm(opt):
   """Write DRM Keyboxes."""
   Log('DO NOT INTERRUPT OR POWER CYCLE, or you will lose drm capability.\n')
-  try:
-    drm = open(opt.drm, 'rb')
-  except IOError, e:
-    raise Fatal(e)
-  mtd = GetMtdDevForName('drmregion0')
-  VerbosePrint('Writing drm to %r', mtd)
-  InstallToMtd(drm, mtd)
-  VerbosePrint('\n')
+  drm = open(opt.drm, 'rb')
+  mtddevname = GetMtdDevForName('drmregion0')
+  VerbosePrint('Writing drm to %r\n', mtddevname)
+  InstallToMtd(drm, mtddevname)
 
   drm.seek(0)
-  mtd = GetMtdDevForName('drmregion1')
-  VerbosePrint('Writing drm to %r', mtd)
-  InstallToMtd(drm, mtd)
-  VerbosePrint('\n')
+  mtddevname = GetMtdDevForName('drmregion1')
+  VerbosePrint('Writing drm to %r\n', mtddevname)
+  InstallToMtd(drm, mtddevname)
 
 
 def GetKey():
   """Return the key to check file signatures."""
   try:
-    return open(SIGNINGKEY)
+    return open(SIGNINGKEY).read()
   except IOError, e:
     raise Fatal(e)
 
@@ -487,10 +389,10 @@ def ParseManifest(f):
 
 
 def CheckPlatform(manifest):
-  platform = GetPlatform().lower()
+  platform = GetPlatform()
   platforms = manifest['platforms']
   for p in platforms:
-    if p.lower() == platform:
+    if p.lower() == platform.lower():
       return True
   raise Fatal('Package supports %r, but this device is %r'
               % (platforms, platform))
@@ -502,17 +404,16 @@ class FileImage(object):
   def __init__(self, kernelfile, rootfs, loader, loadersig, manifest):
     self.kernelfile = kernelfile
     self.rootfs = rootfs
-    if self.rootfs:
-      self.rootfstype = rootfs[7:]
-    else:
-      self.rootfstype = None
     self.loader = loader
     self.loadersig = loadersig
-    self.manifest = manifest
+    if manifest:
+      self.manifest = ParseManifest(open(manifest))
+    else:
+      self.manifest = default_manifest_files.copy()
+      self.manifest['platforms'] = [GetPlatform()]
 
   def ManifestVersion(self):
-    manifest = self.GetManifest()
-    return manifest['installer_version']
+    return self.manifest['installer_version']
 
   def GetVersion(self):
     return None
@@ -535,11 +436,6 @@ class FileImage(object):
     else:
       return None
 
-  def IsRootFsUbi(self):
-    if self.rootfstype[-4:] == '_ubi':
-      return True
-    return False
-
   def GetRootFs(self):
     if self.rootfs:
       try:
@@ -558,17 +454,6 @@ class FileImage(object):
     else:
       return None
 
-  def GetManifest(self):
-    if self.manifest:
-      try:
-        return ParseManifest(open(self.manifest, 'r'))
-      except IOError, e:
-        raise Fatal(e)
-    else:
-      m = default_manifest_files.copy()
-      m['platforms'] = [GetPlatform()]
-      return m
-
 
 class TarImage(object):
   """A system image packaged as a tar file."""
@@ -577,22 +462,33 @@ class TarImage(object):
     self.tarfilename = tarfilename
     self.tar_f = tarfile.open(name=tarfilename)
     fnames = self.tar_f.getnames()
-    self.rootfstype = None
+    self.rootfs = None
+
     for fname in fnames:
-      if fname[:7] == 'rootfs.':
-        self.rootfstype = fname[7:]
+      if fname.startswith('rootfs.'):
+        self.rootfs = fname
         break
 
+    try:
+      f = self.tar_f.extractfile('manifest')
+    except KeyError:
+      # No manifest; it must be an old-style installer.
+      # Generate an auto-manifest compatible with older files.
+      self.manifest = default_manifest_v2.copy()
+      try:
+        self.manifest['version'] = (
+            self.tar_f.extractfile('version').read(4096).strip())
+      except KeyError:
+        pass
+    else:
+      self.manifest = ParseManifest(f)
+
   def ManifestVersion(self):
-    manifest = self.GetManifest()
-    return int(manifest['installer_version'])
+    return int(self.manifest['installer_version'])
 
   def GetVersion(self):
-    # no point catching this error: if there's no version file, the
-    # whole install image is definitely invalid.
-    m = self.GetManifest()
     try:
-      return m['version']
+      return self.manifest['version']
     except KeyError:
       raise Fatal('Fatal: image file has no version field')
 
@@ -610,24 +506,11 @@ class TarImage(object):
         pass
     return None
 
-  def IsRootFsUbi(self):
-    if self.rootfstype is None or self.ManifestVersion() > 2:
-      return False
-    if self.rootfstype and self.rootfstype[-4:] == '_ubi':
-      return True
-    return False
-
   def GetRootFs(self):
-    if self.rootfstype is None:
+    if not self.rootfs:
       return None
-    if self.ManifestVersion() > 2:
-      filename = 'rootfs.img'
-    elif self.IsRootFsUbi():
-      filename = 'rootfs.squashfs_ubi'
-    else:
-      filename = 'rootfs.squashfs'
     try:
-      return self.tar_f.extractfile(filename)
+      return self.tar_f.extractfile(self.rootfs)
     except KeyError:
       return None
 
@@ -644,23 +527,6 @@ class TarImage(object):
     except KeyError:
       return None
 
-  def _GetDefaultManifest(self):
-    m = default_manifest_v2.copy()
-    try:
-      version = self.tar_f.extractfile('version').read(4096).strip()
-      m['version'] = version
-    except KeyError:
-      pass
-    return m
-
-  def GetManifest(self):
-    try:
-      f = self.tar_f.extractfile('manifest')
-    except KeyError:
-      return self._GetDefaultManifest()
-    else:
-      return ParseManifest(f)
-
 
 def main():
   global quiet  # gpylint: disable-msg=global-statement
@@ -672,6 +538,7 @@ def main():
     o.fatal('Expected at least one of -p, -k, -r, -t, --loader, or --drm')
 
   quiet = opt.quiet
+
   if opt.drm:
     WriteDrm(opt)
 
@@ -679,26 +546,24 @@ def main():
     # default to the safe option if not given
     opt.partition = 'other'
 
-  if opt.partition:
-    if opt.partition == 'other':
-      boot = GetBootedPartition()
-      if boot is None:
-        # Policy decision: if we're booted from NFS, install to secondary
-        partition = 'secondary'
-      else:
-        partition = GetOtherPartition(boot)
+  if opt.partition == 'other':
+    boot = GetBootedPartition()
+    assert boot in [None, 0, 1]
+    if boot is None:
+      # Policy decision: if we're booted from NFS, install to secondary
+      partition = 1
     else:
-      partition = opt.partition
-    pnum = gfhd100_partitions[partition]
+      partition = boot ^ 1
+  elif opt.partition in ['primary', 0]:
+    partition = 0
+  elif opt.partition in ['secondary', 1]:
+    partition = 1
+  elif opt.partition:
+    o.fatal('--partition must be one of: primary, secondary, other')
+  elif opt.tar or opt.kernel or opt.rootfs:
+    o.fatal('A --partition option must be provided with -k, -r, or -t')
   else:
     partition = None
-    pnum = None
-
-  if opt.tar or opt.kernel or opt.rootfs:
-    if not partition:
-      o.fatal('A --partition option must be provided with -k, -r, or -t')
-    if partition not in gfhd100_partitions:
-      o.fatal('--partition must be one of: ' + str(gfhd100_partitions.keys()))
 
   if opt.tar or opt.kernel or opt.rootfs or opt.loader:
     key = GetKey()
@@ -721,29 +586,23 @@ def main():
         (ver.startswith('gfibertv-') and ver < 'gfibertv-24')):
       raise Fatal('%r is too old: aborting.\n' % ver)
 
-    manifest = img.GetManifest()
+    manifest = img.manifest
     CheckPlatform(manifest)
 
     rootfs = img.GetRootFs()
     if rootfs:
-      partition_name = 'rootfs' + str(pnum)
-      mtd = GetMtdDevForName(partition_name)
+      partition_name = 'rootfs%d' % partition
+      mtd = GetMtdDevForNameOrNone(partition_name)
       gpt = GetGptPartitionForName(partition_name)
       if mtd:
-        if img.IsRootFsUbi():
-          Log('Installing ubi-formatted rootfs.\n')
-          VerbosePrint('Writing ubi rootfs to %r', mtd)
-          InstallUbiFileToUbi(rootfs, mtd)
-        else:
-          Log('Installing raw rootfs image to ubi partition.\n')
-          VerbosePrint('Writing raw rootfs to %r', mtd)
-          InstallRawFileToUbi(rootfs, mtd, ROOTFSUBI_NO)
+        Log('Installing raw rootfs image to ubi partition %r\n' % mtd)
+        VerbosePrint('Writing raw rootfs to %r\n', mtd)
+        InstallRawFileToUbi(rootfs, mtd)
       elif gpt:
-        if img.IsRootFsUbi():
-          raise Fatal('Cannot install UBI rootfs to non-MTD %s' % gpt)
-        VerbosePrint('Writing raw rootfs to %r', gpt)
+        VerbosePrint('Writing raw rootfs to %r\n', gpt)
         InstallToFile(rootfs, gpt)
-      VerbosePrint('\n')
+      else:
+        raise Fatal('no partition named %r is available' % partition_name)
 
     kern = img.GetKernel()
     if kern:
@@ -756,16 +615,17 @@ def main():
           kern.seek(0)
         else:
           raise Fatal('Incompatible device: unrecognized kernel format')
-      partition_name = 'kernel' + str(pnum)
-      mtd = GetMtdDevForName('kernel' + str(pnum))
+      partition_name = 'kernel%d' % partition
+      mtd = GetMtdDevForNameOrNone(partition_name)
       gpt = GetGptPartitionForName(partition_name)
       if mtd:
-        VerbosePrint('Writing kernel to %s' % mtd)
+        VerbosePrint('Writing kernel to %r\n' % mtd)
         InstallToMtd(kern, mtd)
       elif gpt:
-        VerbosePrint('Writing kernel to %s' % gpt)
+        VerbosePrint('Writing kernel to %r\n' % gpt)
         InstallToFile(kern, gpt)
-      VerbosePrint('\n')
+      else:
+        raise Fatal('no partition named %r is available' % partition_name)
 
     loader = img.GetLoader()
     if loader:
@@ -785,24 +645,20 @@ def main():
             raise Fatal('Loader signing check failed.')
         mtd = GetMtdDevForNameList(['loader', 'cfe'])
         is_loader_current = False
-        mtdblockname = MTDBLOCK.format(GetMtdNum(mtd))
-        with open(mtdblockname, 'r+b') as mtdfile:
-          VerbosePrint('Checking if the loader is up to date.')
+        with open(mtd, 'r+b') as mtdfile:
+          VerbosePrint('Checking if the loader is up to date.\n')
           loader.seek(loader_start)
-          is_loader_current = IsIdentical(loader, mtdfile)
-        VerbosePrint('\n')
+          is_loader_current = IsIdentical('loader', loader, mtdfile)
         if is_loader_current:
           VerbosePrint('The loader is the latest.\n')
         else:
           loader.seek(loader_start, os.SEEK_SET)
           Log('DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.\n')
-          VerbosePrint('Writing loader to %r', mtd)
+          VerbosePrint('Writing loader to %r\n', mtd)
           InstallToMtd(loader, mtd)
-          VerbosePrint('\n')
 
-  if partition:
-    VerbosePrint('Setting boot partition to kernel%d\n', pnum)
-    SetBootPartition(pnum)
+  if partition is not None:
+    SetBootPartition(partition)
 
   return 0
 

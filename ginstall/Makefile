@@ -21,4 +21,4 @@ test:
 	done
 
 clean:
-	rm -f *~
+	rm -f *~ testdata/dev/* testdata/bin.tmp/*

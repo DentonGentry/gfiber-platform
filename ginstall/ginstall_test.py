@@ -6,6 +6,7 @@
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
 import os
+import shutil
 import stat
 import StringIO
 import tempfile
@@ -13,37 +14,42 @@ import unittest
 import ginstall
 
 
-class ImginstTest(unittest.TestCase):
+# TODO(apenwarr): These tests are too "unit testy"; should test end-to-end.
+#  The best way to do that is probably to write some fake ubiformat/etc tools
+#  in testdata/bin, and then run a shell script that actually executes
+#  ginstall under various realistic conditions, in order to test more stuff
+#  that historically has gone wrong, like option parsing and manifest checking.
+class GinstallTest(unittest.TestCase):
   def setUp(self):
+    self.old_PATH = os.environ['PATH']
     self.old_bufsize = ginstall.BUFSIZE
     self.old_etcplatform = ginstall.ETCPLATFORM
-    self.old_flash_erase = ginstall.FLASH_ERASE
     self.old_hnvram = ginstall.HNVRAM
+    self.old_mtd_prefix = ginstall.MTD_PREFIX
     self.old_mmcblk = ginstall.MMCBLK
-    self.old_mkdosfs = ginstall.MKDOSFS
-    self.old_mtdblock = ginstall.MTDBLOCK
     self.old_proc_mtd = ginstall.PROC_MTD
     self.old_sgdisk = ginstall.SGDISK
-    self.old_sys_ubi0 = ginstall.SYS_UBI0
-    self.old_ubiformat = ginstall.UBIFORMAT
+    os.environ['PATH'] = (os.path.join(os.getcwd(), 'testdata/bin.tmp') + ':' +
+                          os.path.join(os.getcwd(), 'testdata/bin') + ':' +
+                          self.old_PATH)
+    shutil.rmtree('testdata/bin.tmp', ignore_errors=True)
+    os.mkdir('testdata/bin.tmp')
     ginstall.ETCPLATFORM = 'testdata/etc/platform'
+    ginstall.MTD_PREFIX = 'testdata/dev/mtd'
     ginstall.PROC_MTD = "testdata/proc/mtd"
     ginstall.SGDISK = 'testdata/sgdisk'
     ginstall.SIGNINGKEY = 'testdata/signing_key.der'
     self.files_to_remove = list()
 
   def tearDown(self):
+    os.environ['PATH'] = self.old_PATH
     ginstall.BUFSIZE = self.old_bufsize
     ginstall.ETCPLATFORM = self.old_etcplatform
-    ginstall.FLASH_ERASE = self.old_flash_erase
     ginstall.HNVRAM = self.old_hnvram
+    ginstall.MTD_PREFIX = self.old_mtd_prefix
     ginstall.MMCBLK = self.old_mmcblk
-    ginstall.MKDOSFS = self.old_mkdosfs
-    ginstall.MTDBLOCK = self.old_mtdblock
     ginstall.PROC_MTD = self.old_proc_mtd
     ginstall.SGDISK = self.old_sgdisk
-    ginstall.SYS_UBI0 = self.old_sys_ubi0
-    ginstall.UBIFORMAT = self.old_ubiformat
     for file in self.files_to_remove:
       os.remove(file)
 
@@ -72,6 +78,7 @@ class ImginstTest(unittest.TestCase):
 
   def testIsIdentical(self):
     self.assertFalse(ginstall.IsIdentical(
+        'testloader',
         open("testdata/img/loader.bin"),
         open("testdata/img/loader1.bin")))
 
@@ -82,51 +89,26 @@ class ImginstTest(unittest.TestCase):
         open("testdata/img/loader.sig"),
         open("testdata/img/public.der")))
     self.assertRaises(IOError, ginstall.IsIdentical,
-        loader, open("testdata/img/loader.bin"))
+        'loader', loader, open("testdata/img/loader.bin"))
     loader.seek(0)
     self.assertTrue(IOError, ginstall.IsIdentical(
-        loader, open("testdata/img/loader.bin")))
+        'loader', loader, open("testdata/img/loader.bin")))
     loader.seek(0)
     self.assertFalse(ginstall.IsIdentical(
-        loader, open("testdata/img/loader1.bin")))
-
-  def testGetMtdNum(self):
-    self.assertEqual(ginstall.GetMtdNum(3), 3)
-    self.assertEqual(ginstall.GetMtdNum("3"), 3)
-    self.assertEqual(ginstall.GetMtdNum("mtd3"), 3)
-    self.assertEqual(ginstall.GetMtdNum("mtd6743"), 6743)
-    self.assertEqual(ginstall.GetMtdNum("invalid4"), False)
-
-  def testGetEraseSize(self):
-    siz = ginstall.GetEraseSize("mtd3")
-    self.assertEqual(siz, 128)
-    siz = ginstall.GetEraseSize("3")
-    self.assertEqual(siz, 128)
-    siz = ginstall.GetEraseSize(3)
-    self.assertEqual(siz, 128)
-    siz = ginstall.GetEraseSize("mtd4")
-    self.assertEqual(siz, 256)
-    siz = ginstall.GetEraseSize("nonexistent")
-    self.assertEqual(siz, 0)
+        'loader', loader, open("testdata/img/loader1.bin")))
 
   def testGetMtdDevForName(self):
-    self.assertEqual(ginstall.GetMtdDevForName("foo1"), "mtd1")
-    self.assertEqual(ginstall.GetMtdDevForName("foo2"), "mtd2")
-    self.assertEqual(ginstall.GetMtdDevForName("foo9"), "mtd9")
-    self.assertEqual(ginstall.GetMtdDevForName("nonexistant"), None)
-
-  def testRoundTo(self):
-    self.assertEqual(ginstall.RoundTo(255, 256), 256)
-    self.assertEqual(ginstall.RoundTo(1, 256), 256)
-    self.assertEqual(ginstall.RoundTo(257, 256), 512)
-    self.assertEqual(ginstall.RoundTo(512, 256), 512)
-    self.assertEqual(ginstall.RoundTo(513, 256), 768)
+    self.assertEqual(ginstall.GetMtdDevForName("foo1"), "testdata/dev/mtd1")
+    self.assertEqual(ginstall.GetMtdDevForName("foo2"), "testdata/dev/mtd2")
+    self.assertEqual(ginstall.GetMtdDevForName("foo9"), "testdata/dev/mtd9")
+    self.assertRaises(KeyError, ginstall.GetMtdDevForName, "nonexistant")
+    self.assertEqual(ginstall.GetMtdDevForNameOrNone("nonexistant"), None)
 
   def testEraseMtd(self):
     testscript = "#!/bin/sh\necho -n $* >> {0}\n"
     (script, out) = self.MakeTestScript(testscript)
-    ginstall.FLASH_ERASE = script.name
-    ginstall.EraseMtd("mtd3")
+    shutil.copy(script.name, 'testdata/bin.tmp/flash_erase')
+    ginstall.EraseMtd("/dev/mtd3")
     # Script wrote its arguments to out.name, read them in to check.
     output = out.read()
     out.close()
@@ -179,34 +161,25 @@ class ImginstTest(unittest.TestCase):
 
   def testWriteMtd(self):
     origfile = open("testdata/random", "r")
-    destfile = tempfile.NamedTemporaryFile()
     origsize = os.fstat(origfile.fileno())[6]
 
-    # substitute fake /dev/mtdblock and /usr/bin/flash_erase
-    ginstall.MTDBLOCK = destfile.name
-    s = "#!/bin/sh\necho -n $* >> {0}\nexit 0\n"
-    (f_erase, eraseout) = self.MakeTestScript(s)
-    ginstall.FLASH_ERASE = f_erase.name
     ginstall.BUFSIZE = 1024
 
-    writesize = ginstall.InstallToMtd(origfile, 4)
+    open('testdata/dev/mtd4', 'w').close()
+    writesize = ginstall.InstallToMtd(origfile, 'testdata/dev/mtd4')
     self.assertEqual(writesize, origsize)
 
-    # check that flash_erase was run.
-    self.assertEqual(eraseout.read(), "--quiet /dev/mtd4 0 0")
-
     # check that data was written to MTDBLOCK
-    self.assertEqual(ginstall.GetFileSize(destfile), origsize)
+    self.assertEqual(ginstall.GetFileSize(open('testdata/dev/mtd4')), origsize)
     origfile.seek(0, os.SEEK_SET)
-    origdata = origfile.read()
-    copydata = destfile.read()
-    self.assertEqual(origdata, copydata)
+    self.assertEqual(origfile.read(),
+                     open('testdata/dev/mtd4').read())
 
   def testWriteMtdEraseException(self):
     origfile = open("testdata/random", "r")
     (f_erase, eraseout) = self.MakeTestScript("#!/bin/sh\nexit 1\n")
-    ginstall.FLASH_ERASE = f_erase.name
-    self.assertRaises(IOError, ginstall.InstallToMtd, origfile, 0)
+    shutil.copy(f_erase.name, 'testdata/bin.tmp/flash_erase')
+    self.assertRaises(IOError, ginstall.InstallToMtd, origfile, '/dev/mtd0')
 
   def testWriteMtdVerifyException(self):
     origfile = open("testdata/random", "r")
@@ -220,45 +193,28 @@ class ImginstTest(unittest.TestCase):
     ginstall.FLASH_ERASE = f_erase.name
 
     # verify should fail, destfile will read back zero.
-    self.assertRaises(IOError, ginstall.InstallToMtd, origfile, 4)
+    self.assertRaises(IOError, ginstall.InstallToMtd, origfile, '/dev/mtd4')
 
   def testWriteUbi(self):
-    s = "#!/bin/sh\necho $* >> {0}\nwc -c >> {0}\nexit 0"
-    (ubifmt, ubiout) = self.MakeTestScript(s)
-    ginstall.UBIFORMAT = ubifmt.name
     ginstall.BUFSIZE = 1024
 
     origfile = open("testdata/random", "r")
-    origsize = os.fstat(origfile.fileno())[6]
+    origsize = os.fstat(origfile.fileno()).st_size
 
-    writesize = ginstall.InstallUbiFileToUbi(origfile, 9)
+    open('testdata/dev/mtd99', 'w').close()
+    writesize = ginstall.InstallRawFileToUbi(origfile, 'testdata/dev/mtd9')
     self.assertEqual(writesize, origsize)
 
-    # check that ubiformat was run.
-    ubiout.seek(0, os.SEEK_SET)
-    # 2097152 is the eraseblock size in testdata/proc/mtd for mtd9
-    self.assertEqual(ubiout.readline().strip(), "/dev/mtd9 -f - -y -q -S 2097152")
-    self.assertEqual(ubiout.readline().strip(), "4096")
+    self.assertEqual(open('testdata/dev/mtd99').read(),
+                     open('testdata/random').read())
 
   def testWriteUbiException(self):
     (ubifmt, out) = self.MakeTestScript("#!/bin/sh\nexit 1\n")
-    ginstall.UBIFORMAT = ubifmt.name
-
+    shutil.copy(ubifmt.name, 'testdata/bin.tmp/ubiformat')
+    os.system('ubiformat')
     origfile = open("testdata/random", "r")
-    self.assertRaises(IOError, ginstall.InstallUbiFileToUbi, origfile, 0)
-
-  def testBootedPartition(self):
-    ginstall.PROC_MTD = "testdata/proc/mtd.bruno"
-    ginstall.SYS_UBI0 = "/path/to/nonexistant/file"
-    self.assertEqual(ginstall.GetBootedPartition(), None)
-    ginstall.SYS_UBI0 = "testdata/sys/class/ubi/ubi0.primary"
-    self.assertEqual(ginstall.GetBootedPartition(), "primary")
-    ginstall.SYS_UBI0 = "testdata/sys/class/ubi/ubi0.secondary"
-    self.assertEqual(ginstall.GetBootedPartition(), "secondary")
-
-  def testOtherPartition(self):
-    self.assertEqual(ginstall.GetOtherPartition("primary"), "secondary")
-    self.assertEqual(ginstall.GetOtherPartition("secondary"), "primary")
+    self.assertRaises(IOError, ginstall.InstallRawFileToUbi,
+                      origfile, 'mtd0.tmp')
 
   def testSetBootPartition0(self):
     s = "#!/bin/sh\necho $* >> {0}\nexit 0"
@@ -268,7 +224,7 @@ class ImginstTest(unittest.TestCase):
     ginstall.SetBootPartition(0)
     nvout.seek(0, os.SEEK_SET)
     self.assertEqual(nvout.readline(),
-                     '-w MTD_TYPE_FOR_KERNEL=RAW -w ACTIVATED_KERNEL_NAME=kernel0 -w EXTRA_KERNEL_OPT=ubi.mtd=rootfs0 root=mtdblock:rootfs rootfstype=squashfs\n')
+                     '-q -w ACTIVATED_KERNEL_NAME=kernel0\n')
 
   def testSetBootPartition1(self):
     s = "#!/bin/sh\necho $* >> {0}\nexit 0"
@@ -278,7 +234,7 @@ class ImginstTest(unittest.TestCase):
     ginstall.SetBootPartition(1)
     nvout.seek(0, os.SEEK_SET)
     self.assertEqual(nvout.readline(),
-                     '-w MTD_TYPE_FOR_KERNEL=RAW -w ACTIVATED_KERNEL_NAME=kernel1 -w EXTRA_KERNEL_OPT=ubi.mtd=rootfs1 root=mtdblock:rootfs rootfstype=squashfs\n')
+                     '-q -w ACTIVATED_KERNEL_NAME=kernel1\n')
 
   def testParseManifest(self):
     l = 'installer_version: 99\nimage_type: fake\nplatforms: [ GFHD100, GFMS100 ]\n'
@@ -295,8 +251,8 @@ class ImginstTest(unittest.TestCase):
     self.assertEqual(actual, expected)
 
   def testGetKey(self):
-    f = ginstall.GetKey()
-    self.assertEqual(f.read(), 'This is a signing key.\n')
+    key = ginstall.GetKey()
+    self.assertEqual(key, 'This is a signing key.\n')
 
   def testPlatformRoutines(self):
     self.assertEqual(ginstall.GetPlatform(), 'GFUNITTEST')
@@ -306,14 +262,11 @@ class ImginstTest(unittest.TestCase):
 
   def testGetBootedFromCmdLine(self):
     ginstall.PROC_CMDLINE = "testdata/proc/cmdline1"
-    self.assertEqual(ginstall.GetBootedPartitionCmdLine(), None)
     self.assertEqual(ginstall.GetBootedPartition(), None)
     ginstall.PROC_CMDLINE = "testdata/proc/cmdline2"
-    self.assertEqual(ginstall.GetBootedPartitionCmdLine(), 'primary')
-    self.assertEqual(ginstall.GetBootedPartition(), 'primary')
+    self.assertEqual(ginstall.GetBootedPartition(), 0)
     ginstall.PROC_CMDLINE = "testdata/proc/cmdline3"
-    self.assertEqual(ginstall.GetBootedPartitionCmdLine(), 'secondary')
-    self.assertEqual(ginstall.GetBootedPartition(), 'secondary')
+    self.assertEqual(ginstall.GetBootedPartition(), 1)
 
 
 if __name__ == '__main__':
