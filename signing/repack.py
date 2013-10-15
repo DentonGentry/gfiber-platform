@@ -26,14 +26,12 @@ The info is free format. Now it is only a string to hold verity table.
 
 __author__ = 'kedong@google.com (Ke Dong)'
 
-import binascii
 import os
 import re
 import shutil
 import struct
 import subprocess
 import sys
-import OpenSSL  #gpylint: disable-msg=F0401
 import options
 
 
@@ -52,12 +50,13 @@ q,quiet       suppress print
 BLOCK_SIZE = 4096
 VERITY_START = '[VERITY-START]'
 VERITY_STOP = '[VERITY-STOP]'
+FAKE_SIGN_OFFSET = 0x90091efb
 quiet = False
 
 
 def GetRandom():
   """Generate a random hexstring of 64 bytes."""
-  return binascii.hexlify(OpenSSL.rand.bytes(32))
+  return os.urandom(32).encode('hex')
 
 
 def CheckOutput(args, **kwargs):
@@ -74,14 +73,14 @@ def CheckOutput(args, **kwargs):
 def GenerateVerityTable(hostdir, bindir, rootfs):
   """Generate the verity table."""
   return CheckOutput(
-      [os.path.join(hostdir, 'usr/bin', 'verity'), 'mode=create',
+      [os.path.join(hostdir, 'usr/bin/verity'), 'mode=create',
        'alg=sha256', 'payload=' + os.path.join(bindir, rootfs),
        'salt=' + GetRandom(), 'hashtree=' + os.path.join(bindir, 'hash.bin')])
 
 
 def CeilingBlock(size):
   """Calculate the number of blocks based on the size in bytes."""
-  return (size + BLOCK_SIZE -1) / BLOCK_SIZE
+  return (size + BLOCK_SIZE - 1) / BLOCK_SIZE
 
 
 def UpdateVerityTable(table, hash_offset):
@@ -108,10 +107,7 @@ def FakeSign(fname):
   with open(fname, 'r+b') as f:
     c = f.read()
     f.seek(0)
-    f.write(struct.pack('I', size))
-    f.write(struct.pack('I', 0x90091efb))
-    f.write(struct.pack('I', 0x0))
-    f.write(struct.pack('I', 0x0))
+    f.write(struct.pack('<IIII', size, FAKE_SIGN_OFFSET, 0, 0))
     f.write(c)
 
 
@@ -154,9 +150,9 @@ def PackVerity(kname, vname, info):
 
 
 def main():
-  global quiet  #gpylint: disable-msg=W0603
+  global quiet  # gpylint: disable-msg=W0603
   o = options.Options(optspec)
-  opt, flags, extra = o.parse(sys.argv[1:])  #gpylint: disable-msg=W0612
+  opt, unused_flags, unused_extra = o.parse(sys.argv[1:])
 
   quiet = opt.quiet
   verity_table = GenerateVerityTable(opt.hostdir, opt.bindir,
