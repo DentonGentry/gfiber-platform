@@ -5,12 +5,10 @@
 #include "bruno/scoped_ptr.h"
 #include "bruno/criticalsection.h"
 #include "fancontrol.h"
-#include "flash.h"
 #include "peripheralmon.h"
 #include "platform_peripheral_api.h"
 #include "platformperipheral.h"
 #include "platform.h"
-#include "ubifsmon.h"
 
 namespace bruno_platform_peripheral {
 
@@ -37,9 +35,6 @@ bool PlatformPeripheral::Init(unsigned int monitor_interval,
   kInstance_->mgr_thread_ = bruno_base::Thread::Current();
   kInstance_->peripheral_mon_->Init(kInstance_->mgr_thread_, monitor_interval,
                                     hdd_temp_interval);
-  kInstance_->ubifs_mon_->Init(kInstance_->mgr_thread_, monitor_interval);
-  kInstance_->flash_->Init(kInstance_->mgr_thread_,
-                           kInstance_->ubifs_mon_);
   return true;
 }
 
@@ -53,7 +48,6 @@ bool PlatformPeripheral::Terminate(void) {
     return false;
   } else {
     kInstance_->peripheral_mon_->Terminate();
-    kInstance_->ubifs_mon_->Terminate();
     delete kInstance_;
     kInstance_ = NULL;
     delete platformInstance_;
@@ -63,9 +57,7 @@ bool PlatformPeripheral::Terminate(void) {
 }
 
 PlatformPeripheral::PlatformPeripheral(Platform *platform)
-  : peripheral_mon_(new PeripheralMon(new FanControl(platform))),
-    ubifs_mon_(new UbifsMon(platform)),
-    flash_(new Flash()) {
+  : peripheral_mon_(new PeripheralMon(new FanControl(platform))) {
 }
 
 PlatformPeripheral::~PlatformPeripheral() {

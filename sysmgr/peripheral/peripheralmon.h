@@ -5,6 +5,8 @@
 #define BUNO_PLATFORM_PERIPHERAL_PERIPHERALMON_H_
 
 #include "bruno/constructormagic.h"
+#include "bruno/messagehandler.h"
+#include "bruno/thread.h"
 #include "bruno/time.h"
 #include "mailbox.h"
 

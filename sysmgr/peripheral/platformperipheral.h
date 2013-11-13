@@ -10,8 +10,6 @@ class FanControl;
 class TempMonitor;
 class PeripheralMon;
 class Platform;
-class Flash;
-class UbifsMon;
 
 class PlatformPeripheral {
  public:
@@ -26,8 +24,6 @@ class PlatformPeripheral {
  private:
   bruno_base::Thread* mgr_thread_;
   bruno_base::scoped_ptr<PeripheralMon> peripheral_mon_;
-  bruno_base::scoped_ptr<UbifsMon> ubifs_mon_;
-  bruno_base::scoped_ptr<Flash> flash_;
 
   static bruno_base::CriticalSection kCrit_;
   static PlatformPeripheral* kInstance_;
