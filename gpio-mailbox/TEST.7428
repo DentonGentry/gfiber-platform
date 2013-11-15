@@ -1,0 +1,8 @@
+# dump the GPIOs
+echo "LED ------------------------------"
+devmem 0x10409804
+
+# dump the AVS monitor registers"
+echo "AVS ------------------------------"
+devmem 0x10423300
+devmem 0x1042330c

@@ -1,0 +1,8 @@
+rm -rf /tmp/gpio /tmp/led
+
+mkdir -p /tmp/gpio
+echo x5 0 1 0 2 0 0x0f > /tmp/gpio/leds
+echo 25 > /tmp/gpio/fanpercent
+
+./gpio-mailbox
+
