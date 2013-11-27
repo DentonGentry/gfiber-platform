@@ -30,7 +30,7 @@ LIB_TARGETS=\
 	stdoutline.so
 
 ifeq ($(BRUNO_ARCH),mips)
-ARCH_TARGETS = sdbbp bigbin
+ARCH_TARGETS = bigbin
 endif
 
 AS=$(CROSS_COMPILE)as
