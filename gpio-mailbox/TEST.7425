@@ -1,0 +1,23 @@
+# dump the fan registers
+echo "FAN ------------------------------"
+devmem 0x10406580
+devmem 0x10406584
+devmem 0x10406588
+devmem 0x1040658c
+devmem 0x10406590
+devmem 0x10406594
+devmem 0x10406598
+devmem 0x1040659c
+devmem 0x104065a0
+devmem 0x104065a4
+
+# dump the AVS monitor registers"
+echo "AVS ------------------------------"
+devmem 0x10432b00
+devmem 0x10432b04
+devmem 0x10432b08
+devmem 0x10432b0c
+devmem 0x10432b10
+devmem 0x10432b14
+devmem 0x10432b18
+devmem 0x10432b1c

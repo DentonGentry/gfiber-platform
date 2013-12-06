@@ -5,9 +5,9 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <stdio.h>
 
-
-#define WRITE(s) (void)write(2, s, my_strlen(s))
+#define WRITE(s) do { if (write(2, s, my_strlen(s)) < 0) { perror("write"); } } while (0);
 
 static size_t my_strlen(char* s)
 {

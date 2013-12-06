@@ -1,6 +1,8 @@
 default: all
 
-DIRS=ginstall sysmgr cmds base antirollback libstacktrace tvstat
+# note: libgpio is not built here.  It's conditionally built
+# via buildroot/packages/google/google_platform/google_platform.mk
+DIRS=ginstall sysmgr cmds base antirollback libstacktrace tvstat gpio-mailbox
 
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
