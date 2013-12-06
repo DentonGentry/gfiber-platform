@@ -23,6 +23,7 @@ install:
 
 sysmgr/all: base/all libstacktrace/all
 logos/all: libstacktrace/all
+gpio-mailbox/all: libstacktrace/all
 
 %/all:
 	$(MAKE) -C $* all
