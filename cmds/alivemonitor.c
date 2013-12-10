@@ -12,11 +12,12 @@
 #include <unistd.h>
 
 
+#define MAX_SLEEP       2      // seconds
 #define CRAZY_LONG_TIME 999999 // seconds
 #define DEFAULT_TIMEOUT 300    // seconds
 
 
-int kill_parent = 0;
+static volatile sig_atomic_t kill_parent = 0;
 const char *keepalive_file;
 pid_t p_pid;
 time_t old_time;
@@ -64,7 +65,7 @@ unsigned long now() {
   return tp.tv_sec;
 }
 
-// Sleep a given amount of time, then check the parent.
+// Sleep a given amount of time, while continuously checking on the parent.
 // Return codes:
 //   2: parent exited
 //   1: no change in alive status
@@ -72,22 +73,28 @@ unsigned long now() {
 //  -1: system error, kill parent
 int sleep_check_alive(int stime) {
   struct stat fst;
+  long n = now(), endtime = n + stime;
 
-  if (stime)
-    sleep(stime);
+  while (n < endtime) {
+    int s = endtime - n;
+    if (s > MAX_SLEEP)
+      s = MAX_SLEEP;
+    sleep(s);
 
-  if (kill_parent)
-    return -1;
-
-  // check on the parent
-  if (kill(p_pid, 0) == -1) {
-    if (errno == ESRCH) {
-      fprintf(stderr, "alivemonitor: parent pid %d exited.\n", p_pid);
-      return 2;
-    } else {
-      perror("alivemonitor: kill(p_pid, 0) failed");
+    if (kill_parent)
       return -1;
+
+    // check on the parent
+    if (kill(p_pid, 0) == -1) {
+      if (errno == ESRCH) {
+        fprintf(stderr, "alivemonitor: parent pid %d exited.\n", p_pid);
+        return 2;
+      } else {
+        perror("alivemonitor: kill(p_pid, 0) failed");
+        return -1;
+      }
     }
+    n = now();
   }
 
   memset(&fst, 0, sizeof(fst));
