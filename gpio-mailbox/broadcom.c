@@ -43,18 +43,20 @@ static int mmap_fd = -1;
 
 struct Gpio {
   int is_present;
-  unsigned int mmap_offset;
-  unsigned int mask;            // eg, (*reg & mask) >> shift == on_value
+  unsigned int offset_direction;
+  unsigned int offset_data;
+  unsigned int mask;                    // eg, (*reg & mask) >> shift == on_value
   unsigned int shift;
   unsigned int off_value;
   unsigned int on_value;
+  unsigned int direction_value;         // 0 is output
   int old_val;
 };
 
 
 struct Fan {
   int is_present;
-  unsigned int mmap_offset;
+  unsigned int offset_data;
   unsigned int channel;
   int old_percent;
 };
@@ -62,13 +64,13 @@ struct Fan {
 
 struct Temp {
   int is_present;
-  unsigned int mmap_offset;
+  unsigned int offset_data;
 };
 
 
 struct Voltage {
   int is_present;
-  unsigned int mmap_offset;
+  unsigned int offset_data;
 };
 
 
@@ -90,84 +92,97 @@ struct platform_info {
 struct platform_info platforms[] = {
   {
     .name = "GFHD100",
-    .mmap_base = 0x10400000,    // base of many brcm registers
+    .mmap_base = 0x10400000,            // base of many brcm registers
     .mmap_size = 0x40000,
     .led_red = {
-      .is_present = 1,          // GPIO 17
-      .mmap_offset = 0x94c4,    // GIO_AON_DATA_LO 0..17
-      .mask = 0x00020000,       // 1<<17
+      .is_present = 1,                  // GPIO 17
+      .offset_direction = 0x94c8,       // GIO_AON_IODIR_LO
+      .offset_data = 0x94c4,            // GIO_AON_DATA_LO
+      .mask = 0x00020000,               // 1<<17
       .shift = 17,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 0,
       .old_val = -1,
     },
     .led_blue = {
-      .is_present = 1,          // GPIO 12
-      .mmap_offset = 0x94c4,    // GIO_AON_DATA_LO
-      .mask = 0x00001000,       // 1<<12
+      .is_present = 1,                  // GPIO 12
+      .offset_direction = 0x94c8,       // GIO_AON_IODIR_LO
+      .offset_data = 0x94c4,            // GIO_AON_DATA_LO
+      .mask = 0x00001000,               // 1<<12
       .shift = 12,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 0,
       .old_val = -1,
     },
     .led_activity = {
-      .is_present = 1,          // GPIO 13
-      .mmap_offset = 0x94c4,    // GIO_AON_DATA_LO
-      .mask = 0x00002000,       // 1<<13
+      .is_present = 1,                  // GPIO 13
+      .offset_direction = 0x94c8,       // GIO_AON_IODIR_LO
+      .offset_data = 0x94c4,            // GIO_AON_DATA_LO
+      .mask = 0x00002000,               // 1<<13
       .shift = 13,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 0,
       .old_val = -1,
     },
     .led_standby = {
-      .is_present = 1,          // GPIO 10
-      .mmap_offset = 0x94c4,    // GIO_AON_DATA_LO
-      .mask = 0x00000400,       // 1<<10
+      .is_present = 1,                  // GPIO 10
+      .offset_direction = 0x94c8,       // GIO_AON_IODIR_LO
+      .offset_data = 0x94c4,            // GIO_AON_DATA_LO
+      .mask = 0x00000400,               // 1<<10
       .shift = 10,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 0,
       .old_val = -1,
     },
     .reset_button = {
-      .is_present = 1,          // GPIO 4
-      .mmap_offset = 0x94c4,    // GIO_AON_DATA_LO
-      .mask = 0x00000010,       // 1<<4
+      .is_present = 1,                  // GPIO 4
+      .offset_direction = 0x94c8,       // GIO_AON_IODIR_LO
+      .offset_data = 0x94c4,            // GIO_AON_DATA_LO
+      .mask = 0x00000010,               // 1<<4
       .shift = 4,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 1,
       .old_val = -1,
     },
     .fan_tick = {
-      .is_present = 1,          // GPIO 98
-      .mmap_offset = 0x6764,    // GIO_DATA_EXT_HI
-      .mask = 0x00000100,       // 1<<8
+      .is_present = 1,                  // GPIO 98
+      .offset_direction = 0x6768,       // GIO_IODIR_EXT_HI
+      .offset_data = 0x6764,            // GIO_DATA_EXT_HI
+      .mask = 0x00000100,               // 1<<8
       .shift = 8,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 1,
       .old_val = -1,
     },
     .fan_control = {
-      .is_present = 1,          // PWM 1
-      .mmap_offset = 0x6580,    // PWM_CTRL ...
+      .is_present = 1,                  // PWM 1
+      .offset_data = 0x6580,            // PWM_CTRL ...
       .channel = 0,
     },
     .temp_monitor = {
-      .is_present = 1,          // 7425 AVS_RO_REGISTERS_0
-      .mmap_offset = 0x32b00,   // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
+      .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
+      .offset_data = 0x32b00,           // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
     },
     .voltage_monitor = {
-      .is_present = 1,          // 7425 AVS_RO_REGISTERS_0
-      .mmap_offset = 0x32b0c,   // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
+      .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
+      .offset_data = 0x32b0c,           // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
     },
   },
   {
     .name = "GFMS100",
-    .mmap_base = 0x10400000,    // base of many brcm registers
+    .mmap_base = 0x10400000,            // base of many brcm registers
     .mmap_size = 0x40000,
     .led_red = {
-      .is_present = 1,          // GPIO 17
-      .mmap_offset = 0x94c4,    // GIO_AON_DATA_LO 0..17
-      .mask = 0x00020000,       // 1<<17
+      .is_present = 1,                  // GPIO 17
+      .offset_direction = 0x94c8,       // GIO_AON_IODIR_LO
+      .offset_data = 0x94c4,            // GIO_AON_DATA_LO 0..17
+      .mask = 0x00020000,               // 1<<17
       .shift = 17,
       .off_value = 0,
       .on_value = 1,
@@ -177,9 +192,10 @@ struct platform_info platforms[] = {
       .is_present = 0,
     },
     .led_activity = {
-      .is_present = 1,          // GPIO 13
-      .mmap_offset = 0x94c4,    // GIO_AON_DATA_LO
-      .mask = 0x00002000,       // 1<<13
+      .is_present = 1,                  // GPIO 13
+      .offset_direction = 0x94c8,       // GIO_AON_IODIR_LO
+      .offset_data = 0x94c4,            // GIO_AON_DATA_LO
+      .mask = 0x00002000,               // 1<<13
       .shift = 13,
       .off_value = 0,
       .on_value = 1,
@@ -189,45 +205,48 @@ struct platform_info platforms[] = {
       .is_present = 0,
     },
     .reset_button = {
-      .is_present = 1,          // GPIO 4
-      .mmap_offset = 0x94c4,    // GIO_AON_DATA_LO
-      .mask = 0x00000010,       // 1<<4
+      .is_present = 1,                  // GPIO 4
+      .offset_direction = 0x94c8,       // GIO_AON_IODIR_LO
+      .offset_data = 0x94c4,            // GIO_AON_DATA_LO
+      .mask = 0x00000010,               // 1<<4
       .shift = 4,
       .off_value = 0,
       .on_value = 1,
       .old_val = -1,
     },
     .fan_tick = {
-      .is_present = 1,          // GPIO 98
-      .mmap_offset = 0x6764,    // GIO_DATA_EXT_HI
-      .mask = 0x00000100,       // 1<<8
+      .is_present = 1,                  // GPIO 98
+      .offset_direction = 0x6768,       // GIO_IODIR_EXT_HI
+      .offset_data = 0x6764,            // GIO_DATA_EXT_HI
+      .mask = 0x00000100,               // 1<<8
       .shift = 8,
       .off_value = 0,
       .on_value = 1,
       .old_val = -1,
     },
     .fan_control = {
-      .is_present = 1,          // PWM 1
-      .mmap_offset = 0x6580,    // PWM_CTRL ...
+      .is_present = 1,                  // PWM 1
+      .offset_data = 0x6580,            // PWM_CTRL ...
       .channel = 0,
     },
     .temp_monitor = {
-      .is_present = 1,          // 7425 AVS_RO_REGISTERS_0
-      .mmap_offset = 0x32b00,   // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
+      .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
+      .offset_data = 0x32b00,           // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
     },
     .voltage_monitor = {
-      .is_present = 1,          // 7425 AVS_RO_REGISTERS_0
-      .mmap_offset = 0x32b0c,   // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
+      .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
+      .offset_data = 0x32b0c,           // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
     },
   },
   {
     .name = "GFHD200",
-    .mmap_base = 0x10400000,    // AON_PIN_CTRL ...
+    .mmap_base = 0x10400000,            // AON_PIN_CTRL ...
     .mmap_size = 0x30000,
     .led_red = {
-      .is_present = 1,          // GPIO 5
-      .mmap_offset = 0x9804,    // GIO_AON_DATA_LO
-      .mask = 0x00000020,       // 1<<5
+      .is_present = 1,                  // GPIO 5
+      .offset_direction = 0x9808,       // GIO_AON_IODIR_LO
+      .offset_data = 0x9804,            // GIO_AON_DATA_LO
+      .mask = 0x00000020,               // 1<<5
       .shift = 5,
       .off_value = 0,
       .on_value = 1,
@@ -237,9 +256,10 @@ struct platform_info platforms[] = {
       .is_present = 0,
     },
     .led_activity = {
-      .is_present = 1,          // GPIO 4
-      .mmap_offset = 0x9804,    // GIO_AON_DATA_LO
-      .mask = 0x00000010,       // 1<<4
+      .is_present = 1,                  // GPIO 4
+      .offset_direction = 0x9808,       // GIO_AON_IODIR_LO
+      .offset_data = 0x9804,            // GIO_AON_DATA_LO
+      .mask = 0x00000010,               // 1<<4
       .shift = 4,
       .off_value = 0,
       .on_value = 1,
@@ -249,9 +269,10 @@ struct platform_info platforms[] = {
       .is_present = 0,
     },
     .reset_button = {
-      .is_present = 1,          // GPIO 3
-      .mmap_offset = 0x9804,    // GIO_AON_DATA_LO
-      .mask = 0x00000008,       // 1<<3
+      .is_present = 1,                  // GPIO 3
+      .offset_direction = 0x9808,       // GIO_AON_IODIR_LO
+      .offset_data = 0x9804,            // GIO_AON_DATA_LO
+      .mask = 0x00000008,               // 1<<3
       .shift = 3,
       .off_value = 0,
       .on_value = 1,
@@ -261,12 +282,12 @@ struct platform_info platforms[] = {
       .is_present = 0,
     },
     .temp_monitor = {
-      .is_present = 1,          // 7429 AVS_RO_REGISTERS_0
-      .mmap_offset = 0x23300,   // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
+      .is_present = 1,                  // 7429 AVS_RO_REGISTERS_0
+      .offset_data = 0x23300,           // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
     },
     .voltage_monitor = {
-      .is_present = 1,          // 7429 AVS_RO_REGISTERS_0
-      .mmap_offset = 0x2330c,   // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
+      .is_present = 1,                  // 7429 AVS_RO_REGISTERS_0
+      .offset_data = 0x2330c,           // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
     },
   }
 };
@@ -283,7 +304,7 @@ static void set_pwm(struct Fan *f, int percent) {
   if (f->old_percent == percent) return;
   f->old_percent = percent;
 
-  reg = mmap_addr + f->mmap_offset;
+  reg = mmap_addr + f->offset_data;
   if (f->channel == 0) {
     mask0 = 0xf0;       // preserve other channel
     val0 = 0x09;        // open-drain|start
@@ -308,7 +329,7 @@ static double get_avs_temperature(struct Temp* t) {
   volatile uint32_t* reg;
   uint32_t value, valid, raw_data;
 
-  reg = mmap_addr + t->mmap_offset;
+  reg = mmap_addr + t->offset_data;
   value = *reg;
   // see 7425-PR500-RDS.pdf
   valid = (value & 0x00000400) >> 10;
@@ -321,7 +342,7 @@ static double get_avs_voltage(struct Voltage* v) {
   volatile uint32_t* reg;
   uint32_t value, valid, raw_data;
 
-  reg = mmap_addr + v->mmap_offset;
+  reg = mmap_addr + v->offset_data;
   value = *reg;
   // see 7425-PR500-RDS.pdf
   valid = (value & 0x00000400) >> 10;
@@ -346,7 +367,7 @@ static void set_gpio(struct Gpio *g, int level) {
   }
   g->old_val = level;
 
-  reg = mmap_addr + g->mmap_offset;
+  reg = mmap_addr + g->offset_data;
   value = *reg;
   value &= ~g->mask;
   value |= (level ? g->on_value : g->off_value) << g->shift;
@@ -359,11 +380,27 @@ static int get_gpio(struct Gpio *g) {
   volatile uint32_t* reg;
   uint32_t value;
 
-  reg = mmap_addr + g->mmap_offset;
+  reg = mmap_addr + g->offset_data;
   value = (*reg & g->mask) >> g->shift;
   return (value == g->on_value);
 }
 
+
+// initialize GPIO to input or output
+static void set_direction(struct Gpio *g)
+{
+  volatile uint32_t* reg;
+  uint32_t value;
+
+  if (!g->is_present)
+    return;
+
+  reg = mmap_addr + g->offset_direction;
+  value = *reg;
+  value &= ~g->mask;
+  value |= g->direction_value << g->shift;
+  *reg = value;
+}
 
 // Same as time(), but in monotonic clock milliseconds instead.
 static long long msec_now(void) {
@@ -546,6 +583,15 @@ void set_standby_led(int level) {
   set_gpio(&platform->led_standby, level ? 1 : 0);
 }
 
+static void initialize_gpios(void) {
+  set_direction(&platform->led_red);
+  set_direction(&platform->led_blue);
+  set_direction(&platform->led_activity);
+  set_direction(&platform->led_standby);
+  set_direction(&platform->reset_button);
+  set_direction(&platform->fan_tick);
+}
+
 /* standard API follows */
 
 PinHandle PinCreate(void) {
@@ -560,6 +606,7 @@ PinHandle PinCreate(void) {
     PinDestroy(handle);
     return NULL;
   }
+  initialize_gpios();
   return handle;
 }
 

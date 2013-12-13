@@ -1,3 +1,14 @@
+# dump the GPIOs
+echo "LED ------------------------------"
+devmem 0x104094c0
+devmem 0x104094c4
+devmem 0x104094c8
+devmem 0x104094cc
+devmem 0x104094d0
+devmem 0x104094d4
+devmem 0x104094d8
+devmem 0x104094dc
+
 # dump the fan registers
 echo "FAN ------------------------------"
 devmem 0x10406580
