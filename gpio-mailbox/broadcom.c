@@ -186,6 +186,7 @@ struct platform_info platforms[] = {
       .shift = 17,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 0,
       .old_val = -1,
     },
     .led_blue = {
@@ -199,6 +200,7 @@ struct platform_info platforms[] = {
       .shift = 13,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 0,
       .old_val = -1,
     },
     .led_standby = {
@@ -212,6 +214,7 @@ struct platform_info platforms[] = {
       .shift = 4,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 1,
       .old_val = -1,
     },
     .fan_tick = {
@@ -222,6 +225,7 @@ struct platform_info platforms[] = {
       .shift = 8,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 1,
       .old_val = -1,
     },
     .fan_control = {
@@ -250,6 +254,7 @@ struct platform_info platforms[] = {
       .shift = 5,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 0,
       .old_val = -1,
     },
     .led_blue = {
@@ -263,6 +268,7 @@ struct platform_info platforms[] = {
       .shift = 4,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 0,
       .old_val = -1,
     },
     .led_standby = {
@@ -276,6 +282,7 @@ struct platform_info platforms[] = {
       .shift = 3,
       .off_value = 0,
       .on_value = 1,
+      .direction_value = 1,
       .old_val = -1,
     },
     .fan_control = {
