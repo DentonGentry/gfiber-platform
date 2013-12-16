@@ -40,41 +40,50 @@ static void close_and_die(int fd, const char *tag) {
 
 
 int main(int argc, const char **argv) {
-  int inotify_fd, dir_wd, len;
+  int inotify_fd, len, i, nr_dirs = argc-1;
+  int *dir_wds;
   char buf[4096], *ptr;
   struct inotify_event *event;
 
-  if (argc != 2) {
+  if (argc < 2) {
     fprintf(stderr,
-            "usage: %s <dirname>\n"
-            " Outputs the name of the files the given "
-            " directory that have been modified.\n",
+            "usage: %s <dirname>...\n"
+            " Outputs the name of the files in the given "
+            " directories that have been modified.\n",
             argv[0]);
     exit(2);
   }
 
-  const char *dir_name = argv[1];
+  for (i = 0; i < nr_dirs; ++i) {
+    const char *dir_name = argv[1+i];
 
-  // Sanity checks.
-  struct stat sb;
-  if (stat(dir_name, &sb) == 0) {
-    if (!S_ISDIR(sb.st_mode)) {
-      fprintf(stderr, "%s is not a directory\n", dir_name);
-      exit(1);
+    // Sanity checks.
+    struct stat sb;
+    if (stat(dir_name, &sb) == 0) {
+      if (!S_ISDIR(sb.st_mode)) {
+        fprintf(stderr, "%s is not a directory\n", dir_name);
+        exit(1);
+      }
+    } else {
+      if (mkdir(dir_name, S_IRWXU | S_IRWXG | S_IRWXO))
+        die("mkdir");
     }
-  } else {
-    if (mkdir(dir_name, S_IRWXU | S_IRWXG | S_IRWXO))
-      die("mkdir");
   }
 
   inotify_fd = inotify_init();
   if (inotify_fd < 0)
     die("inotify_init");
 
-  dir_wd = inotify_add_watch(inotify_fd, dir_name,
-                             IN_MOVE | IN_CREATE | IN_DELETE | IN_MODIFY);
-  if (dir_wd < 0)
-    die("inotify_add_watch");
+  dir_wds = calloc(nr_dirs, sizeof(*dir_wds));
+  if (!dir_wds)
+     die("calloc");
+
+  for (i = 0; i < nr_dirs; i++) {
+    dir_wds[i] = inotify_add_watch(inotify_fd, argv[1+i],
+                                   IN_MOVE | IN_CREATE | IN_DELETE | IN_MODIFY);
+    if (dir_wds[i] < 0)
+      die("inotify_add_watch");
+  }
 
   while (1) {
     len = read(inotify_fd, buf, sizeof(buf));
@@ -114,6 +123,7 @@ int main(int argc, const char **argv) {
     }
   }
 
+  free(dir_wds);
   close(inotify_fd);
   return 0;
 }
