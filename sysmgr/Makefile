@@ -22,7 +22,7 @@ SYSMGR_LDFLAGS=-Lperipheral -L../base -L../libstacktrace -lbrunoperipheral -lsta
 
 all: $(TARGETS)
 
-test: all
+test:
 	@echo "Nothing to test."
 
 install: all utest/install

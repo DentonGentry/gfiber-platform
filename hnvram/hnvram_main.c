@@ -41,10 +41,11 @@ typedef enum {
   HNVRAM_MAC,       // 00:11:22:33:44:55
   HNVRAM_HMXSWVERS, // 2.15
   HNVRAM_UINT8,     // a single byte, generally 0/1 for a boolean.
-  HNVRAM_GPN        // Two formats:
+  HNVRAM_GPN,       // Two formats:
                     // - 4 bytes (old format): printed as 8 digit hex.
                     // - > 4 bytes (new format): printed as NULL-terminated
                     //  string.
+  HNVRAM_HEXSTRING  // hexbinary
 } hnvram_format_e;
 
 typedef struct hnvram_field_s {
@@ -68,7 +69,10 @@ const hnvram_field_t nvram_fields[] = {
   {"GPN",                  NVRAM_FIELD_GPN,               HNVRAM_GPN},
   {"MAC_ADDR_MOCA",        NVRAM_FIELD_MAC_ADDR_MOCA,     HNVRAM_MAC},
   {"MAC_ADDR_BT",          NVRAM_FIELD_MAC_ADDR_BT,       HNVRAM_MAC},
-  {"HDCP_KEY",             NVRAM_FIELD_HDCP_KEY,          HNVRAM_STRING},
+  {"MAC_ADDR_WIFI",        NVRAM_FIELD_MAC_ADDR_WIFI,     HNVRAM_MAC},
+  {"MAC_ADDR_WAN",         NVRAM_FIELD_MAC_ADDR_WAN,      HNVRAM_MAC},
+  {"HDCP_KEY",             NVRAM_FIELD_HDCP_KEY,          HNVRAM_HEXSTRING},
+  {"DTCP_KEY",             NVRAM_FIELD_DTCP_KEY,          HNVRAM_HEXSTRING},
   {"GOOGLE_SSL_PEM",       NVRAM_FIELD_GOOGLE_SSL_PEM,    HNVRAM_STRING},
   {"GOOGLE_SSL_CRT",       NVRAM_FIELD_GOOGLE_SSL_CRT,    HNVRAM_STRING},
   {"PAIRED_DISK",          NVRAM_FIELD_PAIRED_DISK,       HNVRAM_STRING},
@@ -145,6 +149,8 @@ char* format_nvram(hnvram_format_e format, const char* data,
     case HNVRAM_HMXSWVERS: format_hmxswvers(data, output, outlen); break;
     case HNVRAM_UINT8:     format_uint8(data, output, outlen); break;
     case HNVRAM_GPN:       format_gpn(data, data_len, output, outlen); break;
+    case HNVRAM_HEXSTRING: format_hexstring(data, data_len, output, outlen);
+                           break;
   }
   return output;
 }
@@ -242,6 +248,32 @@ unsigned char* parse_uint8(const char* input,
   return output;
 }
 
+int parse_hexdigit(unsigned char c) {
+  switch(c) {
+    case '0' ... '9': return c - '0';
+    case 'a' ... 'f': return 10 + (c - 'a');
+    case 'A' ... 'F': return 10 + (c - 'A');
+    default: return 0xff;
+  }
+}
+
+unsigned char* parse_hexstring(const char* input,
+                               unsigned char* output, int* outlen) {
+  int i, len = strlen(input) / 2;
+  if (*outlen < len) {
+    len = *outlen;
+  }
+
+  for (i = 0; i < len; ++i) {
+    unsigned char c;
+    output[i] = parse_hexdigit(input[2*i]) << 4 |
+                parse_hexdigit(input[2*i+1]);
+  }
+
+  *outlen = len;
+  return output;
+}
+
 int is_hexstring(const char* input, int hex_len) {
   int i = 0;
   for (i = 0; i < hex_len; i++) {
@@ -291,6 +323,9 @@ unsigned char* parse_nvram(hnvram_format_e format, const char* input,
       break;
     case HNVRAM_GPN:
       return parse_gpn(input, output, outlen);
+      break;
+    case HNVRAM_HEXSTRING:
+      return parse_hexstring(input, output, outlen);
       break;
   }
   return NULL;

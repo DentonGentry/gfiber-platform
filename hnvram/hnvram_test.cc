@@ -70,23 +70,31 @@ class HnvramTest : public ::testing::Test {
 
 TEST_F(HnvramTest, TestFormat) {
   char out[256];
-  EXPECT_STREQ("foo", format_nvram(HNVRAM_STRING, "foo", out, sizeof(out)));
-  EXPECT_STREQ("bar", format_nvram(HNVRAM_STRING, "bar", out, sizeof(out)));
+  EXPECT_STREQ("foo", format_nvram(HNVRAM_STRING, "foo", 3, out, sizeof(out)));
+  EXPECT_STREQ("bar", format_nvram(HNVRAM_STRING, "bar", 3, out, sizeof(out)));
 
   char mac[6] = {0x11, 0x22, 0x03, 0x40, 0x55, 0xf6};
   EXPECT_STREQ("11:22:03:40:55:f6",
-               format_nvram(HNVRAM_MAC, mac, out, sizeof(out)));
+               format_nvram(HNVRAM_MAC, mac, sizeof(mac), out, sizeof(out)));
 
   const char in1[1] = {1};
-  EXPECT_STREQ("1", format_nvram(HNVRAM_UINT8, in1, out, sizeof(out)));
+  EXPECT_STREQ("1", format_nvram(HNVRAM_UINT8, in1, sizeof(in1),
+                                 out, sizeof(out)));
   const char in254[1] = {0xfe};
-  EXPECT_STREQ("254", format_nvram(HNVRAM_UINT8, in254, out, sizeof(out)));
+  EXPECT_STREQ("254", format_nvram(HNVRAM_UINT8, in254, sizeof(in254),
+                                   out, sizeof(out)));
 
   const char vers[] = {0x02, 0x01};
-  EXPECT_STREQ("1.2", format_nvram(HNVRAM_HMXSWVERS, vers, out, sizeof(out)));
+  EXPECT_STREQ("1.2", format_nvram(HNVRAM_HMXSWVERS, vers, sizeof(vers),
+                                   out, sizeof(out)));
 
   const char gpn[] = {0x86, 0x0, 0x4, 0x0};
-  EXPECT_STREQ("86000400", format_nvram(HNVRAM_GPN, gpn, out, sizeof(out)));
+  EXPECT_STREQ("86000400", format_nvram(HNVRAM_GPN, gpn, sizeof(gpn),
+                                        out, sizeof(out)));
+
+  const char hex[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef};
+  EXPECT_STREQ("0123456789abcdef", format_nvram(
+      HNVRAM_HEXSTRING, hex, sizeof(hex), out, sizeof(out)));
 }
 
 TEST_F(HnvramTest, TestGetNvramField) {
@@ -139,6 +147,13 @@ TEST_F(HnvramTest, TestParse) {
   EXPECT_TRUE(NULL != parse_nvram(HNVRAM_GPN, input, output, &outlen));
   EXPECT_EQ(4, outlen);
   EXPECT_EQ(0, memcmp(gpn, output, outlen));
+
+  outlen = sizeof(output);
+  const char hex[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef};
+  snprintf(input, sizeof(input), "0123456789abcdef");
+  EXPECT_TRUE(NULL != parse_nvram(HNVRAM_HEXSTRING, input, output, &outlen));
+  EXPECT_EQ(8, outlen);
+  EXPECT_EQ(0, memcmp(hex, output, outlen));
 }
 
 TEST_F(HnvramTest, TestWriteNvram) {

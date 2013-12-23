@@ -30,7 +30,7 @@ install-libs: all
 	$(INSTALL) -m 0644 *.h $(INCLUDEDIR)/
 	$(INSTALL) -m 0755 libstacktrace.so $(LIBDIR)/
 
-test:
+test: all
 	@echo "Nothing to test."
 
 clean:
