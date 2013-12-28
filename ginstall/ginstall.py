@@ -32,6 +32,7 @@ drm=          drm blob filename to install
 p,partition=  partition to install to (primary, secondary, or other)
 q,quiet       suppress unnecessary output
 skiploadersig suppress checking the loader signature
+uloader=      microloader file to install
 """
 
 
@@ -401,11 +402,12 @@ def CheckPlatform(manifest):
 class FileImage(object):
   """A system image packaged as separate kernel, rootfs and loader files."""
 
-  def __init__(self, kernelfile, rootfs, loader, loadersig, manifest):
+  def __init__(self, kernelfile, rootfs, loader, loadersig, manifest, uloader):
     self.kernelfile = kernelfile
     self.rootfs = rootfs
     self.loader = loader
     self.loadersig = loadersig
+    self.uloader = uloader
     if manifest:
       self.manifest = ParseManifest(open(manifest))
     else:
@@ -422,6 +424,15 @@ class FileImage(object):
     if self.loader:
       try:
         return open(self.loader, 'rb')
+      except IOError, e:
+        raise Fatal(e)
+    else:
+      return None
+
+  def GetUloader(self):
+    if self.uloader:
+      try:
+        return open(self.uloader, 'rb')
       except IOError, e:
         raise Fatal(e)
     else:
@@ -527,6 +538,28 @@ class TarImage(object):
     except KeyError:
       return None
 
+  def GetUloader(self):
+    try:
+      # Image versions prior to v3 never included a uloader.
+      return self.tar_f.extractfile('uloader.img')
+    except KeyError:
+      return None
+
+
+def WriteLoaderToMtd(loader, loader_start, mtd, description):
+  is_loader_current = False
+  with open(mtd, 'rb') as mtdfile:
+    VerbosePrint('Checking if the %s is up to date.\n', description)
+    loader.seek(loader_start)
+    is_loader_current = IsIdentical(description, loader, mtdfile)
+  if is_loader_current:
+    VerbosePrint('The %s is the latest.\n', description)
+  else:
+    loader.seek(loader_start, os.SEEK_SET)
+    Log('DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.\n')
+    VerbosePrint('Writing to %r\n', mtd)
+    InstallToMtd(loader, mtd)
+
 
 def main():
   global quiet  # gpylint: disable-msg=global-statement
@@ -574,7 +607,7 @@ def main():
                 '--loader and --loadersig')
     else:
       img = FileImage(opt.kernel, opt.rootfs, opt.loader, opt.loadersig,
-                      opt.manifest)
+                      opt.manifest, opt.uloader)
 
     # old software versions are incompatible with this version of ginstall.
     # In particular, we want to leave out versions that:
@@ -643,19 +676,24 @@ def main():
             raise Fatal('Loader signature file is missing; try --loadersig')
           if not Verify(loader, loadersig, key):
             raise Fatal('Loader signing check failed.')
-        mtd = GetMtdDevForNameList(['loader', 'cfe'])
-        is_loader_current = False
-        with open(mtd, 'r+b') as mtdfile:
-          VerbosePrint('Checking if the loader is up to date.\n')
-          loader.seek(loader_start)
-          is_loader_current = IsIdentical('loader', loader, mtdfile)
-        if is_loader_current:
-          VerbosePrint('The loader is the latest.\n')
-        else:
-          loader.seek(loader_start, os.SEEK_SET)
-          Log('DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.\n')
-          VerbosePrint('Writing loader to %r\n', mtd)
-          InstallToMtd(loader, mtd)
+        installed = False
+        for i in ['cfe', 'loader', 'loader1']:
+          mtd = GetMtdDevForNameOrNone(i)
+          if mtd:
+            WriteLoaderToMtd(loader, loader_start, mtd, 'loader')
+            installed = True
+        if not installed:
+          raise Fatal('no loader partition is available')
+
+    uloader = img.GetUloader()
+    if uloader:
+      uloader_start = uloader.tell()
+      if opt.skiploader:
+        VerbosePrint('Skipping uloader installation.\n')
+      else:
+        mtd = GetMtdDevForNameOrNone('uloader')
+        if mtd:
+          WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
 
   if partition is not None:
     SetBootPartition(partition)
