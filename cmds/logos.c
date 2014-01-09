@@ -25,6 +25,8 @@
 #include <stacktrace.h>
 #endif  // COMPILE_FOR_HOST
 
+#include "utils.h"
+
 
 // Total size of kernel log buffer.
 // We use CONFIG_PRINTK_PERSIST in the kernel to keep our log buffer across
@@ -456,7 +458,6 @@ static void usage(void) {
   exit(99);
 }
 
-
 int main(int argc, char **argv) {
   static uint8_t overlong_warning[] =
       "W: previous log line was split. Use shorter lines.";
@@ -497,6 +498,11 @@ int main(int argc, char **argv) {
     return 5;
   }
   snprintf((char *)header, headerlen + 1, "<x>%s: ", argv[1]);
+  strip_underscores((char *)header);
+  if (strlen((char*)header) == 5) {
+    fprintf(stderr, "facility name was empty, or all underscores.\n");
+    return 1;
+  }
 
   ssize_t bytes_per_burst = DEFAULT_BYTES_PER_BURST;
   if (argc > 2) {
