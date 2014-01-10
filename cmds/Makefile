@@ -28,6 +28,8 @@ TARGETS=\
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
 	stdoutline.so
+TEST_TARGETS=\
+	     host-utils_test
 
 ifeq ($(BRUNO_ARCH),mips)
 ARCH_TARGETS = bigbin
@@ -46,7 +48,7 @@ INCS=-I../libstacktrace
 
 .PRECIOUS: %.o host-%.o
 
-all: $(TARGETS) $(HOST_TARGETS) $(LIB_TARGETS) $(ARCH_TARGETS)
+all: $(TARGETS) $(HOST_TARGETS) $(LIB_TARGETS) $(ARCH_TARGETS) $(TEST_TARGETS)
 
 install:
 	mkdir -p $(BINDIR) $(LIBDIR)
@@ -102,16 +104,18 @@ host-buttonmon buttonmon: LIBS+=-lrt
 alivemonitor: alivemonitor.o
 isoping: isoping.o
 diskbench: diskbench.o
-logos: logos.o
+host-logos: host-logos.o host-utils.o
+logos: logos.o utils.o
 realtime: realtime.o
 rtwatcher: rtwatcher.o
 bigbin: bigbin.o bigtext.o
 buttonmon: buttonmon.o
+host-utils_test: host-utils_test.o host-utils.o
 
 bigtext.o: bigtext.S
 	 $(AS) -mabi=32 -mips32 -EL -o $@ $^
 
-TESTS=$(wildcard test-*.sh) $(wildcard test-*.py)
+TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(TEST_TARGETS)
 runtests: all $(TESTS)
 	set -e; \
 	for d in $(TESTS); do \
