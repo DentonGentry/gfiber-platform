@@ -677,7 +677,7 @@ def main():
           if not Verify(loader, loadersig, key):
             raise Fatal('Loader signing check failed.')
         installed = False
-        for i in ['cfe', 'loader', 'loader1']:
+        for i in ['cfe', 'loader', 'loader0', 'loader1']:
           mtd = GetMtdDevForNameOrNone(i)
           if mtd:
             WriteLoaderToMtd(loader, loader_start, mtd, 'loader')

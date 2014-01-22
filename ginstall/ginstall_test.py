@@ -143,6 +143,7 @@ class GinstallTest(unittest.TestCase):
     self.assertEqual(tarimg.GetKernel().read(), "kernel.img")
     self.assertEqual(tarimg.GetRootFs().read(), "rootfs.img")
     self.assertEqual(tarimg.GetLoader().read(), "loader.img")
+    self.assertEqual(tarimg.GetUloader().read(), "uloader.img")
     self.assertEqual(tarimg.GetVersion(), "image_version")
 
   def testFileImage(self):
@@ -150,10 +151,12 @@ class GinstallTest(unittest.TestCase):
                                  "testdata/img/rootfs.ubi",
                                  "testdata/img/loader.bin",
                                  "testdata/img/loader.sig",
-                                 "testdata/img/manifest")
+                                 "testdata/img/manifest",
+                                 "testdata/img/uloader.bin")
     self.assertEqual(fileimg.GetKernel().read(), "vmlinux")
     self.assertEqual(fileimg.GetRootFs().read(), "rootfs.ubi")
     self.assertEqual(fileimg.GetLoader().read(), "loader.bin")
+    self.assertEqual(fileimg.GetUloader().read(), "uloader.bin")
 
   def testGetFileSize(self):
     self.assertEqual(ginstall.GetFileSize(open("testdata/img/vmlinux")), 7)
