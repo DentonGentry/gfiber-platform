@@ -14,6 +14,8 @@ Platform* platformInstance_ = NULL;
 const Platform Platform::kPlatformTable[] = {
   Platform("GFMS100", BRUNO_GFMS100, true),
   Platform("GFHD100", BRUNO_GFHD100, false),
+  Platform("GFRG200", BRUNO_GFRG200, false),
+  Platform("GFRG210", BRUNO_GFRG210, true),
   Platform("UNKNOWN PLATFORM", BRUNO_UNKNOWN, false),
 };
 
@@ -32,7 +34,7 @@ void Platform::GetPlatformType(void) {
   std::string result = GetLine((char *)PLATFORM_FILE, NULL);
 
   if (result.empty() == false) {
-    for (int i = BRUNO_GFMS100; i < BRUNO_MAX_NUM; i++) {
+    for (int i = BRUNO_PLATFORM_FIRST; i < BRUNO_PLATFORM_MAX; i++) {
       if ((result.size() == kPlatformTable[i].name_.size()) &&
           (result.compare(0, kPlatformTable[i].name_.size(), kPlatformTable[i].name_) == 0)) {
         name_ = kPlatformTable[i].name_;

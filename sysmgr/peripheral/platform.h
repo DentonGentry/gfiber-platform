@@ -16,12 +16,15 @@
 namespace bruno_platform_peripheral {
 
 enum BrunoPlatformTypes {
+  BRUNO_PLATFORM_FIRST = 0,
   BRUNO_GFMS100 = 0,      /* Bruno-IS */
   BRUNO_GFHD100,          /* Bruno */
-  BRUNO_MAX_NUM
+  BRUNO_GFRG200,          /* Optimus noHDD */
+  BRUNO_GFRG210,          /* Optimus HDD */
+  BRUNO_PLATFORM_MAX
 };
 
-#define BRUNO_UNKNOWN   BRUNO_MAX_NUM
+#define BRUNO_UNKNOWN   BRUNO_PLATFORM_MAX
 
 class Platform {
 

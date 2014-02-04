@@ -138,6 +138,9 @@ void FanControl::InitParams() {
       pfan_ctrl_params_[BRUNO_SOC] = kGFHD100FanCtrlSocDefaults;
       max = BRUNO_SOC;
       break;
+      // TODO(jnewlin): Add fan ctrl setting for the rg2.
+    case BRUNO_GFRG200:
+    case BRUNO_GFRG210:
     default:
       LOG(LS_ERROR) << "Invalid platform type, ignore ... " << platform_;
       max = BRUNO_SOC;
