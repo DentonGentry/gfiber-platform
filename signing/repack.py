@@ -38,12 +38,13 @@ import options
 optspec = """
 repack.py -r <rootfs> -k <kernel> -o <hostdir> -b <bindir> [options...]
 --
-k,kernel=     kernel image file name [vmlinuz]
-r,rootfs=     rootfs image file name [rootfs.squashfs]
-o,hostdir=    host directory
-b,bindir=     binary directory
-s,sign        sign image with production key
-q,quiet       suppress print
+k,kernel=         kernel image file name [vmlinuz]
+r,rootfs=         rootfs image file name [rootfs.squashfs]
+o,hostdir=        host directory
+b,bindir=         binary directory
+s,sign            sign image with production key
+t,signing_tool=   tool to call to do the signing [brcm_sign_enc]
+q,quiet           suppress print
 """
 
 
@@ -111,9 +112,9 @@ def FakeSign(fname):
     f.write(c)
 
 
-def RealSign(hostdir, key, ifname, ofname):
+def RealSign(hostdir, key, ifname, ofname, signing_tool):
   """Sign the image with production key."""
-  p = subprocess.Popen([os.path.join(hostdir, 'usr/bin', 'brcm_sign_enc')],
+  p = subprocess.Popen([os.path.join(hostdir, 'usr/bin', signing_tool)],
                        stdin=subprocess.PIPE, shell=False)
   for cmd in ['sign_kernel_file', ifname, ofname + '-sig.bin', 'l', key,
               ofname]:
@@ -121,7 +122,7 @@ def RealSign(hostdir, key, ifname, ofname):
   p.stdin.close()
   retval = p.wait()
   if retval:
-    raise Exception('brcm_sign_enc returned exit code %d' % retval)
+    raise Exception('%s returned exit code %d' % (signing_tool, retval))
 
 
 def PackVerity(kname, vname, info):
@@ -166,7 +167,8 @@ def main():
     ofname = os.path.join(opt.bindir, opt.kernel)
     shutil.copy(ofname, ifname)
     os.chdir(os.path.join(opt.bindir, 'signing'))
-    RealSign(opt.hostdir, 'gfiber_private.pem', ifname, ofname)
+    RealSign(opt.hostdir, 'gfiber_private.pem', ifname, ofname,
+             opt.signing_tool)
     os.chdir(olddir)
   else:
     FakeSign(os.path.join(opt.bindir, opt.kernel))
