@@ -13,16 +13,39 @@
 #define  DEVMEM  "/dev/mem"
 
 /* optimus */
-#define REG_OFFSET    0x90470000
-#define REG_LENGTH    0x20
+#define REG_PWM_BASE            0x90458000
+#define REG_PWM_DIVIDER         (REG_PWM_BASE)
+#define REG_PWM_HI(p)           (REG_PWM_BASE+0x08+0x08*(p))
+#define REG_PWM_LO(p)           (REG_PWM_HI(p)+0x04)
 
-#define REG_DIRECTION           0x04            /* 1 = output */
-#define REG_INPUT               0x10
-#define REG_OUTPUT              0x00
+#define PWM_CLOCK_HZ            250000000                       /* 250 MHz */
+#define PWM_DIVIDER_ENABLE_MASK (1<<31)
+#define PWM_DIVIDER_VALUE_MASK  ((1<<8)-1)
+#define PWM_TIMER_ENABLE_MASK   (1<<31)
+#define PWM_TIMER_VALUE_MASK    ((1<<20)-1)
+#define PWM_DEFAULT_DIVIDER     PWM_DIVIDER_VALUE_MASK
 
+#define REG_GPIO_BASE           0x90470000
+#define REG_GPIO_OUTPUT         (REG_GPIO_BASE+0x00)
+#define REG_GPIO_DIRECTION      (REG_GPIO_BASE+0x04)            /* 1 = output */
+#define REG_GPIO_INPUT          (REG_GPIO_BASE+0x10)
+#define REG_GPIO_SELECT         (REG_GPIO_BASE+0x58)
+
+/* manually maintain these */
+#define REG_FIRST               REG_PWM_BASE
+#define REG_LAST                REG_GPIO_SELECT
+#define REG_LENGTH              (REG_LAST + 0x04 - REG_FIRST)
+
+/* index of gpio pins */
 #define GPIO_BUTTON             6
 #define GPIO_ACTIVITY           12
 #define GPIO_RED                13
+
+/* gpio 12 can be pwm 4, 13 can be 5 */
+#define PWM_ACTIVITY            4
+#define PWM_RED                 5
+#define PWM_LED_HZ              1000    /* 300-1000 is recommended */
+#define PWM_DUTY_OFF_PERCENT    90      /* 90% off, 10% on, dim */
 
 struct PinHandle_s {
   int                           fd;
@@ -73,26 +96,36 @@ static void writeIntToFile(char* file, int value) {
 
 /* optimus methods get sensor data */
 
-static uint32_t getRegister(PinHandle handle, int reg) {
-  volatile uint32_t* regaddr = (volatile uint32_t*) (handle->addr + reg);
+static uint32_t getRegister(PinHandle handle, unsigned int reg) {
+  volatile uint32_t* regaddr = (volatile uint32_t*) (handle->addr + (reg - REG_FIRST));
+  if (reg < REG_FIRST || reg > REG_LAST) {
+    fprintf(stderr, "getRegister: register 0x%08x is out of range (0x%08x-0x%08x)\n",
+      reg, REG_FIRST, REG_LAST);
+    return 0;
+  }
   return *regaddr;
 }
 
-static void setRegister(PinHandle handle, int reg, uint32_t value) {
-  volatile uint32_t* regaddr = (volatile uint32_t*) (handle->addr + reg);
+static void setRegister(PinHandle handle, unsigned int reg, uint32_t value) {
+  volatile uint32_t* regaddr = (volatile uint32_t*) (handle->addr + (reg - REG_FIRST));
+  if (reg < REG_FIRST || reg > REG_LAST) {
+    fprintf(stderr, "setRegister: register 0x%08x is out of range (0x%08x-0x%08x)\n",
+      reg, REG_FIRST, REG_LAST);
+    return;
+  }
   *regaddr = value;
 }
 
 static int getGPIO(PinHandle handle, int gpio) {
-  uint32_t direction = getRegister(handle, REG_DIRECTION);
-  int reg = BIT_IS_SET(direction, gpio) ? REG_OUTPUT : REG_INPUT;
+  uint32_t direction = getRegister(handle, REG_GPIO_DIRECTION);
+  int reg = BIT_IS_SET(direction, gpio) ? REG_GPIO_OUTPUT : REG_GPIO_INPUT;
   uint32_t value = getRegister(handle, reg);
   return BIT_IS_SET(value, gpio);
 }
 
 static void setGPIO(PinHandle handle, int gpio, int value) {
-  uint32_t direction = getRegister(handle, REG_DIRECTION);
-  int reg = BIT_IS_SET(direction, gpio) ? REG_OUTPUT : REG_INPUT;
+  uint32_t direction = getRegister(handle, REG_GPIO_DIRECTION);
+  int reg = BIT_IS_SET(direction, gpio) ? REG_GPIO_OUTPUT : REG_GPIO_INPUT;
   if (!BIT_IS_SET(direction, gpio)) {
     fprintf(stderr, "setGPIO: gpio %d is not an output register, refusing to set\n", gpio);
     return;
@@ -100,6 +133,69 @@ static void setGPIO(PinHandle handle, int gpio, int value) {
   uint32_t val = getRegister(handle, reg);
   uint32_t newVal = value ? BIT_SET(val, gpio) : BIT_CLR(val, gpio);
   setRegister(handle, reg, newVal);
+}
+
+static int getPWMValue(PinHandle handle, int gpio, int pwm) {
+  uint32_t divider = getRegister(handle, REG_PWM_DIVIDER);      /* shared among all PWM */
+  uint32_t lo = getRegister(handle, REG_PWM_LO(pwm));
+  uint32_t hi = getRegister(handle, REG_PWM_HI(pwm));
+  uint32_t hi_enabled = hi & PWM_TIMER_ENABLE_MASK;
+  hi &= ~PWM_TIMER_ENABLE_MASK;
+  int is_on = (divider & PWM_DIVIDER_ENABLE_MASK) &&
+              hi_enabled &&
+              lo < hi;        /* technically true, but maybe not visible */
+  return is_on;
+}
+
+static void setPWMValue(PinHandle handle, int gpio, int pwm, int value) {
+  static uint32_t warn_divider = 0xffffffff;
+  uint32_t direction = getRegister(handle, REG_GPIO_DIRECTION);
+  if (!BIT_IS_SET(direction, gpio)) {
+    fprintf(stderr, "setPWMValue: gpio %d is not an output register, refusing to set\n", gpio);
+    return;
+  }
+  uint32_t select = getRegister(handle, REG_GPIO_SELECT);
+  uint32_t mode = (select >> (2*gpio)) & 0x3;
+  if (mode != 0x1) {
+    fprintf(stderr, "setPWMValue: setting gpio %d to PWM mode\n", gpio);
+    select &= ~(0x3 << (2*gpio));
+    select |= (0x1 << (2*gpio));
+    setRegister(handle, REG_GPIO_SELECT, select);
+  }
+  uint32_t divider = getRegister(handle, REG_PWM_DIVIDER);      /* shared among all PWM */
+  if (! (divider & PWM_DIVIDER_ENABLE_MASK)) {                  /* not enabled */
+    fprintf(stderr, "setPWMValue: divider not enabled, enabling\n");
+    divider = PWM_DIVIDER_ENABLE_MASK | PWM_DEFAULT_DIVIDER;
+    setRegister(handle, REG_PWM_DIVIDER, divider);
+  }
+  divider &= PWM_DIVIDER_VALUE_MASK;
+  divider++;    /* divider reg is 0-based */
+  uint32_t timer = PWM_CLOCK_HZ / divider / PWM_LED_HZ;
+  if (timer < 1) {
+    timer = 1;
+    if (warn_divider != divider) {
+      fprintf(stderr, "setPWMValue: PWM_LED_HZ too large, LED will be %d Hz\n",
+        PWM_CLOCK_HZ/divider/timer);
+      warn_divider = divider;
+    }
+  } else if (timer > PWM_TIMER_VALUE_MASK+1) {
+    timer = PWM_TIMER_VALUE_MASK+1;
+    if (warn_divider != divider) {
+      fprintf(stderr, "setPWMValue: divider too small, LED will be %d Hz\n",
+        PWM_CLOCK_HZ/divider/timer);
+      warn_divider = divider;
+    }
+  }
+  /* brighter as duty approaches 0, dimmer as it approaches timer */
+  uint32_t duty = timer * (value ? PWM_DUTY_OFF_PERCENT : 100) / 100;
+  if (duty < 1) {
+    duty = 1;
+  }
+  if (duty > timer) {
+    duty = timer;
+  }
+  setRegister(handle, REG_PWM_LO(pwm), duty-1);                                 /* duty reg is 0-based */
+  setRegister(handle, REG_PWM_HI(pwm), (timer-1) | PWM_TIMER_ENABLE_MASK);      /* timer reg is 0-based */
 }
 
 static int getFan(PinHandle handle) {
@@ -136,7 +232,7 @@ PinHandle PinCreate(void) {
     return NULL;
   }
   handle->addr = mmap(NULL, REG_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED,
-                      handle->fd, REG_OFFSET);
+                      handle->fd, REG_FIRST);
   if (handle->addr == NULL) {
     perror("mmap");
     PinDestroy(handle);
@@ -184,11 +280,11 @@ int PinIsPresent(PinHandle handle, PinId id) {
 PinStatus PinValue(PinHandle handle, PinId id, int* valueP) {
   switch (id) {
     case PIN_LED_RED:
-      *valueP = getGPIO(handle, GPIO_RED);
+      *valueP = getPWMValue(handle, GPIO_RED, PWM_RED);
       break;
 
     case PIN_LED_ACTIVITY:
-      *valueP = getGPIO(handle, GPIO_ACTIVITY);
+      *valueP = getPWMValue(handle, GPIO_ACTIVITY, PWM_ACTIVITY);
       break;
 
     case PIN_BUTTON_RESET:
@@ -224,11 +320,11 @@ PinStatus PinValue(PinHandle handle, PinId id, int* valueP) {
 PinStatus PinSetValue(PinHandle handle, PinId id, int value) {
   switch (id) {
     case PIN_LED_RED:
-      setGPIO(handle, GPIO_RED, value);
+      setPWMValue(handle, GPIO_RED, PWM_RED, value);
       break;
 
     case PIN_LED_ACTIVITY:
-      setGPIO(handle, GPIO_ACTIVITY, value);
+      setPWMValue(handle, GPIO_ACTIVITY, PWM_ACTIVITY, value);
       break;
 
     case PIN_FAN_CHASSIS:

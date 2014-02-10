@@ -1,0 +1,72 @@
+# led output register
+led=0x90470000
+red=13
+blue=12
+
+# select register, sets gpio or pwm mode
+select=0x90470058
+mode_gpio=0
+mode_pwm=1
+
+# pwm
+pwm_ctrl=0x90458000
+
+# pwm 5 is mapped to red (gpio 13)
+red_pwm_hi=0x90458030
+red_pwm_lo=0x90458034
+
+# pwm 4 is mapped to blue (gpio 12)
+blue_pwm_hi=0x90458028
+blue_pwm_lo=0x9045802c
+
+setreg()
+{
+	devmem $1 32 $2 > /dev/null
+}
+
+getreg()
+{
+	devmem $1
+}
+
+hex()
+{
+	printf "0x%08x" $1
+}
+
+select()
+{
+	pin=$1
+	val=$2
+
+	shift=$((2 * $pin))
+
+	g=$(getreg $select)
+	v=$(( ($g & ~(3 << $shift)) | ($val << $shift) ))
+	h=$(hex $v)
+	setreg $select $h
+}
+
+getreg $pwm_ctrl
+setreg $pwm_ctrl 0x800000ff
+getreg $pwm_ctrl
+
+select $red $mode_pwm
+select $blue $mode_pwm
+
+# max
+max=0x800003ff		# ~952Hz
+val=0x3ff
+
+while true; do
+	echo -n 'Enter duty cycle 0-100 -> '
+	read duty
+	min=$(($val * $duty / 100))
+
+	echo $duty
+	setreg $blue_pwm_lo $(hex $(($min)))
+	setreg $blue_pwm_hi $max
+done
+	
+#select $red $mode_gpio
+#select $blue $mode_gpio
