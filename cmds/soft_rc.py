@@ -125,7 +125,6 @@ VER_MINOR = 3
 
 UNKNOWN_KEY = 0xdeadbeef
 BTHID_DEV = "/dev/bthid"
-IOCTL_CMD_BTHID_PARSE_HID_DESC = 0x832c7501
 
 MAGIC_KEY_HELP    = "HELP"
 MAGIC_KEY_END     = "END"
@@ -296,8 +295,7 @@ class RcServer(object):
       else:
         # Register to bthid
         try:
-          fcntl.ioctl(self.dev_fd, IOCTL_CMD_BTHID_PARSE_HID_DESC,
-                      GetBthidControlStruct(bd_addr))
+          fcntl.ioctl(self.dev_fd, 1, GetBthidControlStruct(bd_addr))
         except (IOError, OSError):
           self.Log(LOG_ERR, "Cannot ioctl to device %r" % BTHID_DEV)
           raise
