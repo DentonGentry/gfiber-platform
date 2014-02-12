@@ -1,0 +1,11 @@
+package devstatus;
+
+option optimize_for = LITE_RUNTIME;
+
+message Status {
+  optional bool wan_connected = 1;
+  optional bool acs_contacted = 2;
+  optional int64 uptime = 3;
+  optional string serial = 4;
+};
+

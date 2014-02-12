@@ -25,6 +25,8 @@ TARGETS=\
 	stun \
 	usleep \
 	wait-until-created \
+	statpitcher \
+	statcatcher \
 	watch-dir
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
@@ -41,10 +43,13 @@ CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 HOST_CC ?= cc
 HOST_CXX ?= g++
+HOST_PROTOC ?= $(HOSTDIR)/usr/bin/protoc
 CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=c99 -D_GNU_SOURCE
 CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=gnu++0x -D_GNU_SOURCE
+HOST_PROTO_INCS=-I$(HOSTDIR)/usr/include
+TARGET_PROTO_INCS=-I$(DESTDIR)/usr/include
 INCS=-I../libstacktrace
 
 .PRECIOUS: %.o host-%.o
@@ -59,7 +64,6 @@ install:
 install-libs:
 	@echo "No libs to install."
 
-
 %.o: %.c
 	$(CC) $(CFLAGS) $(INCS) -o $@ -c $<
 
@@ -67,7 +71,7 @@ install-libs:
 	$(CC) $(CFLAGS) -fPIC $(INCS) -o $@ -c $<
 
 %.o: %.cc
-	$(CXX) $(CXXFLAGS) $(INCS) -o $@ -c $<
+	$(CXX) $(CXXFLAGS) $(INCS) $(TARGET_PROTO_INCS) -o $@ -c $<
 
 %.po: %.cc
 	$(CXX) $(CXXFLAGS) -fPIC $(INCS) -o $@ -c $<
@@ -76,7 +80,7 @@ host-%.o: %.c
 	$(HOST_CC) $(CFLAGS) $(INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 host-%.o: %.cc
-	$(HOST_CXX) $(CXXFLAGS) $(INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
+	$(HOST_CXX) $(CXXFLAGS) $(INCS) $(HOST_PROTO_INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 %: %.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
@@ -93,6 +97,13 @@ host-%: %.py
 %.so: %.po
 	$(CC) $(CFLAGS) $(INCS) -o $@ -fPIC -shared -Wl,-soname,$@ $<
 
+%.pb.cc: %.proto
+	echo "Building .pb.cc"
+	$(HOST_PROTOC) --cpp_out=. $<
+
+host-%.pb.cc: %.proto
+	echo "Building .pb.cc"
+	$(HOST_PROTOC) --cpp_out=. $<
 
 host-isoping isoping: LIBS+=-lrt
 host-isostream isostream: LIBS+=-lrt
@@ -114,6 +125,17 @@ rtwatcher: rtwatcher.o
 bigbin: bigbin.o bigtext.o
 buttonmon: buttonmon.o
 host-utils_test: host-utils_test.o host-utils.o
+statpitcher.o: device_stats.pb.o
+statpitcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
+statpitcher: device_stats.pb.o statpitcher.o
+host-statpitcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread
+host-statpitcher: host-device_stats.pb.o host-statpitcher.o
+statpitcher: INCS+=$(TARGET_PROTO_INCS)
+statcatcher.o: device_stats.pb.o
+statcatcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
+statcatcher: device_stats.pb.o statcatcher.o
+host-statcatcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread
+host-statcatcher: host-device_stats.pb.o host-statcatcher.o
 
 bigtext.o: bigtext.S
 	 $(AS) -mabi=32 -mips32 -EL -o $@ $^
@@ -130,5 +152,5 @@ test: all $(TESTS)
 	./wvtest/wvtestrun $(MAKE) runtests
 
 clean:
-	rm -f *.o $(TARGETS) $(HOST_TARGETS) $(ARCH_TARGETS) *~ .*~ */*.pyc test_file
+	rm -f *.o $(TARGETS) $(HOST_TARGETS) $(ARCH_TARGETS) *~ .*~ */*.pyc test_file *.pb.*
 	rm -rf test_dir
