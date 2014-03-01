@@ -696,9 +696,13 @@ def main():
       else:
         mtd = GetMtdDevForNameOrNone('uloader')
         if mtd:
-          if UloaderSigned(uloader) and DeviceIsUnsecure(mtd):
+          uloader_signed = UloaderSigned(uloader)
+          device_secure = DeviceIsSecure(mtd)
+          if uloader_signed and not device_secure:
             VerbosePrint('Signed uloader but unsecure box; stripping sig.\n')
             uloader, uloader_start = StripUloader(uloader, uloader_start)
+          elif not uloader_signed and device_secure:
+            raise Fatal('Unable to install unsigned uloader on secure device.')
           WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
 
   if partition is not None:
@@ -707,8 +711,8 @@ def main():
   return 0
 
 
-def DeviceIsUnsecure(uloader_mtddevname):
-  """Determines whether the gfrg200 device is insecure.
+def DeviceIsSecure(uloader_mtddevname):
+  """Determines whether the gfrg200 device is secure.
 
   Currently this is done by examining the currently installed uloader.
 
@@ -721,7 +725,7 @@ def DeviceIsUnsecure(uloader_mtddevname):
   # TODO(smcgruer): Also check the OTP, raise exception if they differ.
 
   with open(uloader_mtddevname, 'r+b') as installed_uloader:
-    return not UloaderSigned(installed_uloader)
+    return UloaderSigned(installed_uloader)
 
 
 def UloaderSigned(uloader_file):
