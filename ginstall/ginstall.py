@@ -7,9 +7,12 @@ __author__ = 'dgentry@google.com (Denton Gentry)'
 
 import os
 import re
+import StringIO
+import struct
 import subprocess
 import sys
 import tarfile
+import zlib
 from Crypto.Hash import SHA512
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_v1_5
@@ -693,12 +696,104 @@ def main():
       else:
         mtd = GetMtdDevForNameOrNone('uloader')
         if mtd:
+          if UloaderSigned(uloader) and DeviceIsUnsecure(mtd):
+            VerbosePrint('Signed uloader but unsecure box; stripping sig.\n')
+            uloader, uloader_start = StripUloader(uloader, uloader_start)
           WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
 
   if partition is not None:
     SetBootPartition(partition)
 
   return 0
+
+
+def DeviceIsUnsecure(uloader_mtddevname):
+  """Determines whether the gfrg200 device is insecure.
+
+  Currently this is done by examining the currently installed uloader.
+
+  Args:
+    uloader_mtddevname: Name of the mtd device containing the installed uloader
+
+  Returns:
+    True if the device is insecure, False otherwise
+  """
+  # TODO(smcgruer): Also check the OTP, raise exception if they differ.
+
+  with open(uloader_mtddevname, 'r+b') as installed_uloader:
+    return not UloaderSigned(installed_uloader)
+
+
+def UloaderSigned(uloader_file):
+  """Determines if the given uloader file is signed or unsigned.
+
+  The file's current location will be saved and restored when the
+  function exits.
+
+  Args:
+    uloader_file: A file object containing the uloader to be checked.
+
+  Returns:
+    True if the passed uloader is signed, false otherwise.
+  """
+
+  current_loc = uloader_file.tell()
+
+  # The simplest check for a signed uloader is to examine byte 16 (zero-indexed)
+  # of the header, which indicates the key type.
+
+  uloader_file.seek(0)
+  header = uloader_file.read(20)
+  uloader_file.seek(current_loc)
+
+  return header[16] == '\x02'
+
+
+def StripUloader(uloader, uloader_start):
+  """Strips a signed uLoader, allowing it to be installed on an insecure device.
+
+  IMPORTANT: This method will close the given uloader file. A new, memory-backed
+  file is returned in its place.
+
+  Args:
+    uloader: A signed uloader file.
+    uloader_start: The start offset of the given uLoader file.
+
+  Returns:
+    A tuple (uloader, uloader_start), containing the stripped uloader file and
+    its start position.
+  """
+
+  uloader.seek(uloader_start)
+  uloader_data = uloader.read()
+  uloader.close()
+
+  # The signed header includes 24 bytes of metadata and a 256 byte hash.
+  header = list(uloader_data[:280])
+
+  # Magic number and timestamp.
+  new_header = header[:8]
+
+  # CRC (initialized to 0s), embedded key length, and key type.
+  new_header += '\x00' * 12
+
+  # Image length.
+  new_header += header[20:24]
+
+  # Padding.
+  new_header += '\x00' * 32
+
+  # Calculate a CRC for the new header.
+  new_header_string = ''.join(new_header)
+  crc = zlib.crc32(new_header_string) & 0xFFFFFFFF
+  new_header[8:12] = struct.pack('<I', crc)
+
+  new_uloader = StringIO.StringIO()
+  new_uloader.write(''.join(new_header))
+  new_uloader.write(uloader_data[280:])
+  new_uloader.seek(0)
+
+  return new_uloader, new_uloader.tell()
 
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@ import os
 import shutil
 import stat
 import StringIO
+import struct
 import tempfile
 import unittest
 import ginstall
@@ -271,6 +272,73 @@ class GinstallTest(unittest.TestCase):
     ginstall.PROC_CMDLINE = "testdata/proc/cmdline3"
     self.assertEqual(ginstall.GetBootedPartition(), 1)
 
+  def testUloaderSigned(self):
+    magic_num = 0xDEADBEEF
+    timestamp = 0x5627148C
+    crc = 0x12345678
+    key_len = 0x00000000
+    signed_key_type = 0x00000002
+    unsigned_key_type = 0x00000000
+    image_len = 0x0000A344
+
+    signed_uloader, _ = self._CreateUloader(
+        magic_num, timestamp, crc, key_len, signed_key_type, image_len)
+
+    self.assertTrue(ginstall.UloaderSigned(signed_uloader))
+    self.assertEqual(signed_uloader.tell(), 0)
+
+    unsigned_uloader, _ = self._CreateUloader(
+        magic_num, timestamp, crc, key_len, unsigned_key_type, image_len)
+
+    self.assertFalse(ginstall.UloaderSigned(unsigned_uloader))
+    self.assertEqual(unsigned_uloader.tell(), 0)
+
+  def testStripUloader(self):
+    magic_num = 0xDEADBEEF
+    timestamp = 0x5627148C
+    crc = 0x12345678
+    key_len = 0x00000000
+    key_type = 0x00000002
+    image_len = 0x0000A344
+
+    signed_uloader, uloader_data = self._CreateUloader(
+        magic_num, timestamp, crc, key_len, key_type, image_len)
+
+    stripped_uloader, _ = ginstall.StripUloader(signed_uloader, 0)
+    stripped_uloader_bytes = stripped_uloader.read()
+
+    header = struct.unpack('<IIIIII', stripped_uloader_bytes[:24])
+    self.assertEqual(header[0], magic_num)
+    self.assertEqual(header[1], timestamp)
+    self.assertEqual(header[3], key_len)
+    self.assertEqual(header[4], 0)  # key type should have been set to 0
+    self.assertEqual(header[5], image_len)
+
+    self.assertEqual(stripped_uloader_bytes[24:56], '\x00' * 32)
+
+    self.assertEqual(stripped_uloader_bytes[56:], uloader_data)
+
+  def _CreateUloader(self, magic_num, time, crc, key_len, key_type, image_len):
+    """Helper method that creates a memory-backed uloader file."""
+
+    uloader_data = os.urandom(image_len)
+    if key_type == 0:
+      # Unsigned; 32 bytes of padding.
+      extra = '\x00' * 32
+    elif key_type == 2:
+      # Signed; a 256 byte signature.
+      extra = os.urandom(256)
+    else:
+      raise ValueError('Key type must be 0 (unsigned) or 2 (signed)')
+
+    uloader = StringIO.StringIO()
+    uloader.write(struct.pack(
+        '<IIIIII', magic_num, time, crc, key_len, key_type, image_len))
+    uloader.write(extra)
+    uloader.write(uloader_data)
+    uloader.seek(0)
+
+    return uloader, uloader_data
 
 if __name__ == '__main__':
   unittest.main()
