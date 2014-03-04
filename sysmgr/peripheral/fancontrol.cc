@@ -45,6 +45,36 @@ const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
                           duty_cycle_max: 100,
                           pwm_step      : 2
                         };
+
+/*
+ * Defaults of Fan control parameters for GFRG200/210 (optimus/optimus+hdd)
+ */
+const FanControlParams FanControl::kGFRG200FanCtrlSocDefaults = {
+                          temp_setpt    : 90,
+                          temp_max      : 100,
+                          temp_step     : 2,
+                          duty_cycle_min: 25,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2
+                        };
+
+const FanControlParams FanControl::kGFRG210FanCtrlSocDefaults = {
+                          temp_setpt    : 90,
+                          temp_max      : 100,
+                          temp_step     : 2,
+                          duty_cycle_min: 25,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2
+                        };
+
+const FanControlParams FanControl::kGFRG210FanCtrlHddDefaults = {
+                          temp_setpt    : 57,
+                          temp_max      : 60,
+                          temp_step     : 2,
+                          duty_cycle_min: 25,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2
+                        };
 /*
  * Defaults of Fan control parameters for GFHD100 (Bruno)
  * the original duty_cycle_min value is set to 25
@@ -138,9 +168,17 @@ void FanControl::InitParams() {
       pfan_ctrl_params_[BRUNO_SOC] = kGFHD100FanCtrlSocDefaults;
       max = BRUNO_SOC;
       break;
-      // TODO(jnewlin): Add fan ctrl setting for the rg2.
     case BRUNO_GFRG200:
+      /* Set thermal fan policy parameters of GFRG200 */
+      pfan_ctrl_params_[BRUNO_SOC] = kGFRG200FanCtrlSocDefaults;
+      max = BRUNO_SOC;
+      break;
     case BRUNO_GFRG210:
+      /* Set thermal fan policy parameters of GFRG210 */
+      pfan_ctrl_params_[BRUNO_SOC] = kGFRG210FanCtrlSocDefaults;
+      pfan_ctrl_params_[BRUNO_IS_HDD] = kGFRG210FanCtrlHddDefaults;
+      max = BRUNO_IS_HDD;
+      break;
     default:
       LOG(LS_ERROR) << "Invalid platform type, ignore ... " << platform_;
       max = BRUNO_SOC;
