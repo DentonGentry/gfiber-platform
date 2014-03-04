@@ -480,6 +480,13 @@ int main(int argc, char **argv) {
     usage();
   }
 
+  // remove underscores form the facility name
+  strip_underscores(argv[1]);
+  if (strlen(argv[1]) == 0) {
+    fprintf(stderr, "facility name was empty, or all underscores.\n");
+    return 1;
+  }
+
 #ifndef COMPILE_FOR_HOST
   stacktrace_setup();
 #endif  // COMPILE_FOR_HOST
@@ -498,11 +505,6 @@ int main(int argc, char **argv) {
     return 5;
   }
   snprintf((char *)header, headerlen + 1, "<x>%s: ", argv[1]);
-  strip_underscores((char *)header);
-  if (strlen((char*)header) == 5) {
-    fprintf(stderr, "facility name was empty, or all underscores.\n");
-    return 1;
-  }
 
   ssize_t bytes_per_burst = DEFAULT_BYTES_PER_BURST;
   if (argc > 2) {
