@@ -2,6 +2,7 @@ host-*
 *.o
 alivemonitor
 balloon
+buttonmon
 isoping
 chg_mod_own
 dir-monitor

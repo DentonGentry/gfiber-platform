@@ -28,12 +28,15 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/sendfile.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include "ioprio.h"
 
 
@@ -57,12 +60,14 @@ static int _posix_fallocate(int fd, __off64_t offset, __off64_t len) {
 struct TaskStatus {
   int tasknum;
   volatile long long counter;
+  int sock_fd; // used by reader/receiver for sendfile option
 };
 
 #define MAX_TASKS 128
 static struct TaskStatus *spinners[MAX_TASKS];
 static struct TaskStatus writers[MAX_TASKS];
 static struct TaskStatus readers[MAX_TASKS];
+static struct TaskStatus receivers[MAX_TASKS];
 
 #define MAX_FILE_SIZE (2*1000*1000*1000)
 #define MAX_BUF (128*1024*1024)
@@ -73,16 +78,22 @@ static int timeout = -1;
 static int nspins = 0;
 static int nwriters = 0;
 static int nreaders = 0;
-static int blocksize = 128*1024;
+static int blocksize_write = 128*1024;
+static int blocksize_read = 0;
 static int bytes_per_sec = 2*1024*1024;
+static int so_rcvbuf = 0;
+static int so_sndbuf = 0;
 static int keep_old_files = 0;
 static int use_stagger = 0;
-static int use_o_direct = 0;
+static int use_o_direct_write = 0;
+static int use_o_direct_read = 0;
+static int use_sendfile = 0;
 static int use_mmap = 0;
 static int use_fallocate = 0;
 static int use_fsync = 0;
 static int use_realtime_prio = 0;
 static int use_ionice = 0;
+static int be_verbose = 0;
 
 #define CHECK(x) _check(#x, x)
 
@@ -173,7 +184,7 @@ static ssize_t _do_write(int fd, char *buf, size_t count) {
 }
 
 
-static ssize_t _do_read(int fd, char **buf, size_t count) {
+static ssize_t _do_read(int fd, char **buf, size_t count, int socket_fd) {
   assert(buf);
   if (use_mmap) {
     off_t oldpos = lseek(fd, 0, SEEK_CUR);
@@ -187,10 +198,20 @@ static ssize_t _do_read(int fd, char **buf, size_t count) {
     count = newpos - oldpos;
     _page_in(*buf, count);
     return count;
+  } else if (use_sendfile && socket_fd >= 0) {
+    // send the length as 32-bit number, followed by the data block
+    uint32_t blocksz = count;
+    CHECK(send(socket_fd, &blocksz, sizeof(blocksz), 0) == sizeof(blocksz));
+    ssize_t ret = sendfile64(socket_fd, fd, 0, count);
+    if (be_verbose) {
+      fprintf(stderr, "sendfile sent %ld/%ld bytes to socket %d\n",
+              (long)ret, (long)count, socket_fd);
+    }
+    return ret;
   } else {
     // non-mmap version
     if (!*buf) {
-      CHECK(posix_memalign((void **)buf, _pagesize(), blocksize) == 0);
+      CHECK(posix_memalign((void **)buf, _pagesize(), blocksize_read) == 0);
     }
     return read(fd, *buf, count);
   }
@@ -224,12 +245,119 @@ static void *spinner(void *_status) {
 }
 
 
+static void _create_socketpair(int *snd_fd, int *rcv_fd) {
+  // create server socket
+  int server_fd;
+  CHECK((server_fd = socket(AF_INET, SOCK_STREAM, 0)) >= 0);
+  int flags = 1;
+  CHECK(setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &flags,
+                   sizeof(flags)) == 0);
+  struct sockaddr_in serveraddr;
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+  serveraddr.sin_port = htons(0);
+
+  CHECK(bind(server_fd, (struct sockaddr*)&serveraddr,
+             sizeof(serveraddr)) == 0);
+  socklen_t len = sizeof(struct sockaddr);
+  CHECK(getsockname(server_fd, (struct sockaddr *)&serveraddr, &len) == 0);
+  int port = ntohs(serveraddr.sin_port);
+
+  CHECK(listen(server_fd, 1) == 0);
+
+  // create sender socket
+  int sender_fd;
+  CHECK((sender_fd = socket(AF_INET, SOCK_STREAM, 0)) >= 0);
+  flags = 1;
+  CHECK(setsockopt(sender_fd, IPPROTO_TCP, TCP_NODELAY, &flags,
+                   sizeof(int)) == 0);
+  flags = 4;
+  CHECK(setsockopt(sender_fd, SOL_SOCKET, SO_PRIORITY, &flags,
+                   sizeof(flags)) == 0);
+  len = sizeof(int);
+  int snd_size, old_snd_size = -1;
+  if (so_sndbuf) {
+    CHECK(getsockopt(sender_fd, SOL_SOCKET, SO_SNDBUF, &old_snd_size,
+                     &len) == 0);
+    CHECK(setsockopt(sender_fd, SOL_SOCKET, SO_SNDBUF, &so_sndbuf,
+                     sizeof(int)) == 0);
+  }
+  len = sizeof(int);
+  CHECK(getsockopt(sender_fd, SOL_SOCKET, SO_SNDBUF, &snd_size, &len) == 0);
+
+  // connect sender to server
+  memset(&serveraddr, 0, sizeof(serveraddr));
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+  serveraddr.sin_port = htons(port);
+  CHECK(connect(sender_fd, (struct sockaddr *)&serveraddr,
+                sizeof(struct sockaddr)) == 0);
+
+  // reader accepts connection request from sender
+  struct sockaddr clientaddr;
+  len = sizeof(struct sockaddr_in);
+  int receiver_fd;
+  CHECK((receiver_fd = accept(server_fd, &clientaddr, &len)) >= 0);
+  close(server_fd);
+  flags = 1;
+  CHECK(setsockopt(receiver_fd, IPPROTO_TCP, TCP_NODELAY, &flags,
+                   sizeof(flags)) == 0);
+  flags = 4;
+  CHECK(setsockopt(receiver_fd, SOL_SOCKET, SO_PRIORITY, &flags,
+                   sizeof(flags)) == 0);
+  len = sizeof(int);
+  int rcv_size, old_rcv_size = -1;
+  if (so_rcvbuf) {
+    CHECK(getsockopt(receiver_fd, SOL_SOCKET, SO_RCVBUF, &old_rcv_size,
+                     &len) == 0);
+    CHECK(setsockopt(receiver_fd, SOL_SOCKET, SO_RCVBUF, &so_rcvbuf,
+                     sizeof(int)) == 0);
+  }
+  len = sizeof(int);
+  CHECK(getsockopt(receiver_fd, SOL_SOCKET, SO_RCVBUF, &rcv_size, &len) == 0);
+
+  fprintf(stderr, "created socket pair, sender(%d) with so_snd_size:%d "
+          "(was %d), receiver(%d) with so_rcv_size:%d (was %d)\n", sender_fd,
+          snd_size / 2, old_snd_size / 2, receiver_fd, rcv_size / 2,
+          old_rcv_size / 2);
+  *snd_fd = sender_fd;
+  *rcv_fd = receiver_fd;
+}
+
+
+static void *receiver(void *_status) {
+  struct TaskStatus *status = _status;
+
+  // use priority higher than the spinner (IDLE) but lower than the writers
+  // and readers (FIFO, prio=10)
+  if (use_realtime_prio) _set_priority(SCHED_FIFO, 1);
+
+  fprintf(stderr, "n#%d ", status->tasknum);
+
+  // dummy buffer that we receive all data into
+  void *blackhole;
+  CHECK((blackhole = malloc(2 * blocksize_read)) != NULL);
+
+  while (1) {
+    ssize_t bytes = recv(status->sock_fd, blackhole, 2 * blocksize_read, 0);
+    CHECK(bytes >= 0);
+    if (bytes == 0) {
+      // socket was closed
+      fprintf(stderr, "receiver socket %d closed\n", status->sock_fd);
+      break;
+    }
+  }
+  fprintf(stderr, "receiver thread exiting!\n");
+  return NULL;
+}
+
+
 static void *writer(void *_status) {
   struct TaskStatus *status = _status;
   fprintf(stderr, "w#%d ", status->tasknum);
 
-  int nblocks = MAX_FILE_SIZE / blocksize;
-  long long blockdelay = blocksize * 1000000LL / bytes_per_sec;
+  int nblocks = MAX_FILE_SIZE / blocksize_write;
+  long long blockdelay = blocksize_write * 1000000LL / bytes_per_sec;
 
   if (use_realtime_prio) _set_priority(SCHED_FIFO, 10);
   if (use_stagger) {
@@ -244,18 +372,18 @@ static void *writer(void *_status) {
     sprintf(filename, "db.%d.%d.tmp", status->tasknum, fileno);
     int fd;
     mode_t mode = O_RDWR|O_CREAT;
-    if (use_o_direct) mode |= O_DIRECT;
+    if (use_o_direct_write) mode |= O_DIRECT;
     CHECK((fd = open(filename, mode, 0666)) >= 0);
     for (int blocknum = 0; blocknum < nblocks; blocknum++) {
       if (use_fallocate) {
         struct stat st;
         CHECK(fstat(fd, &st) == 0);
-        if (st.st_size <= blocknum * blocksize) {
-          CHECK(_posix_fallocate(fd, 0, blocknum * blocksize + 100*1024*1024)
-                == 0);
+        if (st.st_size <= blocknum * blocksize_write) {
+          CHECK(_posix_fallocate(fd, 0, blocknum * blocksize_write +
+                                 100*1024*1024)  == 0);
         }
       }
-      CHECK(_do_write(fd, buf + blocknum * 4096, blocksize) > 0);
+      CHECK(_do_write(fd, buf + blocknum * 4096, blocksize_write) > 0);
       if (use_fsync) fdatasync(fd);
       long long now = ustime();
       starttime += blockdelay;
@@ -288,7 +416,7 @@ static int open_random_file(int mode) {
     while (readdir_r(dir, &dentbuf, &dent) == 0 && dent != NULL) {
       struct stat st;
       if (stat(dent->d_name, &st) < 0) continue;
-      if (st.st_size > blocksize) {
+      if (st.st_size > blocksize_read) {
         count++;
       }
     }
@@ -304,7 +432,7 @@ static int open_random_file(int mode) {
     while (readdir_r(dir, &dentbuf, &dent) == 0 && dent != NULL) {
       struct stat st;
       if (stat(dent->d_name, &st) < 0) continue;
-      if (st.st_size > blocksize) {
+      if (st.st_size > blocksize_read) {
         if (cur == want) {
           closedir(dir);
           return open(dent->d_name, mode);
@@ -325,7 +453,7 @@ static void *reader(void *_status) {
   struct TaskStatus *status = _status;
   fprintf(stderr, "r#%d ", status->tasknum);
 
-  long long blockdelay = blocksize * 1000000LL / bytes_per_sec;
+  long long blockdelay = blocksize_read * 1000000LL / bytes_per_sec;
   char *rbuf = NULL;
 
   if (use_realtime_prio) _set_priority(SCHED_FIFO, 10);
@@ -334,7 +462,7 @@ static void *reader(void *_status) {
   while (1) {
     int fd;
     mode_t mode = O_RDONLY;
-    if (use_o_direct) mode |= O_DIRECT;
+    if (use_o_direct_read) mode |= O_DIRECT;
     CHECK((fd = open_random_file(mode)) >= 0);
     struct stat st;
     CHECK(fstat(fd, &st) == 0);
@@ -356,8 +484,8 @@ static void *reader(void *_status) {
     // the kernel can avoid doing disk reads) that it gets in the way of our
     // benchmark.  We need to check worst-case performance (reading old files
     // while new ones are being written) not average case.
-    while (totalbytes + blocksize < st.st_size &&
-           (got = _do_read(fd, &rbuf, blocksize)) > 0) {
+    while (totalbytes + blocksize_read < st.st_size &&
+           (got = _do_read(fd, &rbuf, blocksize_read, status->sock_fd)) > 0) {
       long long now = ustime();
       totalbytes += got;
       starttime += blockdelay;
@@ -415,15 +543,22 @@ static void usage(void) {
           "    -w ...  Number of parallel writers (creating files)\n"
           "    -r ...  Number of parallel readers (reading files)\n"
           "    -b ...  Block size (kbyte size of a single read/write)\n"
+          "    -c ...  Alternative block size for reading (kbyte)\n"
           "    -s ...  Speed (kbytes read/written per sec, per stream)\n"
+          "    -m ...  Socket receive buffer size in KB (for sendfile)\n"
+          "    -z ...  Socket send buffer size in KB (for sendfile)\n"
           "    -K      Keep old temp output files from previous run\n"
           "    -S      Stagger reads and writes evenly (default: clump them)\n"
-          "    -D      Use O_DIRECT\n"
+          "    -D      Use O_DIRECT for writing\n"
+          "    -O      Use O_DIRECT for reading\n"
+          "    -N      Use sendfile to send read data through a socket\n"
+          "            to a local client\n"
           "    -M      Use mmap()\n"
           "    -F      Use fallocate()\n"
           "    -Y      Use fdatasync() after writing\n"
           "    -R      Use CPU real-time priority\n"
-          "    -I      Use ionice real-time disk priority\n");
+          "    -I      Use ionice real-time disk priority\n"
+          "    -v      Verbose output\n");
   exit(99);
 }
 
@@ -432,7 +567,7 @@ int main(int argc, char **argv) {
   srandom(time(NULL));
 
   int opt;
-  while ((opt = getopt(argc, argv, "?ht:i:w:r:b:s:KSDMFYRI")) != -1) {
+  while ((opt = getopt(argc, argv, "?ht:i:w:r:b:c:s:m:z:KSDONMFYRIv")) != -1) {
     switch (opt) {
     case '?':
     case 'h':
@@ -451,10 +586,19 @@ int main(int argc, char **argv) {
       nreaders = atoi(optarg);
       break;
     case 'b':
-      blocksize = atoi(optarg) * 1024;
+      blocksize_write = atoi(optarg) * 1024;
+      break;
+    case 'c':
+      blocksize_read = atoi(optarg) * 1024;
       break;
     case 's':
       bytes_per_sec = atoi(optarg) * 1024;
+      break;
+    case 'm':
+      so_rcvbuf = atoi(optarg) * 1024;
+      break;
+    case 'z':
+      so_sndbuf = atoi(optarg) * 1024;
       break;
     case 'K':
       keep_old_files = 1;
@@ -463,7 +607,13 @@ int main(int argc, char **argv) {
       use_stagger = 1;
       break;
     case 'D':
-      use_o_direct = 1;
+      use_o_direct_write = 1;
+      break;
+    case 'O':
+      use_o_direct_read = 1;
+      break;
+    case 'N':
+      use_sendfile = 1;
       break;
     case 'M':
       use_mmap = 1;
@@ -480,6 +630,9 @@ int main(int argc, char **argv) {
     case 'I':
       use_ionice = 1;
       break;
+    case 'v':
+      be_verbose = 1;
+      break;
     }
   }
 
@@ -493,6 +646,8 @@ int main(int argc, char **argv) {
     fprintf(stderr, "\nfatal: must specify at least one of -i, -r, -w\n");
     return 9;
   }
+
+  if (!blocksize_read) blocksize_read = blocksize_write;
 
   CHECK(posix_memalign((void **)&buf, _pagesize(), MAX_BUF) == 0);
   for (int i = 0; i < MAX_BUF; i++) {
@@ -550,6 +705,15 @@ int main(int argc, char **argv) {
 
   for (int i = 0; i < nreaders; i++) {
     memset(&readers[i], 0, sizeof(readers[i]));
+    if (use_sendfile) {
+      memset(&receivers[i], 0, sizeof(receivers[i]));
+      _create_socketpair(&readers[i].sock_fd, &receivers[i].sock_fd);
+      receivers[i].tasknum = i;
+      pthread_t thread;
+      CHECK(pthread_create(&thread, NULL, receiver, &receivers[i]) == 0);
+    } else {
+      readers[i].sock_fd = -1; // disable
+    }
     readers[i].tasknum = i;
     pthread_t thread;
     CHECK(pthread_create(&thread, NULL, reader, &readers[i]) == 0);
