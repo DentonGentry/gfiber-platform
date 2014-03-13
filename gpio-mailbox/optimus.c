@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
+#include "fileops.h"
 #include "pin.h"
 
 #define  DEVMEM  "/dev/mem"
@@ -63,25 +64,6 @@ struct PinHandle_s {
 #define SYS_RPM                 SYS_FAN_DIR "fan1_input"
 
 /* helper methods */
-
-static int readIntFromFile(char* file) {
-  int fd = open(file, O_RDONLY);
-  if (fd < 0) {
-    perror(file);
-    return -1;
-  }
-  char buf[1024] = { 0 };
-  int len = read(fd, buf, sizeof(buf)-1);
-  if (len < 0) {
-    perror(file);
-    close(fd);
-    return -1;
-  }
-  close(fd);
-  buf[len] = '\0';
-  long int value = strtol(buf, NULL, 10);
-  return value;
-}
 
 // this is for writing to SYS_FAN
 // don't use for writing to a regular file since this is not atomic
@@ -202,7 +184,7 @@ static void setPWMValue(PinHandle handle, int gpio, int pwm, int value) {
 static int getFan(PinHandle handle) {
   static int rpm_failed = 0;
   if (!rpm_failed) {
-    int val = readIntFromFile(SYS_RPM);
+    int val = read_file_long(SYS_RPM);
     if (val >= 0) return val;
     rpm_failed = 1;     // old bootloader doesn't enable tachometer
   }
@@ -217,11 +199,11 @@ static void setFan(PinHandle handle, int percent) {
 }
 
 static int getTemp1(PinHandle handle) {
-  return readIntFromFile(SYS_TEMP1);
+  return read_file_long(SYS_TEMP1);
 }
 
 static int getTemp2(PinHandle handle) {
-  return readIntFromFile(SYS_TEMP2);
+  return read_file_long(SYS_TEMP2);
 }
 
 /* API implementation */

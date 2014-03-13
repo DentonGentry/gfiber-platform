@@ -21,9 +21,14 @@
 
 #include <stacktrace.h>
 
+#include "fileops.h"
+#include "gfiber-lt.h"
 #include "pin.h"
 
 #define WRITE(s)  write(2, s, strlen(s))
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof (a) / sizeof ((a)[0]))
+#endif
 
 /*
  * We're polling at a very high frequency, which is a pain.  This would be
@@ -55,7 +60,7 @@ static PinHandle handle;
 //   2: blue (green on B0)
 //   4: activity (blue)
 //   8: standby (bright white)
-static void set_leds_from_bitfields(int fields) {
+static void set_leds_from_bitfields(int fields, int brightness) {
   if (is_limited_leds) {
     // GFMS100 only has red and activity lights.  Substitute activity for blue
     // (they're both blue anyhow) and red+activity (purple) for standby.
@@ -72,13 +77,13 @@ static void set_leds_from_bitfields(int fields) {
     fields ^= 0x0f;
   }
   if (PinIsPresent(handle, PIN_LED_RED))
-    PinSetValue(handle, PIN_LED_RED, (fields & 0x01) ? 1 : 0);
+    PinSetValue(handle, PIN_LED_RED, (fields & 0x01) ? brightness : 0);
   if (PinIsPresent(handle, PIN_LED_BLUE))
-    PinSetValue(handle, PIN_LED_BLUE, (fields & 0x02) ? 1 : 0);
+    PinSetValue(handle, PIN_LED_BLUE, (fields & 0x02) ? brightness : 0);
   if (PinIsPresent(handle, PIN_LED_ACTIVITY))
-    PinSetValue(handle, PIN_LED_ACTIVITY, (fields & 0x04) ? 1 : 0);
+    PinSetValue(handle, PIN_LED_ACTIVITY, (fields & 0x04) ? brightness : 0);
   if (PinIsPresent(handle, PIN_LED_STANDBY))
-    PinSetValue(handle, PIN_LED_STANDBY, (fields & 0x08) ? 1 : 0);
+    PinSetValue(handle, PIN_LED_STANDBY, (fields & 0x08) ? brightness : 0);
 }
 
 
@@ -105,54 +110,17 @@ static void create_file(const char *filename) {
   if (fd >= 0) close(fd);
 }
 
-
-// write a file containing the given string.
-static void write_file(const char *filename, const char *content) {
-  char *tmpname = malloc(strlen(filename) + 4 + 1);
-  sprintf(tmpname, "%s.tmp", filename);
-  int fd = open(tmpname, O_WRONLY|O_CREAT|O_TRUNC, 0666);
-  if (fd >= 0) {
-    write(fd, content, strlen(content));
-    close(fd);
-    rename(tmpname, filename);
-  }
-  free(tmpname);
-}
-
-
-// write a file containing just a single integer value (as a string, not
-// binary)
-static void write_file_int(const char *filename,
-                           long long *oldv, long long newv) {
-  if (!oldv || *oldv != newv) {
-    char buf[128];
-    snprintf(buf, sizeof(buf), "%lld", newv);
-    buf[sizeof(buf)-1] = 0;
-    write_file(filename, buf);
-    if (oldv) *oldv = newv;
-  }
-}
-
-
-// write a file containing just a single floating point value (as a string,
-// not binary)
-static void write_file_float(const char *filename,
-                             double *oldv, double newv) {
-  if (!oldv || *oldv != newv) {
-    char buf[128];
-    snprintf(buf, sizeof(buf), "%.2f", newv);
-    buf[sizeof(buf)-1] = 0;
-    write_file(filename, buf);
-    if (oldv) *oldv = newv;
-  }
-}
-
-
 // read led_sequence from the given file.  For example, if a file contains
 //       x5 0 1 0 2 0 0x0f
 // that means 5/6 of a second off, then red, then off, then blue, then off,
 // then all the lights on at once, for a total of 5 seconds.
+// Enhanced in prism, if the pin is followed by "@<number>[x<number>]", then
+// the number after the @ indicates brightness, and the number after x means
+// the repetition. For example, 1@50x3 means turn red LED with brightness 50
+// for 3 times of period (compared with w/o this param, wich is equivalent as
+// x1).
 static char led_sequence[16];
+static int led_sequence_for_brightness[16];
 static unsigned led_sequence_len = 1;
 static unsigned led_total_time = 1000;
 static void read_led_sequence_file(const char *filename) {
@@ -167,7 +135,25 @@ static void read_led_sequence_file(const char *filename) {
       if (led_total_time > 10000) led_total_time = 10000;
       if (led_total_time < 1000) led_total_time = 1000;
     } else {
-      led_sequence[led_sequence_len++] = strtoul(p, NULL, 0);
+      char *separator;
+      int brightness = 100, repetition = 1, rep_idx;
+
+      int leds = strtoul(p, &separator, 0);
+      if (*separator == '@') {
+        brightness = strtoul(separator + 1, &separator, 0);
+      }
+      if (*separator == 'x') {
+        repetition = strtoul(separator + 1, NULL, 0);
+      }
+      for (rep_idx = 0; rep_idx < repetition; rep_idx++) {
+        if (led_sequence_len >= ARRAY_SIZE(led_sequence)) {
+          fprintf(stderr, "LED pattern is too large.\n");
+          break;
+        }
+        led_sequence[led_sequence_len] = leds;
+        led_sequence_for_brightness[led_sequence_len] = brightness;
+        led_sequence_len++;
+      }
     }
   }
   if (!led_sequence_len) {
@@ -175,7 +161,6 @@ static void read_led_sequence_file(const char *filename) {
     led_sequence_len = 1;
   }
 }
-
 
 // switch to the next led combination in led_sequence.
 static void led_sequence_update(long long frac) {
@@ -190,7 +175,8 @@ static void led_sequence_update(long long frac) {
   // blink.
   int activity_toggle = (unlink("activity") == 0) ? 0x04 : 0;
 
-  set_leds_from_bitfields(led_sequence[i] ^ activity_toggle);
+  set_leds_from_bitfields(led_sequence[i] ^ activity_toggle,
+                          led_sequence_for_brightness[i]);
 }
 
 
@@ -281,7 +267,7 @@ void run_gpio_mailbox(void) {
 #endif
 
   fprintf(stderr, "gpio mailbox running.\n");
-  write_file_int("/var/run/gpio-mailbox", NULL, getpid());
+  write_file_longlong_atomic("/var/run/gpio-mailbox", NULL, getpid());
   _signal(SIGINT, sig_handler);
   _signal(SIGTERM, sig_handler);
   _signal(SIGSEGV, sig_handler);
@@ -352,17 +338,17 @@ void run_gpio_mailbox(void) {
         (void) PinSetValue(handle, PIN_FAN_CHASSIS, wantspeed);
 
         // capture the fan cycle counter
-        write_file_int("fanspeed", &fanspeed, fan_detected_speed);
+        write_file_longlong_atomic("fanspeed", &fanspeed, fan_detected_speed);
       }
 
       // capture the CPU temperature and voltage
       int cpu_temp_millidegrees;
       if (PinValue(handle, PIN_TEMP_CPU, &cpu_temp_millidegrees) == 0) {
-        write_file_float("cpu_temperature", &cpu_temp, cpu_temp_millidegrees / 1000.0);
+        write_file_double_atomic("cpu_temperature", &cpu_temp, cpu_temp_millidegrees / 1000.0);
       }
       int cpu_millivolts;
       if (PinValue(handle, PIN_MVOLTS_CPU, &cpu_millivolts) == 0) {
-        write_file_float("cpu_voltage", &cpu_volts, cpu_millivolts / 1000.0);
+        write_file_double_atomic("cpu_voltage", &cpu_volts, cpu_millivolts / 1000.0);
       }
       last_time = now;
     }
@@ -387,7 +373,7 @@ void run_gpio_mailbox(void) {
     // handle the reset button
     if (reset_button) {
       if (!reset_start) reset_start = now - 1;
-      write_file_int("reset_button_msecs", &reset_amt, now - reset_start);
+        write_file_longlong_atomic("reset_button_msecs", &reset_amt, now - reset_start);
     } else {
       if (reset_amt) unlink("reset_button_msecs");
       reset_amt = reset_start = 0;
@@ -395,7 +381,7 @@ void run_gpio_mailbox(void) {
 
     // this is last.  it indicates we've made it once through the loop,
     // so all the files in /tmp/gpio have been written at least once.
-    write_file_int("ready", &readyval, 1);
+    write_file_longlong_atomic("ready", &readyval, 1);
 
     if (has_fan) {
       // poll for fan ticks.  This is a bit complicated since we want to be
@@ -421,7 +407,12 @@ void run_gpio_mailbox(void) {
 
   // shut down cleanly
 
-  set_leds_from_bitfields(1);  // red light to indicate a problem
+#ifndef  GFIBER_LT
+  set_leds_from_bitfields(1, 1);  // red light to indicate a problem
+#else
+  set_leds_from_bitfields(1, GFLT_DEFAULT_BRIGHTNESS);
+#endif
+
   if (has_fan) (void) PinSetValue(handle, PIN_FAN_CHASSIS, 100); // for safety
 }
 
