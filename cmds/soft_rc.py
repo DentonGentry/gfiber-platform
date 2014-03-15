@@ -114,6 +114,7 @@ __author__ = "ckuiper@google.com (Chris Kuiper)"
 import binascii
 import fcntl
 import os
+import struct
 import sys
 import time
 import options
@@ -125,6 +126,7 @@ VER_MINOR = 3
 
 UNKNOWN_KEY = 0xdeadbeef
 BTHID_DEV = "/dev/bthid"
+UHID_DEV = "/dev/uhid"
 
 MAGIC_KEY_HELP    = "HELP"
 MAGIC_KEY_END     = "END"
@@ -198,6 +200,74 @@ keymap = {
     "RELEASE3":      0x00004003
 }
 
+UHID_CREATE2 = "\x0B\x00\x00\x00"
+UHID_INPUT2 = "\x0C\x00\x00\x00"
+BUS_BLUETOOTH = "\x05\x00"
+GFRM100_VENDOR = "\x58\x00\x00\x00"
+GFRM100_PRODUCT = "\x00\x20\x00\x00"
+GFRM100_VERSION = "\x1B\x01\x00\x00"
+GFRM100_COUNTRY = "\x21\x00\x00\x00"
+GFRM100_RD_SIZE_16 = "\xB3\x00"
+GFRM100_RD_SIZE_32 = "\xB3\x00\x00\x00"  # 179
+GFRM100_RD_DATA = (
+    "\x05\x01\x09\x06\xA1\x01\x85\x41\x75\x08\x95\x01\x26\xFF\x00\x05"
+    "\x07\x19\x00\x2A\xFF\x00\x81\x00\xC0\x05\x0C\x09\x01\xA1\x01\x85"
+    "\x40\x19\x00\x2A\xFF\x03\x75\x10\x95\x01\x15\x00\x26\xFF\x03\x81"
+    "\x00\xC0\x05\x01\x09\x80\xA1\x01\x85\x12\x19\x81\x29\x93\x15\x81"
+    "\x25\x93\x75\x08\x95\x01\x81\x40\xC0\x05\x0C\x09\x01\xA1\x01\x85"
+    "\x13\x09\x20\x15\x00\x25\x64\x75\x08\x95\x01\x81\x42\xC0\x85\x21"
+    "\x09\x21\x75\x08\x95\x01\x15\x00\x26\xFF\x00\x81\x02\x85\x22\x05"
+    "\x01\x09\x22\xA1\x02\x09\x3B\x95\x01\x75\x10\x15\x00\x26\x4F\x01"
+    "\x81\x02\x06\xF0\xFF\x09\x22\x75\x10\x96\x4F\x01\x15\x00\x26\xFF"
+    "\x00\x82\x01\x02\xC0\x85\xF2\x09\x02\x75\x08\x95\x01\x15\x00\x26"
+    "\xFF\x00\x91\x02\x85\xF3\x09\x03\x75\x08\x95\x10\x15\x00\x26\xFF"
+    "\x00\x81\x02")
+
+
+def GetUhidCreateStruct():
+  """Build UHID_CREATE2 data structure.
+
+  Args:
+    None
+  Returns:
+    UHID_CREATE2 structure as a byte-buffer
+
+  kernel/bruno/include/linux/uhid.h:
+  struct uhid_event {
+    __u32 type
+    struct uhid_create2_req {
+      __u8 name[128]
+      __u8 phys[64]
+      __u8 uniq[64]
+      __u16 rd_size
+      __u16 bus
+      __u32 vendor
+      __u32 product
+      __u32 version
+      __u32 country
+      __u8 rd_data[4096]
+    } __attribute__((__packed__))
+  } __attribute__((__packed__))
+  """
+
+  uhid_ev = UHID_CREATE2
+  name = "SOFT_RC"
+  name += (128 - len(name)) * "\x00"
+  phys = ""
+  phys += (64 - len(phys)) * "\x00"
+  uniq = ""
+  uniq += (64 - len(uniq)) * "\x00"
+  rd_size = GFRM100_RD_SIZE_16
+  bus = BUS_BLUETOOTH
+  vendor = GFRM100_VENDOR
+  product = GFRM100_PRODUCT
+  version = GFRM100_VERSION
+  country = GFRM100_COUNTRY
+  rd_data = GFRM100_RD_DATA + (4096 - len(GFRM100_RD_DATA)) * "\x00"
+  total = (uhid_ev + name + phys + uniq + rd_size + bus + vendor + product +
+           version + country + rd_data)
+  return buffer(total, 0, len(total))
+
 
 def GetBthidControlStruct(bd_addr):
   """Build BTHID_CONTROL data structure.
@@ -214,21 +284,9 @@ def GetBthidControlStruct(bd_addr):
       unsigned char bd_addr[BD_ADDR_LEN]
   } BTHID_CONTROL
   """
-  size = "\xB3\x00\x00\x00"  # 179
-  descr = (
-      "\x05\x01\x09\x06\xA1\x01\x85\x41\x75\x08\x95\x01\x26\xFF\x00\x05"
-      "\x07\x19\x00\x2A\xFF\x00\x81\x00\xC0\x05\x0C\x09\x01\xA1\x01\x85"
-      "\x40\x19\x00\x2A\xFF\x03\x75\x10\x95\x01\x15\x00\x26\xFF\x03\x81"
-      "\x00\xC0\x05\x01\x09\x80\xA1\x01\x85\x12\x19\x81\x29\x93\x15\x81"
-      "\x25\x93\x75\x08\x95\x01\x81\x40\xC0\x05\x0C\x09\x01\xA1\x01\x85"
-      "\x13\x09\x20\x15\x00\x25\x64\x75\x08\x95\x01\x81\x42\xC0\x85\x21"
-      "\x09\x21\x75\x08\x95\x01\x15\x00\x26\xFF\x00\x81\x02\x85\x22\x05"
-      "\x01\x09\x22\xA1\x02\x09\x3B\x95\x01\x75\x10\x15\x00\x26\x4F\x01"
-      "\x81\x02\x06\xF0\xFF\x09\x22\x75\x10\x96\x4F\x01\x15\x00\x26\xFF"
-      "\x00\x82\x01\x02\xC0\x85\xF2\x09\x02\x75\x08\x95\x01\x15\x00\x26"
-      "\xFF\x00\x91\x02\x85\xF3\x09\x03\x75\x08\x95\x10\x15\x00\x26\xFF"
-      "\x00\x81\x02")
-  data = descr + (800 - len(descr)) * "\x00"
+
+  size = GFRM100_RD_SIZE_32
+  data = GFRM100_RD_DATA + (800 - len(GFRM100_RD_DATA)) * "\x00"
   total = size + data + bd_addr
   return buffer(total, 0, len(total))
 
@@ -266,6 +324,7 @@ class RcServer(object):
     self.autorelease = autorelease
     self.simu_mode = simu_mode
     self.dev_fd = None
+    self.uhid = False
     self.in_script_fd = None
     self.debug_level = debug_level
     self.prev_key_code = None
@@ -284,21 +343,46 @@ class RcServer(object):
         raise
 
     if self.simu_mode:
-      self.Log(LOG_INFO, "Simulation mode, skipping opening bthid device.")
-    else:
-      self.Log(LOG_INFO, "Opening bthid device %r" % BTHID_DEV)
+      self.Log(LOG_INFO, "Simulation mode, skipping opening uhid/bthid device.")
+      return
+
+    try:
+      self.CreateUhidDevice()
+      self.Log(LOG_INFO, "Opened uhid device %r" % UHID_DEV)
+    except (IOError, OSError):
       try:
-        self.dev_fd = os.open(BTHID_DEV, os.O_RDWR)
+        self.CreateBthidDevice(bd_addr)
+        self.Log(LOG_INFO, "Opened bthid device %r" % BTHID_DEV)
       except (IOError, OSError):
-        self.Log(LOG_ERR, "Cannot open device %r" % BTHID_DEV)
+        self.Log(LOG_ERR, "Cannot open uhid device %r or bthid device %r" %
+                 (UHID_DEV, BTHID_DEV))
+        raise
+
+  def CreateUhidDevice(self):
+    try:
+      self.dev_fd = os.open(UHID_DEV, os.O_RDWR)
+    except (IOError, OSError):
+      raise
+    else:
+      # Create uhid device
+      try:
+        os.write(self.dev_fd, GetUhidCreateStruct())
+      except (IOError, OSError):
         raise
       else:
-        # Register to bthid
-        try:
-          fcntl.ioctl(self.dev_fd, 1, GetBthidControlStruct(bd_addr))
-        except (IOError, OSError):
-          self.Log(LOG_ERR, "Cannot ioctl to device %r" % BTHID_DEV)
-          raise
+        self.uhid = True
+
+  def CreateBthidDevice(self, bd_addr):
+    try:
+      self.dev_fd = os.open(BTHID_DEV, os.O_RDWR)
+    except (IOError, OSError):
+      raise
+    else:
+      # Register to bthid
+      try:
+        fcntl.ioctl(self.dev_fd, 1, GetBthidControlStruct(bd_addr))
+      except (IOError, OSError):
+        raise
 
   def GetKeyUp(self, keycode):
     return keycode & 0x0000ffff
@@ -309,9 +393,14 @@ class RcServer(object):
     else:
       self.Log(LOG_INFO, "Send keycode = %x" % keycode)
       count = keycode & 0xff
-      warr = bytearray()
+      if self.uhid:
+        warr = bytearray(UHID_INPUT2 + struct.pack("H", count))
+      else:
+        warr = bytearray()
       for i in range(count):
         warr.append((keycode >> (8*(i+1))) & 0xff)
+      if self.uhid:
+        count += 6
       wbuf = buffer(warr, 0, count)
       try:
         os.write(self.dev_fd, wbuf)
