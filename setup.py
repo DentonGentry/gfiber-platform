@@ -1,4 +1,4 @@
-from setuptools import setup
+from distutils.core import setup
 
 LONGDESC="""Command-line options parser.
 With the help of an options spec string, easily parse command-line options.
