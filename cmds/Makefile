@@ -123,7 +123,7 @@ runtests: all $(TESTS)
 		./$$d; \
 	done
 
-test:
+test: all $(TESTS)
 	./wvtest/wvtestrun $(MAKE) runtests
 
 clean:

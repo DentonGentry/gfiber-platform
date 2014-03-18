@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -27,11 +28,6 @@
 #include <unistd.h>
 
 
-#define MAX_SLEEP       2      // seconds
-#define CRAZY_LONG_TIME 999999 // seconds
-#define DEFAULT_TIMEOUT 300    // seconds
-
-
 static volatile sig_atomic_t kill_parent = 0;
 const char *keepalive_file;
 pid_t p_pid;
@@ -44,10 +40,17 @@ void sighandler(int sig) {
 
 static void usage(char *name) {
   fprintf(stderr,
-          "\n%s - Monitors a process via a keepalive file.\n"
-          "\nUsage:\n"
-          "  %s <keepalive_file> <first_check> <incr_checks> <timeout> "
-          "<command>\n"
+          "Usage: %s [-S <prekill_signal> [-T <prekill_timeout>]]\n"
+          "          <keepalive_file> <first_check> <incr_checks>\n"
+          "          <timeout> <command> [args...]\n"
+          "    -S <prekill_signal>  try this signal (numeric) before SIGKILL\n"
+          "    -T <prekill_timeout> wait time (secs) after prekill_signal\n"
+          "    <keepalive_file>     name of the stamp file to monitor\n"
+          "    <first_check>        time (secs) before first check\n"
+          "    <incr_checks>        time (secs) before subsequent checks\n"
+          "    <timeout>            time (secs) before killing process\n"
+          "    <command> [args...]  the command to kill upon timeout\n"
+          "\n"
           "    The keepalive logic runs in cycles. A cycle begins and ends\n"
           "    with a successful check of the <keepalive_file>, i.e., it was\n"
           "    touched since the last cycle. The first check starts\n"
@@ -56,57 +59,57 @@ static void usage(char *name) {
           "    was found to be updated or <timeout> is reached. In the\n"
           "    former case, the cycle restarts, while in the latter\n"
           "    (timeout) case, the process is restarted and the cycle starts\n"
-          "    again.\n\n", name, name);
+          "    again.\n\n", name);
 }
 
-// parse the given string into an integer and check it is inside the given
-// range [low..high]. If not return the provided default.
-int get_value(const char* str, int low, int high, int def) {
-  int val = strtol(str, NULL, 10);
-  if (val < low || val > high) {
-    val = def;
-  }
-  return val;
+long long parse_to_msec(const char *str) {
+  return atof(str) * 1000;
 }
 
 // return the current (monotonic) time in secs
-unsigned long now() {
+long long now() {
   struct timespec tp;
 
   if (clock_gettime(CLOCK_MONOTONIC, &tp)) {
     perror("alivemonitor: clock_gettime failed.");
     exit(1);
   }
-  return tp.tv_sec;
+  return tp.tv_sec * 1000 + (tp.tv_nsec / 1000000);
 }
+
+enum Aliveness {
+  EXITED = 2,
+  NO_CHANGE = 1,
+  ALIVE = 0,
+  KILL_IT = -1,
+};
 
 // Sleep a given amount of time, while continuously checking on the parent.
 // Return codes:
-//   2: parent exited
-//   1: no change in alive status
-//   0: alive!
-//  -1: system error, kill parent
-int sleep_check_alive(int stime) {
+//  EXITED: parent exited
+//  NO_CHANGE: no change in alive status
+//  ALIVE: alive!
+//  KILL_IT: system error, kill parent
+enum Aliveness sleep_check_alive(long long stime) {
   struct stat fst;
-  long n = now(), endtime = n + stime;
+  long long n = now(), endtime = n + stime;
 
   while (n < endtime) {
     int s = endtime - n;
-    if (s > MAX_SLEEP)
-      s = MAX_SLEEP;
-    sleep(s);
+    usleep(s * 1000);
 
     if (kill_parent)
-      return -1;
+      return KILL_IT;
 
     // check on the parent
+    assert(p_pid > 0);
     if (kill(p_pid, 0) == -1) {
       if (errno == ESRCH) {
         fprintf(stderr, "alivemonitor: parent pid %d exited.\n", p_pid);
-        return 2;
+        return EXITED;
       } else {
         perror("alivemonitor: kill(p_pid, 0) failed");
-        return -1;
+        return KILL_IT;
       }
     }
     n = now();
@@ -115,44 +118,74 @@ int sleep_check_alive(int stime) {
   memset(&fst, 0, sizeof(fst));
   if (stat(keepalive_file, &fst) != 0) {
     perror("alivemonitor: stat failed");
-    return -1;
+    return KILL_IT;
   }
 
   if (fst.st_mtime == old_time) {
-    return 1;
+    return NO_CHANGE;
   }
 
   // alive!
   old_time = fst.st_mtime;
-  return 0;
+  return ALIVE;
 }
 
+void die(const char *argv0, const char *msg) {
+  fprintf(stderr, "%s: %s\n", argv0, msg);
+  exit(99);
+}
 
-int main(int argc, const char **argv) {
+int main(int argc, char *const *argv) {
   int fd;
-  int timeout, first_check, incr_check;
-  int status;
+  long long timeout, first_check, incr_check, next_check;
   struct stat fst;
   mode_t old_mask;
   pid_t pid;
-  long start_time;
+  long long start_time;
   char *keepalive_name;
+  int prekill_signal = 0;
+  long long prekill_timeout = 1000;
 
   if (argc < 6) {
     usage(basename(argv[0]));
-    return -1;
+    return 99;
   }
 
   signal(SIGTERM, sighandler);
   signal(SIGHUP, sighandler);
 
+  // GNU getopt() will helpfully try to grab options from the [args...]
+  // section unless we set this.  We want those options to be set aside
+  // for the subprogram, not for us.
+  putenv("POSIXLY_CORRECT=1");
+  int opt;
+  while ((opt = getopt(argc, argv, "?S:T:")) > 0) {
+    switch (opt) {
+    case 'S':
+      prekill_signal = atoi(optarg);
+      if (prekill_signal <= 0) die(argv[0], "invalid signal number provided");
+      break;
+    case 'T':
+      prekill_timeout = parse_to_msec(optarg);
+      if (prekill_timeout <= 0) die(argv[0], "prekill timeout must be > 0");
+      break;
+    case '?':
+      usage(basename(argv[0]));
+      return 99;
+    }
+  }
+
   // <keepalive_file> <first_check> <incr_checks> <timeout> <command>
-  keepalive_file = argv[1];
+  keepalive_file = argv[optind];
   keepalive_name = basename(keepalive_file);
-  timeout = get_value(argv[4], 1, CRAZY_LONG_TIME, DEFAULT_TIMEOUT);
-  first_check = get_value(argv[2], 1, timeout, timeout);
-  incr_check = get_value(argv[3], 1, timeout - first_check,
-                         timeout - first_check);
+  first_check = parse_to_msec(argv[optind + 1]);
+  incr_check = parse_to_msec(argv[optind + 2]);
+  timeout = parse_to_msec(argv[optind + 3]);
+
+  if (first_check <= 0) die(argv[0], "first_check must be > 0");
+  if (incr_check <= 0) die(argv[0], "incr_check must be > 0");
+  if (timeout <= 0) die(argv[0], "timeout must be > 0");
+  if (first_check > timeout) die(argv[0], "first_check must be <= timeout");
 
   // create the keepalive file if it doesn't already exist
   memset(&fst, 0, sizeof(fst));
@@ -161,7 +194,7 @@ int main(int argc, const char **argv) {
     fd = creat(keepalive_file, 0666);
     if (fd < 0) {
       perror("alivemonitor: creat failed");
-      return -1;
+      return 99;
     }
     // Revert the umask to default so that the child doesn't
     // inherit the changed value.
@@ -170,14 +203,14 @@ int main(int argc, const char **argv) {
   }
   old_time = fst.st_mtime;
 
-  fprintf(stderr, "alivemonitor: Start monitoring '%s' with timeout=%ds, "
-          "first_check=%ds, incr_check=%ds\n",
+  fprintf(stderr, "alivemonitor: Start monitoring '%s' with timeout=%lldms, "
+          "first_check=%lldms, incr_check=%lldms\n",
           keepalive_file, timeout, first_check, incr_check);
 
   // create a new process group with pgid=pid
   if (setpgid(0, 0)) {
     perror("alivemonitor: setpgid failed");
-    return -1;
+    return 99;
   }
 
   // spawn the child process
@@ -185,51 +218,76 @@ int main(int argc, const char **argv) {
   pid = fork();
   if (pid == -1) {
     perror("alivemonitor: fork failed");
-    return -1;
+    return 99;
   } else if (pid > 0) { // parent
-    execvp(argv[5], (char *const*) (argv + 5));
+    execvp(argv[optind + 4], argv + optind + 4);
     perror("alivemonitor: execv failed");
-    return -1;
+    return 99;
   }
 
   // from here: child
 
   while (!kill_parent) {
-
     start_time = now();
 
     // sleep until first check
-    status = sleep_check_alive(first_check);
-    if (status == 2) // parent exited
-      return 0;
-    else if (status < 0) // system error, kill parent
-      break;
-    else if (!status) // alive!
-      continue;
+    switch (sleep_check_alive(first_check)) {
+    case EXITED: return 0;
+    case KILL_IT: goto kill_it;
+    case ALIVE: goto not_dead;
+    case NO_CHANGE: break;  // fall through and enter the inner loop
+    }
 
     // no sign of life yet, run the increments
-    int time_passed = now() - start_time, cnt = 1;
+    long long time_passed = now() - start_time;
+    int cnt = 1;
     while (!kill_parent && time_passed < timeout) {
-      fprintf(stderr, "alivemonitor(%s):%d-No sign of life @ %d/%d secs\n",
+      fprintf(stderr, "alivemonitor(%s): %d-No sign of life @ %lld/%lld ms\n",
               keepalive_name, cnt++, time_passed, timeout);
-      status = sleep_check_alive(incr_check);
-      if (status == 2) // parent exited
-        return 0;
-      else if (status <= 0) // error or alive
-        break;
+      next_check = timeout - time_passed;
+      if (incr_check < next_check) next_check = incr_check;
+      switch (sleep_check_alive(next_check)) {
+      case EXITED: return 0;
+      case KILL_IT: goto kill_it;
+      case NO_CHANGE: break;  // do nothing
+      case ALIVE:
+        fprintf(stderr, "alivemonitor(%s): it's alive after all!\n",
+                keepalive_name);
+        goto not_dead;
+      }
       time_passed = now() - start_time;
     }
-    if (status != 0)
-      break;
+    goto kill_it;
+not_dead:
+    continue;
   }
 
-  fprintf(stderr, "alivemonitor(%s):Timeout! kill parent process group %d\n",
+kill_it:
+  fprintf(stderr, "alivemonitor(%s): Timeout! kill parent process group %d\n",
           keepalive_name, p_pid);
+  assert(p_pid > 0);
+  if (prekill_signal) {
+    // Send prekill signal only to the parent process (which might kill the
+    // rest of its group politely)
+    long long prekill_start = now();
+    if (kill(p_pid, prekill_signal)) {
+      if (errno != ESRCH) perror("alivemonitor: prekill failed");
+    } else {
+      do {
+        if (kill(p_pid, 0)) {
+          if (errno != ESRCH) perror("alivemonitor: prekill(0) failed");
+          break;
+        }
+        usleep(100*1000);
+      } while (now() - prekill_start < prekill_timeout);
+    }
+  }
+
   // Send kill signal to whole process group.
   if (kill(-p_pid, SIGKILL))
     perror("alivemonitor: killing parent process group failed");
 
   // NOTE: Code after this point will not run since we just killed ourselves
 
-  return -1;
+  return 98;
 }
