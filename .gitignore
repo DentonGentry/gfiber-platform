@@ -1,4 +1,9 @@
+/.stamp_*
 /build
 /dist
 /*.egg-info
 *~
+*.[oa]
+*.tmp
+*.so
+*.pyc
