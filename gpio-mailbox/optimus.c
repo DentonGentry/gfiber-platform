@@ -199,11 +199,17 @@ static void setPWMValue(PinHandle handle, int gpio, int pwm, int value) {
 }
 
 static int getFan(PinHandle handle) {
-  return readIntFromFile(SYS_FAN);
+  int val = readIntFromFile(SYS_FAN);
+  /* pwm1 is 0->255 for 0-100% */
+  int percent = val * 100 / 255;
+  return percent;
 }
 
 static void setFan(PinHandle handle, int percent) {
-  writeIntToFile(SYS_FAN, percent);
+  int val = percent * 255 / 100;
+  if (val < 0) val = 0;
+  if (val > 255) val = 255;
+  writeIntToFile(SYS_FAN, val);
 }
 
 static int getTemp1(PinHandle handle) {
