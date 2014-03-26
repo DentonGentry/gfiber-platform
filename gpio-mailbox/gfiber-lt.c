@@ -16,7 +16,7 @@ struct PinHandle_s {
 
 struct Gpio {
   int is_present;
-  const char* file_path_for_brightness;
+  const char* file_path;
   long long old_val;
 };
 
@@ -25,17 +25,22 @@ struct platform_info {
   const char *name;
   struct Gpio led_red;
   struct Gpio led_blue;
+  struct Gpio temp_cpu;
 };
 
 struct platform_info platforms[] = {
   {
     .name = "GFLT200",
     .led_red = {
-      .file_path_for_brightness = "/sys/devices/platform/board/leds:sys-red/brightness",
+      .file_path = "/sys/devices/platform/board/leds:sys-red/brightness",
       .old_val = -1,
     },
     .led_blue = {
-      .file_path_for_brightness = "/sys/devices/platform/board/leds:sys-blue/brightness",
+      .file_path = "/sys/devices/platform/board/leds:sys-blue/brightness",
+      .old_val = -1,
+    },
+    .temp_cpu = {
+      .file_path = "/sys/devices/platform/KW2Thermal.0/temp1_input",
       .old_val = -1,
     },
   }
@@ -45,12 +50,12 @@ struct platform_info *platform = &platforms[0];
 
 // Write the given GPIO pin.
 static void set_gpio(struct Gpio *g, int level) {
-  write_file_int(g->file_path_for_brightness, &g->old_val, level);
+  write_file_int(g->file_path, &g->old_val, level);
 }
 
 // Read the given GPIO pin
 static int get_gpio(struct Gpio *g) {
-  return read_file_long(g->file_path_for_brightness);
+  return read_file_long(g->file_path);
 }
 
 /* standard API follows */
@@ -76,6 +81,7 @@ int PinIsPresent(PinHandle handle, PinId id) {
   switch (id) {
     case PIN_LED_RED:
     case PIN_LED_BLUE:
+    case PIN_TEMP_CPU:
       return 1;
 
     default:
@@ -93,6 +99,10 @@ PinStatus PinValue(PinHandle handle, PinId id, int* valueP) {
 
     case PIN_LED_BLUE:
       *valueP = get_gpio(&platform->led_blue);
+      break;
+
+    case PIN_TEMP_CPU:
+      *valueP = get_gpio(&platform->temp_cpu);
       break;
 
     default:
