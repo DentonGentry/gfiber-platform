@@ -298,11 +298,13 @@ PinStatus PinValue(PinHandle handle, PinId id, int* valueP) {
       break;
 
     case PIN_TEMP_CPU:
-      *valueP = getTemp1(handle);
+      /* optimus has temp2 sensor placed close to SOC */
+      *valueP = getTemp2(handle);
       break;
 
     case PIN_TEMP_EXTERNAL:
-      *valueP = getTemp2(handle);
+      /* temp1 is the lm96063 internal sensor, which is "external" to the SOC */
+      *valueP = getTemp1(handle);
       break;
 
     case PIN_FAN_CHASSIS:
