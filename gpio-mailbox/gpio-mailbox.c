@@ -256,6 +256,9 @@ void run_gpio_mailbox(void) {
   alarm(30);  // die loudly if we freeze for any reason (probably libnexus)
   platform_b0 = (NULL != strstr(read_file("/proc/cpuinfo"), "BCM7425B0"));
   int has_fan = PinIsPresent(handle, PIN_FAN_CHASSIS);
+  int has_reset_button = PinIsPresent(handle, PIN_BUTTON_RESET);
+  int has_cpu_temp = PinIsPresent(handle, PIN_TEMP_CPU);
+  int has_cpu_voltage = PinIsPresent(handle, PIN_MVOLTS_CPU);
 
   is_limited_leds = !PinIsPresent(handle, PIN_LED_BLUE) || !PinIsPresent(handle, PIN_LED_STANDBY);
 
@@ -358,15 +361,18 @@ void run_gpio_mailbox(void) {
 
     if (now - last_print_time >= 6000) {
       if (has_fan) {
-        fprintf(stderr,
-                "fan:%lld/sec:%d%% reads:%d button:%d temp:%.2f volts:%.2f\n",
-                fanspeed, wantspeed, 0,
-                reset_button, cpu_temp, cpu_volts);
-      } else {
-        fprintf(stderr,
-                "button:%d temp:%.2f volts:%.2f\n",
-                reset_button, cpu_temp, cpu_volts);
+        fprintf(stderr, "fan:%lld/sec:%d%% reads:%d ", fanspeed, wantspeed, 0);
       }
+      if (has_reset_button) {
+        fprintf(stderr, "button:%d ", reset_button);
+      }
+      if (has_cpu_temp) {
+        fprintf(stderr, "temp:%.2f ", cpu_temp);
+      }
+      if (has_cpu_voltage) {
+        fprintf(stderr, "volts:%.2f", cpu_volts);
+      }
+      fprintf(stderr, "\n");
       last_print_time = now;
     }
 
