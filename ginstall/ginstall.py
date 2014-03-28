@@ -40,7 +40,7 @@ uloader=      microloader file to install
 
 
 # unit tests can override these with fake versions
-BUFSIZE = 256 * 1024
+BUFSIZE = 64 * 1024
 ETCPLATFORM = '/etc/platform'
 HNVRAM = 'hnvram'
 MTD_PREFIX = '/dev/mtd'
