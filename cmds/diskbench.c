@@ -45,6 +45,8 @@
 #define SCHED_IDLE  5
 #endif
 
+#define PCT_MIN_INIT 9999 // impossible percentage
+
 static int _posix_fallocate(int fd, __off64_t offset, __off64_t len) {
 #ifdef __UCLIBC__
   return syscall(
@@ -60,6 +62,9 @@ static int _posix_fallocate(int fd, __off64_t offset, __off64_t len) {
 struct TaskStatus {
   int tasknum;
   volatile long long counter;
+  volatile long long total_spare_pct;
+  volatile long long spare_pct_cnt;
+  volatile long long spare_pct_min;
   int sock_fd; // used by reader/receiver for sendfile option
 };
 
@@ -94,6 +99,7 @@ static int use_fsync = 0;
 static int use_realtime_prio = 0;
 static int use_ionice = 0;
 static int be_verbose = 0;
+static int print_extra_stats = 0;
 
 #define CHECK(x) _check(#x, x)
 
@@ -387,7 +393,12 @@ static void *writer(void *_status) {
       if (use_fsync) fdatasync(fd);
       long long now = ustime();
       starttime += blockdelay;
-      if (now > starttime) {
+      long long spare_time = starttime - now;
+      long long spare_pct = 100 * spare_time / blockdelay;
+      status->total_spare_pct += spare_pct;
+      if (spare_pct < status->spare_pct_min) status->spare_pct_min = spare_pct;
+      status->spare_pct_cnt++;
+      if (spare_time < 0) {
         // disk fell behind
         while (now > starttime) {
           status->counter++;
@@ -395,7 +406,7 @@ static void *writer(void *_status) {
         }
       } else {
         // ahead of schedule, wait until next timeslot
-        usleep(starttime - now);
+        usleep(spare_time);
       }
     }
     close(fd);
@@ -489,7 +500,12 @@ static void *reader(void *_status) {
       long long now = ustime();
       totalbytes += got;
       starttime += blockdelay;
-      if (now > starttime) {
+      long long spare_time = starttime - now;
+      long long spare_pct = 100 * spare_time / blockdelay;
+      status->total_spare_pct += spare_pct;
+      status->spare_pct_cnt++;
+      if (spare_pct < status->spare_pct_min) status->spare_pct_min = spare_pct;
+      if (spare_time < 0) {
         // disk fell behind
         while (now > starttime) {
           status->counter++;
@@ -497,7 +513,7 @@ static void *reader(void *_status) {
         }
       } else {
         // ahead of schedule, wait until next timeslot
-        usleep(starttime - now);
+        usleep(spare_time);
       }
     }
     close(fd);
@@ -533,6 +549,30 @@ static long long sum_tasks(struct TaskStatus *array, int nelems) {
 }
 
 
+static long long avg_spare_time(struct TaskStatus *array, int nelems) {
+  long long total = 0;
+  for (int i = 0; i < nelems; i++) {
+    if (array[i].spare_pct_cnt) {
+      total += array[i].total_spare_pct / array[i].spare_pct_cnt;
+      array[i].total_spare_pct = array[i].spare_pct_cnt = 0;
+    }
+  }
+  return total / nelems;
+}
+
+
+static long long min_spare_time(struct TaskStatus *array, int nelems) {
+  long long min_pct = array[0].spare_pct_min;
+  array[0].spare_pct_min = PCT_MIN_INIT;
+  for (int i = 1; i < nelems; i++) {
+    if (array[i].spare_pct_min < min_pct)
+      min_pct = array[i].spare_pct_min;
+    array[i].spare_pct_min = PCT_MIN_INIT;
+  }
+  return min_pct;
+}
+
+
 static void usage(void) {
   fprintf(stderr,
           "\n"
@@ -558,6 +598,7 @@ static void usage(void) {
           "    -Y      Use fdatasync() after writing\n"
           "    -R      Use CPU real-time priority\n"
           "    -I      Use ionice real-time disk priority\n"
+          "    -E      Print extra stats\n"
           "    -v      Verbose output\n");
   exit(99);
 }
@@ -567,7 +608,7 @@ int main(int argc, char **argv) {
   srandom(time(NULL));
 
   int opt;
-  while ((opt = getopt(argc, argv, "?ht:i:w:r:b:c:s:m:z:KSDONMFYRIv")) != -1) {
+  while ((opt = getopt(argc, argv, "?ht:i:w:r:b:c:s:m:z:KSDONMFYRIEv")) != -1) {
     switch (opt) {
     case '?':
     case 'h':
@@ -629,6 +670,9 @@ int main(int argc, char **argv) {
       break;
     case 'I':
       use_ionice = 1;
+      break;
+    case 'E':
+      print_extra_stats = 1;
       break;
     case 'v':
       be_verbose = 1;
@@ -699,6 +743,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < nwriters; i++) {
     memset(&writers[i], 0, sizeof(writers[i]));
     writers[i].tasknum = i;
+    writers[i].spare_pct_min = PCT_MIN_INIT;
     pthread_t thread;
     CHECK(pthread_create(&thread, NULL, writer, &writers[i]) == 0);
   }
@@ -715,6 +760,7 @@ int main(int argc, char **argv) {
       readers[i].sock_fd = -1; // disable
     }
     readers[i].tasknum = i;
+    readers[i].spare_pct_min = PCT_MIN_INIT;
     pthread_t thread;
     CHECK(pthread_create(&thread, NULL, reader, &readers[i]) == 0);
   }
@@ -729,12 +775,26 @@ int main(int argc, char **argv) {
     sleep(1);
     long long this_spin = count_spins();
     if (this_spin > best_spin) best_spin = this_spin;
-    printf("%5lld  spins:%lld/%lld  cpu:%.2f%%  overruns: w=%lld r=%lld\n",
-           ++count,
-           this_spin, best_spin,
-           100 * (1-(this_spin*1.0/best_spin)),
-           sum_tasks(writers, nwriters),
-           sum_tasks(readers, nreaders));
+    if (print_extra_stats) {
+      printf("%5lld  spins:%lld/%lld  cpu:%.2f%%  overruns: w=%lld r=%lld "
+             "avg/min spare_time: w=%lld/%lld%% r=%lld/%lld%%\n",
+             ++count,
+             this_spin, best_spin,
+             100 * (1-(this_spin*1.0/best_spin)),
+             sum_tasks(writers, nwriters),
+             sum_tasks(readers, nreaders),
+             avg_spare_time(writers, nwriters),
+             min_spare_time(writers, nwriters),
+             avg_spare_time(readers, nreaders),
+             min_spare_time(readers, nreaders));
+    } else {
+      printf("%5lld  spins:%lld/%lld  cpu:%.2f%%  overruns: w=%lld r=%lld\n",
+             ++count,
+             this_spin, best_spin,
+             100 * (1-(this_spin*1.0/best_spin)),
+             sum_tasks(writers, nwriters),
+             sum_tasks(readers, nreaders));
+    }
     fflush(stdout);
   }
   return 0;
