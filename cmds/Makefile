@@ -9,6 +9,7 @@ TARGETS=\
 	balloon \
 	buttonmon \
 	isoping \
+	isostream \
 	chg_mod_own \
 	dir-monitor \
 	diskbench \
@@ -94,6 +95,7 @@ host-%: %.py
 
 
 host-isoping isoping: LIBS+=-lrt
+host-isostream isostream: LIBS+=-lrt
 host-diskbench diskbench: LIBS+=-lpthread -lrt
 host-logos logos: LIBS+=-lrt
 logos: LIBS+=-L../libstacktrace -lstacktrace
@@ -103,6 +105,7 @@ host-alivemonitor alivemonitor: LIBS+=-lrt
 host-buttonmon buttonmon: LIBS+=-lrt
 alivemonitor: alivemonitor.o
 isoping: isoping.o
+isostream: isostream.o
 diskbench: diskbench.o
 host-logos: host-logos.o host-utils.o
 logos: logos.o utils.o
