@@ -1,3 +1,7 @@
+// The ONU periodically multicasts out its own status, this program
+// listens for those multicasts and writes the status out to a file that
+// be read in by catawampus and displayed on the diagnostic page.
+
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -20,15 +24,17 @@
 #include "device_stats.pb.h"
 
 std::string multicast_addr = "FF30::8000:1";
-const char *optstring = "i:";
+const char *optstring = "i:f:";
 std::string interface = "wan0";
+std::string stat_file;
+std::string tmp_file;
 
 void usage() {
-  printf("Usage: statcatcher -i <interface>\n");
-  exit(0);
+  printf("Usage: statcatcher -i <interface> -f <stat file>\n");
+  exit(1);
 }
 
-int GetIfIndex(int sock, std::string& port_name) {
+int GetIfIndex(int sock, const std::string& port_name) {
   struct ifreq ifr;
   memset(&ifr, 0, sizeof(ifr));
   snprintf(reinterpret_cast<char*>(ifr.ifr_name),
@@ -68,7 +74,7 @@ int MakeSocket() {
   }
   mc_req.ipv6mr_interface = GetIfIndex(sock, interface);
   if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP,
-                 (char*)&mc_req, sizeof(mc_req)) != 0) {
+                 reinterpret_cast<char*>(&mc_req), sizeof(mc_req)) != 0) {
     perror("unable to join ipv6 group");
     exit(1);
   }
@@ -85,16 +91,29 @@ int main(int argc, char** argv) {
         interface = std::string(optarg);
         break;
 
+      case 'f':
+        stat_file = std::string(optarg);
+        tmp_file = stat_file + ".tmp";
+        break;
+
       default:
         usage();
         break;
     }
   }
 
+  if (stat_file.empty() || interface.empty()) {
+    usage();
+    exit(1);
+  }
+
   int sock = MakeSocket();
   pkt.resize(2048);
-  int recvsize=0;
+  int recvsize = 0;
   for (;;) {
+    // process only 1 message per second to prevent a dos attack.
+    sleep(1);
+
     pkt.resize(2048);
     recvsize = recv(sock, &pkt[0], 2048, 0);
     if (recvsize < 0) {
@@ -102,9 +121,44 @@ int main(int argc, char** argv) {
       exit(1);
     }
     pkt.resize(recvsize);
-    // TODO(jnewlin): Remove this after adding code to process received msgs.
-    printf("Recieved %d bytes\n", recvsize);
-    sleep(1);
+
+    // Deserialize message.
+    devstatus::Status status;
+    if (!status.ParseFromArray(&pkt[0], pkt.size())) {
+      printf("failed to parse received data.");
+      continue;
+    }
+
+    // This is C++0x raw string formatting.
+    // NOTE(jnewlin): There are some spiffy automatic proto to json
+    // converters, if we add more data we might want to get rid of this
+    // simplistic converter and use something like that.  Either that or just
+    // write the proto and make catawampus read the proto, there was
+    // hesitation to adding proto support to cwmp.
+    std::string json_out = R"({
+"onu_wan_connected": %s,
+"onu_acs_contacted": %s,
+"onu_acs_contact_time": "%lld",
+"onu_uptime": %lld,
+"onu_serial": "%s",
+})";
+    FILE *f = fopen(tmp_file.c_str(), "w");
+    if (!f) {
+      printf("Can't open tmp file for writing.");
+      exit(1);
+    }
+
+    fprintf(f, json_out.c_str(),
+            status.wan_connected() ? "true" : "false",
+            status.acs_contacted() ? "true" : "false",
+            status.acs_contact_time(),
+            status.uptime(),
+            status.serial().c_str());
+    fclose(f);
+
+    if (rename(tmp_file.c_str(), stat_file.c_str()) != 0) {
+      perror("rename tmp file failed.");
+    }
   }
   return 0;
 }
