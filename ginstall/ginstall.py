@@ -335,10 +335,10 @@ def InstallRawFileToUbi(f, mtddevname):
   """
   ubino = PickFreeUbi()
   SilentCmd('ubidetach', '-p', mtddevname)
-  Cmd('ubiformat', mtddevname, '-y', '-q')
+  Cmd('ubiformat', '-y', '-q', mtddevname)
   Cmd('ubiattach', '-p', mtddevname, '-d', str(ubino))
   try:
-    Cmd('ubimkvol', '/dev/ubi%d' % ubino, '-N', 'rootfs-prep', '-m')
+    Cmd('ubimkvol', '-N', 'rootfs-prep', '-m', '/dev/ubi%d' % ubino)
     newmtd = GetMtdDevForName('rootfs-prep')
     siz = InstallToMtd(f, newmtd)
     Cmd('ubirename', '/dev/ubi%d' % ubino, 'rootfs-prep', 'rootfs')
