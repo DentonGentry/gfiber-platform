@@ -157,9 +157,8 @@ int main(int argc, char *const *argv) {
   // GNU getopt() will helpfully try to grab options from the [args...]
   // section unless we set this.  We want those options to be set aside
   // for the subprogram, not for us.
-  putenv("POSIXLY_CORRECT=1");
   int opt;
-  while ((opt = getopt(argc, argv, "?S:T:")) > 0) {
+  while ((opt = getopt(argc, argv, "+?S:T:")) > 0) {
     switch (opt) {
     case 'S':
       prekill_signal = atoi(optarg);
