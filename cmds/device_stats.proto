@@ -3,9 +3,19 @@ package devstatus;
 option optimize_for = LITE_RUNTIME;
 
 message Status {
-  optional bool wan_connected = 1;
-  optional bool acs_contacted = 2;
-  optional int64 uptime = 3;
-  optional string serial = 4;
+  // Wan link up.
+  optional bool wan_connected = 1 [default=false];
+
+  // Has ACS ever been contacted since last boot.
+  optional bool acs_contacted = 2 [default=false];
+
+  // Time since Unix epoch in microseconds since last good ACS contact.
+  optional int64 acs_contact_time = 3  [default=0];
+
+  // Uptime of device in milliseconds.
+  optional int64 uptime = 4 [default=0];
+
+  // Device serial number.
+  optional string serial = 5;
 };
 
