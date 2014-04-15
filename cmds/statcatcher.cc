@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
 "onu_acs_contacted": %s,
 "onu_acs_contact_time": "%lld",
 "onu_uptime": %lld,
-"onu_serial": "%s",
+"onu_serial": "%s"
 })";
     FILE *f = fopen(tmp_file.c_str(), "w");
     if (!f) {

@@ -139,13 +139,21 @@ int main(int argc, char** argv) {
   memset(&sin6, 0, sizeof(sin6));
   sin6.sin6_family = AF_INET6;
   sin6.sin6_port = htons(61453);
-  inet_pton(AF_INET6, multicast_addr.c_str(), &sin6.sin6_addr);
+  if (inet_pton(AF_INET6, multicast_addr.c_str(), &sin6.sin6_addr) != 1) {
+    perror("inet_pton failed: ");
+    exit(-1);
+  }
+
   for (;;) {
     pkt.clear();
     MakePacket(&pkt);
     int written = sendto(sock, &pkt[0], pkt.size(), 0,
                          (struct sockaddr*)&sin6, sizeof(sin6));
     printf("Wrote %d bytes\n", written);
+    if (written < 0) {
+      perror("sendto: ");
+      printf("pkt.size()=%d\n", (int)pkt.size());
+    }
     sleep(STAT_INTERVAL+1);
   }
   return 0;
