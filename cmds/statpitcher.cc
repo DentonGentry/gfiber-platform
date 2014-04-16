@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <arpa/inet.h>
@@ -10,6 +11,7 @@
 #include <netpacket/packet.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #include <fstream>
@@ -26,13 +28,15 @@
 std::string multicast_addr = "FF30::8000:1";
 
 uint8_t mc_mac[] = { 0x01, 0x00, 0x5e, 0x00, 0x00, 0x01 };
-const char *optstring = "s:i:";
+const char *optstring = "s:i:a:";
 
 std::string serial_number;
 std::string wan_interface;
+std::string acs_contact_file;
 
 void usage() {
-  printf("Usage: statpitcher -s <serial number> -i <wan interface>\n");
+  printf("Usage: statpitcher -s <serial number> -i <wan interface> "
+         "-a <acs_contact_file>\n");
   exit(1);
 }
 
@@ -60,25 +64,41 @@ int GetIfIndex(int sock) {
 
 bool WanUp() {
   std::string if_status;
-  ReadFile(wan_interface, &if_status);
+  std::string stat_file = "/sys/class/net/" + wan_interface + "/operstate";
+  ReadFile(stat_file, &if_status);
   if (if_status.compare(0, 2, "up") == 0)  // compare first 2 characters.
     return true;
   return false;
 }
 
-bool AcsContacted() {
-  return true;
+// Returns 0 if not contacted.
+// Otherwise the contact time in seconds since 1970.
+int64_t AcsContacted() {
+  struct stat stat_buf;
+  memset(&stat_buf, 0, sizeof(stat_buf));
+  if (stat(acs_contact_file.c_str(), &stat_buf) < 0)
+    return 0;
+  return stat_buf.st_mtime;
 }
 
 int64_t Uptime() {
-  return 0;
+  std::string data;
+  float up, idle;
+  ReadFile("/proc/uptime", &data);
+  if (sscanf(data.c_str(), "%f %f", &up, &idle) != 2) {
+    return 0;
+  }
+  return static_cast<int64_t>(up);
 }
 
 void MakePacket(std::vector<uint8_t>* pkt) {
   devstatus::Status status;
 
+  int64_t acs_contact_time = AcsContacted();
+
   status.set_wan_connected(WanUp());
-  status.set_acs_contacted(AcsContacted());
+  status.set_acs_contacted(acs_contact_time != 0);
+  status.set_acs_contact_time(acs_contact_time);
   status.set_uptime(Uptime());
   status.set_serial(serial_number);
 
@@ -98,7 +118,6 @@ int MakeSocket() {
     perror("Failed to setsockopt.");
     exit(1);
   }
-
   return sock;
 }
 
@@ -110,12 +129,14 @@ int main(int argc, char** argv) {
     switch (opt) {
       case 'i':
         wan_interface = std::string(optarg);
-        printf("using interface=%s\n", wan_interface.c_str());
         break;
 
       case 's':
         serial_number = std::string(optarg);
-        printf("using serial=%s\n", serial_number.c_str());
+        break;
+
+      case 'a':
+        acs_contact_file = std::string(optarg);
         break;
 
       default:
@@ -125,11 +146,8 @@ int main(int argc, char** argv) {
     }
   }
 
-  if (wan_interface.empty() || serial_number.empty()) {
-    if (wan_interface.empty())
-      printf("wan_interface is empty\n");
-    else
-      printf("serial_number is empty\n");
+  if (wan_interface.empty() || serial_number.empty() ||
+      acs_contact_file.empty()) {
     usage();
     return 0;
   }
@@ -149,7 +167,6 @@ int main(int argc, char** argv) {
     MakePacket(&pkt);
     int written = sendto(sock, &pkt[0], pkt.size(), 0,
                          (struct sockaddr*)&sin6, sizeof(sin6));
-    printf("Wrote %d bytes\n", written);
     if (written < 0) {
       perror("sendto: ");
       printf("pkt.size()=%d\n", (int)pkt.size());

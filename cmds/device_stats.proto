@@ -9,10 +9,10 @@ message Status {
   // Has ACS ever been contacted since last boot.
   optional bool acs_contacted = 2 [default=false];
 
-  // Time since Unix epoch in microseconds since last good ACS contact.
+  // Time since Unix epoch in seconds since last good ACS contact.
   optional int64 acs_contact_time = 3  [default=0];
 
-  // Uptime of device in milliseconds.
+  // Uptime of device in seconds.
   optional int64 uptime = 4 [default=0];
 
   // Device serial number.
