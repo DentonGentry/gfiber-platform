@@ -251,7 +251,7 @@ def GetUhidCreateStruct():
   """
 
   uhid_ev = UHID_CREATE2
-  name = "SOFT_RC"
+  name = "GFRM-SOFTRC"
   name += (128 - len(name)) * "\x00"
   phys = ""
   phys += (64 - len(phys)) * "\x00"
