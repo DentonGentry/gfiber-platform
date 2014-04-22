@@ -23,6 +23,7 @@ TARGETS=\
 	setuid \
 	soft_rc \
 	stun \
+	udpburst \
 	usleep \
 	wait-until-created \
 	statpitcher \
