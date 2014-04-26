@@ -2,6 +2,7 @@
 
 """Tests for the logos program."""
 
+import random
 import select
 import signal
 import socket
@@ -9,6 +10,10 @@ import subprocess
 import time
 from wvtest.wvtest import *
 
+
+def macAddressShapedString():
+  chars = '0123456789abcdef::::::'
+  return ''.join(random.choice(chars) for x in range(17))
 
 @wvtest
 def testLogos():
@@ -84,6 +89,42 @@ def testLogos():
   WVFAIL(r)
   os.write(fd1, '\n')
   WVPASSEQ('<7>fac: booga!\n', _Read())
+
+  # MAC addresses
+  os.write(fd1, 'f8:8f:ca:00:00:01\n')
+  WVPASSEQ('<7>fac: f8:8f:ca:00:XX:XX\n', _Read())
+  os.write(fd1, '8:8f:ca:00:00:01\n')
+  WVPASSEQ('<7>fac: 8:8f:ca:00:00:01\n', _Read())
+  os.write(fd1, '8:8f:ca:00:00:01:\n')
+  WVPASSEQ('<7>fac: 8:8f:ca:00:00:01:\n', _Read())
+  os.write(fd1, ':::semicolons:f8:8f:ca:00:00:01:and:after\n')
+  WVPASSEQ('<7>fac: :::semicolons:f8:8f:ca:00:XX:XX:and:after\n', _Read())
+  os.write(fd1, 'f8-8f-ca-00-00-01\n')
+  WVPASSEQ('<7>fac: f8-8f-ca-00-XX-XX\n', _Read())
+
+  # Send in random strings to look for crashes.
+  for x in range(10):
+    mac = macAddressShapedString()
+    print 'Trying %s to check for crashes' % mac
+    os.write(fd1, mac + '\n')
+    print _Read()
+
+  # Filenames
+  os.write(fd1, 'Accessing /var/media/pictures/MyPicture.jpg for decode\n')
+  WVPASSEQ('<7>fac: Accessing /var/media/pictures/XXXXXXXXXXXXX for decode\n',
+           _Read())
+  os.write(fd1, '/var/media/pictures/MyPicture.jpg\n')
+  WVPASSEQ('<7>fac: /var/media/pictures/XXXXXXXXXXXXX\n',
+           _Read())
+  os.write(fd1, 'Accessing /var/media/videos/MyMovie.mpg for decode\n')
+  WVPASSEQ('<7>fac: Accessing /var/media/videos/XXXXXXXXXXX for decode\n',
+           _Read())
+  os.write(fd1, 'Accessing /var/media/tv/MyTvShow.ts for decode\n')
+  WVPASSEQ('<7>fac: Accessing /var/media/tv/MyTvShow.ts for decode\n',
+           _Read())
+  os.write(fd1, 'check "/var/media/videos/MyTvShow.ts"len=1024\n')
+  WVPASSEQ('<7>fac: check "/var/media/videos/XXXXXXXXXXX"len=1024\n',
+           _Read())
 
   # rate limiting
   os.write(fd1, (('x'*80) + '\n') * 500)
