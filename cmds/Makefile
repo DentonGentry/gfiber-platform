@@ -126,6 +126,7 @@ rtwatcher: rtwatcher.o
 bigbin: bigbin.o bigtext.o
 buttonmon: buttonmon.o
 host-utils_test: host-utils_test.o host-utils.o
+ssdp_poll: ssdp_poll.o
 statpitcher.o: device_stats.pb.o
 statpitcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
 statpitcher: device_stats.pb.o statpitcher.o
