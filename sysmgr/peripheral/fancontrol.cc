@@ -18,7 +18,8 @@ namespace bruno_platform_peripheral {
 
 #define FAN_CONTROL_PARAMS_FILE   "/user/sysmgr/fan_control_params.tbl"
 
-const unsigned int FanControl::kPwmDefaultStartup = 30;
+/* same as lm96063 spinup setting in barebox. */
+const unsigned int FanControl::kPwmDefaultStartup = 50;
 const unsigned int FanControl::kPwmMinValue = 0;
 const unsigned int FanControl::kPwmMaxValue = 100;
 
@@ -48,21 +49,23 @@ const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
 
 /*
  * Defaults of Fan control parameters for GFRG200/210 (optimus/optimus+hdd)
+ * There is no direct SOC temp input, so we use the remote sensor.
+ * Early measurements show remote sensor @ 65 when SOC is 90.
  */
 const FanControlParams FanControl::kGFRG200FanCtrlSocDefaults = {
-                          temp_setpt    : 90,
-                          temp_max      : 100,
+                          temp_setpt    : 65,
+                          temp_max      : 75,
                           temp_step     : 2,
-                          duty_cycle_min: 25,
+                          duty_cycle_min: 30,
                           duty_cycle_max: 100,
                           pwm_step      : 2
                         };
 
 const FanControlParams FanControl::kGFRG210FanCtrlSocDefaults = {
-                          temp_setpt    : 90,
-                          temp_max      : 100,
+                          temp_setpt    : 65,
+                          temp_max      : 75,
                           temp_step     : 2,
-                          duty_cycle_min: 25,
+                          duty_cycle_min: 30,
                           duty_cycle_max: 100,
                           pwm_step      : 2
                         };
@@ -71,7 +74,7 @@ const FanControlParams FanControl::kGFRG210FanCtrlHddDefaults = {
                           temp_setpt    : 57,
                           temp_max      : 60,
                           temp_step     : 2,
-                          duty_cycle_min: 25,
+                          duty_cycle_min: 30,
                           duty_cycle_max: 100,
                           pwm_step      : 2
                         };
@@ -231,7 +234,7 @@ bool FanControl::AdjustSpeed(
           LOG(LS_INFO) << "Set higher pwm=" << kPwmDefaultStartup;
           ret = DrivePwm(kPwmDefaultStartup);
           if (!ret) {
-            LOG(LS_ERROR) << "DrivePwm failed" << kPwmDefaultStartup; 
+            LOG(LS_ERROR) << "DrivePwm failed" << kPwmDefaultStartup;
             break;
           }
           /* Sleep before lower pwm down to new_duty_cycle_pwm */
