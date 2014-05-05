@@ -25,8 +25,11 @@
  *  - cleans up control characters (ie. chars < 32).
  *  - makes sure output lines are in "facility: message" format.
  *  - doesn't rely on syslogd.
+ *  - suppresses logging of MAC addresses.
+ *  - suppresses logging of filenames of personal media.
  */
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -456,6 +459,94 @@ static void flush(uint8_t *header, ssize_t headerlen,
 }
 
 
+static int is_mac_address(const uint8_t *s, char sep) {
+  if ((s[2] == sep) && (s[5] == sep) && (s[8] == sep) &&
+      (s[11] == sep) && (s[14] == sep) &&
+      isxdigit(s[0]) && isxdigit(s[1]) &&
+      isxdigit(s[3]) && isxdigit(s[4]) &&
+      isxdigit(s[6]) && isxdigit(s[7]) &&
+      isxdigit(s[9]) && isxdigit(s[10]) &&
+      isxdigit(s[12]) && isxdigit(s[13]) &&
+      isxdigit(s[15]) && isxdigit(s[16])) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
+static void blot_out_mac_address(uint8_t *s) {
+  s[12] = 'X';
+  s[13] = 'X';
+  s[15] = 'X';
+  s[16] = 'X';
+}
+
+
+/*
+ * search for text patterns which look like MAC addresses,
+ * and cross out the last two bytes with 'X' characters.
+ * Ex: f8:8f:ca:00:00:01 and f8-8f-ca-00-00-01
+ */
+#define MAC_ADDR_LEN 17
+static void suppress_mac_addresses(uint8_t *line, ssize_t len, char sep) {
+  uint8_t *s = line;
+
+  while (len >= MAC_ADDR_LEN) {
+    if (is_mac_address(s, sep)) {
+      blot_out_mac_address(s);
+      s += MAC_ADDR_LEN;
+      len -= MAC_ADDR_LEN;
+    } else {
+      s += 1;
+      len -= 1;
+    }
+  }
+}
+
+
+/*
+ * Return true for a character which we expect to terminate a
+ * media filename.
+ */
+static int is_filename_terminator(char c) {
+  switch(c) {
+    case ' ':
+    case '\'':
+    case '"':
+      return 1;
+  }
+
+  return 0;
+}
+
+/*
+ * search for text patterns which look like filenames of
+ * personal media, and cross out the filename portion with
+ * 'X' characters.
+ */
+static void suppress_media_filenames(uint8_t *line, ssize_t len,
+                                     const char *path) {
+  uint8_t *s = line;
+  ssize_t pathlen = strlen(path);
+
+  while (len > pathlen) {
+    if (strncmp((char *)s, path, pathlen) == 0) {
+      /* Found a filename, blot it out. */
+      s += pathlen;
+      len -= pathlen;
+      while (len > 0 && !is_filename_terminator(*s)) {
+        *s++ = 'X';
+        len--;
+      }
+    } else {
+      s += 1;
+      len -= 1;
+    }
+  }
+}
+
+
 static void usage(void) {
   fprintf(stderr,
       "Usage: [LOGOS_DEBUG=1] logos <facilityname> [bytes/burst] [bytes/day]\n"
@@ -591,7 +682,12 @@ int main(int argc, char **argv) {
     } else {
       uint8_t *start = buf, *next = buf + used, *end = buf + used + got, *p;
       while ((p = memchr(next, '\n', end - next)) != NULL) {
-        flush(header, headerlen, start, p - start);
+        ssize_t linelen = p - start;
+        suppress_mac_addresses(start, linelen, ':');
+        suppress_mac_addresses(start, linelen, '-');
+        suppress_media_filenames(start, linelen, "/var/media/pictures/");
+        suppress_media_filenames(start, linelen, "/var/media/videos/");
+        flush(header, headerlen, start, linelen);
         if (overlong) {
           // that flush() was the first newline after buffer length
           // exceeded, which means the end of the overly long line.  Let's
