@@ -18,6 +18,7 @@ TARGETS=\
 	memwatcher \
 	logos \
 	randomdata \
+	readubootver \
 	realtime \
 	rtwatcher \
 	setuid \
@@ -142,7 +143,7 @@ host-statcatcher: host-device_stats.pb.o host-statcatcher.o
 bigtext.o: bigtext.S
 	 $(AS) -mabi=32 -mips32 -EL -o $@ $^
 
-TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(TEST_TARGETS)
+TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
 runtests: all $(TESTS)
 	set -e; \
 	for d in $(TESTS); do \
