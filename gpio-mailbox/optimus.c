@@ -239,7 +239,7 @@ PinHandle PinCreate(void) {
   }
   handle->addr = mmap(NULL, REG_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED,
                       handle->fd, REG_FIRST);
-  if (handle->addr == NULL) {
+  if (handle->addr == MAP_FAILED) {
     perror("mmap");
     PinDestroy(handle);
     return NULL;
