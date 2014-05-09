@@ -12,7 +12,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <sys/un.h>
+#include <unistd.h>
 
 /* Encode length by using 7bit per Byte :
  * Most significant bit of each byte specifies that the
@@ -35,7 +38,7 @@
 
 int connect_to_ssdpd()
 {
-  struct sockaddr_un addr = {0};
+  struct sockaddr_un addr;
   int s;
 
   s = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -43,6 +46,7 @@ int connect_to_ssdpd()
     perror("socket AF_UNIX failed");
     exit(1);
   }
+  memset(&addr, 0, sizeof(addr));
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, SOCK_PATH, sizeof(addr.sun_path));
   if(connect(s, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) < 0) {
@@ -62,10 +66,11 @@ int main()
   int socket = connect_to_ssdpd();
   size_t siz = 65536;
   ssize_t len;
-  int nstrings = 0;
+  fd_set readfds;
+  struct timeval tv;
 
   if ((buffer = (unsigned char *)malloc(siz)) == NULL) {
-    fprintf(stderr, "malloc(%d) failed\n", siz);
+    fprintf(stderr, "malloc(%zu) failed\n", siz);
     exit(1);
   }
   memset(buffer, 0, siz);
@@ -80,6 +85,16 @@ int main()
     exit(1);
   }
 
+  FD_ZERO(&readfds);
+  FD_SET(socket, &readfds);
+  memset(&tv, 0, sizeof(tv));
+  tv.tv_sec = 2;
+
+  if (select(socket + 1, &readfds, NULL, NULL, &tv) < 1) {
+    fprintf(stderr, "select failed\n");
+    exit(1);
+  }
+
   if ((len = read(socket, buffer, siz)) < 0) {
     perror("read from minissdpd failed");
     exit(1);
@@ -88,7 +103,7 @@ int main()
   int num = buffer[0];
   p = buffer + 1;
   while (num-- > 0) {
-    ssize_t copylen, slen;
+    size_t copylen, slen;
     char url[256];
     char server[512];
 

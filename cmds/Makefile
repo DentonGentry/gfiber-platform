@@ -33,7 +33,11 @@ HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
 	stdoutline.so
 TEST_TARGETS=\
-	     host-utils_test
+	host-utils_test
+
+ifeq ($(BUILD_SSDP),y)
+TARGETS+=ssdp_poll
+endif
 
 ifeq ($(BRUNO_ARCH),mips)
 ARCH_TARGETS = bigbin
