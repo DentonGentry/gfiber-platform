@@ -37,13 +37,19 @@ TEST_TARGETS=\
 	host-utils_test
 SCRIPT_TARGETS=\
 	is-secure-boot
+ARCH_TARGETS=
 
 ifeq ($(BUILD_SSDP),y)
-TARGETS+=ssdp_poll
+TARGETS += ssdp_poll
+endif
+
+ifeq ($(BUILD_DNSSD),y)
+# Don't bother building for host
+ARCH_TARGETS += dnssd_hosts
 endif
 
 ifeq ($(BRUNO_ARCH),mips)
-ARCH_TARGETS = bigbin
+ARCH_TARGETS += bigbin
 endif
 
 AS=$(CROSS_COMPILE)as
@@ -120,6 +126,8 @@ host-%.pb.cc: %.proto
 host-isoping isoping: LIBS+=-lrt
 host-isostream isostream: LIBS+=-lrt
 host-diskbench diskbench: LIBS+=-lpthread -lrt
+dnssd_hosts: LIBS+=-lavahi-client
+host-dnssd_hosts: LIBS+=-lavahi-client
 host-logos logos: LIBS+=-lrt
 logos: LIBS+=-L../libstacktrace -lstacktrace
 host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
@@ -130,6 +138,7 @@ alivemonitor: alivemonitor.o
 isoping: isoping.o
 isostream: isostream.o
 diskbench: diskbench.o
+dnssd_hosts: dnssd_hosts.o
 host-logos: host-logos.o host-utils.o
 logos: logos.o utils.o
 realtime: realtime.o
