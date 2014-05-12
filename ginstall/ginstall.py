@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Image installer for GFHD100."""
+"""Image installer for Google Fiber CPE devices."""
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
