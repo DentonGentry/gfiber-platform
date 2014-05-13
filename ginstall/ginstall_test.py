@@ -26,6 +26,11 @@ import tempfile
 import unittest
 import ginstall
 
+class FakeImgWVersion(object):
+  def __init__(self, version):
+    self.version = version
+  def GetVersion(self):
+    return self.version
 
 # TODO(apenwarr): These tests are too "unit testy"; should test end-to-end.
 #  The best way to do that is probably to write some fake ubiformat/etc tools
@@ -37,6 +42,7 @@ class GinstallTest(unittest.TestCase):
     self.old_PATH = os.environ['PATH']
     self.old_bufsize = ginstall.BUFSIZE
     self.old_etcplatform = ginstall.ETCPLATFORM
+    self.old_secureboot = ginstall.SECUREBOOT
     self.old_hnvram = ginstall.HNVRAM
     self.old_mtd_prefix = ginstall.MTD_PREFIX
     self.old_mmcblk = ginstall.MMCBLK
@@ -48,6 +54,7 @@ class GinstallTest(unittest.TestCase):
     shutil.rmtree('testdata/bin.tmp', ignore_errors=True)
     os.mkdir('testdata/bin.tmp')
     ginstall.ETCPLATFORM = 'testdata/etc/platform'
+    ginstall.SECUREBOOT = 'testdata/tmp/gpio/ledcontrol/secure_boot'
     ginstall.MTD_PREFIX = 'testdata/dev/mtd'
     ginstall.PROC_MTD = "testdata/proc/mtd"
     ginstall.SGDISK = 'testdata/sgdisk'
@@ -58,6 +65,7 @@ class GinstallTest(unittest.TestCase):
     os.environ['PATH'] = self.old_PATH
     ginstall.BUFSIZE = self.old_bufsize
     ginstall.ETCPLATFORM = self.old_etcplatform
+    ginstall.SECUREBOOT = self.old_secureboot
     ginstall.HNVRAM = self.old_hnvram
     ginstall.MTD_PREFIX = self.old_mtd_prefix
     ginstall.MMCBLK = self.old_mmcblk
@@ -275,6 +283,29 @@ class GinstallTest(unittest.TestCase):
     in_f = StringIO.StringIO('platforms: [ GFUNITTEST, GFFOOBAR ]\n')
     manifest = ginstall.ParseManifest(in_f)
     self.assertTrue(ginstall.CheckPlatform(manifest))
+
+  def testCheckMisc(self):
+    old_platform = ginstall.ETCPLATFORM
+    ginstall.ETCPLATFORM = 'testdata/etc/platform.GFHD200'
+
+    for v in [
+        "gftv200-38.11",
+        "gftv200-39-pre2-58-g72b3037-da",
+        "gftv200-39-pre2"]:
+      self.assertTrue(ginstall.CheckMisc, FakeImgWVersion(v))
+
+    for v in [
+        "gftv200-39-pre0-58-g72b3037-da",
+        "gftv200-39-pre0",
+        "gftv200-39-pre1-58-g72b3037-da",
+        "gftv200-39-pre1",
+        "gftv200-38.9",
+        "gftv200-38.10"
+        ]:
+      self.assertRaises(ginstall.Fatal, ginstall.CheckMisc,
+          FakeImgWVersion(v))
+
+    ginstall.ETCPLATFORM = old_platform
 
   def testGetBootedFromCmdLine(self):
     ginstall.PROC_CMDLINE = "testdata/proc/cmdline1"

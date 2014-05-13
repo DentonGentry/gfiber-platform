@@ -55,6 +55,7 @@ uloader=      microloader file to install
 BUFSIZE = 64 * 1024
 ETCPLATFORM = '/etc/platform'
 ETCVERSION = '/etc/version'
+SECUREBOOT = '/tmp/gpio/ledcontrol/secure_boot'
 HNVRAM = 'hnvram'
 MTD_PREFIX = '/dev/mtd'
 MMCBLK = '/dev/mmcblk0'
@@ -450,6 +451,18 @@ def CheckVersion(manifest):
               % (minimum_version, our_version))
 
 
+def CheckMisc(img):
+  """
+  Miscellaneous sanity checks.
+  """
+  if (GetPlatform() == 'GFHD200' and BroadcomDeviceIsSecure() and
+          (ParseVersionString(img.GetVersion()) < (38, 11) or
+           img.GetVersion().startswith('gftv200-39-pre0') or
+           img.GetVersion().startswith('gftv200-39-pre1') )):
+      raise Fatal('Refusing to install gftv200-38.10 and before, and gftv200-39-pre1 and before.')
+  return True
+
+
 class FileImage(object):
   """A system image packaged as separate kernel, rootfs and loader files."""
 
@@ -673,6 +686,7 @@ def main():
     manifest = img.manifest
     CheckPlatform(manifest)
     CheckVersion(manifest)
+    CheckMisc(img)
 
     rootfs = img.GetRootFs()
     if rootfs:
@@ -758,6 +772,11 @@ def main():
     SetBootPartition(partition)
 
   return 0
+
+
+def BroadcomDeviceIsSecure():
+  """Determines whether a Broadcom device is secure."""
+  return os.path.isfile(SECUREBOOT)
 
 
 def C2kDeviceIsSecure(uloader_mtddevname):
