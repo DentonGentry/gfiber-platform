@@ -54,6 +54,7 @@ uloader=      microloader file to install
 # unit tests can override these with fake versions
 BUFSIZE = 64 * 1024
 ETCPLATFORM = '/etc/platform'
+ETCVERSION = '/etc/version'
 HNVRAM = 'hnvram'
 MTD_PREFIX = '/dev/mtd'
 MMCBLK = '/dev/mmcblk0'
@@ -106,6 +107,10 @@ def VerbosePrint(s, *args):
 
 def GetPlatform():
   return open(ETCPLATFORM).read().strip()
+
+
+def GetVersion():
+  return open(ETCVERSION).read().strip()
 
 
 def SetBootPartition(partition):
@@ -414,6 +419,37 @@ def CheckPlatform(manifest):
               % (platforms, platform))
 
 
+def ParseVersionString(ver):
+  """
+  Extract major and minor revision number from version string. Use 0 if minor
+  revision number cannot be parsed.
+  Args:
+    ver: Version string
+  Returns:
+    A tuple (major, minor) or None if string cannot be parsed.
+
+  Example:
+    'abc-<x>.<y>junk' -> (x,y)
+    'gfrg200-39-pre1-60-g2841888-da' -> (39,0)
+    'gfrg200-38.6a3-ap' -> (38.6)
+    'gfrg200-38-pre2-125-g403f9a3-da' -> (38,0)
+  """
+  m = re.match(r'[^-]+-(\d+)(?:\.(\d+))?', ver)
+  if not m:
+    return None
+  return (int(m.group(1)), int(m.group(2)) if m.group(2) else 0)
+
+
+def CheckVersion(manifest):
+  minimum_version = manifest.get('minimum_version')
+  if not minimum_version: return True
+  our_version = GetVersion()
+  if ParseVersionString(our_version) >= ParseVersionString(minimum_version):
+    return True
+  raise Fatal('Package requires minimum version %s, but we are running %s'
+              % (minimum_version, our_version))
+
+
 class FileImage(object):
   """A system image packaged as separate kernel, rootfs and loader files."""
 
@@ -636,6 +672,7 @@ def main():
 
     manifest = img.manifest
     CheckPlatform(manifest)
+    CheckVersion(manifest)
 
     rootfs = img.GetRootFs()
     if rootfs:
