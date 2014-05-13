@@ -26,6 +26,12 @@ const unsigned int FanControl::kPwmMaxValue = 100;
 const unsigned int FanControl::kFanSpeedNotSpinning = 0;
 
 /*
+ * Fan will start and increase speed at temp_setpt + temp_step + 1
+ * Fan will start slowing at temp_setpt - temp_step - 1
+ * In between, it will not change speed.
+ */
+
+/*
  * Defaults of Fan control parameters for GFMS100 (Bruno-IS)
  * For GFMS100, Dmin and PWMsetp are used under FMS100_SOC settings.
  */
@@ -50,11 +56,12 @@ const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
 /*
  * Defaults of Fan control parameters for GFRG200/210 (optimus/optimus+hdd)
  * There is no direct SOC temp input, so we use the remote sensor.
- * Early measurements show remote sensor @ 65 when SOC is 90.
+ * Mapping between external temp sensor and actual cpu temp was determined
+ * exterimentally.  See b/14666398 spreadsheet attachment.
  */
 const FanControlParams FanControl::kGFRG200FanCtrlSocDefaults = {
-                          temp_setpt    : 65,
-                          temp_max      : 75,
+                          temp_setpt    : 82,  // fan on @ 85 (cpu =~ 93)
+                          temp_max      : 92,  // cpu =~ 100
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
