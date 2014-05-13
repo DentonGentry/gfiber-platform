@@ -70,6 +70,7 @@ const hnvram_field_t nvram_fields[] = {
   {"MAC_ADDR_MOCA",        NVRAM_FIELD_MAC_ADDR_MOCA,     HNVRAM_MAC},
   {"MAC_ADDR_BT",          NVRAM_FIELD_MAC_ADDR_BT,       HNVRAM_MAC},
   {"MAC_ADDR_WIFI",        NVRAM_FIELD_MAC_ADDR_WIFI,     HNVRAM_MAC},
+  {"MAC_ADDR_WIFI2",       NVRAM_FIELD_MAC_ADDR_WIFI2,    HNVRAM_MAC},
   {"MAC_ADDR_WAN",         NVRAM_FIELD_MAC_ADDR_WAN,      HNVRAM_MAC},
   {"HDCP_KEY",             NVRAM_FIELD_HDCP_KEY,          HNVRAM_HEXSTRING},
   {"DTCP_KEY",             NVRAM_FIELD_DTCP_KEY,          HNVRAM_HEXSTRING},
