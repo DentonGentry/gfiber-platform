@@ -1,0 +1,21 @@
+#! /bin/sh
+
+islocked()
+{
+  local locked_state locked_file;
+  locked_file=/proc/otp/islocked
+  if [ -f "$locked_file" ]; then
+    locked_state=$(cat "$locked_file")
+  else
+    echo "$0: ERROR: $locked_file not found" 1>&2
+  fi
+  [ "$locked_state" = "1" ];
+}
+
+if islocked; then
+  echo "secure boot is enabled"
+  exit 0
+fi
+
+echo "secure boot is not enabled"
+exit 1
