@@ -746,7 +746,7 @@ def main():
         mtd = GetMtdDevForNameOrNone('uloader')
         if mtd:
           uloader_signed = UloaderSigned(uloader)
-          device_secure = DeviceIsSecure(mtd)
+          device_secure = C2kDeviceIsSecure(mtd)
           if uloader_signed and not device_secure:
             VerbosePrint('Signed uloader but unsecure box; stripping sig.\n')
             uloader, uloader_start = StripUloader(uloader, uloader_start)
@@ -760,8 +760,8 @@ def main():
   return 0
 
 
-def DeviceIsSecure(uloader_mtddevname):
-  """Determines whether the gfrg200 device is secure.
+def C2kDeviceIsSecure(uloader_mtddevname):
+  """Determines whether a Mindspeed C2k device verifies uloader signature.
 
   Currently this is done by examining the currently installed uloader.
 
