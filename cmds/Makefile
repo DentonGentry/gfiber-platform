@@ -35,6 +35,8 @@ LIB_TARGETS=\
 	stdoutline.so
 TEST_TARGETS=\
 	host-utils_test
+SCRIPT_TARGETS=\
+	is-secure-boot
 
 ifeq ($(BUILD_SSDP),y)
 TARGETS+=ssdp_poll
@@ -66,6 +68,10 @@ install:
 	mkdir -p $(BINDIR) $(LIBDIR)
 	cp $(TARGETS) $(ARCH_TARGETS) $(BINDIR)
 	cp $(LIB_TARGETS) $(LIBDIR)
+	for n in $(SCRIPT_TARGETS); do \
+		test ! -f $$n.$(BR2_TARGET_GENERIC_PLATFORM_NAME) || \
+			cp -f $$n.$(BR2_TARGET_GENERIC_PLATFORM_NAME) $(BINDIR)/$$n; \
+	done
 
 install-libs:
 	@echo "No libs to install."
