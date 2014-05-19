@@ -69,8 +69,8 @@ const FanControlParams FanControl::kGFRG200FanCtrlSocDefaults = {
                         };
 
 const FanControlParams FanControl::kGFRG210FanCtrlSocDefaults = {
-                          temp_setpt    : 65,
-                          temp_max      : 75,
+                          temp_setpt    : 86,   // fan on @ 89 (cpu =~ 93)
+                          temp_max      : 94,   // cpu =~ 100
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
