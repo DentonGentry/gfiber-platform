@@ -422,12 +422,13 @@ def CheckPlatform(manifest):
 
 def ParseVersionString(ver):
   """
-  Extract major and minor revision number from version string. Use 0 if minor
-  revision number cannot be parsed.
+  Extract major and minor revision number from version string.
+
   Args:
     ver: Version string
   Returns:
-    A tuple (major, minor) or None if string cannot be parsed.
+    A tuple (major, minor) or None if string cannot be parsed. Return 0 for
+    minor if minor revision number cannot be parsed.
 
   Example:
     'abc-<x>.<y>junk' -> (x,y)
