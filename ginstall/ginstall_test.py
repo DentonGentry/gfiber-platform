@@ -85,6 +85,14 @@ class GinstallTest(unittest.TestCase):
     self.files_to_remove.append(outfile.name)
     return (scriptfile, outfile)
 
+  def WriteVersionFile(self, version):
+    """Create a fake /etc/version file in /tmp."""
+    versionfile = tempfile.NamedTemporaryFile(mode="r+", delete=False)
+    versionfile.write(version)
+    versionfile.close()  # Linux won't run it if text file is busy
+    self.files_to_remove.append(versionfile.name)
+    ginstall.ETCVERSION = versionfile.name
+
   def testVerify(self):
     self.assertTrue(ginstall.Verify(
         open("testdata/img/loader.bin"),
@@ -283,6 +291,28 @@ class GinstallTest(unittest.TestCase):
     in_f = StringIO.StringIO('platforms: [ GFUNITTEST, GFFOOBAR ]\n')
     manifest = ginstall.ParseManifest(in_f)
     self.assertTrue(ginstall.CheckPlatform(manifest))
+
+  def testCheckVersion(self):
+    self.WriteVersionFile("gftv200-38.10")
+    for v in [
+        "gftv200-38.5",
+        "gftv200-38-pre2-58-g72b3037-da",
+        "gftv200-38-pre2"]:
+      in_f = StringIO.StringIO('minimum_version: %s\n' % v)
+      manifest = ginstall.ParseManifest(in_f)
+      self.assertTrue(ginstall.CheckVersion(manifest))
+    for v in [
+        "gftv200-39-pre0-58-g72b3037-da",
+        "gftv200-39-pre0",
+        "gftv200-39-pre1-58-g72b3037-da",
+        "gftv200-39-pre1",
+        "gftv200-38.11",
+        ]:
+      in_f = StringIO.StringIO('minimum_version: %s\n' % v)
+      manifest = ginstall.ParseManifest(in_f)
+      self.assertRaises(ginstall.Fatal, ginstall.CheckVersion,
+          manifest)
+
 
   def testCheckMisc(self):
     old_platform = ginstall.ETCPLATFORM
