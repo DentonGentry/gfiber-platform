@@ -292,14 +292,17 @@ class GinstallTest(unittest.TestCase):
     manifest = ginstall.ParseManifest(in_f)
     self.assertTrue(ginstall.CheckPlatform(manifest))
 
+  def MakeManifestWMinimumVersion(self, version):
+    in_f = StringIO.StringIO('minimum_version: %s\n' % version)
+    return ginstall.ParseManifest(in_f)
+
   def testCheckVersion(self):
     self.WriteVersionFile("gftv200-38.10")
     for v in [
         "gftv200-38.5",
         "gftv200-38-pre2-58-g72b3037-da",
         "gftv200-38-pre2"]:
-      in_f = StringIO.StringIO('minimum_version: %s\n' % v)
-      manifest = ginstall.ParseManifest(in_f)
+      manifest = self.MakeManifestWMinimumVersion(v)
       self.assertTrue(ginstall.CheckVersion(manifest))
     for v in [
         "gftv200-39-pre0-58-g72b3037-da",
@@ -308,10 +311,12 @@ class GinstallTest(unittest.TestCase):
         "gftv200-39-pre1",
         "gftv200-38.11",
         ]:
-      in_f = StringIO.StringIO('minimum_version: %s\n' % v)
-      manifest = ginstall.ParseManifest(in_f)
+      manifest = self.MakeManifestWMinimumVersion(v)
       self.assertRaises(ginstall.Fatal, ginstall.CheckVersion,
           manifest)
+    manifest = self.MakeManifestWMinimumVersion("junk")
+    self.assertRaises(ginstall.Fatal, ginstall.CheckVersion,
+        manifest)
 
 
   def testCheckMisc(self):

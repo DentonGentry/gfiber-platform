@@ -446,7 +446,11 @@ def CheckVersion(manifest):
   minimum_version = manifest.get('minimum_version')
   if not minimum_version: return True
   our_version = GetVersion()
-  if ParseVersionString(our_version) >= ParseVersionString(minimum_version):
+  min_version = ParseVersionString(minimum_version)
+  if not min_version:
+    raise Fatal('Cannot parse minimum_version field "%s" in manifest' %
+        minimum_version)
+  if ParseVersionString(our_version) >= min_version:
     return True
   raise Fatal('Package requires minimum version %s, but we are running %s'
               % (minimum_version, our_version))
