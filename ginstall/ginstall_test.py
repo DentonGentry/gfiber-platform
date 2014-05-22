@@ -32,6 +32,13 @@ class FakeImgWVersion(object):
   def GetVersion(self):
     return self.version
 
+class FakeImgWManifest(object):
+  def __init__(self, manifest):
+    self.manifest = ginstall.ParseManifest(manifest)
+  def ManifestVersion(self):
+    return int(self.manifest['installer_version'])
+
+
 # TODO(apenwarr): These tests are too "unit testy"; should test end-to-end.
 #  The best way to do that is probably to write some fake ubiformat/etc tools
 #  in testdata/bin, and then run a shell script that actually executes
@@ -175,6 +182,14 @@ class GinstallTest(unittest.TestCase):
     self.assertEqual(tarimg.GetUloader().read(), "uloader.img")
     self.assertEqual(tarimg.GetVersion(), "image_version")
 
+  def testTarImageV4(self):
+    tarimg = ginstall.TarImage("testdata/img/image_v4.gi")
+    self.assertEqual(tarimg.GetKernel().read(), "kernel.img")
+    self.assertEqual(tarimg.GetRootFs().read(), "rootfs.img")
+    self.assertEqual(tarimg.GetLoader().read(), "loader.img")
+    self.assertEqual(tarimg.GetUloader().read(), "uloader.img")
+    self.assertEqual(tarimg.GetVersion(), "image_version")
+
   def testFileImage(self):
     fileimg = ginstall.FileImage("testdata/img/vmlinux",
                                  "testdata/img/rootfs.ubi",
@@ -291,6 +306,24 @@ class GinstallTest(unittest.TestCase):
     in_f = StringIO.StringIO('platforms: [ GFUNITTEST, GFFOOBAR ]\n')
     manifest = ginstall.ParseManifest(in_f)
     self.assertTrue(ginstall.CheckPlatform(manifest))
+
+  def MakeImgWManifestVersion(self, version):
+    in_f = StringIO.StringIO('installer_version: %s\n' % version)
+    return FakeImgWManifest(in_f)
+
+  def testCheckManifestVersion(self):
+    for v in ["2", "3", "4"]:
+      img = self.MakeImgWManifestVersion(v)
+      self.assertTrue(ginstall.CheckManifestVersion(img))
+      ginstall.CheckManifestVersion(img)
+    for v in ["1", "5"]:
+      img = self.MakeImgWManifestVersion(v)
+      self.assertRaises(ginstall.Fatal, ginstall.CheckManifestVersion,
+          img)
+    for v in ["3junk"]:
+      img = self.MakeImgWManifestVersion(v)
+      self.assertRaises(ValueError, ginstall.CheckManifestVersion,
+          img)
 
   def MakeManifestWMinimumVersion(self, version):
     in_f = StringIO.StringIO('minimum_version: %s\n' % version)

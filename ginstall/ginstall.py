@@ -420,6 +420,13 @@ def CheckPlatform(manifest):
               % (platforms, platform))
 
 
+def CheckManifestVersion(img):
+  v = img.ManifestVersion()
+  if v >= 2 and v <= 4:
+    return True
+  else:
+    raise Fatal('Incompatible manifest version: "%s"' % v)
+
 def ParseVersionString(ver):
   """
   Extract major and minor revision number from version string.
@@ -549,9 +556,14 @@ class TarImage(object):
         self.rootfs = fname
         break
 
-    try:
-      f = self.tar_f.extractfile('manifest')
-    except KeyError:
+    f = None
+    for m in ['MANIFEST', 'manifest']:
+      try:
+        f = self.tar_f.extractfile(m)
+        break
+      except KeyError:
+        pass
+    if not f:
       # No manifest; it must be an old-style installer.
       # Generate an auto-manifest compatible with older files.
       self.manifest = default_manifest_v2.copy()
@@ -690,6 +702,7 @@ def main():
 
     manifest = img.manifest
     CheckPlatform(manifest)
+    CheckManifestVersion(img)
     CheckVersion(manifest)
     CheckMisc(img)
 
