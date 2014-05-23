@@ -127,7 +127,7 @@ class GinstallTest(unittest.TestCase):
     self.assertRaises(IOError, ginstall.IsIdentical,
         'loader', loader, open("testdata/img/loader.bin"))
     loader.seek(0)
-    self.assertTrue(IOError, ginstall.IsIdentical(
+    self.assertTrue(ginstall.IsIdentical(
         'loader', loader, open("testdata/img/loader.bin")))
     loader.seek(0)
     self.assertFalse(ginstall.IsIdentical(
@@ -360,7 +360,7 @@ class GinstallTest(unittest.TestCase):
         "gftv200-38.11",
         "gftv200-39-pre2-58-g72b3037-da",
         "gftv200-39-pre2"]:
-      self.assertTrue(ginstall.CheckMisc, FakeImgWVersion(v))
+      self.assertTrue(ginstall.CheckMisc(FakeImgWVersion(v)))
 
     for v in [
         "gftv200-39-pre0-58-g72b3037-da",
