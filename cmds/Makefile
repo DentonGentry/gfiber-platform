@@ -63,7 +63,6 @@ CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=gnu++0x -D_GNU_SOURCE
 HOST_PROTO_INCS=-I$(HOSTDIR)/usr/include
-TARGET_PROTO_INCS=-I$(DESTDIR)/usr/include
 INCS=-I../libstacktrace
 
 .PRECIOUS: %.o host-%.o
@@ -89,7 +88,7 @@ install-libs:
 	$(CC) $(CFLAGS) -fPIC $(INCS) -o $@ -c $<
 
 %.o: %.cc
-	$(CXX) $(CXXFLAGS) $(INCS) $(TARGET_PROTO_INCS) -o $@ -c $<
+	$(CXX) $(CXXFLAGS) $(INCS) -o $@ -c $<
 
 %.po: %.cc
 	$(CXX) $(CXXFLAGS) -fPIC $(INCS) -o $@ -c $<
@@ -152,7 +151,6 @@ statpitcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
 statpitcher: device_stats.pb.o statpitcher.o
 host-statpitcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread
 host-statpitcher: host-device_stats.pb.o host-statpitcher.o
-statpitcher: INCS+=$(TARGET_PROTO_INCS)
 statcatcher.o: device_stats.pb.o
 statcatcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
 statcatcher: device_stats.pb.o statcatcher.o
