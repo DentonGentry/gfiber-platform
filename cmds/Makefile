@@ -62,7 +62,6 @@ CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=c99 -D_GNU_SOURCE
 CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=gnu++0x -D_GNU_SOURCE
-HOST_PROTO_INCS=-I$(HOSTDIR)/usr/include
 INCS=-I../libstacktrace
 
 .PRECIOUS: %.o host-%.o
@@ -97,7 +96,7 @@ host-%.o: %.c
 	$(HOST_CC) $(CFLAGS) $(INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 host-%.o: %.cc
-	$(HOST_CXX) $(CXXFLAGS) $(INCS) $(HOST_PROTO_INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
+	$(HOST_CXX) $(CXXFLAGS) $(INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 %: %.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
