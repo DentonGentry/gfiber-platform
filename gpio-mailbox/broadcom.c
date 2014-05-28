@@ -40,11 +40,17 @@ static volatile void* mmap_addr = MAP_FAILED;
 static size_t mmap_size = 0;
 static int mmap_fd = -1;
 
-
 struct Gpio {
   int is_present;
+
+  unsigned int pinmux_offset;
+  unsigned int pinmux_mask;
+  unsigned int pinmux_value;
+
   unsigned int offset_direction;
   unsigned int offset_data;
+
+  /* for offset_direction and offset_data */
   unsigned int mask;                    // eg, (*reg & mask) >> shift == on_value
   unsigned int shift;
   unsigned int off_value;
@@ -78,6 +84,7 @@ struct platform_info {
   const char *name;
   off_t mmap_base;
   size_t mmap_size;
+  void (*init)(struct platform_info* p);
   struct Gpio led_red;
   struct Gpio led_blue;
   struct Gpio led_activity;
@@ -88,6 +95,8 @@ struct platform_info {
   struct Temp temp_monitor;
   struct Voltage voltage_monitor;
 };
+
+static void init_gfhd200(struct platform_info* p);
 
 struct platform_info platforms[] = {
   {
@@ -244,17 +253,19 @@ struct platform_info platforms[] = {
   },
   {
     .name = "GFHD200",
+    .init = init_gfhd200,
     .mmap_base = 0x10400000,            // AON_PIN_CTRL ...
     .mmap_size = 0x30000,
     .led_red = {
       .is_present = 1,                  // GPIO 5
-      .offset_direction = 0x9808,       // GIO_AON_IODIR_LO
-      .offset_data = 0x9804,            // GIO_AON_DATA_LO
-      .mask = 0x00000020,               // 1<<5
-      .shift = 5,
-      .off_value = 0,
-      .on_value = 1,
-      .direction_value = 0,
+      .pinmux_offset = 0x8500,          // PIN_MUX_CTRL_0
+      .pinmux_mask = 0xf0000000,
+      .pinmux_value = 0x10000000,       // LED_LD1 (segment 1 on led digit1)
+      .offset_data = 0x9018,            // GIO_AON_DATA_LO
+      .mask = 0x00000002,               // 1<<1
+      .shift = 1,
+      .off_value =1,
+      .on_value = 0,
       .old_val = -1,
     },
     .led_blue = {
@@ -262,13 +273,14 @@ struct platform_info platforms[] = {
     },
     .led_activity = {
       .is_present = 1,                  // GPIO 4
-      .offset_direction = 0x9808,       // GIO_AON_IODIR_LO
-      .offset_data = 0x9804,            // GIO_AON_DATA_LO
-      .mask = 0x00000010,               // 1<<4
-      .shift = 4,
-      .off_value = 0,
-      .on_value = 1,
-      .direction_value = 0,
+      .pinmux_offset = 0x8500,          // PIN_MUX_CTRL_0
+      .pinmux_mask = 0x0f000000,
+      .pinmux_value = 0x01000000,       // LED_LD0 (segment 0 on led digit1)
+      .offset_data = 0x9018,            // GIO_AON_DATA_LO
+      .mask = 0x00000001,               // 1<<0
+      .shift = 0,
+      .off_value = 1,
+      .on_value = 0,
       .old_val = -1,
     },
     .led_standby = {
@@ -300,6 +312,23 @@ struct platform_info platforms[] = {
 };
 
 struct platform_info *platform = NULL;
+
+/* set LED/Keypad timings to control LED brightness */
+static void init_gfhd200(struct platform_info* p) {
+  volatile uint32_t* reg;
+
+  reg = mmap_addr + 0x9034;     // LDK_CONTROL
+  *reg = 0x01;                  // reset
+  *reg = 0x18;                  // ver=1 inv_led=1
+
+  reg = mmap_addr + 0x9008;     // LDK_PRESCHI, LO (clock divisor)
+  reg[0] = 0x00;
+  reg[1] = 0x10;                // tick = clock / 0x0010, not sure what clock is
+
+  reg = mmap_addr + 0x9010;     // LDK_DUTYOFF, ON
+  reg[0] = 0x40;
+  reg[1] = 0xc0;                // 0x40 off ticks then 0xc0 on ticks == 75% brightness
+}
 
 // Set the given PWM (pulse width modulator) to the given percent duty cycle.
 static void set_pwm(struct Fan *f, int percent) {
@@ -399,13 +428,28 @@ static void set_direction(struct Gpio *g)
   volatile uint32_t* reg;
   uint32_t value;
 
-  if (!g->is_present)
+  if (!g->is_present || g->offset_direction == 0)
     return;
 
   reg = mmap_addr + g->offset_direction;
   value = *reg;
   value &= ~g->mask;
   value |= g->direction_value << g->shift;
+  *reg = value;
+}
+
+// initialize pin to LED or GPIO etc
+static void set_pinmux(struct Gpio *g) {
+  volatile uint32_t* reg;
+  uint32_t value;
+
+  if (!g->is_present || g->pinmux_offset == 0)
+    return;
+
+  reg = mmap_addr + g->pinmux_offset;
+  value = *reg;
+  value &= ~g->pinmux_mask;
+  value |= g->pinmux_value;
   *reg = value;
 }
 
@@ -590,7 +634,20 @@ void set_standby_led(int level) {
   set_gpio(&platform->led_standby, level ? 1 : 0);
 }
 
+static void init_platform(struct platform_info* p) {
+  if (p->init) {
+    (*p->init)(p);
+  }
+}
+
 static void initialize_gpios(void) {
+  init_platform(platform);
+
+  set_pinmux(&platform->led_red);
+  set_pinmux(&platform->led_blue);
+  set_pinmux(&platform->led_activity);
+  set_pinmux(&platform->led_standby);
+
   set_direction(&platform->led_red);
   set_direction(&platform->led_blue);
   set_direction(&platform->led_activity);
