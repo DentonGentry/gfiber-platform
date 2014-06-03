@@ -41,7 +41,8 @@ const FanControlParams FanControl::kGFMS100FanCtrlSocDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 25,
                           duty_cycle_max: 100,
-                          pwm_step      : 2
+                          pwm_step      : 2,
+                          temp_overheat : 120,
                         };
 
 const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
@@ -50,7 +51,8 @@ const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 25,
                           duty_cycle_max: 100,
-                          pwm_step      : 2
+                          pwm_step      : 2,
+                          temp_overheat : 120,
                         };
 
 /*
@@ -65,7 +67,8 @@ const FanControlParams FanControl::kGFRG200FanCtrlSocDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
-                          pwm_step      : 2
+                          pwm_step      : 2,
+                          temp_overheat : 105,
                         };
 
 const FanControlParams FanControl::kGFRG210FanCtrlSocDefaults = {
@@ -74,7 +77,8 @@ const FanControlParams FanControl::kGFRG210FanCtrlSocDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
-                          pwm_step      : 2
+                          pwm_step      : 2,
+                          temp_overheat : 105,
                         };
 
 const FanControlParams FanControl::kGFRG210FanCtrlHddDefaults = {
@@ -83,7 +87,8 @@ const FanControlParams FanControl::kGFRG210FanCtrlHddDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
-                          pwm_step      : 2
+                          pwm_step      : 2,
+                          temp_overheat : 105,
                         };
 /*
  * Defaults of Fan control parameters for GFHD100 (Bruno)
@@ -107,7 +112,8 @@ const FanControlParams FanControl::kGFHD100FanCtrlSocDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 12,
                           duty_cycle_max: 40,
-                          pwm_step      : 1
+                          pwm_step      : 1,
+                          temp_overheat : 120,
                         };
 
 FanControl::~FanControl() {
@@ -204,12 +210,13 @@ void FanControl::InitParams() {
   for (idx = 0, pfan_ctrl = pfan_ctrl_params_; idx <= max; idx++, pfan_ctrl++) {
     LOG(LS_INFO) << platformInstance_->PlatformName()
                  << ((idx == BRUNO_SOC)? "_SOC" : "_HDD") << std::endl
-                 << " Tsetpt: "  << pfan_ctrl->temp_setpt << std::endl
-                 << " Tmax: "    << pfan_ctrl->temp_max << std::endl
-                 << " Tstep: "   << pfan_ctrl->temp_step << std::endl
-                 << " Dmin: "    << pfan_ctrl->duty_cycle_min << std::endl
-                 << " Dmax: "    << pfan_ctrl->duty_cycle_max << std::endl
-                 << " PWMstep: " << pfan_ctrl->pwm_step << std::endl;
+                 << " Tsetpt: "    << pfan_ctrl->temp_setpt << std::endl
+                 << " Tmax: "      << pfan_ctrl->temp_max << std::endl
+                 << " Tstep: "     << pfan_ctrl->temp_step << std::endl
+                 << " Dmin: "      << pfan_ctrl->duty_cycle_min << std::endl
+                 << " Dmax: "      << pfan_ctrl->duty_cycle_max << std::endl
+                 << " PWMstep: "   << pfan_ctrl->pwm_step << std::endl
+                 << " Toverheat: " << pfan_ctrl->temp_overheat << std::endl;
   }
 }
 
@@ -259,6 +266,12 @@ bool FanControl::AdjustSpeed(
   } while (false);
 
   return ret;
+}
+
+void FanControl::GetOverheatTemperature(uint16_t *poverheat_temp) {
+  FanControlParams  *psoc = &pfan_ctrl_params_[BRUNO_SOC];
+  *poverheat_temp = psoc->temp_overheat;
+  return;
 }
 
 void FanControl::GetHddTemperature(uint16_t *phdd_temp) {
@@ -394,7 +407,6 @@ std::string FanControl::ExecCmd(char* cmd, std::string *pattern) {
 
   return result;
 }
-
 
 FanControlParams *FanControl::get_hdd_fan_ctrl_parms() {
   FanControlParams  *ptr = NULL;

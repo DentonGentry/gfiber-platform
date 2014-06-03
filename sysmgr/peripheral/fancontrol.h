@@ -23,6 +23,7 @@ typedef struct FanControlParams {
   uint16_t  duty_cycle_min;
   uint16_t  duty_cycle_max;
   uint16_t  pwm_step;
+  uint16_t  temp_overheat;
 
   FanControlParams& operator = (const FanControlParams& param) {
     temp_setpt = param.temp_setpt;
@@ -31,6 +32,7 @@ typedef struct FanControlParams {
     duty_cycle_min = param.duty_cycle_min;
     duty_cycle_max = param.duty_cycle_max;
     pwm_step = param.pwm_step;
+    temp_overheat = param.temp_overheat;
     return *this;
   }
 
@@ -84,6 +86,7 @@ class FanControl: public Mailbox {
   bool DrivePwm(uint16_t duty_cycle);
   bool AdjustSpeed(uint16_t soc_temp, uint16_t hdd_temp, uint16_t fan_speed);
   void GetHddTemperature(uint16_t *phdd_temp);
+  void GetOverheatTemperature(uint16_t *poverheat_temp);
 
  private:
 

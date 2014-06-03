@@ -63,8 +63,11 @@ void PeripheralMon::Probe(void) {
 void PeripheralMon::Overheating(float soc_temperature)
 {
   std::ostringstream message;
+  uint16_t  overheat_value;
 
-  if (soc_temperature < OVERHEATING_VALUE) {
+  fan_control_->GetOverheatTemperature(&overheat_value);
+
+  if (soc_temperature < overheat_value) {
     overheating_ = 0;
     Common::ClrLED(Common::OVERHEATING, "");
   }
