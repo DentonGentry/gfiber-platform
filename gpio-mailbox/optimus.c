@@ -60,6 +60,7 @@ struct PinHandle_s {
 #define SYS_TEMP1               SYS_FAN_DIR "temp1_input"
 #define SYS_TEMP2               SYS_FAN_DIR "temp2_input"
 #define SYS_FAN                 SYS_FAN_DIR "pwm1"
+#define SYS_RPM                 SYS_FAN_DIR "fan1_input"
 
 /* helper methods */
 
@@ -199,10 +200,13 @@ static void setPWMValue(PinHandle handle, int gpio, int pwm, int value) {
 }
 
 static int getFan(PinHandle handle) {
-  int val = readIntFromFile(SYS_FAN);
-  /* pwm1 is 0->255 for 0-100% */
-  int percent = val * 100 / 255;
-  return percent;
+  static int rpm_failed = 0;
+  if (!rpm_failed) {
+    int val = readIntFromFile(SYS_RPM);
+    if (val >= 0) return val;
+    rpm_failed = 1;     // old bootloader doesn't enable tachometer
+  }
+  return 0;
 }
 
 static void setFan(PinHandle handle, int percent) {
