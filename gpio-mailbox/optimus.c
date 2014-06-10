@@ -45,7 +45,7 @@
 #define PWM_ACTIVITY            4
 #define PWM_RED                 5
 #define PWM_LED_HZ              1000    /* 300-1000 is recommended */
-#define PWM_DUTY_OFF_PERCENT    90      /* 90% off, 10% on, dim */
+#define PWM_DUTY_OFF_PERCENT    50      /* 0 is full bright, 100 is off */
 
 struct PinHandle_s {
   int                           fd;

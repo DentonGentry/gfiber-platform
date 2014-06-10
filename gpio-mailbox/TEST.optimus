@@ -66,6 +66,8 @@ while true; do
 	echo $duty
 	setreg $blue_pwm_lo $(hex $(($min)))
 	setreg $blue_pwm_hi $max
+	setreg $red_pwm_lo $val
+	setreg $red_pwm_hi $max
 done
 	
 #select $red $mode_gpio
