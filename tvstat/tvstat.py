@@ -230,10 +230,10 @@ def TvBoxStats(old):
   return new
 
 
-def StorageBoxStats(old):
+def StorageBoxStats(old, wan_if):
   new = dict()
-  (new['eth0_rxerr'], new['eth0_rxdrop'],
-   new['eth0_rxfifo'], new['eth0_rxframe']) = GetIfErrors('eth0')
+  (new['wan_rxerr'], new['wan_rxdrop'],
+   new['wan_rxfifo'], new['wan_rxframe']) = GetIfErrors(wan_if)
   (new['br0_rxerr'], new['br0_rxdrop'],
    new['br0_rxfifo'], new['br0_rxframe']) = GetIfErrors('br0')
   new.update(GetTsErrors())
@@ -244,10 +244,10 @@ def StorageBoxStats(old):
       Delta(new, old, 'DropPackets'),
       Delta(new, old, 'PacketErrorCount'),
       Delta(new, old, 'UdpDrops'),
-      Delta(new, old, 'eth0_rxerr'),
-      Delta(new, old, 'eth0_rxdrop'),
-      Delta(new, old, 'eth0_rxfifo'),
-      Delta(new, old, 'eth0_rxframe'),
+      Delta(new, old, 'wan_rxerr'),
+      Delta(new, old, 'wan_rxdrop'),
+      Delta(new, old, 'wan_rxfifo'),
+      Delta(new, old, 'wan_rxframe'),
       Delta(new, old, 'br0_rxerr'),
       Delta(new, old, 'br0_rxdrop'),
       Delta(new, old, 'br0_rxfifo'),
@@ -263,17 +263,15 @@ def Delta(new, old, field):
     return new[field]
 
 
-def IsTVBox():
-  platform = open(PLATFORM).read()
-  return True if 'GFHD' in platform else False
-
-
 def main():
   o = options.Options(optspec)
   _, _, extra = o.parse(sys.argv[1:])
 
   interval = int(extra[0]) if len(extra) else -1
-  tvbox = IsTVBox()
+
+  platform = open(PLATFORM).read()
+  tvbox = True if 'GFHD' in platform else False
+  wan_if = 'wan0' if 'GFRG2' in platform else 'eth0'
 
   new = dict()
   old = dict()
@@ -282,14 +280,14 @@ def main():
     print '--------decoder---------- ------------------display---------------------'
     print 'verror vover vdrop aerror  verr vdrop vundr aover aundr a2vpts vwch awch'
   else:
-    print '---------sagesrv------------------ --------eth0-------- --------br0---------'
+    print '---------sagesrv------------------ --------%s-------- --------br0---------' % wan_if
     print ' discon dropb dropp pkterr udpdrop  err drop fifo frame  err drop fifo frame'
 
   while True:
     if tvbox:
       new = TvBoxStats(old)
     else:
-      new = StorageBoxStats(old)
+      new = StorageBoxStats(old, wan_if)
 
     if interval <= 0:
       return 0
