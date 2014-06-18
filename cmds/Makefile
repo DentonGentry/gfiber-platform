@@ -7,6 +7,7 @@ LIBDIR=$(DESTDIR)$(PREFIX)/lib
 TARGETS=\
 	alivemonitor \
 	balloon \
+	bsa2bluez \
 	buttonmon \
 	isoping \
 	isostream \
