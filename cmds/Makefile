@@ -126,7 +126,7 @@ host-%.pb.cc: %.proto
 host-isoping isoping: LIBS+=-lrt
 host-isostream isostream: LIBS+=-lrt
 host-diskbench diskbench: LIBS+=-lpthread -lrt
-dnssd_hosts: LIBS+=-lavahi-client
+dnssd_hosts: LIBS+=-lavahi-client -lavahi-common
 host-dnssd_hosts: LIBS+=-lavahi-client
 host-logos logos: LIBS+=-lrt
 logos: LIBS+=-L../libstacktrace -lstacktrace
