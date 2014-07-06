@@ -6,6 +6,7 @@ LIBDIR=$(DESTDIR)$(PREFIX)/lib
 
 TARGETS=\
 	alivemonitor \
+	asus_hosts \
 	balloon \
 	bsa2bluez \
 	buttonmon \
@@ -35,7 +36,8 @@ HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
 	stdoutline.so
 TEST_TARGETS=\
-	host-utils_test
+	host-utils_test \
+	host-asus_hosts_test
 SCRIPT_TARGETS=\
 	is-secure-boot
 ARCH_TARGETS=
