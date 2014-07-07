@@ -24,11 +24,15 @@
  * output the MAC address and hostname.
  */
 
+#include <assert.h>
 #include <ctype.h>
+#include <net/if.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
@@ -40,47 +44,38 @@
 static AvahiSimplePoll *simple_poll = NULL;
 
 
-static int is_mac_address(const char *s, size_t len)
+static void service_resolver_callback(
+    AvahiServiceResolver *r,
+    AvahiIfIndex interface,
+    AvahiProtocol protocol,
+    AvahiResolverEvent event,
+    const char *name,
+    const char *type,
+    const char *domain,
+    const char *host_name,
+    const AvahiAddress *a,
+    uint16_t port,
+    AvahiStringList *txt,
+    AvahiLookupResultFlags flags,
+    void *userdata)
 {
-  if (len < 17) {
-    /* Too short to be a MAC address */
-    return 0;
-  }
+  AvahiClient *c = (AvahiClient *)userdata;
+  int err;
+  char buf[AVAHI_ADDRESS_STR_MAX];
 
-  if ((s[2] == ':') && (s[5] == ':') && (s[8] == ':') &&
-      (s[11] == ':') && (s[14] == ':') &&
-      isxdigit(s[0]) && isxdigit(s[1]) &&
-      isxdigit(s[3]) && isxdigit(s[4]) &&
-      isxdigit(s[6]) && isxdigit(s[7]) &&
-      isxdigit(s[9]) && isxdigit(s[10]) &&
-      isxdigit(s[12]) && isxdigit(s[13]) &&
-      isxdigit(s[15]) && isxdigit(s[16])) {
-    return 1;
-  }
+  assert(c);
+  memset(buf, 0, sizeof(buf));
+  switch (event) {
+    case AVAHI_RESOLVER_FAILURE:
+      err = avahi_client_errno(c);
+      fprintf(stderr, "AVAHI_RESOLVER_FAILURE %s\n", avahi_strerror(err));
+      avahi_simple_poll_quit(simple_poll);
+      return;
 
-  return 0;
-}
-
-
-static void print_split_strings(const char *str)
-{
-  size_t i, len = strlen(str);
-  for (i = 2; i < len; i++) {
-    if (is_mac_address(&str[i], len - i)) {
-      char host[128];
-      char mac[18];
-      size_t hlen = i - 2;
-
-      if (hlen >= sizeof(host)) {
-        hlen = sizeof(host) - 1;
-      }
-      memset(mac, 0, sizeof(mac));
-      memset(host, 0, sizeof(host));
-      strncpy(mac, &str[i], 17);
-      strncpy(host, str, hlen);
-
-      printf ("%s|%s\n", mac, host);
-    }
+    case AVAHI_RESOLVER_FOUND:
+      avahi_address_snprint(buf, sizeof(buf), a);
+      printf("%s|%s\n", buf, host_name);
+      break;
   }
 }
 
@@ -96,17 +91,65 @@ static void service_browser_callback(
     AvahiLookupResultFlags flags,
     void *userdata)
 {
+  AvahiClient *c = (AvahiClient *)userdata;
   int err;
 
+  assert(c);
   switch (event) {
     case AVAHI_BROWSER_FAILURE:
-      err = avahi_client_errno(avahi_service_browser_get_client(b));
+      err = avahi_client_errno(c);
       fprintf(stderr, "AVAHI_BROWSER_FAILURE %s\n", avahi_strerror(err));
       avahi_simple_poll_quit(simple_poll);
       return;
 
     case AVAHI_BROWSER_NEW:
-      print_split_strings(name);
+      if (avahi_service_resolver_new(
+          c, interface, protocol, name, type, domain, AVAHI_PROTO_UNSPEC,
+          0, service_resolver_callback, c) == NULL) {
+        fprintf(stderr, "avahi_service_resolver_new failed.\n");
+      }
+      break;
+
+    case AVAHI_BROWSER_REMOVE:
+      break;
+
+    case AVAHI_BROWSER_ALL_FOR_NOW:
+      avahi_simple_poll_quit(simple_poll);
+      break;
+
+    case AVAHI_BROWSER_CACHE_EXHAUSTED:
+      break;
+  }
+}
+
+
+static void service_type_browser_callback(
+    AvahiServiceTypeBrowser *b,
+    AvahiIfIndex interface,
+    AvahiProtocol protocol,
+    AvahiBrowserEvent event,
+    const char *type,
+    const char *domain,
+    AvahiLookupResultFlags flags,
+    void *userdata)
+{
+  AvahiClient *c = (AvahiClient *)userdata;
+  int err;
+
+  assert(c);
+  switch (event) {
+    case AVAHI_BROWSER_FAILURE:
+      err = avahi_client_errno(c);
+      fprintf(stderr, "AVAHI_BROWSER_FAILURE %s\n", avahi_strerror(err));
+      avahi_simple_poll_quit(simple_poll);
+      return;
+
+    case AVAHI_BROWSER_NEW:
+      if (avahi_service_browser_new(
+          c, interface, protocol, type, domain, 0,
+          service_browser_callback, c) == NULL) {
+        fprintf(stderr, "avahi_service_browser_new failed.\n");
+      }
       break;
 
     case AVAHI_BROWSER_REMOVE:
@@ -122,7 +165,7 @@ static void service_browser_callback(
 }
 
 static void client_callback(AvahiClient *c, AvahiClientState state,
-                            void * userdata)
+                            void *userdata)
 {
   switch(state) {
     case AVAHI_CLIENT_FAILURE:
@@ -139,11 +182,63 @@ static void client_callback(AvahiClient *c, AvahiClientState state,
   }
 }
 
+
+int get_ifindex(const char *ifname)
+{
+  int fd;
+  struct ifreq ifr;
+  size_t nlen = strlen(ifname);
+
+  if ((fd = socket(AF_PACKET, SOCK_DGRAM, 0)) < 0) {
+    perror("socket");
+    exit(1);
+  }
+
+  if (nlen >= sizeof(ifr.ifr_name)) {
+    fprintf(stderr, "interface name %s is too long\n", ifname);
+    exit(1);
+  }
+
+  memset(&ifr, 0, sizeof(ifr));
+  strncpy(ifr.ifr_name, ifname, nlen);
+  ifr.ifr_name[nlen] = '\0';
+
+  if (ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
+    perror("SIOCGIFINDEX");
+    exit(1);
+  }
+
+  close(fd);
+  return ifr.ifr_ifindex;
+}  /* get_ifindex */
+
+
+void usage(char *progname)
+{
+  fprintf(stderr, "usage: %s [-i ifname]\n", progname);
+  fprintf(stderr, "\t-i ifname - interface to use (default: unspecified)\n");
+  exit(1);
+}
+
+
 int main(int argc, char *argv[])
 {
+  int opt;
+  AvahiIfIndex ifindex = AVAHI_IF_UNSPEC;
   AvahiClient *c = NULL;
-  AvahiServiceBrowser *sb = NULL;
+  AvahiServiceTypeBrowser *sb = NULL;
   int error;
+
+  while ((opt = getopt(argc, argv, "i:")) != -1) {
+    switch (opt) {
+      case 'i':
+        ifindex = get_ifindex(optarg);
+        break;
+      default:
+        usage(argv[0]);
+        break;
+    }
+  }
 
   if ((simple_poll = avahi_simple_poll_new()) == NULL) {
     fprintf(stderr, "avahi_simple_poll_new failed.\n");
@@ -156,9 +251,9 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-  if ((sb = avahi_service_browser_new(c, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
-                                      "_workstation._tcp", NULL, 0,
-                                      service_browser_callback, c)) == NULL) {
+  if ((sb = avahi_service_type_browser_new(
+      c, ifindex, AVAHI_PROTO_UNSPEC, NULL, 0,
+      service_type_browser_callback, c)) == NULL) {
     fprintf(stderr, "avahi_service_browser_new failed.\n");
     exit(1);
   }
