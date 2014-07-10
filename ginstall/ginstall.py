@@ -491,7 +491,7 @@ class FileImage(object):
       self.manifest['platforms'] = [GetPlatform()]
 
   def ManifestVersion(self):
-    return self.manifest['installer_version']
+    return int(self.manifest['installer_version'])
 
   def GetVersion(self):
     return None

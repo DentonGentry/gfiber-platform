@@ -201,6 +201,10 @@ class GinstallTest(unittest.TestCase):
     self.assertEqual(fileimg.GetRootFs().read(), "rootfs.ubi")
     self.assertEqual(fileimg.GetLoader().read(), "loader.bin")
     self.assertEqual(fileimg.GetUloader().read(), "uloader.bin")
+    try:
+      ginstall.CheckManifestVersion(fileimg)
+    except ginstall.Fatal:
+      self.fail("CheckManifestVersion should have succeeded")
 
   def testGetFileSize(self):
     self.assertEqual(ginstall.GetFileSize(open("testdata/img/vmlinux")), 7)
