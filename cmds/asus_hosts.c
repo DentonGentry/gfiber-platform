@@ -193,7 +193,7 @@ static void usage(char *progname)
 int main(int argc, char **argv)
 {
   int s, opt, i;
-  char *ifname = "lan0";
+  char *ifname = "br0";
 
   while ((opt = getopt(argc, argv, "i:")) != -1) {
     switch (opt) {

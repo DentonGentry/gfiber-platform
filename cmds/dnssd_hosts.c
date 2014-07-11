@@ -44,6 +44,16 @@
 static AvahiSimplePoll *simple_poll = NULL;
 
 
+static void replace_newlines(const char *src, char *dst, int dstlen)
+{
+  int i;
+  for (i = 0; src[i] != '\0' && i < (dstlen - 1); i++) {
+    dst[i] = (src[i] == '\n') ? '.' : src[i];
+  }
+  dst[i] = '\0';
+}
+
+
 static void service_resolver_callback(
     AvahiServiceResolver *r,
     AvahiIfIndex interface,
@@ -62,6 +72,7 @@ static void service_resolver_callback(
   AvahiClient *c = (AvahiClient *)userdata;
   int err;
   char buf[AVAHI_ADDRESS_STR_MAX];
+  char host[80];
 
   assert(c);
   memset(buf, 0, sizeof(buf));
@@ -74,7 +85,8 @@ static void service_resolver_callback(
 
     case AVAHI_RESOLVER_FOUND:
       avahi_address_snprint(buf, sizeof(buf), a);
-      printf("%s|%s\n", buf, host_name);
+      replace_newlines(host_name, host, sizeof(host));
+      printf("%s|%s\n", buf, host);
       break;
   }
 }
