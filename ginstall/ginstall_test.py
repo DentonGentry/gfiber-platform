@@ -52,6 +52,7 @@ class GinstallTest(unittest.TestCase):
     self.old_secureboot = ginstall.SECUREBOOT
     self.old_hnvram = ginstall.HNVRAM
     self.old_mtd_prefix = ginstall.MTD_PREFIX
+    self.old_sysclassmtd = ginstall.SYSCLASSMTD
     self.old_mmcblk = ginstall.MMCBLK
     self.old_proc_mtd = ginstall.PROC_MTD
     self.old_sgdisk = ginstall.SGDISK
@@ -63,6 +64,7 @@ class GinstallTest(unittest.TestCase):
     ginstall.ETCPLATFORM = 'testdata/etc/platform'
     ginstall.SECUREBOOT = 'testdata/tmp/gpio/ledcontrol/secure_boot'
     ginstall.MTD_PREFIX = 'testdata/dev/mtd'
+    ginstall.SYSCLASSMTD = 'testdata/sys/class/mtd'
     ginstall.PROC_MTD = "testdata/proc/mtd"
     ginstall.SGDISK = 'testdata/sgdisk'
     ginstall.SIGNINGKEY = 'testdata/signing_key.der'
@@ -75,6 +77,7 @@ class GinstallTest(unittest.TestCase):
     ginstall.SECUREBOOT = self.old_secureboot
     ginstall.HNVRAM = self.old_hnvram
     ginstall.MTD_PREFIX = self.old_mtd_prefix
+    ginstall.SYSCLASSMTD = self.old_sysclassmtd
     ginstall.MMCBLK = self.old_mmcblk
     ginstall.PROC_MTD = self.old_proc_mtd
     ginstall.SGDISK = self.old_sgdisk
@@ -140,6 +143,10 @@ class GinstallTest(unittest.TestCase):
     self.assertRaises(KeyError, ginstall.GetMtdDevForName, "nonexistant")
     self.assertEqual(ginstall.GetMtdDevForNameOrNone("nonexistant"), None)
 
+  def testIsMtdNand(self):
+    self.assertFalse(ginstall.IsMtdNand("testdata/dev/mtd6"))
+    self.assertTrue(ginstall.IsMtdNand("testdata/dev/mtd7"))
+
   def testEraseMtd(self):
     testscript = "#!/bin/sh\necho -n $* >> {0}\n"
     (script, out) = self.MakeTestScript(testscript)
@@ -149,6 +156,65 @@ class GinstallTest(unittest.TestCase):
     output = out.read()
     out.close()
     self.assertEqual(output, "--quiet /dev/mtd3 0 0")
+
+  def testNandwrite(self):
+    devfile = tempfile.NamedTemporaryFile(delete=False)
+    self.files_to_remove.append(devfile.name)
+    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
+    testscript += "cat > {0}\n".format(devfile.name)
+    (script, out) = self.MakeTestScript(testscript)
+    shutil.copy(script.name, 'testdata/bin.tmp/nandwrite')
+    in_f = StringIO.StringIO("Testing123")
+    ginstall.Nandwrite(in_f, "/dev/mtd99")
+    # Script wrote its arguments to out.name, read them in to check.
+    output = out.read()
+    out.close()
+    self.assertEqual(output, "--quiet --markbad /dev/mtd99")
+    # Script copied in_f to devfile.name, read it back in to check.
+    dev = devfile.read()
+    devfile.close()
+    self.assertEqual(dev, ginstall.Pad("Testing123", ginstall.BUFSIZE))
+
+  def testInstallToMtdNand(self):
+    old_etcplatform = ginstall.ETCPLATFORM
+    ginstall.ETCPLATFORM = 'testdata/etc/platform.GFRG210'
+
+    devfile = tempfile.NamedTemporaryFile(delete=False)
+    self.files_to_remove.append(devfile.name)
+    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
+    testscript += "cat > {0}\n".format(devfile.name)
+    (script, nandwrite_out) = self.MakeTestScript(testscript)
+    shutil.copy(script.name, 'testdata/bin.tmp/nandwrite')
+
+    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
+    testscript += "cat {0}\n".format(devfile.name)
+    (script, nanddump_out) = self.MakeTestScript(testscript)
+    shutil.copy(script.name, 'testdata/bin.tmp/nanddump')
+
+    in_f = StringIO.StringIO("Testing123")
+    ginstall.InstallToMtd(in_f, "testdata/dev/mtd7")
+    # Script wrote its arguments to nandwrite_out.name, read them in to check.
+    nandwrite_output = nandwrite_out.read()
+    nandwrite_out.close()
+    self.assertEqual(nandwrite_output, "--quiet --markbad testdata/dev/mtd7")
+    # Script wrote its arguments to nanddump_out.name, read them in to check.
+    nanddump_output = nanddump_out.read()
+    nanddump_out.close()
+    self.assertEqual(nanddump_output, "--bb=skipbad --length=%d --quiet testdata/dev/mtd7" % in_f.len)
+    # Script copied in_f to devfile.name, read it back in to check.
+    dev = devfile.read()
+    devfile.close()
+    self.assertEqual(dev, ginstall.Pad("Testing123", ginstall.BUFSIZE))
+
+    # Provide a nanddump mock that writes incorrect data to stdout
+    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
+    testscript += "echo abc ; cat {0}\n".format(devfile.name)
+    (script, nanddump_out) = self.MakeTestScript(testscript)
+    shutil.copy(script.name, 'testdata/bin.tmp/nanddump')
+    self.assertRaises(IOError, ginstall.InstallToMtd, in_f, "testdata/dev/mtd7")
+
+    ginstall.ETCPLATFORM = old_etcplatform
+
 
   def testTarImage(self):
     tarimg = ginstall.TarImage("testdata/img/vmlinux.tar")

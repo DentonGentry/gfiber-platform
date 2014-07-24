@@ -58,6 +58,7 @@ ETCVERSION = '/etc/version'
 SECUREBOOT = '/tmp/gpio/ledcontrol/secure_boot'
 HNVRAM = 'hnvram'
 MTD_PREFIX = '/dev/mtd'
+SYSCLASSMTD = '/sys/class/mtd'
 MMCBLK = '/dev/mmcblk0'
 PROC_CMDLINE = '/proc/cmdline'
 PROC_MTD = '/proc/mtd'
@@ -177,6 +178,13 @@ def GetMtdDevForNameOrNone(partname):
   return None  # no match
 
 
+def IsMtdNand(mtddevname):
+  mtddevname = re.sub(r'^' + MTD_PREFIX, 'mtd', mtddevname)
+  path = SYSCLASSMTD + '/{0}/type'.format(mtddevname)
+  data = open(path).read()
+  return 'nand' in data
+
+
 def GetMtdDevForName(partname):
   """Like GetMtdDevForNameOrNone, but raises an exception on failure."""
   mtd = GetMtdDevForNameOrNone(partname)
@@ -286,6 +294,17 @@ def EraseMtd(mtddevname):
   return subprocess.call(cmd)
 
 
+def Nandwrite(f, mtddevname):
+  """Write file to NAND flash using nandwrite."""
+  cmd = ['nandwrite', '--quiet', '--markbad', mtddevname]
+  VerbosePrint('%s\n' % cmd)
+  p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+  written = WriteToFile(f, p.stdin)
+  p.stdin.close()
+  p.wait()
+  return written
+
+
 def Pad(data, bufsize):
   if len(data) < bufsize:
     return data + '\xff' * (bufsize - len(data))
@@ -318,17 +337,38 @@ def _CopyAndVerify(description, inf, outf):
   return written
 
 
-# TODO(apenwarr): consider using the nandwrite command here.
-#  Otherwise we won't correctly skip NAND badblocks. However, before we
-#  do that we should validate whether the bootloader also handles badblocks
-#  (the exact same badblocks as the kernel) or it could maybe make things
-#  worse.
+def _CopyAndVerifyNand(f, mtddevname):
+  """Copy data from file object f to NAND flash mtddevname, then verify it."""
+  start = f.tell()
+  VerbosePrint('Writing to NAND partition %r\n', mtddevname)
+  written = Nandwrite(f, mtddevname)
+  f.seek(start, os.SEEK_SET)
+  cmd = ['nanddump', '--bb=skipbad', '--length=%d' % written, '--quiet', mtddevname]
+  VerbosePrint('%s\n' % cmd)
+  p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+  if not IsIdentical(mtddevname, f, p.stdout):
+    raise IOError('Read-after-write verification failed')
+  while p.stdout.read(BUFSIZE):
+    pass
+  p.wait()
+
+
 def InstallToMtd(f, mtddevname):
   """Write an image to an mtd device."""
   if EraseMtd(mtddevname):
     raise IOError('Flash erase failed.')
   VerbosePrint('Writing to mtd partition %r\n', mtddevname)
-  return _CopyAndVerify(mtddevname, f, open(mtddevname, 'r+b'))
+  # TODO(danielmentz): _CopyAndVerifyNand is based on the external tool
+  # nandwrite which can handle bad erase blocks i.e. it skips them. The
+  # bootloader (CFE) on the bruno platform (CPE 1.0) cannot handle bad blocks
+  # at the moment so let's keep on using _CopyAndVerify on this platform.
+  # _CopyAndVerify will throw an exception during the verification step which
+  # is more desirable than installing a bad kernel image and depending on CFE
+  # to fall back to the other kernel partition.
+  if IsMtdNand(mtddevname) and GetPlatform().startswith('GFRG2'):
+    return _CopyAndVerifyNand(f, mtddevname)
+  else:
+    return _CopyAndVerify(mtddevname, f, open(mtddevname, 'r+b'))
 
 
 def InstallToFile(f, outfilename):
