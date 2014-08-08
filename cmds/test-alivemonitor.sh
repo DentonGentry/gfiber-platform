@@ -7,7 +7,7 @@ AM=./host-alivemonitor
 
 wait_until_contains()
 {
-  for i in $(seq 50); do
+  for i in $(seq 100); do
     [ "$(cat $1)" = "$2" ] && break
     echo 'checking'
     sleep 0.1
