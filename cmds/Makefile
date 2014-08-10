@@ -18,6 +18,7 @@ TARGETS=\
 	ionice \
 	mcastreceive \
 	memwatcher \
+	multicast_join \
 	logos \
 	randomdata \
 	readubootver \
