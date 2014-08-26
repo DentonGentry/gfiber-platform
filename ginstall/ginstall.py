@@ -52,7 +52,7 @@ uloader=      microloader file to install
 
 
 # unit tests can override these with fake versions
-BUFSIZE = 64 * 1024
+BUFSIZE = 4 * 1024            # 64k causes b/14299411
 ETCPLATFORM = '/etc/platform'
 ETCVERSION = '/etc/version'
 SECUREBOOT = '/tmp/gpio/ledcontrol/secure_boot'
