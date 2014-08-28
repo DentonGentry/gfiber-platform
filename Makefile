@@ -2,7 +2,7 @@ default: all
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
-DIRS=libstacktrace ginstall sysmgr cmds base antirollback tvstat gpio-mailbox
+DIRS=libstacktrace ginstall sysmgr cmds base antirollback tvstat gpio-mailbox spectralanalyzer
 
 ifeq ($(BUILD_HNVRAM),y)
 DIRS+=hnvram
