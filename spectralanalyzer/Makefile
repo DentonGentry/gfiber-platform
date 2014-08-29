@@ -21,7 +21,10 @@ install:
 	cp spectral $(BINDIR)
 
 install-libs:
-		@echo "No libs to install."
+	@echo "No libs to install."
+
+test:
+	@echo "No tests to run."
 
 clean:
 	rm -f spectral spectral_test *.o
