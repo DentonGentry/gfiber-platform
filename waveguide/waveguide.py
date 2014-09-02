@@ -18,6 +18,7 @@
 from collections import namedtuple
 import hmac
 import os
+import random
 import re
 import select
 import socket
@@ -27,6 +28,7 @@ import sys
 import time
 import zlib
 import options
+
 
 try:
   import monotime  # pylint: disable=unused-import,g-import-not-at-top
@@ -43,6 +45,7 @@ waveguide [options...]
 --
 high-power        This high-powered AP takes priority over low-powered ones
 fake              Create a fake instance using phy0 / wlan0
+initial-scans=    Number of immediate full channel scans at startup [0]
 scan-interval=    Seconds between full channel scan cycles (0 to disable) [0]
 tx-interval=      Seconds between state transmits (0 to disable) [3]
 D,debug           Increase (non-anonymized!) debug output level
@@ -385,6 +388,8 @@ class WlanManager(object):
     self.consensus_start = self.starttime
     self.consensus_key = os.urandom(16)  # TODO(apenwarr): rotate occasionally
     self.mcast = MulticastSocket((MCAST_ADDRESS, MCAST_PORT))
+    self.next_scan_time = None
+    self.scan_idx = -1
 
   # TODO(apenwarr): when we have async subprocs, add those here
   def GetReadFds(self):
@@ -430,20 +435,44 @@ class WlanManager(object):
     if debug_level >= 2: Debug('sending: %r', me)
     Debug('sent %r: %r bytes', self.vdevname, self.mcast.Send(p))
 
-  def DoScans(self):
+  def DoScans(self, initial_scans, scan_interval):
     """Calls programs and reads files to obtain the current wifi status."""
-    Log('%r: scanning.', self.vdevname)
-    self._ReadArpTable()
-    RunProc(callback=self._PhyResults,
-            args=['iw', 'phy', self.phyname, 'info'])
-    RunProc(callback=self._DevResults,
-            args=['iw', 'dev', self.vdevname, 'info'])
-    # channel scan more than once in case we miss hearing a beacon
-    for _ in range(2):
+    now = gettime()
+    if not self.next_scan_time:
+      Log('%r: startup (initial_scans=%d).', self.vdevname, initial_scans)
+      self._ReadArpTable()
+      RunProc(callback=self._PhyResults,
+              args=['iw', 'phy', self.phyname, 'info'])
+      RunProc(callback=self._DevResults,
+              args=['iw', 'dev', self.vdevname, 'info'])
+      # channel scan more than once in case we miss hearing a beacon
+      for _ in range(initial_scans):
+        RunProc(callback=self._ScanResults,
+                args=['iw', 'dev', self.vdevname, 'scan',
+                      'lowpri', 'ap-force',
+                      'passive'])
+      self.next_scan_time = now
+    elif not self.allowed_freqs:
+      Log('%r: no allowed frequencies.', self.vdevname)
+    elif scan_interval and now > self.next_scan_time:
+      self.scan_idx = (self.scan_idx + 1) % len(self.allowed_freqs)
+      scan_freq = list(sorted(self.allowed_freqs))[self.scan_idx]
+      Log('%r: scanning %d MHz (%d/%d)',
+          self.vdevname, scan_freq, self.scan_idx, len(self.allowed_freqs))
       RunProc(callback=self._ScanResults,
               args=['iw', 'dev', self.vdevname, 'scan',
+                    'freq', str(scan_freq),
                     'lowpri', 'ap-force',
                     'passive'])
+      chan_interval = scan_interval / len(self.allowed_freqs)
+      # Randomly fiddle with the timing to avoid permanent alignment with
+      # other nodes also doing scans.  If we're perfectly aligned with
+      # another node, they might never see us in their periodic scan.
+      chan_interval = random.uniform(chan_interval * 0.5,
+                                     chan_interval * 1.5)
+      self.next_scan_time += chan_interval
+
+    # These change in the background, not as the result of a scan
     RunProc(callback=self._SurveyResults,
             args=['iw', 'dev', self.vdevname, 'survey', 'dump'])
     RunProc(callback=self._AssocResults,
@@ -466,7 +495,8 @@ class WlanManager(object):
 
   def _PhyResults(self, errcode, stdout, stderr):
     """Callback for 'iw phy xxx info' results."""
-    Debug('phy err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
+    Debug('phy %r err:%r stdout:%r stderr:%r',
+          self.phyname, errcode, stdout[:70], stderr)
     if errcode: return
     for line in stdout.split('\n'):
       line = line.strip()
@@ -620,7 +650,7 @@ def CreateManagers(managers, high_power):
       g = re.match(r'phy#(\d+)', line)
       if g:
         AddEntry()
-        phy = 'phy#%s' % g.group(1)
+        phy = 'phy%s' % g.group(1)
         dev = devtype = None
       g = re.match(r'Interface ([a-zA-Z0-9.]+)', line)
       if g:
@@ -654,10 +684,7 @@ def main():
   if not managers:
     raise Exception('no wifi devices found')
 
-  # TODO(apenwarr): scan incrementally after the first time.
-  #   If we use 'iw wlan0 scan freq xxxx' we won't be off channel for nearly
-  #   so long, so it mostly won't disrupt the signal.
-  last_sent = last_scan = 0
+  last_sent = 0
   while 1:
     rfds = []
     for m in managers:
@@ -672,11 +699,9 @@ def main():
     #   Also, consider sending out an update (almost) immediately when a new
     #   node joins, so it can learn about the other nodes as quickly as
     #   possible.
-    if ((opt.scan_interval or not last_scan) and
-        now - last_scan > opt.scan_interval):
-      last_scan = now
-      for m in managers:
-        m.DoScans()
+    for m in managers:
+      m.DoScans(initial_scans=opt.initial_scans,
+                scan_interval=opt.scan_interval)
     if opt.tx_interval and now - last_sent > opt.tx_interval:
       last_sent = now
       for m in managers:
