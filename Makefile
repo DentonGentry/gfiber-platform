@@ -2,7 +2,9 @@ default: all
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
-DIRS=libstacktrace ginstall sysmgr cmds base antirollback tvstat gpio-mailbox spectralanalyzer
+DIRS=libstacktrace ginstall sysmgr cmds base \
+	antirollback tvstat gpio-mailbox spectralanalyzer \
+	waveguide
 
 ifeq ($(BUILD_HNVRAM),y)
 DIRS+=hnvram
@@ -16,6 +18,9 @@ LIBDIR=$(DESTDIR)$(PREFIX)/lib
 all:     $(addsuffix /all,$(DIRS)) build-optionspy
 test:    $(addsuffix /test,$(DIRS))
 clean:   $(addsuffix /clean,$(DIRS))
+	find \( -name '*.pyc' -o -name '*~' \) -exec rm -fv {} \;
+	rm -rf build
+
 install-libs: $(addsuffix /install-libs,$(DIRS))
 
 # The install targets in the recursive call use setuptools to build the python

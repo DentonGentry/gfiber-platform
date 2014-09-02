@@ -32,9 +32,7 @@
 #include "win32.h"
 #endif
 
-#ifdef POSIX
 #include <pthread.h>
-#endif
 
 #ifdef _DEBUG
 #define CS_TRACK_OWNER 1
@@ -78,7 +76,6 @@ private:
 };
 #endif // WIN32
 
-#ifdef POSIX
 class CriticalSection {
 public:
   CriticalSection() {
@@ -109,7 +106,6 @@ private:
   pthread_mutex_t mutex_;
   TRACK_OWNER(pthread_t thread_);
 };
-#endif // POSIX
 
 // CritScope, for serializing exection through a scope
 

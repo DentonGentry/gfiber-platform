@@ -7,15 +7,19 @@ INSTALL=install
 CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W
 CPPFLAGS=-I.. -I../peripheral -I../../base \
 	$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase)))
-LDFLAGS=-L../peripheral -L../../base -lbrunoperipheral \
-	$(shell $(PKG_CONFIG) --libs brunobase)
+LDFLAGS=
 PREFIX=/home/test
 BINDIR=$(DESTDIR)$(PREFIX)
+PKG_CONFIG?=pkg-config
 
 OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 EXES=$(patsubst %.o,%,$(OBJS))
 
 all: $(EXES)
+
+$(EXES): \
+	../peripheral/libbrunoperipheral.so \
+	../../base/libbrunobase.so
 
 %: %.o
 	$(CXX) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) -o $@ $^

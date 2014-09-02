@@ -8,6 +8,7 @@ CFLAGS=-fPIC -Wall -W -Wswitch-enum
 CPPFLAGS=-I.. -I../../base \
 	$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase)))
 OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
+PKG_CONFIG?=pkg-config
 
 all: libbrunoperipheral.so
 

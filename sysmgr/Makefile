@@ -10,6 +10,7 @@ PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
 LIBDIR=$(PREFIX)/lib
 INCLUDEDIR=$(PREFIX)/include
+PKG_CONFIG?=pkg-config
 
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
@@ -17,8 +18,6 @@ RM=rm -f
 INCS=-Iperipheral -I../base -I../libstacktrace
 CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W
 CPPFLAGS=$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase)))
-SYSMGR_LDFLAGS=-Lperipheral -L../base -L../libstacktrace -lbrunoperipheral -lstacktrace\
-	$(shell $(PKG_CONFIG) --libs brunobase)
 
 all: $(TARGETS)
 
@@ -26,16 +25,18 @@ test:
 	@echo "Nothing to test."
 
 install: all utest/install
-	mkdir -p $(LIBDIR)
+	mkdir -p $(LIBDIR) $(BINDIR)
 	$(INSTALL) -m 0755 peripheral/libbrunoperipheral.so $(LIBDIR)/
 	$(INSTALL) -m 0755 sysmgr $(BINDIR)/
 
 utest/all: peripheral/all
 sysmgr: |peripheral/all
 utest/install: utest/all
-sysmgr: sysmgr.o
-
-sysmgr: LDFLAGS+=$(SYSMGR_LDFLAGS)
+sysmgr: \
+	sysmgr.o \
+	../libstacktrace/libstacktrace.so \
+	../base/libbrunobase.so \
+	peripheral/libbrunoperipheral.so
 
 install-libs: all
 	mkdir -p $(INCLUDEDIR)/sysmgr $(LIBDIR)/pkgconfig
@@ -43,14 +44,15 @@ install-libs: all
 	$(INSTALL) -m 0644 brunoperipheral.pc $(LIBDIR)/pkgconfig/
 	$(INSTALL) -m 0755 peripheral/libbrunoperipheral.so $(LIBDIR)/
 
+peripheral/libbrunoperipheral.so: peripheral/all
+
 clean: $(addsuffix /clean,$(DIRS))
 	$(RM) *~ *.o $(TARGETS)
 
 %: %.o
 	@echo "LINK $@"
 	$(Q)$(CXX) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(INCS) \
-		-o $@ \
-		$(filter %.o,$^)
+		-o $@ $^
 
 %.o: %.cc
 	@echo " CXX $@"

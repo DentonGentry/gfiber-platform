@@ -23,3 +23,11 @@ test_file
 usleep
 wait-until-created
 watch-dir
+asus_hosts
+bsa2bluez
+device_stats.pb.h
+multicast_join
+readubootver
+statcatcher
+statpitcher
+udpburst

@@ -176,5 +176,10 @@ test: all $(TESTS)
 	./wvtest/wvtestrun $(MAKE) runtests
 
 clean:
-	rm -f *.o $(TARGETS) $(HOST_TARGETS) $(ARCH_TARGETS) *~ .*~ */*.pyc test_file *.pb.*
+	rm -f *.o $(TARGETS) \
+		$(HOST_TARGETS) \
+		$(LIB_TARGETS) \
+		$(TEST_TARGETS) \
+		$(ARCH_TARGETS) \
+		*~ .*~ */*.pyc test_file *.pb.*
 	rm -rf test_dir
