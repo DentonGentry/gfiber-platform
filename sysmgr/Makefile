@@ -52,7 +52,7 @@ clean: $(addsuffix /clean,$(DIRS))
 %: %.o
 	@echo "LINK $@"
 	$(Q)$(CXX) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(INCS) \
-		-o $@ $^
+		-o $@ $^ -lpthread
 
 %.o: %.cc
 	@echo " CXX $@"

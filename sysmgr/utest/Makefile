@@ -21,11 +21,8 @@ $(EXES): \
 	../peripheral/libbrunoperipheral.so \
 	../../base/libbrunobase.so
 
-%: %.o
-	$(CXX) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) -o $@ $^
-
-%.o: %.cc
-	$(CXX) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) -o $@ -c $<
+%: %.cc
+	$(CXX) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) -o $@ $^ -lpthread
 
 install:
 	mkdir -p $(BINDIR)
