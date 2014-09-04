@@ -8,7 +8,8 @@
 extern "C" {
 #endif  /* __cplusplus */
 
-int readverity(const char* fname);
+  int readVerityParams(const char* fname);
+  int readVerityHashSize(const char* fname);
 
 #ifdef __cplusplus
 }  // extern 'C'

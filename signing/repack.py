@@ -51,6 +51,8 @@ q,quiet           suppress print
 BLOCK_SIZE = 4096
 VERITY_START = '[VERITY-START]'
 VERITY_STOP = '[VERITY-STOP]'
+VERITY_START_SIZE = '[VERITY-START-SIZE]'
+VERITY_STOP_SIZE = '[VERITY-STOP-SIZE]'
 FAKE_SIGN_OFFSET = 0x90091efb
 quiet = False
 
@@ -134,20 +136,29 @@ def PackVerity(kname, vname, info):
     info:   the original verity table.
   """
   with open(kname, 'r+b') as f:
-    c = f.read()
-    padding_size = CeilingBlock(c.__len__())*BLOCK_SIZE - c.__len__()
-    # offset is in number of sectors
-    offset = (1 + CeilingBlock(c.__len__())) << 3
+    verity_data = ''
+    kernel_data = f.read()
+    kernel_size = len(kernel_data)
+    with open(vname, 'rb') as v:
+      verity_data = v.read()
+    padding_size = (CeilingBlock(kernel_size)*BLOCK_SIZE) - kernel_size
+    # offset is the number of sectors to where the hash data begins (see diagram
+    # at top of file):
+    # The calculates the number of blocks (which are 4096 long) to the hash data
+    # start and then multiplies by 8 to convert to sectors which are 512  bytes.
+    offset = (1 + CeilingBlock(kernel_size)) * 8
     f.seek(0)
     verity_table = UpdateVerityTable(info, offset)
     if not quiet:
       print verity_table
-    f.write('%-4080.4080s' % (VERITY_START + verity_table + VERITY_STOP))
-    f.write(c)
+      print 'hash_size=' + str(len(verity_data))
+    f.write('%-4080.4080s' %
+            (VERITY_START + verity_table + VERITY_STOP +
+             VERITY_START_SIZE + str(len(verity_data)) + VERITY_STOP_SIZE))
+    f.write(kernel_data)
     if padding_size > 0:
       f.write('\0'*padding_size)
-    with open(vname, 'rb') as v:
-      f.write(v.read())
+    f.write(verity_data)
 
 
 def main():
