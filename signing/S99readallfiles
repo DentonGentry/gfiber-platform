@@ -2,10 +2,14 @@
 #
 # Start read all files
 #
-REG_FAILURE_COUNT="0x104083FC"
+
+clear_failure_count_bcm74 () {
+  local REG_FAILURE_COUNT="0x104083FC"
+  devmem $REG_FAILURE_COUNT 32 0
+}
 
 clear_failure_count () {
-  devmem $REG_FAILURE_COUNT 32 0
+  grep -q 'system type.*BCM74' /proc/cpuinfo && clear_failure_count_bcm74
 }
 
 case "$1" in
