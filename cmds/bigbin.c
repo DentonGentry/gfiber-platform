@@ -47,7 +47,8 @@ int main(int argc, char** argv) {
     unsigned int tmp;
     unsigned int expected = 0x06ea0500 + i;
     if (do_fork && fork() == 0) {
-      execv("true", NULL);
+      char *const args[1] = { NULL };
+      execv("true", args);
     }
     tmp = manyadds(i);
     if (tmp != expected) {
