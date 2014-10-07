@@ -52,10 +52,6 @@ ifeq ($(BUILD_DNSSD),y)
 ARCH_TARGETS += dnssd_hosts
 endif
 
-ifeq ($(BRUNO_ARCH),mips)
-ARCH_TARGETS += bigbin
-endif
-
 AS=$(CROSS_COMPILE)as
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
@@ -146,7 +142,6 @@ host-logos: host-logos.o host-utils.o
 logos: logos.o utils.o
 realtime: realtime.o
 rtwatcher: rtwatcher.o
-bigbin: bigbin.o bigtext.o
 buttonmon: buttonmon.o
 host-utils_test: host-utils_test.o host-utils.o
 ssdp_poll: ssdp_poll.o
@@ -160,9 +155,6 @@ statcatcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
 statcatcher: device_stats.pb.o statcatcher.o
 host-statcatcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread
 host-statcatcher: host-device_stats.pb.o host-statcatcher.o
-
-bigtext.o: bigtext.S
-	 $(AS) -mabi=32 -mips32 -EL -o $@ $^
 
 TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
 runtests: all $(TESTS)
