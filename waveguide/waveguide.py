@@ -47,7 +47,7 @@ high-power        This high-powered AP takes priority over low-powered ones
 fake              Create a fake instance using phy0 / wlan0
 initial-scans=    Number of immediate full channel scans at startup [0]
 scan-interval=    Seconds between full channel scan cycles (0 to disable) [0]
-tx-interval=      Seconds between state transmits (0 to disable) [3]
+tx-interval=      Seconds between state transmits (0 to disable) [15]
 D,debug           Increase (non-anonymized!) debug output level
 """
 
@@ -472,6 +472,7 @@ class WlanManager(object):
                                      chan_interval * 1.5)
       self.next_scan_time += chan_interval
 
+  def UpdateStationInfo(self):
     # These change in the background, not as the result of a scan
     RunProc(callback=self._SurveyResults,
             args=['iw', 'dev', self.vdevname, 'survey', 'dump'])
@@ -704,6 +705,8 @@ def main():
                 scan_interval=opt.scan_interval)
     if opt.tx_interval and now - last_sent > opt.tx_interval:
       last_sent = now
+      for m in managers:
+        m.UpdateStationInfo()
       for m in managers:
         m.SendUpdate()
 
