@@ -1,0 +1,52 @@
+#!/bin/sh
+echo "fake/iw:" "$@" >&2
+cd "$(dirname "$0")"
+
+if [ "$1" = "phy" ]; then
+  phy=$2
+  dev=
+elif [ "$1" = "dev" ]; then
+  phy=
+  dev=$2
+else
+  echo "fake/iw: first arg ('$1') must be 'dev' or 'phy'" >&2
+  exit 99
+fi
+
+channel_scan() {
+  want_freq=$1
+  [ -r "scanresults.$dev" ] || return 0
+  while IFS=, read bss freq rssi last_seen junk; do
+    if [ -z "$want_freq" ] || [ "$freq" = "$want_freq" ]; then
+      echo "BSS $bss"
+      echo "  freq: $freq"
+      echo "  signal: $rssi dBm"
+      echo "  last seen: $last_seen ms ago"
+    fi
+  done <scanresults.$dev
+}
+
+words=$(IFS=-; echo "$*")
+case "$words" in
+  phy-*-info)
+    echo '* 2412 MHz [42] (ok)'
+    echo '* 2417 MHz [43] (ok)'
+    exit 0
+    ;;
+  dev-*-scan-freq-*)
+    channel_scan "$5"
+    ;;
+  dev-*-scan*)
+    channel_scan
+    ;;
+  dev-*-survey-dump)
+    exit 0
+    ;;
+  dev-*-station-dump)
+    exit 0
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+# not reached

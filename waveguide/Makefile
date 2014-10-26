@@ -8,7 +8,12 @@ all:
 %.test: %_test.py
 	./$<
 
-runtests: $(patsubst %_test.py,%.test,$(wildcard *_test.py))
+%.test: %_test.sh
+	./$<
+
+runtests: \
+	$(patsubst %_test.py,%.test,$(wildcard *_test.py)) \
+	$(patsubst %_test.sh,%.test,$(wildcard *_test.sh))
 
 test: all
 	./wvtest/wvtestrun $(MAKE) runtests
@@ -21,4 +26,4 @@ install-libs:
 	@echo "No libs to install."
 
 clean:
-	rm -rf *~ .*~ *.pyc
+	rm -rf *~ .*~ *.pyc *.tmp */*~ fake/scanresults.*

@@ -16,8 +16,10 @@
 """Wifi channel selection and roaming daemon."""
 
 from collections import namedtuple
+import errno
 import hmac
 import os
+import os.path
 import random
 import re
 import select
@@ -27,6 +29,7 @@ import subprocess
 import sys
 import time
 import zlib
+import helpers
 import options
 
 
@@ -44,23 +47,24 @@ optspec = """
 waveguide [options...]
 --
 high-power        This high-powered AP takes priority over low-powered ones
-fake              Create a fake instance using phy0 / wlan0
+fake=             Create a fake instance with the given MAC address
 initial-scans=    Number of immediate full channel scans at startup [0]
 scan-interval=    Seconds between full channel scan cycles (0 to disable) [0]
 tx-interval=      Seconds between state transmits (0 to disable) [15]
 D,debug           Increase (non-anonymized!) debug output level
+status-dir=       Directory to store status information [/tmp/waveguide]
+watch-pid=        Shut down if the given process pid disappears
+auto-disable-threshold  Shut down if >= RSSI received from other AP [-30]
 """
 
 PROTO_MAGIC = 'wave'
 PROTO_VERSION = 1
+opt = None
 
 # TODO(apenwarr): not sure what's the right multicast address to use.
 # MCAST_ADDRESS = '224.0.0.2'  # "all routers" address
 MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
 MCAST_PORT = 4442
-
-
-debug_level = 0
 
 
 def Log(s, *args):
@@ -72,7 +76,12 @@ def Log(s, *args):
 
 
 def Debug(s, *args):
-  if debug_level:
+  if opt.debug >= 1:
+    Log(s, *args)
+
+
+def Debug2(s, *args):
+  if opt.debug >= 2:
     Log(s, *args)
 
 
@@ -86,8 +95,9 @@ class DecodeError(Exception):
 
 # pylint: disable=invalid-name
 class ApFlags(object):
-  Can2G = 0x01          # device supports 2.4 GHz channels
-  Can5G = 0x02          # device supports 5 GHz channels
+  Can2G = 0x01          # device supports 2.4 GHz band
+  Can5G = 0x02          # device supports 5 GHz band
+  Can_Mask = 0x0f       # mask of all bits referring to band capability
   HighPower = 0x10      # high-power device takes precedence over low-power
 
 
@@ -334,6 +344,8 @@ class MulticastSocket(object):
     # IP_ADD_MEMBERSHIP, but it doesn't care about the remote address.
     self.rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if hasattr(socket, 'SO_REUSEPORT'):  # needed for MacOS
+      self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
     self.rsock.bind(('', self.port))
     mreq = struct.pack('4sl', socket.inet_aton(self.host), socket.INADDR_ANY)
     self.rsock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
@@ -356,8 +368,8 @@ class MulticastSocket(object):
 #  ...so that we can run several commands (eg. scan on multiple interfaces)
 #  in parallel while still processing packets.  Preparation for that is
 #  why we use a callback instead of a simple return value.
-def RunProc(callback, *args, **kwargs):
-  p = subprocess.Popen(*args,
+def RunProc(callback, args, *xargs, **kwargs):
+  p = subprocess.Popen(args, *xargs,
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE,
                        **kwargs)
@@ -388,12 +400,20 @@ class WlanManager(object):
     self.consensus_start = self.starttime
     self.consensus_key = os.urandom(16)  # TODO(apenwarr): rotate occasionally
     self.mcast = MulticastSocket((MCAST_ADDRESS, MCAST_PORT))
+    self.did_initial_scan = False
     self.next_scan_time = None
     self.scan_idx = -1
+    self.disabled_filename = os.path.join(opt.status_dir,
+                                          '%s.disabled' % vdevname)
+    self.auto_disabled = None
+    helpers.Unlink(self.disabled_filename)
 
   # TODO(apenwarr): when we have async subprocs, add those here
   def GetReadFds(self):
     return [self.mcast.rsock]
+
+  def NextTimeout(self):
+    return self.next_scan_time
 
   def ReadReady(self):
     """Call this when select.select() returns true on GetReadFds()."""
@@ -412,13 +432,15 @@ class WlanManager(object):
       self.consensus_start = consensus_start
     if p.me.mac == self.mac:
       Debug('ignoring packet from self')
-      return
+      return 0
     if p.me.consensus_key != self.consensus_key:
       Debug('ignoring peer due to key mismatch')
     if p.me.mac not in self.peer_list:
-      self.peer_list[p.me.mac] = p
-      Log('%r: added a peer: %r',
+      Log('%s: added a peer: %r',
           self.vdevname, DecodeMAC(Anonymize(self.consensus_key, p.me.mac)))
+    self.peer_list[p.me.mac] = p
+    self.MaybeAutoDisable()
+    return 1
 
   def SendUpdate(self):
     """Constructs and sends a waveguide packet on the multicast interface."""
@@ -427,50 +449,60 @@ class WlanManager(object):
             consensus_key=self.consensus_key,
             mac=self.mac,
             flags=self.flags)
+    seen_bss_list = self.bss_list.values()
+    channel_survey_list = self.channel_survey_list.values()
+    assoc_list = self.assoc_list.values()
+    arp_list = self.arp_list.values()
     p = EncodePacket(me=me,
-                     seen_bss_list=self.bss_list.values(),
-                     channel_survey_list=self.channel_survey_list.values(),
-                     assoc_list=self.assoc_list.values(),
-                     arp_list=self.arp_list.values())
-    if debug_level >= 2: Debug('sending: %r', me)
-    Debug('sent %r: %r bytes', self.vdevname, self.mcast.Send(p))
+                     seen_bss_list=seen_bss_list,
+                     channel_survey_list=channel_survey_list,
+                     assoc_list=assoc_list,
+                     arp_list=arp_list)
+    Debug2('sending: %r',
+           (me, seen_bss_list, channel_survey_list, assoc_list, arp_list))
+    Debug('sent %s: %r bytes', self.vdevname, self.mcast.Send(p))
 
-  def DoScans(self, initial_scans, scan_interval):
+  def DoScans(self):
     """Calls programs and reads files to obtain the current wifi status."""
     now = gettime()
-    if not self.next_scan_time:
-      Log('%r: startup (initial_scans=%d).', self.vdevname, initial_scans)
+    if not self.did_initial_scan:
+      Log('%s: startup (initial_scans=%d).', self.vdevname, opt.initial_scans)
       self._ReadArpTable()
       RunProc(callback=self._PhyResults,
               args=['iw', 'phy', self.phyname, 'info'])
       RunProc(callback=self._DevResults,
               args=['iw', 'dev', self.vdevname, 'info'])
       # channel scan more than once in case we miss hearing a beacon
-      for _ in range(initial_scans):
+      for _ in range(opt.initial_scans):
         RunProc(callback=self._ScanResults,
                 args=['iw', 'dev', self.vdevname, 'scan',
                       'lowpri', 'ap-force',
                       'passive'])
       self.next_scan_time = now
+      self.did_initial_scan = True
     elif not self.allowed_freqs:
-      Log('%r: no allowed frequencies.', self.vdevname)
-    elif scan_interval and now > self.next_scan_time:
+      Log('%s: no allowed frequencies.', self.vdevname)
+    elif self.next_scan_time and now > self.next_scan_time:
       self.scan_idx = (self.scan_idx + 1) % len(self.allowed_freqs)
       scan_freq = list(sorted(self.allowed_freqs))[self.scan_idx]
-      Log('%r: scanning %d MHz (%d/%d)',
-          self.vdevname, scan_freq, self.scan_idx, len(self.allowed_freqs))
+      Log('%s: scanning %d MHz (%d/%d)',
+          self.vdevname, scan_freq, self.scan_idx + 1, len(self.allowed_freqs))
       RunProc(callback=self._ScanResults,
               args=['iw', 'dev', self.vdevname, 'scan',
                     'freq', str(scan_freq),
                     'lowpri', 'ap-force',
                     'passive'])
-      chan_interval = scan_interval / len(self.allowed_freqs)
+      chan_interval = opt.scan_interval / len(self.allowed_freqs)
       # Randomly fiddle with the timing to avoid permanent alignment with
       # other nodes also doing scans.  If we're perfectly aligned with
       # another node, they might never see us in their periodic scan.
       chan_interval = random.uniform(chan_interval * 0.5,
                                      chan_interval * 1.5)
       self.next_scan_time += chan_interval
+      if not self.scan_idx:
+        WriteEventFile('%s.scanned' % self.vdevname)
+    if not opt.scan_interval:
+      self.next_scan_time = None
 
   def UpdateStationInfo(self):
     # These change in the background, not as the result of a scan
@@ -479,10 +511,63 @@ class WlanManager(object):
     RunProc(callback=self._AssocResults,
             args=['iw', 'dev', self.vdevname, 'station', 'dump'])
 
+  def ShouldAutoDisable(self):
+    """Returns MAC address of high-powered peer if we should auto disable."""
+    if self.flags & ApFlags.HighPower:
+      Debug('high-powered AP: never auto-disable')
+      return None
+    for peer in sorted(self.peer_list.values(),
+                       key=lambda p: p.me.mac):
+      Debug('considering auto disable: peer=%s', DecodeMAC(peer.me.mac))
+      if peer.me.mac in self.bss_list:
+        bss = self.bss_list[peer.me.mac]
+        peer_age_secs = gettime() - peer.me.now
+        scan_age_secs = gettime() - bss.last_seen
+        peer_power = peer.me.flags & ApFlags.HighPower
+        # TODO(apenwarr): overlap should consider only our *current* band.
+        #  This isn't too important right away since high powered APs
+        #  are on all bands simultaneously anyway.
+        overlap = self.flags & peer.me.flags & ApFlags.Can_Mask
+        Debug('--> peer matches! p_age=%.3f s_age=%.3f power=0x%x '
+              'band_overlap=0x%02x',
+              peer_age_secs, scan_age_secs, peer_power, overlap)
+        if (peer_age_secs <= opt.tx_interval * 4
+            and (scan_age_secs <= opt.scan_interval * 4
+                 or not opt.scan_interval)
+            and bss.rssi > opt.auto_disable_threshold
+            and peer_power and overlap):
+          Debug('--> peer overwhelms us, shut down.')
+          return peer.me.mac
+        else:
+          Debug('--> peer does not overwhelm us, keep going.')
+      else:
+        Debug('--> peer no match')
+    return None
+
+  def MaybeAutoDisable(self):
+    """Writes/removes the auto-disable file based on ShouldAutoDisable()."""
+    ad = self.ShouldAutoDisable()
+    if ad and self.auto_disabled != ad:
+      Log('%s: auto-disabling because of %s',
+          self.vdevname,
+          DecodeMAC(Anonymize(self.consensus_key, ad)))
+      helpers.WriteFileAtomic(self.disabled_filename, DecodeMAC(ad))
+    elif self.auto_disabled and not ad:
+      Log('%s: auto-enabling because %s disappeared',
+          self.vdevname,
+          DecodeMAC(Anonymize(self.consensus_key, self.auto_disabled)))
+      helpers.Unlink(self.disabled_filename)
+    self.auto_disabled = ad
+
   def _ReadArpTable(self):
     """Reads the kernel's ARP entries."""
     now = time.time()
-    data = open('/proc/net/arp', 'r', 64*1024).read(64*1024)
+    try:
+      f = open('/proc/net/arp', 'r', 64*1024)
+    except IOError, e:
+      Log('arp table missing: %s', e)
+      return
+    data = f.read(64*1024)
     lines = data.split('\n')[1:]  # skip header line
     for line in lines:
       g = re.match(r'(\d+\.\d+\.\d+\.\d+)\s+.*\s+'
@@ -558,6 +643,7 @@ class WlanManager(object):
       if g:
         last_seen = now - float(g.group(1))/1000
     AddEntry()
+    self.MaybeAutoDisable()
 
   def _SurveyResults(self, errcode, stdout, stderr):
     """Callback for 'iw survey dump' results."""
@@ -666,20 +752,54 @@ def CreateManagers(managers, high_power):
   RunProc(callback=ParseDevList, args=['iw', 'dev'])
 
 
-def main():
-  o = options.Options(optspec)
-  opt, unused_flags, unused_extra = o.parse(sys.argv[1:])
+def WriteEventFile(name):
+  """Create a file in opt.status_dir if it does not already exist.
 
-  if opt.debug:
-    global debug_level
-    debug_level = opt.debug
+  This is useful for reporting that an event has occurred.  We use O_EXCL
+  to prevent any filesystem churn at all if the file still exists, so it's
+  very fast.  A program watching for the event can unlink the file, then
+  wait for it to be re-created as an indication that the event has
+  occurred.
+
+  Args:
+    name: the name of the file to create.
+  """
+  fullname = os.path.join(opt.status_dir, name)
+  try:
+    fd = os.open(fullname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0666)
+  except OSError, e:
+    if e.errno != errno.EEXIST:
+      raise
+  else:
+    os.close(fd)
+
+
+def main():
+  global opt
+  o = options.Options(optspec)
+  opt, flags, unused_extra = o.parse(sys.argv[1:])
+  opt.scan_interval = float(opt.scan_interval)
+  opt.tx_interval = float(opt.tx_interval)
+  if opt.watch_pid and opt.watch_pid <= 1:
+    o.fatal('--watch-pid must be empty or > 1')
+
+  try:
+    os.makedirs(opt.status_dir)
+  except OSError, e:
+    if e.errno != errno.EEXIST:
+      raise
 
   # TODO(apenwarr): add/remove managers as devices come and go?
   #   ...on our current system they generally don't, so maybe not important.
   managers = []
   if opt.fake:
-    managers.append(WlanManager(phyname='phy0', vdevname='wlan0',
-                                high_power=opt.high_power))
+    for k, fakemac in flags:
+      if k == '--fake':
+        wlm = WlanManager(phyname='phy-%s' % fakemac,
+                          vdevname='wlan-%s' % fakemac,
+                          high_power=opt.high_power)
+        wlm.mac = EncodeMAC(fakemac)
+        managers.append(wlm)
   else:
     CreateManagers(managers, high_power=opt.high_power)
   if not managers:
@@ -687,28 +807,49 @@ def main():
 
   last_sent = 0
   while 1:
+    if opt.watch_pid > 1:
+      try:
+        os.kill(opt.watch_pid, 0)
+      except OSError, e:
+        if e.errno == errno.ESRCH:
+          Log('watch-pid %r died; shutting down', opt.watch_pid)
+          break
+        else:
+          raise
+      # else process is still alive, continue
     rfds = []
     for m in managers:
       rfds.extend(m.GetReadFds())
-    r, _, _ = select.select(rfds, [], [], 1.0)
+    timeouts = [m.NextTimeout() for m in managers]
+    if opt.tx_interval:
+      timeouts.append(last_sent + opt.tx_interval)
+    timeout = min(filter(None, timeouts))
+    if timeout: timeout -= gettime()
+    if timeout < 0: timeout = 0
+    if timeout is None and opt.watch_pid: timeout = 5.0
+    r, _, _ = select.select(rfds, [], [], timeout)
+    gotpackets = 0
     for i in r:
       for m in managers:
         if i in m.GetReadFds():
-          m.ReadReady()
+          gotpackets += m.ReadReady()
+    if gotpackets: WriteEventFile('gotpacket')
     now = time.time()
-    # TODO(apenwarr): how to choose a good transmit frequency?
+    # TODO(apenwarr): how often should we really transmit?
     #   Also, consider sending out an update (almost) immediately when a new
     #   node joins, so it can learn about the other nodes as quickly as
-    #   possible.
+    #   possible.  But if we do that, we need to rate limit it somehow.
     for m in managers:
-      m.DoScans(initial_scans=opt.initial_scans,
-                scan_interval=opt.scan_interval)
+      m.DoScans()
     if opt.tx_interval and now - last_sent > opt.tx_interval:
       last_sent = now
       for m in managers:
         m.UpdateStationInfo()
       for m in managers:
         m.SendUpdate()
+        WriteEventFile('sentpacket')
+    if not r:
+      WriteEventFile('ready')
 
 
 if __name__ == '__main__':
