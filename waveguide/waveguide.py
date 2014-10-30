@@ -54,7 +54,7 @@ tx-interval=      Seconds between state transmits (0 to disable) [15]
 D,debug           Increase (non-anonymized!) debug output level
 status-dir=       Directory to store status information [/tmp/waveguide]
 watch-pid=        Shut down if the given process pid disappears
-auto-disable-threshold  Shut down if >= RSSI received from other AP [-30]
+auto-disable-threshold=  Shut down if >= RSSI received from other AP [-30]
 """
 
 PROTO_MAGIC = 'wave'
@@ -345,7 +345,14 @@ class MulticastSocket(object):
     self.rsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if hasattr(socket, 'SO_REUSEPORT'):  # needed for MacOS
-      self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+      try:
+        self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+      except OSError, e:
+        if e == errno.ENOPROTOOPT:
+          # some kernels don't support this even if python does
+          pass
+        else:
+          raise
     self.rsock.bind(('', self.port))
     mreq = struct.pack('4sl', socket.inet_aton(self.host), socket.INADDR_ANY)
     self.rsock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
