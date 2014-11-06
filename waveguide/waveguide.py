@@ -347,8 +347,8 @@ class MulticastSocket(object):
     if hasattr(socket, 'SO_REUSEPORT'):  # needed for MacOS
       try:
         self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-      except OSError, e:
-        if e == errno.ENOPROTOOPT:
+      except socket.error, e:
+        if e.errno == errno.ENOPROTOOPT:
           # some kernels don't support this even if python does
           pass
         else:
