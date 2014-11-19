@@ -38,9 +38,9 @@ try:
 except ImportError:
   pass
 try:
-  gettime = time.monotonic
+  _gettime = time.monotonic
 except AttributeError:
-  gettime = time.time
+  _gettime = time.time
 
 
 optspec = """
@@ -65,6 +65,14 @@ opt = None
 # MCAST_ADDRESS = '224.0.0.2'  # "all routers" address
 MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
 MCAST_PORT = 4442
+
+
+_gettime_rand = random.randint(0, 1000000)
+def gettime():
+  # using gettime_rand means two local instances will have desynced
+  # local timers, which will show problems better in unit tests.  The
+  # monotonic timestamp should never leak out of a given instance.
+  return _gettime() + _gettime_rand
 
 
 def Log(s, *args):
@@ -528,8 +536,8 @@ class WlanManager(object):
       Debug('considering auto disable: peer=%s', DecodeMAC(peer.me.mac))
       if peer.me.mac in self.bss_list:
         bss = self.bss_list[peer.me.mac]
-        peer_age_secs = gettime() - peer.me.now
-        scan_age_secs = gettime() - bss.last_seen
+        peer_age_secs = time.time() - peer.me.now
+        scan_age_secs = time.time() - bss.last_seen
         peer_power = peer.me.flags & ApFlags.HighPower
         # TODO(apenwarr): overlap should consider only our *current* band.
         #  This isn't too important right away since high powered APs
@@ -845,6 +853,7 @@ def main():
     if opt.tx_interval:
       timeouts.append(last_sent + opt.tx_interval)
     timeout = min(filter(None, timeouts))
+    Debug2('now=%f timeout=%f  timeouts=%r', gettime(), timeout, timeouts)
     if timeout: timeout -= gettime()
     if timeout < 0: timeout = 0
     if timeout is None and opt.watch_pid: timeout = 5.0
@@ -855,7 +864,7 @@ def main():
         if i in m.GetReadFds():
           gotpackets += m.ReadReady()
     if gotpackets: WriteEventFile('gotpacket')
-    now = time.time()
+    now = gettime()
     # TODO(apenwarr): how often should we really transmit?
     #   Also, consider sending out an update (almost) immediately when a new
     #   node joins, so it can learn about the other nodes as quickly as
