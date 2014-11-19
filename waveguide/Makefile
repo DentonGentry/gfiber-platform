@@ -1,7 +1,7 @@
 INSTALL?=install
 PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
-LIBDIR=$(PREFIX)/lib
+LIBDIR=$(PREFIX)/waveguide
 
 all:
 
@@ -20,7 +20,9 @@ test: all
 
 install:
 	mkdir -p $(LIBDIR) $(BINDIR)
-	$(INSTALL) -m 0755 waveguide.py $(BINDIR)/waveguide
+	$(INSTALL) -m 0644 *.py $(LIBDIR)/
+	$(INSTALL) -m 0755 waveguide.py $(LIBDIR)/
+	$(INSTALL) -m 0755 waveguide $(BINDIR)/
 
 install-libs:
 	@echo "No libs to install."

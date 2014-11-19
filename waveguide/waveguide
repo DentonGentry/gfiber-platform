@@ -1,1 +1,7 @@
-waveguide.py
+#!/bin/sh
+mydir=$(dirname "$0")
+if [ -x "$mydir/waveguide.py" ]; then
+  exec "$mydir/waveguide.py" "$@"
+else
+  exec /usr/waveguide/waveguide.py "$@"
+fi
