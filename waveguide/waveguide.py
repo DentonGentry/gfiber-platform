@@ -496,7 +496,7 @@ class WlanManager(object):
       for _ in range(opt.initial_scans):
         RunProc(callback=self._ScanResults,
                 args=['iw', 'dev', self.vdevname, 'scan',
-                      'lowpri', 'ap-force',
+                      'ap-force',
                       'passive'])
       self.next_scan_time = now
       self.did_initial_scan = True
@@ -510,7 +510,7 @@ class WlanManager(object):
       RunProc(callback=self._ScanResults,
               args=['iw', 'dev', self.vdevname, 'scan',
                     'freq', str(scan_freq),
-                    'lowpri', 'ap-force',
+                    'ap-force',
                     'passive'])
       chan_interval = opt.scan_interval / len(self.allowed_freqs)
       # Randomly fiddle with the timing to avoid permanent alignment with
