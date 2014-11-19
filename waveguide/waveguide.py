@@ -736,26 +736,40 @@ def CreateManagers(managers, high_power):
     phy_devs = {}
 
     def AddEntry():
-      if phy and dev and devtype == 'AP':
-        phy_devs[phy] = dev
+      if phy and dev:
+        if devtype == 'AP':
+          phy_devs[phy] = dev
+        else:
+          Debug('Skipping dev %r because type %r != AP', dev, devtype)
 
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'phy#(\d+)', line)
       if g:
+        # A new phy
         AddEntry()
         phy = 'phy%s' % g.group(1)
         dev = devtype = None
       g = re.match(r'Interface ([a-zA-Z0-9.]+)', line)
       if g:
+        # A new interface inside this phy
+        AddEntry()
         dev = g.group(1)
+        devtype = None
       g = re.match(r'type (\w+)', line)
       if g:
         devtype = g.group(1)
     AddEntry()
+    existing_devs = dict((m.vdevname, m) for m in managers)
+    for dev, m in existing_devs.iteritems():
+      if dev not in phy_devs.values():
+        Log('Forgetting interface %r.', dev)
+        managers.remove(m)
     for phy, dev in phy_devs.iteritems():
-      Debug('Creating wlan manager for (%r, %r)', phy, dev)
-      managers.append(WlanManager(phy, dev, high_power=high_power))
+      if dev not in existing_devs:
+        Debug('Creating wlan manager for (%r, %r)', phy, dev)
+        managers.append(WlanManager(phy, dev, high_power=high_power))
+
   RunProc(callback=ParseDevList, args=['iw', 'dev'])
 
 
@@ -850,6 +864,8 @@ def main():
       m.DoScans()
     if opt.tx_interval and now - last_sent > opt.tx_interval:
       last_sent = now
+      if not opt.fake:
+        CreateManagers(managers, high_power=opt.high_power)
       for m in managers:
         m.UpdateStationInfo()
       for m in managers:
