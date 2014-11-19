@@ -394,7 +394,7 @@ def RunProc(callback, args, *xargs, **kwargs):
 
 
 # TODO(apenwarr): run background offchannel sometimes for better survey dump
-# TODO(apenwarr): rescan in the background especially when there are no assocs
+#   (Not just scans, but offchannel busy scans if they're supported.)
 class WlanManager(object):
   """A class representing one wifi interface on the local host."""
 
@@ -433,9 +433,14 @@ class WlanManager(object):
   def ReadReady(self):
     """Call this when select.select() returns true on GetReadFds()."""
     data, hostport = self.mcast.Recv()
-    p = DecodePacket(data)
-    Debug('recv: from %r uptime=%d key=%r',
-          hostport, p.me.uptime_ms, p.me.consensus_key[:4])
+    try:
+      p = DecodePacket(data)
+    except DecodeError as e:
+      Debug('recv: from %r: %s', hostport, e)
+      return 0
+    else:
+      Debug('recv: from %r uptime=%d key=%r',
+            hostport, p.me.uptime_ms, p.me.consensus_key[:4])
     # the waveguide that has been running the longest gets to win the contest
     # for what anonymization key to use.  This prevents disruption in case
     # devices come and go.
@@ -534,7 +539,9 @@ class WlanManager(object):
     for peer in sorted(self.peer_list.values(),
                        key=lambda p: p.me.mac):
       Debug('considering auto disable: peer=%s', DecodeMAC(peer.me.mac))
-      if peer.me.mac in self.bss_list:
+      if peer.me.mac not in self.bss_list:
+        Debug('--> peer no match')
+      else:
         bss = self.bss_list[peer.me.mac]
         peer_age_secs = time.time() - peer.me.now
         scan_age_secs = time.time() - bss.last_seen
@@ -546,17 +553,19 @@ class WlanManager(object):
         Debug('--> peer matches! p_age=%.3f s_age=%.3f power=0x%x '
               'band_overlap=0x%02x',
               peer_age_secs, scan_age_secs, peer_power, overlap)
-        if (peer_age_secs <= opt.tx_interval * 4
-            and (scan_age_secs <= opt.scan_interval * 4
-                 or not opt.scan_interval)
-            and bss.rssi > opt.auto_disable_threshold
-            and peer_power and overlap):
+        if bss.rssi <= opt.auto_disable_threshold:
+          Debug('--> peer is far away, keep going.')
+        elif not peer_power:
+          Debug('--> peer is not high-power, keep going.')
+        elif not overlap:
+          Debug('--> peer does not overlap our band, keep going.')
+        elif (peer_age_secs > opt.tx_interval * 4
+              or (opt.scan_interval and
+                  scan_age_secs > opt.scan_interval * 4)):
+          Debug('--> peer is too old, keep going.')
+        else:
           Debug('--> peer overwhelms us, shut down.')
           return peer.me.mac
-        else:
-          Debug('--> peer does not overwhelm us, keep going.')
-      else:
-        Debug('--> peer no match')
     return None
 
   def MaybeAutoDisable(self):
@@ -636,9 +645,11 @@ class WlanManager(object):
     def AddEntry():
       if mac:
         is_ours = False  # TODO(apenwarr): calc from received waveguide packets
-        self.bss_list[mac] = BSS(is_ours=is_ours, freq=freq, mac=mac,
-                                 rssi=rssi, flags=flags, last_seen=last_seen)
-        Debug('Added: %r', self.bss_list[mac])
+        bss = BSS(is_ours=is_ours, freq=freq, mac=mac,
+                  rssi=rssi, flags=flags, last_seen=last_seen)
+        if mac not in self.bss_list:
+          Debug('Added: %r', bss)
+        self.bss_list[mac] = bss
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'BSS (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
@@ -670,11 +681,11 @@ class WlanManager(object):
       if freq:
         real_busy_ms = busy_ms - rx_ms - tx_ms
         if real_busy_ms < 0: real_busy_ms = 0
-        self.channel_survey_list[freq] = Channel(freq=freq,
-                                                 noise_dbm=noise,
-                                                 observed_ms=active_ms,
-                                                 busy_ms=real_busy_ms)
-        Debug('Added: %r', self.channel_survey_list[freq])
+        ch = Channel(freq=freq, noise_dbm=noise, observed_ms=active_ms,
+                     busy_ms=real_busy_ms)
+        if freq not in self.channel_survey_list:
+          Debug('Added: %r', ch)
+        self.channel_survey_list[freq] = ch
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'Survey data from', line)
@@ -713,8 +724,10 @@ class WlanManager(object):
     last_seen = now
     def AddEntry():
       if mac:
-        self.assoc_list[mac] = Assoc(mac=mac, rssi=rssi, last_seen=last_seen)
-        Debug('Added: %r', self.assoc_list[mac])
+        a = Assoc(mac=mac, rssi=rssi, last_seen=last_seen)
+        if mac not in self.assoc_list:
+          Debug('Added: %r', a)
+        self.assoc_list[mac] = a
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'Station (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
@@ -832,7 +845,7 @@ def main():
   else:
     CreateManagers(managers, high_power=opt.high_power)
   if not managers:
-    raise Exception('no wifi devices found')
+    raise Exception('no wifi devices found.  Try --fake.')
 
   last_sent = 0
   while 1:
