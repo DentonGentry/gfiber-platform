@@ -8,8 +8,13 @@ clear_failure_count_bcm74 () {
   devmem $REG_FAILURE_COUNT 32 0
 }
 
+clear_failure_count_arl () {
+  echo 0 >/proc/antirebootloop
+}
+
 clear_failure_count () {
   grep -q 'system type.*BCM74' /proc/cpuinfo && clear_failure_count_bcm74
+  [ -f /proc/antirebootloop ] && clear_failure_count_arl
 }
 
 case "$1" in
