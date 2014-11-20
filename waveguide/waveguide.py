@@ -38,9 +38,9 @@ try:
 except ImportError:
   pass
 try:
-  gettime = time.monotonic
+  _gettime = time.monotonic
 except AttributeError:
-  gettime = time.time
+  _gettime = time.time
 
 
 optspec = """
@@ -65,6 +65,14 @@ opt = None
 # MCAST_ADDRESS = '224.0.0.2'  # "all routers" address
 MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
 MCAST_PORT = 4442
+
+
+_gettime_rand = random.randint(0, 1000000)
+def gettime():
+  # using gettime_rand means two local instances will have desynced
+  # local timers, which will show problems better in unit tests.  The
+  # monotonic timestamp should never leak out of a given instance.
+  return _gettime() + _gettime_rand
 
 
 def Log(s, *args):
@@ -386,7 +394,7 @@ def RunProc(callback, args, *xargs, **kwargs):
 
 
 # TODO(apenwarr): run background offchannel sometimes for better survey dump
-# TODO(apenwarr): rescan in the background especially when there are no assocs
+#   (Not just scans, but offchannel busy scans if they're supported.)
 class WlanManager(object):
   """A class representing one wifi interface on the local host."""
 
@@ -425,9 +433,14 @@ class WlanManager(object):
   def ReadReady(self):
     """Call this when select.select() returns true on GetReadFds()."""
     data, hostport = self.mcast.Recv()
-    p = DecodePacket(data)
-    Debug('recv: from %r uptime=%d key=%r',
-          hostport, p.me.uptime_ms, p.me.consensus_key[:4])
+    try:
+      p = DecodePacket(data)
+    except DecodeError as e:
+      Debug('recv: from %r: %s', hostport, e)
+      return 0
+    else:
+      Debug('recv: from %r uptime=%d key=%r',
+            hostport, p.me.uptime_ms, p.me.consensus_key[:4])
     # the waveguide that has been running the longest gets to win the contest
     # for what anonymization key to use.  This prevents disruption in case
     # devices come and go.
@@ -526,10 +539,12 @@ class WlanManager(object):
     for peer in sorted(self.peer_list.values(),
                        key=lambda p: p.me.mac):
       Debug('considering auto disable: peer=%s', DecodeMAC(peer.me.mac))
-      if peer.me.mac in self.bss_list:
+      if peer.me.mac not in self.bss_list:
+        Debug('--> peer no match')
+      else:
         bss = self.bss_list[peer.me.mac]
-        peer_age_secs = gettime() - peer.me.now
-        scan_age_secs = gettime() - bss.last_seen
+        peer_age_secs = time.time() - peer.me.now
+        scan_age_secs = time.time() - bss.last_seen
         peer_power = peer.me.flags & ApFlags.HighPower
         # TODO(apenwarr): overlap should consider only our *current* band.
         #  This isn't too important right away since high powered APs
@@ -538,17 +553,19 @@ class WlanManager(object):
         Debug('--> peer matches! p_age=%.3f s_age=%.3f power=0x%x '
               'band_overlap=0x%02x',
               peer_age_secs, scan_age_secs, peer_power, overlap)
-        if (peer_age_secs <= opt.tx_interval * 4
-            and (scan_age_secs <= opt.scan_interval * 4
-                 or not opt.scan_interval)
-            and bss.rssi > opt.auto_disable_threshold
-            and peer_power and overlap):
+        if bss.rssi <= opt.auto_disable_threshold:
+          Debug('--> peer is far away, keep going.')
+        elif not peer_power:
+          Debug('--> peer is not high-power, keep going.')
+        elif not overlap:
+          Debug('--> peer does not overlap our band, keep going.')
+        elif (peer_age_secs > opt.tx_interval * 4
+              or (opt.scan_interval and
+                  scan_age_secs > opt.scan_interval * 4)):
+          Debug('--> peer is too old, keep going.')
+        else:
           Debug('--> peer overwhelms us, shut down.')
           return peer.me.mac
-        else:
-          Debug('--> peer does not overwhelm us, keep going.')
-      else:
-        Debug('--> peer no match')
     return None
 
   def MaybeAutoDisable(self):
@@ -628,9 +645,11 @@ class WlanManager(object):
     def AddEntry():
       if mac:
         is_ours = False  # TODO(apenwarr): calc from received waveguide packets
-        self.bss_list[mac] = BSS(is_ours=is_ours, freq=freq, mac=mac,
-                                 rssi=rssi, flags=flags, last_seen=last_seen)
-        Debug('Added: %r', self.bss_list[mac])
+        bss = BSS(is_ours=is_ours, freq=freq, mac=mac,
+                  rssi=rssi, flags=flags, last_seen=last_seen)
+        if mac not in self.bss_list:
+          Debug('Added: %r', bss)
+        self.bss_list[mac] = bss
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'BSS (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
@@ -662,11 +681,11 @@ class WlanManager(object):
       if freq:
         real_busy_ms = busy_ms - rx_ms - tx_ms
         if real_busy_ms < 0: real_busy_ms = 0
-        self.channel_survey_list[freq] = Channel(freq=freq,
-                                                 noise_dbm=noise,
-                                                 observed_ms=active_ms,
-                                                 busy_ms=real_busy_ms)
-        Debug('Added: %r', self.channel_survey_list[freq])
+        ch = Channel(freq=freq, noise_dbm=noise, observed_ms=active_ms,
+                     busy_ms=real_busy_ms)
+        if freq not in self.channel_survey_list:
+          Debug('Added: %r', ch)
+        self.channel_survey_list[freq] = ch
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'Survey data from', line)
@@ -705,8 +724,10 @@ class WlanManager(object):
     last_seen = now
     def AddEntry():
       if mac:
-        self.assoc_list[mac] = Assoc(mac=mac, rssi=rssi, last_seen=last_seen)
-        Debug('Added: %r', self.assoc_list[mac])
+        a = Assoc(mac=mac, rssi=rssi, last_seen=last_seen)
+        if mac not in self.assoc_list:
+          Debug('Added: %r', a)
+        self.assoc_list[mac] = a
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'Station (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
@@ -824,7 +845,7 @@ def main():
   else:
     CreateManagers(managers, high_power=opt.high_power)
   if not managers:
-    raise Exception('no wifi devices found')
+    raise Exception('no wifi devices found.  Try --fake.')
 
   last_sent = 0
   while 1:
@@ -845,6 +866,7 @@ def main():
     if opt.tx_interval:
       timeouts.append(last_sent + opt.tx_interval)
     timeout = min(filter(None, timeouts))
+    Debug2('now=%f timeout=%f  timeouts=%r', gettime(), timeout, timeouts)
     if timeout: timeout -= gettime()
     if timeout < 0: timeout = 0
     if timeout is None and opt.watch_pid: timeout = 5.0
@@ -855,7 +877,7 @@ def main():
         if i in m.GetReadFds():
           gotpackets += m.ReadReady()
     if gotpackets: WriteEventFile('gotpacket')
-    now = time.time()
+    now = gettime()
     # TODO(apenwarr): how often should we really transmit?
     #   Also, consider sending out an update (almost) immediately when a new
     #   node joins, so it can learn about the other nodes as quickly as
