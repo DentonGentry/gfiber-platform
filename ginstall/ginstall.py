@@ -17,6 +17,7 @@
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
+import hashlib
 import os
 import re
 import StringIO
@@ -240,9 +241,6 @@ def IsDeviceNoSigning():
   return False
 
 
-# TODO(apenwarr): instead of re-reading the source file, use a checksum.
-#  This will be especially important later when we want to avoid ever reading
-#  the input file twice, so we can stream it from stdin.
 def IsIdentical(description, srcfile, dstfile):
   """Compare srcfile and dstfile. Return true if contents are identical."""
   VerbosePrint('Verifying %s.\n', description)
@@ -252,7 +250,7 @@ def IsIdentical(description, srcfile, dstfile):
     raise IOError('IsIdentical: srcfile is empty?')
   if not dbuf:
     raise IOError('IsIdentical: dstfile is empty?')
-  while sbuf and dbuf:
+  while sbuf:
     if sbuf != dbuf:
       return False
     sbuf = srcfile.read(BUFSIZE)
@@ -260,6 +258,23 @@ def IsIdentical(description, srcfile, dstfile):
     VerbosePrint('.')
   VerbosePrint('\n')
   return True
+
+
+def MatchesHash(description, dstfile, size, sha1):
+  """Calculate SHA-1 hash of dstfile and compare with expected value."""
+  VerbosePrint('Verifying %s.\n', description)
+  m = hashlib.sha1()
+  while size > 0:
+    dbuf = dstfile.read(min(BUFSIZE, size))
+    m.update(dbuf)
+    size -= len(dbuf)
+    VerbosePrint('.')
+  VerbosePrint('\n')
+  result = (m.hexdigest() == sha1)
+  if not result:
+    VerbosePrint('SHA1 hashes do not match. Expected: %s Actual: %s\n'
+                 % (sha1, m.hexdigest()))
+  return result
 
 
 def GetFileSize(f):
@@ -328,33 +343,47 @@ def WriteToFile(srcfile, dstfile):
 
 def _CopyAndVerify(description, inf, outf):
   """Copy data from file object inf to file object outf, then verify it."""
-  start = inf.tell()
-  written = WriteToFile(inf, outf)
-  inf.seek(start, os.SEEK_SET)
+  start = inf.filelike.tell()
+  written = WriteToFile(inf.filelike, outf)
   outf.seek(0, os.SEEK_SET)
-  if not IsIdentical(description, inf, outf):
-    raise IOError('Read-after-write verification failed')
+  if inf.secure_hash:
+    if not MatchesHash(description, outf, written, inf.secure_hash):
+      raise IOError('Read-and-hash-after-write verification failed')
+  else:
+    inf.filelike.seek(start, os.SEEK_SET)
+    if not IsIdentical(description, inf.filelike, outf):
+      raise IOError('Read-after-write verification failed')
   return written
 
 
-def _CopyAndVerifyNand(f, mtddevname):
+def _CopyAndVerifyNand(inf, mtddevname):
   """Copy data from file object f to NAND flash mtddevname, then verify it."""
-  start = f.tell()
+  start = inf.filelike.tell()
   VerbosePrint('Writing to NAND partition %r\n', mtddevname)
-  written = Nandwrite(f, mtddevname)
-  f.seek(start, os.SEEK_SET)
+  written = Nandwrite(inf.filelike, mtddevname)
   cmd = ['nanddump', '--bb=skipbad', '--length=%d' % written, '--quiet', mtddevname]
   VerbosePrint('%s\n' % cmd)
   p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-  if not IsIdentical(mtddevname, f, p.stdout):
-    raise IOError('Read-after-write verification failed')
+  if inf.secure_hash:
+    inf.filelike.seek(0, os.SEEK_END)
+    size = inf.filelike.tell()
+    if not MatchesHash(mtddevname, p.stdout, size, inf.secure_hash):
+      raise IOError('Read-and-hash-after-write verification failed')
+  else:
+    inf.filelike.seek(start, os.SEEK_SET)
+    if not IsIdentical(mtddevname, inf.filelike, p.stdout):
+      raise IOError('Read-after-write verification failed')
   while p.stdout.read(BUFSIZE):
     pass
-  p.wait()
+  if p.wait() != 0:
+    raise IOError('Read-after-write verification failed. '
+                  'nanddump return non-zero')
 
 
 def InstallToMtd(f, mtddevname):
   """Write an image to an mtd device."""
+  if not isinstance(f, FileWithSecureHash):
+    f = FileWithSecureHash(f, None)
   if EraseMtd(mtddevname):
     raise IOError('Flash erase failed.')
   VerbosePrint('Writing to mtd partition %r\n', mtddevname)
@@ -515,6 +544,14 @@ def CheckMisc(img):
   return True
 
 
+class FileWithSecureHash(object):
+  """A file-like object paired with a SHA-1 hash."""
+
+  def __init__(self, filelike, secure_hash):
+    self.filelike = filelike
+    self.secure_hash = secure_hash
+
+
 class FileImage(object):
   """A system image packaged as separate kernel, rootfs and loader files."""
 
@@ -539,7 +576,7 @@ class FileImage(object):
   def GetLoader(self):
     if self.loader:
       try:
-        return open(self.loader, 'rb')
+        return FileWithSecureHash(open(self.loader, 'rb'), None)
       except IOError, e:
         raise Fatal(e)
     else:
@@ -548,7 +585,7 @@ class FileImage(object):
   def GetUloader(self):
     if self.uloader:
       try:
-        return open(self.uloader, 'rb')
+        return FileWithSecureHash(open(self.uloader, 'rb'), None)
       except IOError, e:
         raise Fatal(e)
     else:
@@ -557,7 +594,7 @@ class FileImage(object):
   def GetKernel(self):
     if self.kernelfile:
       try:
-        return open(self.kernelfile, 'rb')
+        return FileWithSecureHash(open(self.kernelfile, 'rb'), None)
       except IOError, e:
         raise Fatal(e)
     else:
@@ -566,7 +603,7 @@ class FileImage(object):
   def GetRootFs(self):
     if self.rootfs:
       try:
-        return open(self.rootfs, 'rb')
+        return FileWithSecureHash(open(self.rootfs, 'rb'), None)
       except IOError, e:
         raise Fatal(e)
     else:
@@ -633,23 +670,27 @@ class TarImage(object):
       kernel_names = ['vmlinuz', 'vmlinux', 'uImage']
     for name in kernel_names:
       try:
-        return self.tar_f.extractfile(name)
+        f = self.tar_f.extractfile(name)
       except KeyError:
-        pass
+        continue
+      secure_hash = self.manifest.get('%s-sha1' % name)
+      return FileWithSecureHash(f, secure_hash)
     return None
 
   def GetRootFs(self):
     if not self.rootfs:
       return None
     try:
-      return self.tar_f.extractfile(self.rootfs)
+      f = self.tar_f.extractfile(self.rootfs)
     except KeyError:
       return None
+    secure_hash = self.manifest.get('%s-sha1' % self.rootfs)
+    return FileWithSecureHash(f, secure_hash)
 
   def GetLoader(self):
     try:
       filename = 'loader.img' if self.ManifestVersion() > 2 else 'loader.bin'
-      return self.tar_f.extractfile(filename)
+      return FileWithSecureHash(self.tar_f.extractfile(filename), None)
     except KeyError:
       return None
 
@@ -662,7 +703,7 @@ class TarImage(object):
   def GetUloader(self):
     try:
       # Image versions prior to v3 never included a uloader.
-      return self.tar_f.extractfile('uloader.img')
+      return FileWithSecureHash(self.tar_f.extractfile('uloader.img'), None)
     except KeyError:
       return None
 
@@ -671,12 +712,12 @@ def WriteLoaderToMtd(loader, loader_start, mtd, description):
   is_loader_current = False
   with open(mtd, 'rb') as mtdfile:
     VerbosePrint('Checking if the %s is up to date.\n', description)
-    loader.seek(loader_start)
-    is_loader_current = IsIdentical(description, loader, mtdfile)
+    loader.filelike.seek(loader_start)
+    is_loader_current = IsIdentical(description, loader.filelike, mtdfile)
   if is_loader_current:
     VerbosePrint('The %s is the latest.\n', description)
   else:
-    loader.seek(loader_start, os.SEEK_SET)
+    loader.filelike.seek(loader_start, os.SEEK_SET)
     Log('DO NOT INTERRUPT OR POWER CYCLE, or you will brick the unit.\n')
     VerbosePrint('Writing to %r\n', mtd)
     InstallToMtd(loader, mtd)
@@ -786,7 +827,7 @@ def main():
 
     loader = img.GetLoader()
     if loader:
-      loader_start = loader.tell()
+      loader_start = loader.filelike.tell()
       if opt.skiploader:
         VerbosePrint('Skipping loader installation.\n')
       else:
@@ -798,7 +839,7 @@ def main():
           loadersig = img.GetLoaderSig()
           if not loadersig:
             raise Fatal('Loader signature file is missing; try --loadersig')
-          if not Verify(loader, loadersig, key):
+          if not Verify(loader.filelike, loadersig, key):
             raise Fatal('Loader signing check failed.')
         installed = False
         for i in ['cfe', 'loader', 'loader0', 'loader1']:
@@ -811,17 +852,19 @@ def main():
 
     uloader = img.GetUloader()
     if uloader:
-      uloader_start = uloader.tell()
+      uloader_start = uloader.filelike.tell()
       if opt.skiploader:
         VerbosePrint('Skipping uloader installation.\n')
       else:
         mtd = GetMtdDevForNameOrNone('uloader')
         if mtd:
-          uloader_signed = UloaderSigned(uloader)
+          uloader_signed = UloaderSigned(uloader.filelike)
           device_secure = C2kDeviceIsSecure(mtd)
           if uloader_signed and not device_secure:
             VerbosePrint('Signed uloader but unsecure box; stripping sig.\n')
-            uloader, uloader_start = StripUloader(uloader, uloader_start)
+            uloader, uloader_start = StripUloader(uloader.filelike,
+                                                  uloader_start)
+            uloader = FileWithSecureHash(uloader, None)
           elif not uloader_signed and device_secure:
             raise Fatal('Unable to install unsigned uloader on secure device.')
           WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
