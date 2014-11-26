@@ -244,6 +244,7 @@ def IsDeviceNoSigning():
 def IsIdentical(description, srcfile, dstfile):
   """Compare srcfile and dstfile. Return true if contents are identical."""
   VerbosePrint('Verifying %s.\n', description)
+  progress = ProgressBar()
   sbuf = srcfile.read(BUFSIZE)
   dbuf = dstfile.read(len(sbuf))
   if not sbuf:
@@ -255,21 +256,22 @@ def IsIdentical(description, srcfile, dstfile):
       return False
     sbuf = srcfile.read(BUFSIZE)
     dbuf = dstfile.read(len(sbuf))
-    VerbosePrint('.')
-  VerbosePrint('\n')
+    progress.MadeProgress(len(sbuf))
+  progress.Done()
   return True
 
 
 def MatchesHash(description, dstfile, size, sha1):
   """Calculate SHA-1 hash of dstfile and compare with expected value."""
   VerbosePrint('Verifying %s.\n', description)
+  progress = ProgressBar()
   m = hashlib.sha1()
   while size > 0:
     dbuf = dstfile.read(min(BUFSIZE, size))
     m.update(dbuf)
     size -= len(dbuf)
-    VerbosePrint('.')
-  VerbosePrint('\n')
+    progress.MadeProgress(len(dbuf))
+  progress.Done()
   result = (m.hexdigest() == sha1)
   if not result:
     VerbosePrint('SHA1 hashes do not match. Expected: %s Actual: %s\n'
@@ -329,15 +331,16 @@ def Pad(data, bufsize):
 
 def WriteToFile(srcfile, dstfile):
   """Copy all bytes from srcfile to dstfile."""
+  progress = ProgressBar()
   buf = srcfile.read(BUFSIZE)
   totsize = 0
   while buf:
     totsize += len(buf)
     dstfile.write(Pad(buf, BUFSIZE))
     buf = srcfile.read(BUFSIZE)
-    VerbosePrint('.')
+    progress.MadeProgress(len(buf))
   dstfile.flush()
-  VerbosePrint('\n')
+  progress.Done()
   return totsize
 
 
@@ -542,6 +545,23 @@ def CheckMisc(img):
            img.GetVersion().startswith('gftv200-39-pre1') )):
       raise Fatal('Refusing to install gftv200-38.10 and before, and gftv200-39-pre1 and before.')
   return True
+
+
+class ProgressBar(object):
+  """Poor man's progress bar that prints one dot per 1MB."""
+
+  def __init__(self):
+    self.bytes = 0
+
+  def MadeProgress(self, b):
+    self.bytes += b
+    dotsize = 1024 * 1024
+    if self.bytes > dotsize:
+      VerbosePrint('.')
+      self.bytes -= dotsize
+
+  def Done(self):
+    VerbosePrint('\n')
 
 
 class FileWithSecureHash(object):
