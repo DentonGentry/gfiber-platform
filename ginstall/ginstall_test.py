@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Copyright 2011-2014 Google Inc. All Rights Reserved.
+# Copyright 2014 Google Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ginstall.py"""
+"""Tests for ginstall.py."""
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
@@ -26,15 +26,21 @@ import tempfile
 import unittest
 import ginstall
 
+
 class FakeImgWVersion(object):
+
   def __init__(self, version):
     self.version = version
+
   def GetVersion(self):
     return self.version
 
+
 class FakeImgWManifest(object):
+
   def __init__(self, manifest):
     self.manifest = ginstall.ParseManifest(manifest)
+
   def ManifestVersion(self):
     return int(self.manifest['installer_version'])
 
@@ -45,8 +51,9 @@ class FakeImgWManifest(object):
 #  ginstall under various realistic conditions, in order to test more stuff
 #  that historically has gone wrong, like option parsing and manifest checking.
 class GinstallTest(unittest.TestCase):
+
   def setUp(self):
-    self.old_PATH = os.environ['PATH']
+    self.old_path = os.environ['PATH']
     self.old_bufsize = ginstall.BUFSIZE
     self.old_etcplatform = ginstall.ETCPLATFORM
     self.old_secureboot = ginstall.SECUREBOOT
@@ -58,20 +65,20 @@ class GinstallTest(unittest.TestCase):
     self.old_sgdisk = ginstall.SGDISK
     os.environ['PATH'] = (os.path.join(os.getcwd(), 'testdata/bin.tmp') + ':' +
                           os.path.join(os.getcwd(), 'testdata/bin') + ':' +
-                          self.old_PATH)
+                          self.old_path)
     shutil.rmtree('testdata/bin.tmp', ignore_errors=True)
     os.mkdir('testdata/bin.tmp')
     ginstall.ETCPLATFORM = 'testdata/etc/platform'
     ginstall.SECUREBOOT = 'testdata/tmp/gpio/ledcontrol/secure_boot'
     ginstall.MTD_PREFIX = 'testdata/dev/mtd'
     ginstall.SYSCLASSMTD = 'testdata/sys/class/mtd'
-    ginstall.PROC_MTD = "testdata/proc/mtd"
+    ginstall.PROC_MTD = 'testdata/proc/mtd'
     ginstall.SGDISK = 'testdata/sgdisk'
     ginstall.SIGNINGKEY = 'testdata/signing_key.der'
     self.files_to_remove = list()
 
   def tearDown(self):
-    os.environ['PATH'] = self.old_PATH
+    os.environ['PATH'] = self.old_path
     ginstall.BUFSIZE = self.old_bufsize
     ginstall.ETCPLATFORM = self.old_etcplatform
     ginstall.SECUREBOOT = self.old_secureboot
@@ -81,12 +88,12 @@ class GinstallTest(unittest.TestCase):
     ginstall.MMCBLK = self.old_mmcblk
     ginstall.PROC_MTD = self.old_proc_mtd
     ginstall.SGDISK = self.old_sgdisk
-    for file in self.files_to_remove:
-      os.remove(file)
+    for f in self.files_to_remove:
+      os.remove(f)
 
   def MakeTestScript(self, text):
     """Create a script in /tmp, with an output file."""
-    scriptfile = tempfile.NamedTemporaryFile(mode="r+", delete=False)
+    scriptfile = tempfile.NamedTemporaryFile(mode='r+', delete=False)
     os.chmod(scriptfile.name, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
     outfile = tempfile.NamedTemporaryFile(delete=False)
     scriptfile.write(text.format(outfile.name))
@@ -97,7 +104,7 @@ class GinstallTest(unittest.TestCase):
 
   def WriteVersionFile(self, version):
     """Create a fake /etc/version file in /tmp."""
-    versionfile = tempfile.NamedTemporaryFile(mode="r+", delete=False)
+    versionfile = tempfile.NamedTemporaryFile(mode='r+', delete=False)
     versionfile.write(version)
     versionfile.close()  # Linux won't run it if text file is busy
     self.files_to_remove.append(versionfile.name)
@@ -105,75 +112,75 @@ class GinstallTest(unittest.TestCase):
 
   def testVerify(self):
     self.assertTrue(ginstall.Verify(
-        open("testdata/img/loader.bin"),
-        open("testdata/img/loader.sig"),
-        open("testdata/img/public.der")))
+        open('testdata/img/loader.bin'),
+        open('testdata/img/loader.sig'),
+        open('testdata/img/public.der')))
 
   def testVerifyFailure(self):
     self.assertFalse(ginstall.Verify(
-        open("testdata/img/loader.bin"),
-        open("testdata/img/loader_bad.sig"),
-        open("testdata/img/public.der")))
+        open('testdata/img/loader.bin'),
+        open('testdata/img/loader_bad.sig'),
+        open('testdata/img/public.der')))
 
   def testIsIdentical(self):
     self.assertFalse(ginstall.IsIdentical(
         'testloader',
-        open("testdata/img/loader.bin"),
-        open("testdata/img/loader1.bin")))
+        open('testdata/img/loader.bin'),
+        open('testdata/img/loader1.bin')))
 
   def testVerifyAndIsIdentical(self):
-    loader = open("testdata/img/loader.bin")
+    loader = open('testdata/img/loader.bin')
     self.assertTrue(ginstall.Verify(
         loader,
-        open("testdata/img/loader.sig"),
-        open("testdata/img/public.der")))
+        open('testdata/img/loader.sig'),
+        open('testdata/img/public.der')))
     self.assertRaises(IOError, ginstall.IsIdentical,
-        'loader', loader, open("testdata/img/loader.bin"))
+                      'loader', loader, open('testdata/img/loader.bin'))
     loader.seek(0)
     self.assertTrue(ginstall.IsIdentical(
-        'loader', loader, open("testdata/img/loader.bin")))
+        'loader', loader, open('testdata/img/loader.bin')))
     loader.seek(0)
     self.assertFalse(ginstall.IsIdentical(
-        'loader', loader, open("testdata/img/loader1.bin")))
+        'loader', loader, open('testdata/img/loader1.bin')))
 
   def testGetMtdDevForName(self):
-    self.assertEqual(ginstall.GetMtdDevForName("foo1"), "testdata/dev/mtd1")
-    self.assertEqual(ginstall.GetMtdDevForName("foo2"), "testdata/dev/mtd2")
-    self.assertEqual(ginstall.GetMtdDevForName("foo9"), "testdata/dev/mtd9")
-    self.assertRaises(KeyError, ginstall.GetMtdDevForName, "nonexistant")
-    self.assertEqual(ginstall.GetMtdDevForNameOrNone("nonexistant"), None)
+    self.assertEqual(ginstall.GetMtdDevForName('foo1'), 'testdata/dev/mtd1')
+    self.assertEqual(ginstall.GetMtdDevForName('foo2'), 'testdata/dev/mtd2')
+    self.assertEqual(ginstall.GetMtdDevForName('foo9'), 'testdata/dev/mtd9')
+    self.assertRaises(KeyError, ginstall.GetMtdDevForName, 'nonexistant')
+    self.assertEqual(ginstall.GetMtdDevForNameOrNone('nonexistant'), None)
 
   def testIsMtdNand(self):
-    self.assertFalse(ginstall.IsMtdNand("testdata/dev/mtd6"))
-    self.assertTrue(ginstall.IsMtdNand("testdata/dev/mtd7"))
+    self.assertFalse(ginstall.IsMtdNand('testdata/dev/mtd6'))
+    self.assertTrue(ginstall.IsMtdNand('testdata/dev/mtd7'))
 
   def testEraseMtd(self):
-    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
+    testscript = '#!/bin/sh\necho -n $* >> {0}\n'
     (script, out) = self.MakeTestScript(testscript)
     shutil.copy(script.name, 'testdata/bin.tmp/flash_erase')
-    ginstall.EraseMtd("/dev/mtd3")
+    ginstall.EraseMtd('/dev/mtd3')
     # Script wrote its arguments to out.name, read them in to check.
     output = out.read()
     out.close()
-    self.assertEqual(output, "--quiet /dev/mtd3 0 0")
+    self.assertEqual(output, '--quiet /dev/mtd3 0 0')
 
   def testNandwrite(self):
     devfile = tempfile.NamedTemporaryFile(delete=False)
     self.files_to_remove.append(devfile.name)
-    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
-    testscript += "cat > {0}\n".format(devfile.name)
+    testscript = '#!/bin/sh\necho -n $* >> {0}\n'
+    testscript += 'cat > {0}\n'.format(devfile.name)
     (script, out) = self.MakeTestScript(testscript)
     shutil.copy(script.name, 'testdata/bin.tmp/nandwrite')
-    in_f = StringIO.StringIO("Testing123")
-    ginstall.Nandwrite(in_f, "/dev/mtd99")
+    in_f = StringIO.StringIO('Testing123')
+    ginstall.Nandwrite(in_f, '/dev/mtd99')
     # Script wrote its arguments to out.name, read them in to check.
     output = out.read()
     out.close()
-    self.assertEqual(output, "--quiet --markbad /dev/mtd99")
+    self.assertEqual(output, '--quiet --markbad /dev/mtd99')
     # Script copied in_f to devfile.name, read it back in to check.
     dev = devfile.read()
     devfile.close()
-    self.assertEqual(dev, ginstall.Pad("Testing123", ginstall.BUFSIZE))
+    self.assertEqual(dev, ginstall.Pad('Testing123', ginstall.BUFSIZE))
 
   def testInstallToMtdNand(self):
     old_etcplatform = ginstall.ETCPLATFORM
@@ -181,103 +188,104 @@ class GinstallTest(unittest.TestCase):
 
     devfile = tempfile.NamedTemporaryFile(delete=False)
     self.files_to_remove.append(devfile.name)
-    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
-    testscript += "cat > {0}\n".format(devfile.name)
+    testscript = '#!/bin/sh\necho -n $* >> {0}\n'
+    testscript += 'cat > {0}\n'.format(devfile.name)
     (script, nandwrite_out) = self.MakeTestScript(testscript)
     shutil.copy(script.name, 'testdata/bin.tmp/nandwrite')
 
-    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
-    testscript += "cat {0}\n".format(devfile.name)
+    testscript = '#!/bin/sh\necho -n $* >> {0}\n'
+    testscript += 'cat {0}\n'.format(devfile.name)
     (script, nanddump_out) = self.MakeTestScript(testscript)
     shutil.copy(script.name, 'testdata/bin.tmp/nanddump')
 
-    in_f = StringIO.StringIO("Testing123")
-    ginstall.InstallToMtd(in_f, "testdata/dev/mtd7")
+    in_f = StringIO.StringIO('Testing123')
+    ginstall.InstallToMtd(in_f, 'testdata/dev/mtd7')
     # Script wrote its arguments to nandwrite_out.name, read them in to check.
     nandwrite_output = nandwrite_out.read()
     nandwrite_out.close()
-    self.assertEqual(nandwrite_output, "--quiet --markbad testdata/dev/mtd7")
+    self.assertEqual(nandwrite_output, '--quiet --markbad testdata/dev/mtd7')
     # Script wrote its arguments to nanddump_out.name, read them in to check.
     nanddump_output = nanddump_out.read()
     nanddump_out.close()
-    self.assertEqual(nanddump_output, "--bb=skipbad --length=%d --quiet testdata/dev/mtd7" % in_f.len)
+    self.assertEqual(nanddump_output,
+                     '--bb=skipbad --length=%d --quiet testdata/dev/mtd7' %
+                     in_f.len)
     # Script copied in_f to devfile.name, read it back in to check.
     dev = devfile.read()
     devfile.close()
-    self.assertEqual(dev, ginstall.Pad("Testing123", ginstall.BUFSIZE))
+    self.assertEqual(dev, ginstall.Pad('Testing123', ginstall.BUFSIZE))
 
     # Provide a nanddump mock that writes incorrect data to stdout
-    testscript = "#!/bin/sh\necho -n $* >> {0}\n"
-    testscript += "echo abc ; cat {0}\n".format(devfile.name)
+    testscript = '#!/bin/sh\necho -n $* >> {0}\n'
+    testscript += 'echo abc ; cat {0}\n'.format(devfile.name)
     (script, nanddump_out) = self.MakeTestScript(testscript)
     shutil.copy(script.name, 'testdata/bin.tmp/nanddump')
-    self.assertRaises(IOError, ginstall.InstallToMtd, in_f, "testdata/dev/mtd7")
+    self.assertRaises(IOError, ginstall.InstallToMtd, in_f, 'testdata/dev/mtd7')
 
     ginstall.ETCPLATFORM = old_etcplatform
 
-
   def testTarImage(self):
-    tarimg = ginstall.TarImage("testdata/img/vmlinux.tar")
-    self.assertEqual(tarimg.GetKernel().filelike.read(), "vmlinux")
-    self.assertEqual(tarimg.GetRootFs().filelike.read(), "rootfs.squashfs_ubi")
-    self.assertEqual(tarimg.GetLoader().filelike.read(), "loader.bin")
-    tarimg = ginstall.TarImage("testdata/img/vmlinuz.tar")
-    self.assertEqual(tarimg.GetKernel().filelike.read(), "vmlinuz")
-    self.assertEqual(tarimg.GetRootFs().filelike.read(), "rootfs.squashfs_ubi")
-    self.assertEqual(tarimg.GetLoader().filelike.read(), "loader.bin")
-    tarimg = ginstall.TarImage("testdata/img/vmboth.tar")
-    self.assertEqual(tarimg.GetKernel().filelike.read(), "vmlinuz")
-    self.assertEqual(tarimg.GetRootFs().filelike.read(), "rootfs.squashfs_ubi")
-    tarimg = ginstall.TarImage("testdata/img/vmlinux_slc.tar")
-    self.assertEqual(tarimg.GetKernel().filelike.read(), "vmlinux")
-    self.assertEqual(tarimg.GetRootFs().filelike.read(), "rootfs.squashfs")
-    self.assertEqual(tarimg.GetLoader().filelike.read(), "loader.bin")
-    tarimg = ginstall.TarImage("testdata/img/vmlinuz_slc.tar")
-    self.assertEqual(tarimg.GetKernel().filelike.read(), "vmlinuz")
-    self.assertEqual(tarimg.GetRootFs().filelike.read(), "rootfs.squashfs")
-    self.assertEqual(tarimg.GetLoader().filelike.read(), "loader.bin")
-    tarimg = ginstall.TarImage("testdata/img/vmboth_slc.tar")
-    self.assertEqual(tarimg.GetKernel().filelike.read(), "vmlinuz")
-    self.assertEqual(tarimg.GetRootFs().filelike.read(), "rootfs.squashfs")
+    tarimg = ginstall.TarImage('testdata/img/vmlinux.tar')
+    self.assertEqual(tarimg.GetKernel().filelike.read(), 'vmlinux')
+    self.assertEqual(tarimg.GetRootFs().filelike.read(), 'rootfs.squashfs_ubi')
+    self.assertEqual(tarimg.GetLoader().filelike.read(), 'loader.bin')
+    tarimg = ginstall.TarImage('testdata/img/vmlinuz.tar')
+    self.assertEqual(tarimg.GetKernel().filelike.read(), 'vmlinuz')
+    self.assertEqual(tarimg.GetRootFs().filelike.read(), 'rootfs.squashfs_ubi')
+    self.assertEqual(tarimg.GetLoader().filelike.read(), 'loader.bin')
+    tarimg = ginstall.TarImage('testdata/img/vmboth.tar')
+    self.assertEqual(tarimg.GetKernel().filelike.read(), 'vmlinuz')
+    self.assertEqual(tarimg.GetRootFs().filelike.read(), 'rootfs.squashfs_ubi')
+    tarimg = ginstall.TarImage('testdata/img/vmlinux_slc.tar')
+    self.assertEqual(tarimg.GetKernel().filelike.read(), 'vmlinux')
+    self.assertEqual(tarimg.GetRootFs().filelike.read(), 'rootfs.squashfs')
+    self.assertEqual(tarimg.GetLoader().filelike.read(), 'loader.bin')
+    tarimg = ginstall.TarImage('testdata/img/vmlinuz_slc.tar')
+    self.assertEqual(tarimg.GetKernel().filelike.read(), 'vmlinuz')
+    self.assertEqual(tarimg.GetRootFs().filelike.read(), 'rootfs.squashfs')
+    self.assertEqual(tarimg.GetLoader().filelike.read(), 'loader.bin')
+    tarimg = ginstall.TarImage('testdata/img/vmboth_slc.tar')
+    self.assertEqual(tarimg.GetKernel().filelike.read(), 'vmlinuz')
+    self.assertEqual(tarimg.GetRootFs().filelike.read(), 'rootfs.squashfs')
 
   def testTarImageV3(self):
-    tarimg = ginstall.TarImage("testdata/img/image_v3.gi")
-    self.assertEqual(tarimg.GetKernel().filelike.read(), "kernel.img")
-    self.assertEqual(tarimg.GetRootFs().filelike.read(), "rootfs.img")
-    self.assertEqual(tarimg.GetLoader().filelike.read(), "loader.img")
-    self.assertEqual(tarimg.GetUloader().filelike.read(), "uloader.img")
-    self.assertEqual(tarimg.GetVersion(), "image_version")
+    tarimg = ginstall.TarImage('testdata/img/image_v3.gi')
+    self.assertEqual(tarimg.GetKernel().filelike.read(), 'kernel.img')
+    self.assertEqual(tarimg.GetRootFs().filelike.read(), 'rootfs.img')
+    self.assertEqual(tarimg.GetLoader().filelike.read(), 'loader.img')
+    self.assertEqual(tarimg.GetUloader().filelike.read(), 'uloader.img')
+    self.assertEqual(tarimg.GetVersion(), 'image_version')
 
   def testTarImageV4(self):
-    tarimg = ginstall.TarImage("testdata/img/image_v4.gi")
-    self.assertEqual(tarimg.GetKernel().filelike.read(), "kernel.img")
-    self.assertEqual(tarimg.GetRootFs().filelike.read(), "rootfs.img")
-    self.assertEqual(tarimg.GetLoader().filelike.read(), "loader.img")
-    self.assertEqual(tarimg.GetUloader().filelike.read(), "uloader.img")
-    self.assertEqual(tarimg.GetVersion(), "image_version")
+    tarimg = ginstall.TarImage('testdata/img/image_v4.gi')
+    self.assertEqual(tarimg.GetKernel().filelike.read(), 'kernel.img')
+    self.assertEqual(tarimg.GetRootFs().filelike.read(), 'rootfs.img')
+    self.assertEqual(tarimg.GetLoader().filelike.read(), 'loader.img')
+    self.assertEqual(tarimg.GetUloader().filelike.read(), 'uloader.img')
+    self.assertEqual(tarimg.GetVersion(), 'image_version')
 
   def testFileImage(self):
-    fileimg = ginstall.FileImage("testdata/img/vmlinux",
-                                 "testdata/img/rootfs.ubi",
-                                 "testdata/img/loader.bin",
-                                 "testdata/img/loader.sig",
-                                 "testdata/img/manifest",
-                                 "testdata/img/uloader.bin")
-    self.assertEqual(fileimg.GetKernel().filelike.read(), "vmlinux")
-    self.assertEqual(fileimg.GetRootFs().filelike.read(), "rootfs.ubi")
-    self.assertEqual(fileimg.GetLoader().filelike.read(), "loader.bin")
-    self.assertEqual(fileimg.GetUloader().filelike.read(), "uloader.bin")
+    fileimg = ginstall.FileImage('testdata/img/vmlinux',
+                                 'testdata/img/rootfs.ubi',
+                                 'testdata/img/loader.bin',
+                                 'testdata/img/loader.sig',
+                                 'testdata/img/manifest',
+                                 'testdata/img/uloader.bin')
+    self.assertEqual(fileimg.GetKernel().filelike.read(), 'vmlinux')
+    self.assertEqual(fileimg.GetRootFs().filelike.read(), 'rootfs.ubi')
+    self.assertEqual(fileimg.GetLoader().filelike.read(), 'loader.bin')
+    self.assertEqual(fileimg.GetUloader().filelike.read(), 'uloader.bin')
     try:
       ginstall.CheckManifestVersion(fileimg)
     except ginstall.Fatal:
-      self.fail("CheckManifestVersion should have succeeded")
+      self.fail('CheckManifestVersion should have succeeded')
 
   def testGetFileSize(self):
-    self.assertEqual(ginstall.GetFileSize(open("testdata/img/vmlinux")), 7)
-    self.assertEqual(ginstall.GetFileSize(open("testdata/random")), 4096)
+    self.assertEqual(ginstall.GetFileSize(open('testdata/img/vmlinux')), 7)
+    self.assertEqual(ginstall.GetFileSize(open('testdata/random')), 4096)
 
   def testWriteMtd(self):
-    origfile = open("testdata/random", "r")
+    origfile = open('testdata/random', 'r')
     origsize = os.fstat(origfile.fileno())[6]
 
     ginstall.BUFSIZE = 1024
@@ -293,20 +301,19 @@ class GinstallTest(unittest.TestCase):
                      open('testdata/dev/mtd4').read())
 
   def testWriteMtdEraseException(self):
-    origfile = open("testdata/random", "r")
-    (f_erase, eraseout) = self.MakeTestScript("#!/bin/sh\nexit 1\n")
+    origfile = open('testdata/random', 'r')
+    (f_erase, _) = self.MakeTestScript('#!/bin/sh\nexit 1\n')
     shutil.copy(f_erase.name, 'testdata/bin.tmp/flash_erase')
     self.assertRaises(IOError, ginstall.InstallToMtd, origfile, '/dev/mtd0')
 
   def testWriteMtdVerifyException(self):
-    origfile = open("testdata/random", "r")
-    destfile = open("/dev/zero", "w")
-    origsize = os.fstat(origfile.fileno())[6]
+    origfile = open('testdata/random', 'r')
+    destfile = open('/dev/zero', 'w')
 
     # substitute fake /dev/mtdblock and /usr/bin/flash_erase
     ginstall.MTDBLOCK = destfile.name
-    s = "#!/bin/sh\nexit 0\n"
-    (f_erase, eraseout) = self.MakeTestScript(s)
+    s = '#!/bin/sh\nexit 0\n'
+    (f_erase, _) = self.MakeTestScript(s)
     ginstall.FLASH_ERASE = f_erase.name
 
     # verify should fail, destfile will read back zero.
@@ -315,7 +322,7 @@ class GinstallTest(unittest.TestCase):
   def testWriteUbi(self):
     ginstall.BUFSIZE = 1024
 
-    origfile = open("testdata/random", "r")
+    origfile = open('testdata/random', 'r')
     origsize = os.fstat(origfile.fileno()).st_size
 
     open('testdata/dev/mtd99', 'w').close()
@@ -326,15 +333,15 @@ class GinstallTest(unittest.TestCase):
                      open('testdata/random').read())
 
   def testWriteUbiException(self):
-    (ubifmt, out) = self.MakeTestScript("#!/bin/sh\nexit 1\n")
+    (ubifmt, _) = self.MakeTestScript('#!/bin/sh\nexit 1\n')
     shutil.copy(ubifmt.name, 'testdata/bin.tmp/ubiformat')
     os.system('ubiformat')
-    origfile = open("testdata/random", "r")
+    origfile = open('testdata/random', 'r')
     self.assertRaises(IOError, ginstall.InstallRawFileToUbi,
                       origfile, 'mtd0.tmp')
 
   def testSetBootPartition0(self):
-    s = "#!/bin/sh\necho $* >> {0}\nexit 0"
+    s = '#!/bin/sh\necho $* >> {0}\nexit 0'
     (hnvram, nvout) = self.MakeTestScript(s)
     ginstall.HNVRAM = hnvram.name
 
@@ -344,7 +351,7 @@ class GinstallTest(unittest.TestCase):
                      '-q -w ACTIVATED_KERNEL_NAME=kernel0\n')
 
   def testSetBootPartition1(self):
-    s = "#!/bin/sh\necho $* >> {0}\nexit 0"
+    s = '#!/bin/sh\necho $* >> {0}\nexit 0'
     (hnvram, nvout) = self.MakeTestScript(s)
     ginstall.HNVRAM = hnvram.name
 
@@ -354,11 +361,12 @@ class GinstallTest(unittest.TestCase):
                      '-q -w ACTIVATED_KERNEL_NAME=kernel1\n')
 
   def testParseManifest(self):
-    l = 'installer_version: 99\nimage_type: fake\nplatforms: [ GFHD100, GFMS100 ]\n'
+    l = ('installer_version: 99\nimage_type: fake\n'
+         'platforms: [ GFHD100, GFMS100 ]\n')
     in_f = StringIO.StringIO(l)
     actual = ginstall.ParseManifest(in_f)
     expected = {'installer_version': '99', 'image_type': 'fake',
-                'platforms': [ 'GFHD100', 'GFMS100' ]}
+                'platforms': ['GFHD100', 'GFMS100']}
     self.assertEqual(actual, expected)
     l = 'installer_version: 99\nimage_type: fake\nplatforms: GFHD007\n'
     in_f = StringIO.StringIO(l)
@@ -382,75 +390,74 @@ class GinstallTest(unittest.TestCase):
     return FakeImgWManifest(in_f)
 
   def testCheckManifestVersion(self):
-    for v in ["2", "3", "4"]:
+    for v in ['2', '3', '4']:
       img = self.MakeImgWManifestVersion(v)
       self.assertTrue(ginstall.CheckManifestVersion(img))
       ginstall.CheckManifestVersion(img)
-    for v in ["1", "5"]:
+    for v in ['1', '5']:
       img = self.MakeImgWManifestVersion(v)
       self.assertRaises(ginstall.Fatal, ginstall.CheckManifestVersion,
-          img)
-    for v in ["3junk"]:
+                        img)
+    for v in ['3junk']:
       img = self.MakeImgWManifestVersion(v)
       self.assertRaises(ValueError, ginstall.CheckManifestVersion,
-          img)
+                        img)
 
   def MakeManifestWMinimumVersion(self, version):
     in_f = StringIO.StringIO('minimum_version: %s\n' % version)
     return ginstall.ParseManifest(in_f)
 
   def testCheckVersion(self):
-    self.WriteVersionFile("gftv200-38.10")
+    self.WriteVersionFile('gftv200-38.10')
     for v in [
-        "gftv200-38.5",
-        "gftv200-38-pre2-58-g72b3037-da",
-        "gftv200-38-pre2"]:
+        'gftv200-38.5',
+        'gftv200-38-pre2-58-g72b3037-da',
+        'gftv200-38-pre2']:
       manifest = self.MakeManifestWMinimumVersion(v)
       self.assertTrue(ginstall.CheckVersion(manifest))
     for v in [
-        "gftv200-39-pre0-58-g72b3037-da",
-        "gftv200-39-pre0",
-        "gftv200-39-pre1-58-g72b3037-da",
-        "gftv200-39-pre1",
-        "gftv200-38.11",
+        'gftv200-39-pre0-58-g72b3037-da',
+        'gftv200-39-pre0',
+        'gftv200-39-pre1-58-g72b3037-da',
+        'gftv200-39-pre1',
+        'gftv200-38.11',
         ]:
       manifest = self.MakeManifestWMinimumVersion(v)
       self.assertRaises(ginstall.Fatal, ginstall.CheckVersion,
-          manifest)
-    manifest = self.MakeManifestWMinimumVersion("junk")
+                        manifest)
+    manifest = self.MakeManifestWMinimumVersion('junk')
     self.assertRaises(ginstall.Fatal, ginstall.CheckVersion,
-        manifest)
-
+                      manifest)
 
   def testCheckMisc(self):
     old_platform = ginstall.ETCPLATFORM
     ginstall.ETCPLATFORM = 'testdata/etc/platform.GFHD200'
 
     for v in [
-        "gftv200-38.11",
-        "gftv200-39-pre2-58-g72b3037-da",
-        "gftv200-39-pre2"]:
+        'gftv200-38.11',
+        'gftv200-39-pre2-58-g72b3037-da',
+        'gftv200-39-pre2']:
       self.assertTrue(ginstall.CheckMisc(FakeImgWVersion(v)))
 
     for v in [
-        "gftv200-39-pre0-58-g72b3037-da",
-        "gftv200-39-pre0",
-        "gftv200-39-pre1-58-g72b3037-da",
-        "gftv200-39-pre1",
-        "gftv200-38.9",
-        "gftv200-38.10"
+        'gftv200-39-pre0-58-g72b3037-da',
+        'gftv200-39-pre0',
+        'gftv200-39-pre1-58-g72b3037-da',
+        'gftv200-39-pre1',
+        'gftv200-38.9',
+        'gftv200-38.10'
         ]:
       self.assertRaises(ginstall.Fatal, ginstall.CheckMisc,
-          FakeImgWVersion(v))
+                        FakeImgWVersion(v))
 
     ginstall.ETCPLATFORM = old_platform
 
   def testGetBootedFromCmdLine(self):
-    ginstall.PROC_CMDLINE = "testdata/proc/cmdline1"
+    ginstall.PROC_CMDLINE = 'testdata/proc/cmdline1'
     self.assertEqual(ginstall.GetBootedPartition(), None)
-    ginstall.PROC_CMDLINE = "testdata/proc/cmdline2"
+    ginstall.PROC_CMDLINE = 'testdata/proc/cmdline2'
     self.assertEqual(ginstall.GetBootedPartition(), 0)
-    ginstall.PROC_CMDLINE = "testdata/proc/cmdline3"
+    ginstall.PROC_CMDLINE = 'testdata/proc/cmdline3'
     self.assertEqual(ginstall.GetBootedPartition(), 1)
 
   def testUloaderSigned(self):

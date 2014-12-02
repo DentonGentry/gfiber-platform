@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Copyright 2011-2014 Google Inc. All Rights Reserved.
+# Copyright 2014 Google Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -200,6 +200,9 @@ def GetMtdDevForNameList(names):
   Args:
     names: List of partition names.
 
+  Raises:
+    KeyError: when mtd partition cannot be found
+
   Returns:
     The mtd of the first name to match, or None of there is no match.
   """
@@ -220,6 +223,12 @@ def GetGptPartitionForName(name):
      3         2131968         2263039   64.0 MiB    0700  emergency
      4         2263040         2525183   128.0 MiB   8300  config
      5         2525184         6719487   2.0 GiB     8300  user
+
+  Args:
+    name: Name of partition to look for
+
+  Returns:
+    Device file of named partition
   """
   cmd = [SGDISK, '-p', MMCBLK]
   devnull = open('/dev/null', 'w')
@@ -364,7 +373,8 @@ def _CopyAndVerifyNand(inf, mtddevname):
   start = inf.filelike.tell()
   VerbosePrint('Writing to NAND partition %r\n', mtddevname)
   written = Nandwrite(inf.filelike, mtddevname)
-  cmd = ['nanddump', '--bb=skipbad', '--length=%d' % written, '--quiet', mtddevname]
+  cmd = ['nanddump', '--bb=skipbad', '--length=%d' % written, '--quiet',
+         mtddevname]
   VerbosePrint('%s\n' % cmd)
   p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
   if inf.secure_hash:
@@ -415,7 +425,6 @@ def InstallRawFileToUbi(f, mtddevname):
   Args:
     f: a file-like object holding the image to be installed.
     mtddevname: the device filename of the mtd partition to install to.
-    ubino: the ubi device number to use.
 
   Raises:
     IOError: when ubi format fails
@@ -461,6 +470,7 @@ def GetKey():
 
 def ParseManifest(f):
   """Parse a ginstall image manifest.
+
   Example:
     installer_version: 99
     image_type: fake
@@ -499,9 +509,9 @@ def CheckManifestVersion(img):
   else:
     raise Fatal('Incompatible manifest version: "%s"' % v)
 
+
 def ParseVersionString(ver):
-  """
-  Extract major and minor revision number from version string.
+  """Extract major and minor revision number from version string.
 
   Args:
     ver: Version string
@@ -522,13 +532,24 @@ def ParseVersionString(ver):
 
 
 def CheckVersion(manifest):
+  """Ensure that running version meets minimum_version as specified in manifest.
+
+  Args:
+    manifest: Manifest from .gi file
+  Raises:
+    Fatal: when image should not be installed, or minimum_version field cannot
+           be parsed
+  Returns:
+    True if minimum version requirement is met.
+
+  """
   minimum_version = manifest.get('minimum_version')
   if not minimum_version: return True
   our_version = GetVersion()
   min_version = ParseVersionString(minimum_version)
   if not min_version:
     raise Fatal('Cannot parse minimum_version field "%s" in manifest' %
-        minimum_version)
+                minimum_version)
   if ParseVersionString(our_version) >= min_version:
     return True
   raise Fatal('Package requires minimum version %s, but we are running %s'
@@ -536,14 +557,22 @@ def CheckVersion(manifest):
 
 
 def CheckMisc(img):
-  """
-  Miscellaneous sanity checks.
+  """Miscellaneous sanity checks.
+
+  Args:
+    img: FileImage or TarImage
+  Raises:
+    Fatal: when image should not be installed
+  Returns:
+    True if all checks succeeded.
+
   """
   if (GetPlatform() == 'GFHD200' and BroadcomDeviceIsSecure() and
-          (ParseVersionString(img.GetVersion()) < (38, 11) or
-           img.GetVersion().startswith('gftv200-39-pre0') or
-           img.GetVersion().startswith('gftv200-39-pre1') )):
-      raise Fatal('Refusing to install gftv200-38.10 and before, and gftv200-39-pre1 and before.')
+      (ParseVersionString(img.GetVersion()) < (38, 11) or
+       img.GetVersion().startswith('gftv200-39-pre0') or
+       img.GetVersion().startswith('gftv200-39-pre1'))):
+    raise Fatal('Refusing to install gftv200-38.10 and before, and '
+                'gftv200-39-pre1 and before.')
   return True
 
 
@@ -682,6 +711,7 @@ class TarImage(object):
       raise Fatal('Fatal: image file has no version field')
 
   def GetKernel(self):
+    """Return kernel image from tar file as FileWithSecureHash object."""
     # TV boxes use a raw vmlinu* file, the gflt* install a uImage to
     # the kernel partition.
     if self.ManifestVersion() > 2:
@@ -745,6 +775,16 @@ def WriteLoaderToMtd(loader, loader_start, mtd, description):
 
 def main():
   global quiet  # gpylint: disable-msg=global-statement
+  try:
+    p = subprocess.Popen(['psback'], stdout=subprocess.PIPE)
+    psback = p.stdout.readline().strip()
+    p.wait()
+    p = subprocess.Popen(['logos', 'ginstall'], stdin=subprocess.PIPE)
+    p.stdin.write('args: %r\ncalled by: %s\n' % (sys.argv, psback))
+    p.stdin.close()
+    p.wait()
+  except OSError:
+    Log('W: psback/logos unavailable for tracing.\n')
   o = options.Options(optspec)
   opt, unused_flags, unused_extra = o.parse(sys.argv[1:])
 
@@ -991,16 +1031,6 @@ def StripUloader(uloader, uloader_start):
 
 if __name__ == '__main__':
   try:
-    try:
-      p = subprocess.Popen(['psback'], stdout=subprocess.PIPE)
-      psback = p.stdout.readline().strip()
-      p.wait()
-      p = subprocess.Popen(['logos', 'ginstall'], stdin=subprocess.PIPE)
-      p.stdin.write('args: %r\ncalled by: %s\n' % (sys.argv, psback))
-      p.stdin.close()
-      p.wait()
-    except OSError:
-      Log('W: psback/logos unavailable for tracing.\n')
     sys.exit(main())
   except Fatal, e:
     Log('%s\n', e)
