@@ -385,7 +385,7 @@ static void append_results(const char* raw_data, ssize_t size,
   uint64_t timestamp;
   int i, bin_offset, square_sum, base_value;
   int power_bucket_index, freq_bucket_index;
-  float bucket_max, curr_signal;
+  float bucket_max = -200, curr_signal;
   fft_data_tlv* tlv;
   fft_data* curr_fft_data;
   size_t data_len;

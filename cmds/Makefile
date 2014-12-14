@@ -32,7 +32,8 @@ TARGETS=\
 	wait-until-created \
 	statpitcher \
 	statcatcher \
-	watch-dir
+	watch-dir \
+
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
 	stdoutline.so
@@ -41,7 +42,7 @@ TEST_TARGETS=\
 	host-asus_hosts_test
 SCRIPT_TARGETS=\
 	is-secure-boot
-ARCH_TARGETS=
+ARCH_TARGETS=\
 
 ifeq ($(BUILD_SSDP),y)
 TARGETS += ssdp_poll
