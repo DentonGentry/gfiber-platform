@@ -3,10 +3,10 @@ default: all
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
 DIRS=libstacktrace ginstall sysmgr cmds base \
-	antirollback tvstat gpio-mailbox spectralanalyzer logupload/client
+	antirollback tvstat gpio-mailbox spectralanalyzer
 
 ifneq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberlt)
-DIRS+=waveguide
+DIRS+=waveguide logupload/client
 endif
 
 ifeq ($(BUILD_HNVRAM),y)
