@@ -38,6 +38,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/uio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 #ifndef COMPILE_FOR_HOST
@@ -572,6 +574,7 @@ int main(int argc, char **argv) {
       "W: SIGUSR1: rate limit disabled.";
   static uint8_t now_limited[] =
       "W: SIGUSR2: rate limit re-enabled.";
+  const char *disable_limits_file = "/config/disable-log-limits";
   uint8_t buf[MAX_LINE_LENGTH], *header;
   ssize_t used = 0, got, headerlen;
   int overlong = 0;
@@ -639,6 +642,11 @@ int main(int argc, char **argv) {
     return 6;
   }
   init_buckets(bytes_per_burst, bytes_per_day);
+
+  struct stat fst;
+  if (stat(disable_limits_file, &fst) == 0) {
+    want_unlimited_mode = 1;
+  }
 
   if (!debug) {
     int fd = open("/dev/kmsg", O_WRONLY);
