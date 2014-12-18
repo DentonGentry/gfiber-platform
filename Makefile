@@ -6,11 +6,15 @@ DIRS=libstacktrace ginstall sysmgr cmds base \
 	antirollback tvstat gpio-mailbox spectralanalyzer
 
 ifneq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberlt)
-DIRS+=waveguide logupload/client
+DIRS+=waveguide
 endif
 
 ifeq ($(BUILD_HNVRAM),y)
 DIRS+=hnvram
+endif
+
+ifeq ($(BUILD_LOGUPLOAD),y)
+DIRS+=logupload/client
 endif
 
 PREFIX=/usr

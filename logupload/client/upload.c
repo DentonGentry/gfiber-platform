@@ -233,20 +233,26 @@ int upload_file(const char *server_url, const char* target_name, char* data,
       (kvpairs != NULL) ? "?" : "");
   while (kvpairs != NULL) {
     // Now add the URL parameters
+    size_t lim;
+    char *url_end;
+
     char* encoded_key = curl_easy_escape(curl_handle, kvpairs->key, 0);
     if (!encoded_key) {
       fprintf(stderr, "failure in curl_easy_escape\n");
       CURL_CLEANUP_AND_RETURN;
     }
-    strncat(url, encoded_key, sizeof(url));
-    curl_free(encoded_key);
-    strncat(url, "=", sizeof(url));
+
     char *encoded_value = curl_easy_escape(curl_handle, kvpairs->value, 0);
     if (!encoded_value) {
       fprintf(stderr, "failure in curl_easy_escape\n");
       CURL_CLEANUP_AND_RETURN;
     }
-    strncat(url, encoded_value, sizeof(url));
+
+    url_end = url + strlen(url);
+    lim = sizeof(url) - strlen(url);
+    snprintf(url_end, lim, "%s=%s", encoded_key, encoded_value);
+
+    curl_free(encoded_key);
     curl_free(encoded_value);
     kvpairs = kvpairs->next_pair;
     if (kvpairs)
