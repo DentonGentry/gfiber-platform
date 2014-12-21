@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# pylint:disable=invalid-name
 
 """Wifi channel selection and roaming daemon."""
 
@@ -55,6 +57,7 @@ D,debug           Increase (non-anonymized!) debug output level
 status-dir=       Directory to store status information [/tmp/waveguide]
 watch-pid=        Shut down if the given process pid disappears
 auto-disable-threshold=  Shut down if >= RSSI received from other AP [-30]
+localhost         Reject packets not from local IP address (for testing)
 """
 
 PROTO_MAGIC = 'wave'
@@ -68,6 +71,8 @@ MCAST_PORT = 4442
 
 
 _gettime_rand = random.randint(0, 1000000)
+
+
 def gettime():
   # using gettime_rand means two local instances will have desynced
   # local timers, which will show problems better in unit tests.  The
@@ -433,6 +438,9 @@ class WlanManager(object):
   def ReadReady(self):
     """Call this when select.select() returns true on GetReadFds()."""
     data, hostport = self.mcast.Recv()
+    if opt.localhost and hostport[0] != self.mcast.wsock.getsockname()[0]:
+      Debug('ignored packet not from localhost: %r', hostport)
+      return 0
     try:
       p = DecodePacket(data)
     except DecodeError as e:
@@ -871,6 +879,7 @@ def main():
     if timeout < 0: timeout = 0
     if timeout is None and opt.watch_pid: timeout = 5.0
     r, _, _ = select.select(rfds, [], [], timeout)
+    if not r: WriteEventFile('nopackets')
     gotpackets = 0
     for i in r:
       for m in managers:
