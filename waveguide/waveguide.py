@@ -767,7 +767,10 @@ def CreateManagers(managers, high_power):
     def AddEntry():
       if phy and dev:
         if devtype == 'AP':
-          phy_devs[phy] = dev
+          # We only want one vdev per PHY.  Special-purpose vdevs are
+          # probably the same name with an extension, so use the shortest one.
+          if phy not in phy_devs or len(phy_devs[phy]) > len(dev):
+            phy_devs[phy] = dev
         else:
           Debug('Skipping dev %r because type %r != AP', dev, devtype)
 
@@ -779,7 +782,7 @@ def CreateManagers(managers, high_power):
         AddEntry()
         phy = 'phy%s' % g.group(1)
         dev = devtype = None
-      g = re.match(r'Interface ([a-zA-Z0-9.]+)', line)
+      g = re.match(r'Interface ([_a-zA-Z0-9.]+)', line)
       if g:
         # A new interface inside this phy
         AddEntry()
@@ -853,7 +856,7 @@ def main():
   else:
     CreateManagers(managers, high_power=opt.high_power)
   if not managers:
-    raise Exception('no wifi devices found.  Try --fake.')
+    raise Exception('no wifi AP-mode devices found.  Try --fake.')
 
   last_sent = 0
   while 1:
