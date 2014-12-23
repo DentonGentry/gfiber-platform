@@ -82,7 +82,11 @@ high_powered_competitor
 
 WVSTART "no longer visible competitor"
 rm -f fake/scanresults.wlan-22:22:22:22:22:22
-# results only time out after several full scans with nothing visible
+# results only time out after several full scans with nothing visible.
+# (Current code needs scan_age > 4 * scan_interval, so we wait once in case a scan was
+# already in progress, plus 4 intervals, plus one to make sure any +/- 1ms errors don't
+# produce wrong answers.)
+WVPASS wait_files wg1.tmp/wlan-22:22:22:22:22:22.scanned
 WVPASS wait_files wg1.tmp/wlan-22:22:22:22:22:22.scanned
 WVPASS wait_files wg1.tmp/wlan-22:22:22:22:22:22.scanned
 WVPASS wait_files wg1.tmp/wlan-22:22:22:22:22:22.scanned
