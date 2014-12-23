@@ -881,14 +881,19 @@ def main():
     if timeout: timeout -= gettime()
     if timeout < 0: timeout = 0
     if timeout is None and opt.watch_pid: timeout = 5.0
-    r, _, _ = select.select(rfds, [], [], timeout)
-    if not r: WriteEventFile('nopackets')
     gotpackets = 0
-    for i in r:
-      for m in managers:
-        if i in m.GetReadFds():
-          gotpackets += m.ReadReady()
-    if gotpackets: WriteEventFile('gotpacket')
+    for _ in xrange(64):
+      r, _, _ = select.select(rfds, [], [], timeout)
+      if not r:
+        WriteEventFile('nopackets')
+        break
+      timeout = 0
+      for i in r:
+        for m in managers:
+          if i in m.GetReadFds():
+            gotpackets += m.ReadReady()
+    if gotpackets:
+      WriteEventFile('gotpacket')
     now = gettime()
     # TODO(apenwarr): how often should we really transmit?
     #   Also, consider sending out an update (almost) immediately when a new
