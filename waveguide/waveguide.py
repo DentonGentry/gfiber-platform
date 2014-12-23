@@ -54,6 +54,7 @@ initial-scans=    Number of immediate full channel scans at startup [0]
 scan-interval=    Seconds between full channel scan cycles (0 to disable) [0]
 tx-interval=      Seconds between state transmits (0 to disable) [15]
 D,debug           Increase (non-anonymized!) debug output level
+no-anonymize      Don't anonymize MAC addresses in logs
 status-dir=       Directory to store status information [/tmp/waveguide]
 watch-pid=        Shut down if the given process pid disappears
 auto-disable-threshold=  Shut down if >= RSSI received from other AP [-30]
@@ -180,14 +181,6 @@ ARP_FMT = '!4s6sI'
 State = namedtuple('State', 'me,seen_bss,channel_survey,assoc,arp')
 
 
-# TODO(apenwarr): use "format preserving encryption" here instead.
-#   That will guarantee a 1:1 mapping of original to anonymized strings,
-#   with no chance of accidental hash collisions.  Hash collisions could
-#   be misleading.
-def Anonymize(consensus_key, s):
-  return hmac.new(consensus_key, s).digest()[:len(s)]
-
-
 def EncodeIP(ip):
   return socket.inet_aton(ip)
 
@@ -196,9 +189,66 @@ def DecodeIP(ipbin):
   return socket.inet_ntoa(ipbin)
 
 
+SOFT = 'AEIOUY' 'V'
+HARD = 'BCDFGHJKLMNPQRSTVWXYZ' 'AEIOU'
+
+
+def Trigraph(num):
+  """Given a value from 0..4095, encode it as a cons+vowel+cons sequence."""
+  ns = len(SOFT)
+  nh = len(HARD)
+  assert nh * ns * nh >= 4096
+  c3 = num % nh
+  c2 = (num / nh) % ns
+  c1 = num / nh / ns
+  return HARD[c1] + SOFT[c2] + HARD[c3]
+
+
+def WordFromBinary(s):
+  """Encode a binary blob into a string of pronounceable syllables."""
+  out = []
+  while s:
+    part = s[:3]
+    s = s[3:]
+    while len(part) < 4:
+      part = '\0' + part
+    bits = struct.unpack('!I', part)[0]
+    out += [(bits >> 12) & 0xfff,
+            (bits >> 0)  & 0xfff]
+  return ''.join(Trigraph(i) for i in out)
+
+
 def DecodeMAC(macbin):
+  """Turn the given binary MAC address into a printable string."""
   assert len(macbin) == 6
   return ':'.join(['%02x' % ord(i) for i in macbin])
+
+
+# Note(apenwarr): There are a few ways to do this.  I elected to go with
+# short human-usable strings (allowing for the small possibility of
+# collisions) since the log messages will probably be "mostly" used by
+# humans.
+#
+# An alternative would be to use "format preserving encryption" (basically
+# a secure 1:1 mapping of unencrypted to anonymized, in the same number of
+# bits) and then produce longer "words" with no possibility of collision.
+# But with our current WordFromBinary() implementation, that would be
+# 12 characters long, which is kind of inconvenient and we probably don't
+# need that level of care.  Inside waveguide we use the real MAC addresses
+# so collisions won't cause a real problem.
+#
+# TODO(apenwarr): consider not anonymizing the OUI.
+#   That way we could see any behaviour differences between vendors.
+#   Sadly, that might make it too easy to brute force a MAC address back out;
+#   the remaining 3 bytes have too little entropy.
+#
+def AnonymizeMAC(consensus_key, macbin):
+  """Anonymize a binary MAC address using the given key."""
+  assert len(macbin) == 6
+  if consensus_key and opt.anonymize:
+    return WordFromBinary(hmac.new(consensus_key, macbin).digest())[:6]
+  else:
+    return DecodeMAC(macbin)
 
 
 def EncodeMAC(mac):
@@ -398,8 +448,6 @@ def RunProc(callback, args, *xargs, **kwargs):
   callback(errcode, stdout, stderr)
 
 
-# TODO(apenwarr): run background offchannel sometimes for better survey dump
-#   (Not just scans, but offchannel busy scans if they're supported.)
 class WlanManager(object):
   """A class representing one wifi interface on the local host."""
 
@@ -428,6 +476,21 @@ class WlanManager(object):
     self.auto_disabled = None
     helpers.Unlink(self.disabled_filename)
 
+  def AnonymizeMAC(self, mac):
+    return AnonymizeMAC(self.consensus_key, mac)
+
+  def _LogPrefix(self):
+    return '%s(%s): ' % (self.vdevname, self.AnonymizeMAC(self.mac))
+
+  def Log(self, s, *args):
+    Log(self._LogPrefix() + s, *args)
+
+  def Debug(self, s, *args):
+    Debug(self._LogPrefix() + s, *args)
+
+  def Debug2(self, s, *args):
+    Debug2(self._LogPrefix() + s, *args)
+
   # TODO(apenwarr): when we have async subprocs, add those here
   def GetReadFds(self):
     return [self.mcast.rsock]
@@ -439,35 +502,50 @@ class WlanManager(object):
     """Call this when select.select() returns true on GetReadFds()."""
     data, hostport = self.mcast.Recv()
     if opt.localhost and hostport[0] != self.mcast.wsock.getsockname()[0]:
-      Debug('ignored packet not from localhost: %r', hostport)
+      self.Debug('ignored packet not from localhost: %r', hostport)
       return 0
     try:
       p = DecodePacket(data)
     except DecodeError as e:
-      Debug('recv: from %r: %s', hostport, e)
+      self.Debug('recv: from %r: %s', hostport, e)
       return 0
     else:
-      Debug('recv: from %r uptime=%d key=%r',
-            hostport, p.me.uptime_ms, p.me.consensus_key[:4])
+      self.Debug('recv: from %r uptime=%d key=%r',
+                 hostport, p.me.uptime_ms, p.me.consensus_key[:4])
     # the waveguide that has been running the longest gets to win the contest
     # for what anonymization key to use.  This prevents disruption in case
     # devices come and go.
     # TODO(apenwarr): make sure this doesn't accidentally undo key rotations.
     #   ...once we even do key rotations.
     consensus_start = gettime() - p.me.uptime_ms/1000.0
-    if consensus_start < self.consensus_start:
+    if (consensus_start < self.consensus_start and
+        self.consensus_key != p.me.consensus_key):
       self.consensus_key = p.me.consensus_key
       self.consensus_start = consensus_start
+      self.Log('new key: phy=%r vdev=%r mac=%r',
+               self.phyname,
+               self.vdevname,
+               DecodeMAC(self.mac))
     if p.me.mac == self.mac:
-      Debug('ignoring packet from self')
+      self.Debug('ignoring packet from self')
       return 0
     if p.me.consensus_key != self.consensus_key:
-      Debug('ignoring peer due to key mismatch')
+      self.Debug('ignoring peer due to key mismatch')
+      return 0
     if p.me.mac not in self.peer_list:
-      Log('%s: added a peer: %r',
-          self.vdevname, DecodeMAC(Anonymize(self.consensus_key, p.me.mac)))
+      self.Log('added a peer: %s', self.AnonymizeMAC(p.me.mac))
     self.peer_list[p.me.mac] = p
     self.MaybeAutoDisable()
+    seen_bss_peers = [bss for bss in p.seen_bss
+                      if bss.mac in self.peer_list]
+    Log('%s: %s: APs=%-4d peer-APs=%s stations=%s',
+        self.vdevname,
+        self.AnonymizeMAC(p.me.mac),
+        len(p.seen_bss),
+        ','.join('%s(%d)' % (self.AnonymizeMAC(i.mac), i.rssi)
+                 for i in sorted(seen_bss_peers, key=lambda i: -i.rssi)),
+        ','.join('%s(%d)' % (self.AnonymizeMAC(i.mac), i.rssi)
+                 for i in sorted(p.assoc, key=lambda i: -i.rssi)))
     return 1
 
   def SendUpdate(self):
@@ -486,15 +564,16 @@ class WlanManager(object):
                      channel_survey_list=channel_survey_list,
                      assoc_list=assoc_list,
                      arp_list=arp_list)
-    Debug2('sending: %r',
-           (me, seen_bss_list, channel_survey_list, assoc_list, arp_list))
-    Debug('sent %s: %r bytes', self.vdevname, self.mcast.Send(p))
+    self.Debug2('sending: %r',
+                (me, seen_bss_list, channel_survey_list, assoc_list, arp_list))
+    self.Debug('sent %s: %r bytes', self.vdevname, self.mcast.Send(p))
 
   def DoScans(self):
     """Calls programs and reads files to obtain the current wifi status."""
     now = gettime()
     if not self.did_initial_scan:
-      Log('%s: startup (initial_scans=%d).', self.vdevname, opt.initial_scans)
+      Log('startup on %s (initial_scans=%d).',
+          self.vdevname, opt.initial_scans)
       self._ReadArpTable()
       RunProc(callback=self._PhyResults,
               args=['iw', 'phy', self.phyname, 'info'])
@@ -509,12 +588,12 @@ class WlanManager(object):
       self.next_scan_time = now
       self.did_initial_scan = True
     elif not self.allowed_freqs:
-      Log('%s: no allowed frequencies.', self.vdevname)
+      self.Log('%s: no allowed frequencies.', self.vdevname)
     elif self.next_scan_time and now > self.next_scan_time:
       self.scan_idx = (self.scan_idx + 1) % len(self.allowed_freqs)
       scan_freq = list(sorted(self.allowed_freqs))[self.scan_idx]
-      Log('%s: scanning %d MHz (%d/%d)',
-          self.vdevname, scan_freq, self.scan_idx + 1, len(self.allowed_freqs))
+      self.Log('scanning %d MHz (%d/%d)',
+               scan_freq, self.scan_idx + 1, len(self.allowed_freqs))
       RunProc(callback=self._ScanResults,
               args=['iw', 'dev', self.vdevname, 'scan',
                     'freq', str(scan_freq),
@@ -542,13 +621,14 @@ class WlanManager(object):
   def ShouldAutoDisable(self):
     """Returns MAC address of high-powered peer if we should auto disable."""
     if self.flags & ApFlags.HighPower:
-      Debug('high-powered AP: never auto-disable')
+      self.Debug('high-powered AP: never auto-disable')
       return None
     for peer in sorted(self.peer_list.values(),
                        key=lambda p: p.me.mac):
-      Debug('considering auto disable: peer=%s', DecodeMAC(peer.me.mac))
+      self.Debug('considering auto disable: peer=%s',
+                 self.AnonymizeMAC(peer.me.mac))
       if peer.me.mac not in self.bss_list:
-        Debug('--> peer no match')
+        self.Debug('--> peer no match')
       else:
         bss = self.bss_list[peer.me.mac]
         peer_age_secs = time.time() - peer.me.now
@@ -558,21 +638,21 @@ class WlanManager(object):
         #  This isn't too important right away since high powered APs
         #  are on all bands simultaneously anyway.
         overlap = self.flags & peer.me.flags & ApFlags.Can_Mask
-        Debug('--> peer matches! p_age=%.3f s_age=%.3f power=0x%x '
-              'band_overlap=0x%02x',
-              peer_age_secs, scan_age_secs, peer_power, overlap)
+        self.Debug('--> peer matches! p_age=%.3f s_age=%.3f power=0x%x '
+                   'band_overlap=0x%02x',
+                   peer_age_secs, scan_age_secs, peer_power, overlap)
         if bss.rssi <= opt.auto_disable_threshold:
-          Debug('--> peer is far away, keep going.')
+          self.Debug('--> peer is far away, keep going.')
         elif not peer_power:
-          Debug('--> peer is not high-power, keep going.')
+          self.Debug('--> peer is not high-power, keep going.')
         elif not overlap:
-          Debug('--> peer does not overlap our band, keep going.')
+          self.Debug('--> peer does not overlap our band, keep going.')
         elif (peer_age_secs > opt.tx_interval * 4
               or (opt.scan_interval and
                   scan_age_secs > opt.scan_interval * 4)):
-          Debug('--> peer is too old, keep going.')
+          self.Debug('--> peer is too old, keep going.')
         else:
-          Debug('--> peer overwhelms us, shut down.')
+          self.Debug('--> peer overwhelms us, shut down.')
           return peer.me.mac
     return None
 
@@ -580,14 +660,11 @@ class WlanManager(object):
     """Writes/removes the auto-disable file based on ShouldAutoDisable()."""
     ad = self.ShouldAutoDisable()
     if ad and self.auto_disabled != ad:
-      Log('%s: auto-disabling because of %s',
-          self.vdevname,
-          DecodeMAC(Anonymize(self.consensus_key, ad)))
+      self.Log('auto-disabling because of %s', self.AnonymizeMAC(ad))
       helpers.WriteFileAtomic(self.disabled_filename, DecodeMAC(ad))
     elif self.auto_disabled and not ad:
-      Log('%s: auto-enabling because %s disappeared',
-          self.vdevname,
-          DecodeMAC(Anonymize(self.consensus_key, self.auto_disabled)))
+      self.Log('auto-enabling because %s disappeared',
+               self.AnonymizeMAC(self.auto_disabled))
       helpers.Unlink(self.disabled_filename)
     self.auto_disabled = ad
 
@@ -597,7 +674,7 @@ class WlanManager(object):
     try:
       f = open('/proc/net/arp', 'r', 64*1024)
     except IOError, e:
-      Log('arp table missing: %s', e)
+      self.Log('arp table missing: %s', e)
       return
     data = f.read(64*1024)
     lines = data.split('\n')[1:]  # skip header line
@@ -609,12 +686,12 @@ class WlanManager(object):
         ip = EncodeIP(g.group(1))
         mac = EncodeMAC(g.group(2))
         self.arp_list[mac] = ARP(ip=ip, mac=mac, last_seen=now)
-        Debug('arp %r', self.arp_list[mac])
+        self.Debug('arp %r', self.arp_list[mac])
 
   def _PhyResults(self, errcode, stdout, stderr):
     """Callback for 'iw phy xxx info' results."""
-    Debug('phy %r err:%r stdout:%r stderr:%r',
-          self.phyname, errcode, stdout[:70], stderr)
+    self.Debug('phy %r err:%r stdout:%r stderr:%r',
+               self.phyname, errcode, stdout[:70], stderr)
     if errcode: return
     for line in stdout.split('\n'):
       line = line.strip()
@@ -623,7 +700,7 @@ class WlanManager(object):
         freq = int(g.group(1))
         chan = int(g.group(2))
         disabled = (g.group(3) == 'disabled')
-        Debug('phy freq=%d chan=%d disabled=%d', freq, chan, disabled)
+        self.Debug('phy freq=%d chan=%d disabled=%d', freq, chan, disabled)
         if not disabled:
           if freq / 100 == 24:
             self.flags |= ApFlags.Can2G
@@ -635,7 +712,7 @@ class WlanManager(object):
 
   def _DevResults(self, errcode, stdout, stderr):
     """Callback for 'iw dev xxx info' results."""
-    Debug('dev err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
+    self.Debug('dev err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
     if errcode: return
     for line in stdout.split('\n'):
       line = line.strip()
@@ -646,7 +723,7 @@ class WlanManager(object):
 
   def _ScanResults(self, errcode, stdout, stderr):
     """Callback for 'iw scan' results."""
-    Debug('scan err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
+    self.Debug('scan err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
     if errcode: return
     now = time.time()
     mac = rssi = flags = last_seen = None
@@ -656,7 +733,7 @@ class WlanManager(object):
         bss = BSS(is_ours=is_ours, freq=freq, mac=mac,
                   rssi=rssi, flags=flags, last_seen=last_seen)
         if mac not in self.bss_list:
-          Debug('Added: %r', bss)
+          self.Debug('Added: %r', bss)
         self.bss_list[mac] = bss
     for line in stdout.split('\n'):
       line = line.strip()
@@ -681,7 +758,8 @@ class WlanManager(object):
 
   def _SurveyResults(self, errcode, stdout, stderr):
     """Callback for 'iw survey dump' results."""
-    Debug('survey err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
+    self.Debug('survey err:%r stdout:%r stderr:%r',
+               errcode, stdout[:70], stderr)
     if errcode: return
     freq = None
     noise = active_ms = busy_ms = rx_ms = tx_ms = 0
@@ -692,7 +770,7 @@ class WlanManager(object):
         ch = Channel(freq=freq, noise_dbm=noise, observed_ms=active_ms,
                      busy_ms=real_busy_ms)
         if freq not in self.channel_survey_list:
-          Debug('Added: %r', ch)
+          self.Debug('Added: %r', ch)
         self.channel_survey_list[freq] = ch
     for line in stdout.split('\n'):
       line = line.strip()
@@ -723,7 +801,8 @@ class WlanManager(object):
 
   def _AssocResults(self, errcode, stdout, stderr):
     """Callback for 'iw station dump' results."""
-    Debug('assoc err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
+    self.Debug('assoc err:%r stdout:%r stderr:%r',
+               errcode, stdout[:70], stderr)
     if errcode: return
     now = time.time()
     self.assoc_list = {}
@@ -734,7 +813,7 @@ class WlanManager(object):
       if mac:
         a = Assoc(mac=mac, rssi=rssi, last_seen=last_seen)
         if mac not in self.assoc_list:
-          Debug('Added: %r', a)
+          self.Debug('Added: %r', a)
         self.assoc_list[mac] = a
     for line in stdout.split('\n'):
       line = line.strip()
