@@ -927,8 +927,12 @@ def main():
   if opt.fake:
     for k, fakemac in flags:
       if k == '--fake':
-        wlm = WlanManager(phyname='phy-%s' % fakemac,
-                          vdevname='wlan-%s' % fakemac,
+        # Name the fake phy/mac devices after the fake MAC address, but
+        # skip the first bit of the MAC to make it less obnoxiously long.
+        # The remainder should generally be enough to uniquely identify
+        # them.
+        wlm = WlanManager(phyname='phy-%s' % fakemac[12:],
+                          vdevname='wlan-%s' % fakemac[12:],
                           high_power=opt.high_power)
         wlm.mac = EncodeMAC(fakemac)
         managers.append(wlm)
