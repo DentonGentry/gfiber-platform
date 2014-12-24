@@ -53,6 +53,7 @@ fake=             Create a fake instance with the given MAC address
 initial-scans=    Number of immediate full channel scans at startup [0]
 scan-interval=    Seconds between full channel scan cycles (0 to disable) [0]
 tx-interval=      Seconds between state transmits (0 to disable) [15]
+print-interval=   Seconds between state printouts to log (0 to disable) [16]
 D,debug           Increase (non-anonymized!) debug output level
 no-anonymize      Don't anonymize MAC addresses in logs
 status-dir=       Directory to store status information [/tmp/waveguide]
@@ -536,16 +537,6 @@ class WlanManager(object):
       self.Log('added a peer: %s', self.AnonymizeMAC(p.me.mac))
     self.peer_list[p.me.mac] = p
     self.MaybeAutoDisable()
-    seen_bss_peers = [bss for bss in p.seen_bss
-                      if bss.mac in self.peer_list]
-    Log('%s: %s: APs=%-4d peer-APs=%s stations=%s',
-        self.vdevname,
-        self.AnonymizeMAC(p.me.mac),
-        len(p.seen_bss),
-        ','.join('%s(%d)' % (self.AnonymizeMAC(i.mac), i.rssi)
-                 for i in sorted(seen_bss_peers, key=lambda i: -i.rssi)),
-        ','.join('%s(%d)' % (self.AnonymizeMAC(i.mac), i.rssi)
-                 for i in sorted(p.assoc, key=lambda i: -i.rssi)))
     return 1
 
   def SendUpdate(self):
@@ -941,7 +932,7 @@ def main():
   if not managers:
     raise Exception('no wifi AP-mode devices found.  Try --fake.')
 
-  last_sent = 0
+  last_sent = last_print = 0
   while 1:
     if opt.watch_pid > 1:
       try:
@@ -959,6 +950,8 @@ def main():
     timeouts = [m.NextTimeout() for m in managers]
     if opt.tx_interval:
       timeouts.append(last_sent + opt.tx_interval)
+    if opt.print_interval:
+      timeouts.append(last_print + opt.print_interval)
     timeout = min(filter(None, timeouts))
     Debug2('now=%f timeout=%f  timeouts=%r', gettime(), timeout, timeouts)
     if timeout: timeout -= gettime()
@@ -993,6 +986,26 @@ def main():
       for m in managers:
         m.SendUpdate()
         WriteEventFile('sentpacket')
+    if opt.print_interval and now - last_print > opt.print_interval:
+      last_print = now
+      selfmacs = set()
+      peers = {}
+      # Get all peers from all interfaces; remove duplicates.
+      for m in managers:
+        selfmacs.add(m.mac)
+        for peermac, p in m.peer_list.iteritems():
+          peers[peermac] = m, p
+      for m, p in peers.values():
+        seen_bss_peers = [bss for bss in p.seen_bss
+                          if bss.mac in peers]
+        if p.me.mac in selfmacs: continue
+        Log('%s: APs=%-4d peer-APs=%s stations=%s',
+            m.AnonymizeMAC(p.me.mac),
+            len(p.seen_bss),
+            ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
+                     for i in sorted(seen_bss_peers, key=lambda i: -i.rssi)),
+            ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
+                     for i in sorted(p.assoc, key=lambda i: -i.rssi)))
     if not r:
       WriteEventFile('ready')
 
