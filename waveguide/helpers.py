@@ -19,6 +19,7 @@ import errno
 import grp
 import os
 import pwd
+import socket
 
 
 # Unit tests can override these
@@ -97,3 +98,23 @@ def WriteFileAtomic(filename, data, owner=None, group=None):
   """A shortcut for calling AtomicFile with a static string as content."""
   with AtomicFile(filename, owner=owner, group=group) as f:
     f.write(data)
+
+
+def EncodeMAC(mac):
+  s = mac.split(':')
+  assert len(s) == 6
+  return ''.join([chr(int(i, 16)) for i in s])
+
+
+def DecodeMAC(macbin):
+  """Turn the given binary MAC address into a printable string."""
+  assert len(macbin) == 6
+  return ':'.join(['%02x' % ord(i) for i in macbin])
+
+
+def EncodeIP(ip):
+  return socket.inet_aton(ip)
+
+
+def DecodeIP(ipbin):
+  return socket.inet_ntoa(ipbin)

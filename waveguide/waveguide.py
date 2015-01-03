@@ -17,9 +17,7 @@
 
 """Wifi channel selection and roaming daemon."""
 
-from collections import namedtuple
 import errno
-import hmac
 import os
 import os.path
 import random
@@ -30,9 +28,10 @@ import struct
 import subprocess
 import sys
 import time
-import zlib
 import helpers
+import log
 import options
+import wgdata
 
 
 try:
@@ -62,8 +61,6 @@ auto-disable-threshold=  Shut down if >= RSSI received from other AP [-30]
 localhost         Reject packets not from local IP address (for testing)
 """
 
-PROTO_MAGIC = 'wave'
-PROTO_VERSION = 1
 opt = None
 
 # TODO(apenwarr): not sure what's the right multicast address to use.
@@ -82,320 +79,8 @@ def gettime():
   return _gettime() + _gettime_rand
 
 
-def Log(s, *args):
-  if args:
-    print s % args
-  else:
-    print s
-  sys.stdout.flush()
-
-
-def Debug(s, *args):
-  if opt.debug >= 1:
-    Log(s, *args)
-
-
-def Debug2(s, *args):
-  if opt.debug >= 2:
-    Log(s, *args)
-
-
 freq_to_chan = {}     # a mapping from wifi frequencies (MHz) to channel no.
 chan_to_freq = {}     # a mapping from channel no. to wifi frequency (MHz)
-
-
-class DecodeError(Exception):
-  pass
-
-
-# pylint: disable=invalid-name
-class ApFlags(object):
-  Can2G = 0x01          # device supports 2.4 GHz band
-  Can5G = 0x02          # device supports 5 GHz band
-  Can_Mask = 0x0f       # mask of all bits referring to band capability
-  HighPower = 0x10      # high-power device takes precedence over low-power
-
-
-PRE_FMT = '!4sB'
-
-Header = namedtuple(
-    'Header',
-    'bss_len,chan_len,assoc_len,arp_len')
-HEADER_FMT = '!IIII'
-
-# struct representing an AP's identity.
-#
-# now: system local time.time().
-# uptime_ms: uptime of the waveguide process, in milliseconds.
-# consensus_key: an agreed-upon key between all waveguide instances, to be
-#   used for anonymizing MAC and IP addresses in log messages.
-# mac: the local MAC address of this wifi AP.
-# flags: see ApFlags.
-Me = namedtuple('Me', 'now,uptime_ms,consensus_key,mac,flags')
-Me_FMT = '!QQ16s6sI'
-
-# struct representing observed information about other APs in the vicinity.
-#
-# is_ours: true if the given BSS is part of our waveguide group.
-# mac: the MAC address of the given AP.
-# freq: the channel frequency (MHz) of the given AP.
-# rssi: the power level received from this AP.
-# flags: see ApFlags.
-# last_seen: the time since this AP was last scanned.
-BSS = namedtuple('BSS', 'is_ours,mac,freq,rssi,flags,last_seen')
-BSS_FMT = '!B6sHbII'
-
-# struct representing observed information about traffic on a channel.
-#
-# freq: the channel frequency (MHz) that we observed.
-# noise_dbm: the noise level observed on the channel.
-# observed_ms: length of time (ms) that we have observed the channel.
-# busy_ms: length of time (ms) that the channel was seen to be busy, where
-#    the traffic was *not* related to our own BSSID.
-Channel = namedtuple('Channel', 'freq,noise_dbm,observed_ms,busy_ms')
-Channel_FMT = '!HbII'
-
-# struct representing stations associated with an AP.
-#
-# mac: the MAC address of the station.
-# rssi: a running average of the signal strength received from the station.
-# last_seen: the time of the last packet received from the station.
-Assoc = namedtuple('Assoc', 'mac,rssi,last_seen')
-Assoc_FMT = '!6sbI'
-
-# struct representing kernel ARP table entries.
-#
-# ip: the IP address of the node.
-# mac: the MAC address corresponding to that IP address.
-# last_seen: the time a packet was last received from this node.
-ARP = namedtuple('ARP', 'ip,mac,last_seen')
-ARP_FMT = '!4s6sI'
-
-# struct representing the complete visible state of a waveguide node.
-# (combination of the above structs)
-#
-# me: a Me() object corresponding to the AP's identity.
-# seen_bss: a list of BSS().
-# channel_survey: a list of Channel()
-# assoc: a list of Assoc()
-# arp: a list of ARP().
-State = namedtuple('State', 'me,seen_bss,channel_survey,assoc,arp')
-
-
-def EncodeIP(ip):
-  return socket.inet_aton(ip)
-
-
-def DecodeIP(ipbin):
-  return socket.inet_ntoa(ipbin)
-
-
-SOFT = 'AEIOUY' 'V'
-HARD = 'BCDFGHJKLMNPQRSTVWXYZ' 'AEIOU'
-
-
-def Trigraph(num):
-  """Given a value from 0..4095, encode it as a cons+vowel+cons sequence."""
-  ns = len(SOFT)
-  nh = len(HARD)
-  assert nh * ns * nh >= 4096
-  c3 = num % nh
-  c2 = (num / nh) % ns
-  c1 = num / nh / ns
-  return HARD[c1] + SOFT[c2] + HARD[c3]
-
-
-def WordFromBinary(s):
-  """Encode a binary blob into a string of pronounceable syllables."""
-  out = []
-  while s:
-    part = s[:3]
-    s = s[3:]
-    while len(part) < 4:
-      part = '\0' + part
-    bits = struct.unpack('!I', part)[0]
-    out += [(bits >> 12) & 0xfff,
-            (bits >> 0)  & 0xfff]
-  return ''.join(Trigraph(i) for i in out)
-
-
-def DecodeMAC(macbin):
-  """Turn the given binary MAC address into a printable string."""
-  assert len(macbin) == 6
-  return ':'.join(['%02x' % ord(i) for i in macbin])
-
-
-# Note(apenwarr): There are a few ways to do this.  I elected to go with
-# short human-usable strings (allowing for the small possibility of
-# collisions) since the log messages will probably be "mostly" used by
-# humans.
-#
-# An alternative would be to use "format preserving encryption" (basically
-# a secure 1:1 mapping of unencrypted to anonymized, in the same number of
-# bits) and then produce longer "words" with no possibility of collision.
-# But with our current WordFromBinary() implementation, that would be
-# 12 characters long, which is kind of inconvenient and we probably don't
-# need that level of care.  Inside waveguide we use the real MAC addresses
-# so collisions won't cause a real problem.
-#
-# TODO(apenwarr): consider not anonymizing the OUI.
-#   That way we could see any behaviour differences between vendors.
-#   Sadly, that might make it too easy to brute force a MAC address back out;
-#   the remaining 3 bytes have too little entropy.
-#
-def AnonymizeMAC(consensus_key, macbin):
-  """Anonymize a binary MAC address using the given key."""
-  assert len(macbin) == 6
-  if consensus_key and opt.anonymize:
-    return WordFromBinary(hmac.new(consensus_key, macbin).digest())[:6]
-  else:
-    return DecodeMAC(macbin)
-
-
-def EncodeMAC(mac):
-  s = mac.split(':')
-  assert len(s) == 6
-  return ''.join([chr(int(i, 16)) for i in s])
-
-
-def EncodePacket(me,
-                 seen_bss_list,
-                 channel_survey_list,
-                 assoc_list,
-                 arp_list):
-  """Generate a binary waveguide packet for sending via multicast."""
-  now = me.now
-  me_out = struct.pack(Me_FMT, me.now, me.uptime_ms,
-                       me.consensus_key, me.mac, me.flags)
-  bss_out = ''
-  for bss in seen_bss_list:
-    bss_out += struct.pack(BSS_FMT,
-                           bss.is_ours,
-                           bss.mac,
-                           bss.freq,
-                           bss.rssi,
-                           bss.flags,
-                           now - bss.last_seen)
-  chan_out = ''
-  for chan in channel_survey_list:
-    chan_out += struct.pack(Channel_FMT,
-                            chan.freq,
-                            chan.noise_dbm,
-                            chan.observed_ms,
-                            chan.busy_ms)
-  assoc_out = ''
-  for assoc in assoc_list:
-    assoc_out += struct.pack(Assoc_FMT,
-                             assoc.mac,
-                             assoc.rssi,
-                             now - assoc.last_seen)
-  arp_out = ''
-  for arp in arp_list:
-    arp_out += struct.pack(ARP_FMT,
-                           arp.ip,
-                           arp.mac,
-                           now - arp.last_seen)
-  header_out = struct.pack(HEADER_FMT,
-                           len(bss_out),
-                           len(chan_out),
-                           len(assoc_out),
-                           len(arp_out))
-  data = header_out + me_out + bss_out + chan_out + assoc_out + arp_out
-  pre = struct.pack(PRE_FMT, PROTO_MAGIC, PROTO_VERSION)
-  return pre + zlib.compress(data)
-
-
-class Eater(object):
-  """A simple wrapper for consuming bytes from the front of a string."""
-
-  def __init__(self, data):
-    """Create an Eater instance.
-
-    Args:
-      data: the byte array that will be consumed by this instance.
-    """
-    assert isinstance(data, bytes)
-    self.data = data
-    self.ofs = 0
-
-  def Eat(self, n):
-    """Consumes the next n bytes of the string and returns them.
-
-    Args:
-      n: the number of bytes to consume.
-    Returns:
-      n bytes
-    Raises:
-      DecodeError: if there are not enough bytes left.
-    """
-    if len(self.data) < self.ofs + n:
-      raise DecodeError('short packet: ofs=%d len=%d wanted=%d'
-                        % (self.ofs, len(self.data), n))
-    b = self.data[self.ofs:self.ofs+n]
-    self.ofs += n
-    return b
-
-  def Remainder(self):
-    """Consumes and returns all the remaining bytes."""
-    return self.Eat(len(self.data) - self.ofs)
-
-  def Unpack(self, fmt):
-    """Consumes exactly enough bytes to run struct.unpack(fmt) on them.
-
-    Args:
-      fmt: a format string compatible with struct.unpack.
-    Returns:
-      The result of struct.unpack on the bytes using that format string.
-    Raises:
-      DecodeError: if there are not enough bytes left.
-      ...or anything else struct.unpack might raise.
-    """
-    n = struct.calcsize(fmt)
-    result = struct.unpack(fmt, self.Eat(n))
-    return result
-
-  def Iter(self, fmt, nbytes):
-    """Consume and unpack a series of structs of struct.unpack(fmt).
-
-    Args:
-      fmt: a format string compatible with struct.unpack.
-      nbytes: the total number of bytes in the array.  Must be a multiple
-          of struct.calcsize(fmt).
-    Yields:
-      A series of struct.unpack(fmt) tuples.
-    """
-    e = Eater(self.Eat(nbytes))
-    while e.ofs < len(e.data):
-      yield e.Unpack(fmt)
-
-
-def DecodePacket(p):
-  """Decode a received binary waveguide packet into a State() structure."""
-  e = Eater(p)
-  magic, ver = e.Unpack(PRE_FMT)
-  if magic != PROTO_MAGIC:
-    raise DecodeError('expected magic=%r, got %r' % (PROTO_MAGIC, magic))
-  if ver != PROTO_VERSION:
-    raise DecodeError('expected proto_ver=%r, got %r' % (PROTO_VERSION, ver))
-
-  compressed = e.Remainder()
-
-  e = Eater(zlib.decompress(compressed))
-
-  (bss_len, chan_len, assoc_len, arp_len) = e.Unpack(HEADER_FMT)
-
-  me = Me(*e.Unpack(Me_FMT))
-  bss_list = [BSS(*i) for i in e.Iter(BSS_FMT, bss_len)]
-  chan_list = [Channel(*i) for i in e.Iter(Channel_FMT, chan_len)]
-  assoc_list = [Assoc(*i) for i in e.Iter(Assoc_FMT, assoc_len)]
-  arp_list = [ARP(*i) for i in e.Iter(ARP_FMT, arp_len)]
-
-  state = State(me=me,
-                seen_bss=bss_list,
-                channel_survey=chan_list,
-                assoc=assoc_list,
-                arp=arp_list)
-  return state
 
 
 class MulticastSocket(object):
@@ -459,7 +144,7 @@ class WlanManager(object):
     self.flags = 0
     self.allowed_freqs = set()
     if high_power:
-      self.flags |= ApFlags.HighPower
+      self.flags |= wgdata.ApFlags.HighPower
     self.bss_list = {}
     self.channel_survey_list = {}
     self.assoc_list = {}
@@ -478,19 +163,19 @@ class WlanManager(object):
     helpers.Unlink(self.disabled_filename)
 
   def AnonymizeMAC(self, mac):
-    return AnonymizeMAC(self.consensus_key, mac)
+    return log.AnonymizeMAC(self.consensus_key, mac)
 
   def _LogPrefix(self):
     return '%s(%s): ' % (self.vdevname, self.AnonymizeMAC(self.mac))
 
   def Log(self, s, *args):
-    Log(self._LogPrefix() + s, *args)
+    log.Log(self._LogPrefix() + s, *args)
 
   def Debug(self, s, *args):
-    Debug(self._LogPrefix() + s, *args)
+    log.Debug(self._LogPrefix() + s, *args)
 
   def Debug2(self, s, *args):
-    Debug2(self._LogPrefix() + s, *args)
+    log.Debug2(self._LogPrefix() + s, *args)
 
   # TODO(apenwarr): when we have async subprocs, add those here
   def GetReadFds(self):
@@ -506,8 +191,8 @@ class WlanManager(object):
       self.Debug('ignored packet not from localhost: %r', hostport)
       return 0
     try:
-      p = DecodePacket(data)
-    except DecodeError as e:
+      p = wgdata.DecodePacket(data)
+    except wgdata.DecodeError as e:
       self.Debug('recv: from %r: %s', hostport, e)
       return 0
     else:
@@ -526,7 +211,7 @@ class WlanManager(object):
       self.Log('new key: phy=%r vdev=%r mac=%r',
                self.phyname,
                self.vdevname,
-               DecodeMAC(self.mac))
+               helpers.DecodeMAC(self.mac))
     if p.me.mac == self.mac:
       self.Debug('ignoring packet from self')
       return 0
@@ -541,20 +226,20 @@ class WlanManager(object):
 
   def SendUpdate(self):
     """Constructs and sends a waveguide packet on the multicast interface."""
-    me = Me(now=time.time(),
-            uptime_ms=(gettime() - self.starttime) * 1000,
-            consensus_key=self.consensus_key,
-            mac=self.mac,
-            flags=self.flags)
+    me = wgdata.Me(now=time.time(),
+                   uptime_ms=(gettime() - self.starttime) * 1000,
+                   consensus_key=self.consensus_key,
+                   mac=self.mac,
+                   flags=self.flags)
     seen_bss_list = self.bss_list.values()
     channel_survey_list = self.channel_survey_list.values()
     assoc_list = self.assoc_list.values()
     arp_list = self.arp_list.values()
-    p = EncodePacket(me=me,
-                     seen_bss_list=seen_bss_list,
-                     channel_survey_list=channel_survey_list,
-                     assoc_list=assoc_list,
-                     arp_list=arp_list)
+    p = wgdata.EncodePacket(me=me,
+                            seen_bss_list=seen_bss_list,
+                            channel_survey_list=channel_survey_list,
+                            assoc_list=assoc_list,
+                            arp_list=arp_list)
     self.Debug2('sending: %r',
                 (me, seen_bss_list, channel_survey_list, assoc_list, arp_list))
     self.Debug('sent %s: %r bytes', self.vdevname, self.mcast.Send(p))
@@ -563,8 +248,8 @@ class WlanManager(object):
     """Calls programs and reads files to obtain the current wifi status."""
     now = gettime()
     if not self.did_initial_scan:
-      Log('startup on %s (initial_scans=%d).',
-          self.vdevname, opt.initial_scans)
+      log.Log('startup on %s (initial_scans=%d).',
+              self.vdevname, opt.initial_scans)
       self._ReadArpTable()
       RunProc(callback=self._PhyResults,
               args=['iw', 'phy', self.phyname, 'info'])
@@ -598,7 +283,7 @@ class WlanManager(object):
                                      chan_interval * 1.5)
       self.next_scan_time += chan_interval
       if not self.scan_idx:
-        WriteEventFile('%s.scanned' % self.vdevname)
+        log.WriteEventFile('%s.scanned' % self.vdevname)
     if not opt.scan_interval:
       self.next_scan_time = None
 
@@ -611,7 +296,7 @@ class WlanManager(object):
 
   def ShouldAutoDisable(self):
     """Returns MAC address of high-powered peer if we should auto disable."""
-    if self.flags & ApFlags.HighPower:
+    if self.flags & wgdata.ApFlags.HighPower:
       self.Debug('high-powered AP: never auto-disable')
       return None
     for peer in sorted(self.peer_list.values(),
@@ -624,11 +309,11 @@ class WlanManager(object):
         bss = self.bss_list[peer.me.mac]
         peer_age_secs = time.time() - peer.me.now
         scan_age_secs = time.time() - bss.last_seen
-        peer_power = peer.me.flags & ApFlags.HighPower
+        peer_power = peer.me.flags & wgdata.ApFlags.HighPower
         # TODO(apenwarr): overlap should consider only our *current* band.
         #  This isn't too important right away since high powered APs
         #  are on all bands simultaneously anyway.
-        overlap = self.flags & peer.me.flags & ApFlags.Can_Mask
+        overlap = self.flags & peer.me.flags & wgdata.ApFlags.Can_Mask
         self.Debug('--> peer matches! p_age=%.3f s_age=%.3f power=0x%x '
                    'band_overlap=0x%02x',
                    peer_age_secs, scan_age_secs, peer_power, overlap)
@@ -652,7 +337,7 @@ class WlanManager(object):
     ad = self.ShouldAutoDisable()
     if ad and self.auto_disabled != ad:
       self.Log('auto-disabling because of %s', self.AnonymizeMAC(ad))
-      helpers.WriteFileAtomic(self.disabled_filename, DecodeMAC(ad))
+      helpers.WriteFileAtomic(self.disabled_filename, helpers.DecodeMAC(ad))
     elif self.auto_disabled and not ad:
       self.Log('auto-enabling because %s disappeared',
                self.AnonymizeMAC(self.auto_disabled))
@@ -674,9 +359,9 @@ class WlanManager(object):
                    r'(([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})',
                    line)
       if g:
-        ip = EncodeIP(g.group(1))
-        mac = EncodeMAC(g.group(2))
-        self.arp_list[mac] = ARP(ip=ip, mac=mac, last_seen=now)
+        ip = helpers.EncodeIP(g.group(1))
+        mac = helpers.EncodeMAC(g.group(2))
+        self.arp_list[mac] = wgdata.ARP(ip=ip, mac=mac, last_seen=now)
         self.Debug('arp %r', self.arp_list[mac])
 
   def _PhyResults(self, errcode, stdout, stderr):
@@ -694,9 +379,9 @@ class WlanManager(object):
         self.Debug('phy freq=%d chan=%d disabled=%d', freq, chan, disabled)
         if not disabled:
           if freq / 100 == 24:
-            self.flags |= ApFlags.Can2G
+            self.flags |= wgdata.ApFlags.Can2G
           if freq / 1000 == 5:
-            self.flags |= ApFlags.Can5G
+            self.flags |= wgdata.ApFlags.Can5G
           self.allowed_freqs.add(freq)
           freq_to_chan[freq] = chan
           chan_to_freq[chan] = freq
@@ -709,7 +394,7 @@ class WlanManager(object):
       line = line.strip()
       g = re.match(r'addr (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
       if g:
-        self.mac = EncodeMAC(g.group(1))
+        self.mac = helpers.EncodeMAC(g.group(1))
         break
 
   def _ScanResults(self, errcode, stdout, stderr):
@@ -721,8 +406,8 @@ class WlanManager(object):
     def AddEntry():
       if mac:
         is_ours = False  # TODO(apenwarr): calc from received waveguide packets
-        bss = BSS(is_ours=is_ours, freq=freq, mac=mac,
-                  rssi=rssi, flags=flags, last_seen=last_seen)
+        bss = wgdata.BSS(is_ours=is_ours, freq=freq, mac=mac,
+                         rssi=rssi, flags=flags, last_seen=last_seen)
         if mac not in self.bss_list:
           self.Debug('Added: %r', bss)
         self.bss_list[mac] = bss
@@ -732,7 +417,7 @@ class WlanManager(object):
       if g:
         AddEntry()
         mac = rssi = flags = last_seen = None
-        mac = EncodeMAC(g.group(1))
+        mac = helpers.EncodeMAC(g.group(1))
         rssi = last_seen = None
         flags = 0
       g = re.match(r'freq: (\d+)', line)
@@ -758,8 +443,8 @@ class WlanManager(object):
       if freq:
         real_busy_ms = busy_ms - rx_ms - tx_ms
         if real_busy_ms < 0: real_busy_ms = 0
-        ch = Channel(freq=freq, noise_dbm=noise, observed_ms=active_ms,
-                     busy_ms=real_busy_ms)
+        ch = wgdata.Channel(freq=freq, noise_dbm=noise, observed_ms=active_ms,
+                            busy_ms=real_busy_ms)
         if freq not in self.channel_survey_list:
           self.Debug('Added: %r', ch)
         self.channel_survey_list[freq] = ch
@@ -802,7 +487,7 @@ class WlanManager(object):
     last_seen = now
     def AddEntry():
       if mac:
-        a = Assoc(mac=mac, rssi=rssi, last_seen=last_seen)
+        a = wgdata.Assoc(mac=mac, rssi=rssi, last_seen=last_seen)
         if mac not in self.assoc_list:
           self.Debug('Added: %r', a)
         self.assoc_list[mac] = a
@@ -811,7 +496,7 @@ class WlanManager(object):
       g = re.match(r'Station (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
       if g:
         AddEntry()
-        mac = EncodeMAC(g.group(1))
+        mac = helpers.EncodeMAC(g.group(1))
         rssi = 0
         last_seen = now
       g = re.match(r'inactive time:\s+([-.\d]+) ms', line)
@@ -842,7 +527,7 @@ def CreateManagers(managers, high_power):
           if phy not in phy_devs or len(phy_devs[phy]) > len(dev):
             phy_devs[phy] = dev
         else:
-          Debug('Skipping dev %r because type %r != AP', dev, devtype)
+          log.Debug('Skipping dev %r because type %r != AP', dev, devtype)
 
     for line in stdout.split('\n'):
       line = line.strip()
@@ -865,36 +550,14 @@ def CreateManagers(managers, high_power):
     existing_devs = dict((m.vdevname, m) for m in managers)
     for dev, m in existing_devs.iteritems():
       if dev not in phy_devs.values():
-        Log('Forgetting interface %r.', dev)
+        log.Log('Forgetting interface %r.', dev)
         managers.remove(m)
     for phy, dev in phy_devs.iteritems():
       if dev not in existing_devs:
-        Debug('Creating wlan manager for (%r, %r)', phy, dev)
+        log.Debug('Creating wlan manager for (%r, %r)', phy, dev)
         managers.append(WlanManager(phy, dev, high_power=high_power))
 
   RunProc(callback=ParseDevList, args=['iw', 'dev'])
-
-
-def WriteEventFile(name):
-  """Create a file in opt.status_dir if it does not already exist.
-
-  This is useful for reporting that an event has occurred.  We use O_EXCL
-  to prevent any filesystem churn at all if the file still exists, so it's
-  very fast.  A program watching for the event can unlink the file, then
-  wait for it to be re-created as an indication that the event has
-  occurred.
-
-  Args:
-    name: the name of the file to create.
-  """
-  fullname = os.path.join(opt.status_dir, name)
-  try:
-    fd = os.open(fullname, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0666)
-  except OSError, e:
-    if e.errno != errno.EEXIST:
-      raise
-  else:
-    os.close(fd)
 
 
 def main():
@@ -905,6 +568,9 @@ def main():
   opt.tx_interval = float(opt.tx_interval)
   if opt.watch_pid and opt.watch_pid <= 1:
     o.fatal('--watch-pid must be empty or > 1')
+  log.LOGLEVEL = opt.debug
+  log.ANONYMIZE = opt.anonymize
+  log.STATUS_DIR = opt.status_dir
 
   try:
     os.makedirs(opt.status_dir)
@@ -912,8 +578,6 @@ def main():
     if e.errno != errno.EEXIST:
       raise
 
-  # TODO(apenwarr): add/remove managers as devices come and go?
-  #   ...on our current system they generally don't, so maybe not important.
   managers = []
   if opt.fake:
     for k, fakemac in flags:
@@ -925,9 +589,10 @@ def main():
         wlm = WlanManager(phyname='phy-%s' % fakemac[12:],
                           vdevname='wlan-%s' % fakemac[12:],
                           high_power=opt.high_power)
-        wlm.mac = EncodeMAC(fakemac)
+        wlm.mac = helpers.EncodeMAC(fakemac)
         managers.append(wlm)
   else:
+    # The list of managers is also refreshed occasionally in the main loop
     CreateManagers(managers, high_power=opt.high_power)
   if not managers:
     raise Exception('no wifi AP-mode devices found.  Try --fake.')
@@ -939,7 +604,7 @@ def main():
         os.kill(opt.watch_pid, 0)
       except OSError, e:
         if e.errno == errno.ESRCH:
-          Log('watch-pid %r died; shutting down', opt.watch_pid)
+          log.Log('watch-pid %r died; shutting down', opt.watch_pid)
           break
         else:
           raise
@@ -953,7 +618,7 @@ def main():
     if opt.print_interval:
       timeouts.append(last_print + opt.print_interval)
     timeout = min(filter(None, timeouts))
-    Debug2('now=%f timeout=%f  timeouts=%r', gettime(), timeout, timeouts)
+    log.Debug2('now=%f timeout=%f  timeouts=%r', gettime(), timeout, timeouts)
     if timeout: timeout -= gettime()
     if timeout < 0: timeout = 0
     if timeout is None and opt.watch_pid: timeout = 5.0
@@ -961,7 +626,7 @@ def main():
     for _ in xrange(64):
       r, _, _ = select.select(rfds, [], [], timeout)
       if not r:
-        WriteEventFile('nopackets')
+        log.WriteEventFile('nopackets')
         break
       timeout = 0
       for i in r:
@@ -969,7 +634,7 @@ def main():
           if i in m.GetReadFds():
             gotpackets += m.ReadReady()
     if gotpackets:
-      WriteEventFile('gotpacket')
+      log.WriteEventFile('gotpacket')
     now = gettime()
     # TODO(apenwarr): how often should we really transmit?
     #   Also, consider sending out an update (almost) immediately when a new
@@ -985,7 +650,7 @@ def main():
         m.UpdateStationInfo()
       for m in managers:
         m.SendUpdate()
-        WriteEventFile('sentpacket')
+        log.WriteEventFile('sentpacket')
     if opt.print_interval and now - last_print > opt.print_interval:
       last_print = now
       selfmacs = set()
@@ -999,15 +664,17 @@ def main():
         seen_bss_peers = [bss for bss in p.seen_bss
                           if bss.mac in peers]
         if p.me.mac in selfmacs: continue
-        Log('%s: APs=%-4d peer-APs=%s stations=%s',
-            m.AnonymizeMAC(p.me.mac),
-            len(p.seen_bss),
-            ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
-                     for i in sorted(seen_bss_peers, key=lambda i: -i.rssi)),
-            ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
-                     for i in sorted(p.assoc, key=lambda i: -i.rssi)))
+        log.Log('%s: APs=%-4d peer-APs=%s stations=%s',
+                m.AnonymizeMAC(p.me.mac),
+                len(p.seen_bss),
+                ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
+                         for i in sorted(seen_bss_peers,
+                                         key=lambda i: -i.rssi)),
+                ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
+                         for i in sorted(p.assoc,
+                                         key=lambda i: -i.rssi)))
     if not r:
-      WriteEventFile('ready')
+      log.WriteEventFile('ready')
 
 
 if __name__ == '__main__':
