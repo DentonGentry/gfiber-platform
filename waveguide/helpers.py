@@ -18,8 +18,10 @@
 import errno
 import grp
 import os
+import os.path
 import pwd
 import socket
+import sys
 
 
 # Unit tests can override these
@@ -118,3 +120,25 @@ def EncodeIP(ip):
 
 def DecodeIP(ipbin):
   return socket.inet_ntoa(ipbin)
+
+
+_experiment_warned = set()
+_experiment_enabled = set()
+
+
+def Experiment(name):
+  if not os.path.exists(os.path.join('/tmp/experiments',
+                                     name + '.available')):
+    if name not in _experiment_warned:
+      _experiment_warned.add(name)
+      sys.stderr.write('Warning: experiment %r not registered\n' % name)
+  else:
+    enabled = os.path.exists(os.path.join('/config/experiments',
+                                          name + '.active'))
+    if enabled and name not in _experiment_enabled:
+      _experiment_enabled.add(name)
+      sys.stderr.write('Notice: using experiment %r\n' % name)
+    elif not enabled and name in _experiment_enabled:
+      _experiment_enabled.remove(name)
+      sys.stderr.write('Notice: stopping experiment %r\n' % name)
+    return enabled

@@ -22,7 +22,8 @@ import random
 import time
 
 
-LAST_SEEN_THRESHOLD = 600   # maximum seconds before ignoring another AP
+LAST_SEEN_THRESHOLD = 600    # maximum seconds before ignoring another AP
+AIRTIME_THRESHOLD_MS = 199   # min millisecs before channel activity is valid
 
 
 # TODO(apenwarr): consider including non-US channel pairs.
@@ -227,7 +228,8 @@ def ChannelActivityList(state, candidates, airtime_threshold_ms):
                             busy_20, busy_40, busy_80)
 
 
-def SoloChooseChannel(state, candidates, use_primary_spreading):
+def SoloChooseChannel(state, candidates, use_primary_spreading,
+                      use_active_time, hysteresis_freq):
   """Basic single-AP channel selection.
 
   This simple algorithm ignores waveguide peers and uses only the channel
@@ -246,6 +248,13 @@ def SoloChooseChannel(state, candidates, use_primary_spreading):
       primary channels within a 40 or 80 MHz band.  (Testing seems to show
       this gives best results.) If false, choose the most popular primary
       channel and use that (common folklore says this is best).
+    use_active_time: include channel active time (percentage of airtime
+      used) in the algorithm.  Otherwise, just chooses based on count of
+      nearby access points rather than how busy they are.
+    hysteresis_freq: if non-None, and several near-equally appealing channel
+      selections are available that include this value, prefer this value.
+      This prevents jumping around randomly between equally good options.
+      If None, returns a random one of the equally viable best options.
   Returns:
     A ChannelActivity object representing the best choice of channel.
     (See ChannelActivityList for interpretation of fields.)
@@ -254,8 +263,8 @@ def SoloChooseChannel(state, candidates, use_primary_spreading):
   """
   if not candidates:
     raise ValueError('no channel selection candidates provided')
-  activities = list(ChannelActivityList(state, candidates,
-                                        airtime_threshold_ms=1000))
+  activities = list(ChannelActivityList(
+      state, candidates, airtime_threshold_ms=AIRTIME_THRESHOLD_MS))
 
   # TODO(apenwarr): consider auto-narrowing channel width in some cases.
   #  That may or may not make things better.  In theory, the driver can
@@ -278,13 +287,33 @@ def SoloChooseChannel(state, candidates, use_primary_spreading):
   #    available, making them all sort equal, and only then do we fall back
   #    to count_*.
   #  - In the worst case where *all* channels appear equal for some reason
-  #    (probably a bug), choose one at random rather than accidentally setting
-  #    every AP to the same channel somehow.
+  #    (probably a bug), choose one at random or try to keep the same as
+  #    last time, rather than accidentally setting every AP to the same
+  #    channel somehow.
+  #
+  # TODO(apenwarr): fuzzier hysteresis.
+  #   Right now we could change channels if one becomes just slightly better
+  #   than the old option.  This happens surprisingly seldom in my testing,
+  #   but it's likely to happen in real life, causing us to flip back and
+  #   forth between channels that have close scores.
+  #   This is relatively harmless for a first try because we won't generally
+  #   enable channel changing during runtime yet.
+  #
+  # TODO(apenwarr): also use spectrum analysis results.
+  #   ath9k (and recently, ath10k) have the ability to do more fine-grained
+  #   spectrum analysis at a level smaller than individual channels.  This
+  #   could help us identify particular types of interference, plus more
+  #   precisely locate the center of any bubbles of interference so we can
+  #   avoid them.  A tool for gettting spectral analysis data is in
+  #   google/platform/spectralanalyzer/
+  #
   # pylint:disable=g-long-lambda
+  atm = 1 if use_active_time else 0
   activities.sort(key=lambda i: (-len(i.group),
-                                 i.busy_80, i.count_80,
-                                 i.busy_40, i.count_40,
-                                 i.busy_20, i.count_20,
+                                 atm * i.busy_80, i.count_80,
+                                 atm * i.busy_40, i.count_40,
+                                 atm * i.busy_20, i.count_20,
+                                 -(i.primary_freq == hysteresis_freq),
                                  random.random()))
   if use_primary_spreading:
     # simply use the primary channel with the least activity.
@@ -295,5 +324,7 @@ def SoloChooseChannel(state, candidates, use_primary_spreading):
     # clients.
     bestgroup = activities[0].group
     activities = [i for i in activities if i.group == bestgroup]
-    activities.sort(key=lambda i: (-i.count_20, random.random()))
+    activities.sort(key=lambda i: (-atm * i.busy_20, -i.count_20,
+                                   -(i.primary_freq == hysteresis_freq),
+                                   random.random()))
     return activities[0]

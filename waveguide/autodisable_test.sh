@@ -56,6 +56,7 @@ WVFAIL [ -e wg1.tmp/wlan-22:22.disabled ]
 WVSTART "no visible competitors"
 ./waveguide -D --localhost --status-dir=wg2.tmp --watch-pid=$$ \
     --fake=11:22:33:44:55:66 --tx-interval=0.3 --scan-interval=0.3 \
+    --print-interval=0.3 --autochan-interval=0.3 \
     --high-power &
 pid2=$!
 WVPASS wait_files wg2.tmp/sentpacket wg1.tmp/gotpacket \
@@ -136,7 +137,8 @@ echo "11:22:33:44:55:66,2412,-20,50" \
     >fake/scanresults.wlan-22:22
 rm -rf wg2.tmp
 ./waveguide -D --localhost --status-dir=wg2.tmp --watch-pid=$$ \
-    --fake=11:22:33:44:55:66 --tx-interval=0.3 --scan-interval=0.3 &
+    --fake=11:22:33:44:55:66 --tx-interval=0.3 --scan-interval=0.3 \
+    --print-interval=0.3 --autochan-interval=0.3 &
 pid2=$!
 WVPASS wait_files wg2.tmp/sentpacket wg1.tmp/gotpacket
 # wg1 and wg2 are both low powered, so wg1 should stay up

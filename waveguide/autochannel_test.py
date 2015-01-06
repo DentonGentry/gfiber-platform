@@ -104,10 +104,35 @@ def AutoChannelTest():
   results = set()
   for i in range(10000):
     results.add(autochannel.SoloChooseChannel(
-        GenState([], []), combos, use_primary_spreading=True).primary_freq)
+        GenState([], []), combos, use_primary_spreading=True,
+        use_active_time=True, hysteresis_freq=None).primary_freq)
     if len(results) == 11:
       break
   wvtest.WVPASSGE(len(results), 11)
+
+  # Every channel is equally likely, but with hysteresis, we pick the
+  # same channel every time.
+  result1 = autochannel.SoloChooseChannel(
+      GenState([], []), combos, use_primary_spreading=True,
+      use_active_time=True, hysteresis_freq=None).primary_freq
+  results = set()
+  for i in range(100):
+    results.add(autochannel.SoloChooseChannel(
+        GenState([], []), combos, use_primary_spreading=True,
+        use_active_time=True, hysteresis_freq=result1).primary_freq)
+  print results
+  wvtest.WVPASSEQ(len(results), 1)
+
+  result1 = autochannel.SoloChooseChannel(
+      GenState([], []), combos, use_primary_spreading=False,
+      use_active_time=True, hysteresis_freq=None).primary_freq
+  results = set()
+  for i in range(100):
+    results.add(autochannel.SoloChooseChannel(
+        GenState([], []), combos, use_primary_spreading=False,
+        use_active_time=True, hysteresis_freq=result1).primary_freq)
+  print results
+  wvtest.WVPASSEQ(len(results), 1)
 
   # With a single AP at 2432, the system should try for a 40 MHz channel
   # that either doesn't include 2432 (impossible) or aligns so it
@@ -115,7 +140,8 @@ def AutoChannelTest():
   # two channels should be 2432.  And we want it to *not* be the primary
   # channel, so that 20 MHz traffic is non-interfering.
   r = autochannel.SoloChooseChannel(
-      GenState([2432], []), combos, use_primary_spreading=True)
+      GenState([2432], []), combos, use_primary_spreading=True,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASSNE(r.primary_freq, 2432)
   wvtest.WVPASSEQ(len(r.group), 2)
@@ -125,7 +151,8 @@ def AutoChannelTest():
   # With use_primary_spreading=False, the logic above should all work the
   # same, but now it should choose 2432 as the primary every time.
   r = autochannel.SoloChooseChannel(
-      GenState([2432], []), combos, use_primary_spreading=False)
+      GenState([2432], []), combos, use_primary_spreading=False,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASSEQ(r.primary_freq, 2432)
   wvtest.WVPASSEQ(len(r.group), 2)
@@ -136,7 +163,8 @@ def AutoChannelTest():
   # partial overlap.  With use_primary_spreading=True, at least the primary
   # channel will be clear.
   r = autochannel.SoloChooseChannel(
-      GenState([2432, 2437], []), combos, use_primary_spreading=True)
+      GenState([2432, 2437], []), combos, use_primary_spreading=True,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASS(r.primary_freq in [2412, 2457, 2462])
   # TODO(apenwarr): really we should switch to 20 MHz wide in this case.
@@ -147,7 +175,8 @@ def AutoChannelTest():
   wvtest.WVPASSEQ(r.count_20, 0)
 
   r = autochannel.SoloChooseChannel(
-      GenState([2432, 2437], []), combos, use_primary_spreading=False)
+      GenState([2432, 2437], []), combos, use_primary_spreading=False,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASS(r.primary_freq in [2432, 2437])
   wvtest.WVPASSGT(r.count_80, 1)
@@ -157,7 +186,8 @@ def AutoChannelTest():
   # When we force to a 20 MHz channel, it should not have any overlap,
   # regardless of use_primary_spreading.
   r = autochannel.SoloChooseChannel(
-      GenState([2432, 2437], []), combos_20, use_primary_spreading=False)
+      GenState([2432, 2437], []), combos_20, use_primary_spreading=False,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASS(r.primary_freq in [2412, 2457, 2462])
   wvtest.WVPASSEQ(r.count_20, 0)
@@ -165,11 +195,13 @@ def AutoChannelTest():
   # If there are two APs on 2432, it's better to partially overlap with
   # those than with the one AP on 2437.
   r = autochannel.SoloChooseChannel(
-      GenState([2432, 2432, 2437], []), combos, use_primary_spreading=False)
+      GenState([2432, 2432, 2437], []), combos, use_primary_spreading=False,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASSEQ(r.primary_freq, 2432)
   r = autochannel.SoloChooseChannel(
-      GenState([2432, 2432, 2437], []), combos, use_primary_spreading=True)
+      GenState([2432, 2432, 2437], []), combos, use_primary_spreading=True,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASSEQ(r.primary_freq, 2412)
   # Even when we force 20 MHz channels, only 2412 is the right match.
@@ -177,7 +209,8 @@ def AutoChannelTest():
   # all in use, some of them twice.  2412 has the fewest *partial* overlaps.
   # (This can be improved if we teach waveguide about HT40+ vs HT40-.)
   r = autochannel.SoloChooseChannel(
-      GenState([2432, 2432, 2437], []), combos_20, use_primary_spreading=True)
+      GenState([2432, 2432, 2437], []), combos_20, use_primary_spreading=True,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASS(r.primary_freq in [2412, 2452, 2457, 2462])
 
@@ -185,9 +218,18 @@ def AutoChannelTest():
   # With 2412 ruled out, 2452 is the next best match.
   r = autochannel.SoloChooseChannel(
       GenState([2432, 2432, 2437], [(2412, 1000, 100)]),
-      combos_20, use_primary_spreading=True)
+      combos_20, use_primary_spreading=True,
+      use_active_time=True, hysteresis_freq=None)
   print r
   wvtest.WVPASSEQ(r.primary_freq, 2452)
+
+  # Make sure use_active_time=False causes us to ignore busy channels.
+  r = autochannel.SoloChooseChannel(
+      GenState([2432, 2432, 2437], [(2412, 1000, 100)]),
+      combos_20, use_primary_spreading=True,
+      use_active_time=False, hysteresis_freq=None)
+  print r
+  wvtest.WVPASSEQ(r.primary_freq, 2412)
 
 if __name__ == '__main__':
   wvtest.wvtest_main()

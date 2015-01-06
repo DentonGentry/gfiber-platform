@@ -103,17 +103,14 @@ ARP_FMT = '!4s6sI'
 State = namedtuple('State', 'me,seen_bss,channel_survey,assoc,arp')
 
 
-def EncodePacket(me,
-                 seen_bss_list,
-                 channel_survey_list,
-                 assoc_list,
-                 arp_list):
+def EncodePacket(state):
   """Generate a binary waveguide packet for sending via multicast."""
+  me = state.me
   now = me.now
   me_out = struct.pack(Me_FMT, me.now, me.uptime_ms,
                        me.consensus_key, me.mac, me.flags)
   bss_out = ''
-  for bss in seen_bss_list:
+  for bss in state.seen_bss:
     bss_out += struct.pack(BSS_FMT,
                            bss.is_ours,
                            bss.mac,
@@ -122,20 +119,20 @@ def EncodePacket(me,
                            bss.flags,
                            now - bss.last_seen)
   chan_out = ''
-  for chan in channel_survey_list:
+  for chan in state.channel_survey:
     chan_out += struct.pack(Channel_FMT,
                             chan.freq,
                             chan.noise_dbm,
                             chan.observed_ms,
                             chan.busy_ms)
   assoc_out = ''
-  for assoc in assoc_list:
+  for assoc in state.assoc:
     assoc_out += struct.pack(Assoc_FMT,
                              assoc.mac,
                              assoc.rssi,
                              now - assoc.last_seen)
   arp_out = ''
-  for arp in arp_list:
+  for arp in state.arp:
     arp_out += struct.pack(ARP_FMT,
                            arp.ip,
                            arp.mac,

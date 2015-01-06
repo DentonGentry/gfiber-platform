@@ -28,6 +28,7 @@ import struct
 import subprocess
 import sys
 import time
+import autochannel
 import helpers
 import log
 import options
@@ -49,9 +50,10 @@ waveguide [options...]
 --
 high-power        This high-powered AP takes priority over low-powered ones
 fake=             Create a fake instance with the given MAC address
-initial-scans=    Number of immediate full channel scans at startup [0]
+initial-scans=    Number of immediate full channel scans at startup [1]
 scan-interval=    Seconds between full channel scan cycles (0 to disable) [0]
 tx-interval=      Seconds between state transmits (0 to disable) [15]
+autochan-interval= Seconds between autochannel decisions (0 to disable) [300]
 print-interval=   Seconds between state printouts to log (0 to disable) [16]
 D,debug           Increase (non-anonymized!) debug output level
 no-anonymize      Don't anonymize MAC addresses in logs
@@ -134,6 +136,11 @@ def RunProc(callback, args, *xargs, **kwargs):
   callback(errcode, stdout, stderr)
 
 
+def WriteFileIfMissing(filename, content):
+  if not os.path.exists(filename):
+    helpers.WriteFileAtomic(filename, content)
+
+
 class WlanManager(object):
   """A class representing one wifi interface on the local host."""
 
@@ -157,10 +164,13 @@ class WlanManager(object):
     self.did_initial_scan = False
     self.next_scan_time = None
     self.scan_idx = -1
-    self.disabled_filename = os.path.join(opt.status_dir,
-                                          '%s.disabled' % vdevname)
+    self.last_survey = {}
     self.auto_disabled = None
-    helpers.Unlink(self.disabled_filename)
+    self.autochan_2g = self.autochan_5g = self.autochan_free = 0
+    helpers.Unlink(self.Filename('disabled'))
+
+  def Filename(self, suffix):
+    return os.path.join(opt.status_dir, '%s.%s' % (self.vdevname, suffix))
 
   def AnonymizeMAC(self, mac):
     return log.AnonymizeMAC(self.consensus_key, mac)
@@ -224,8 +234,8 @@ class WlanManager(object):
     self.MaybeAutoDisable()
     return 1
 
-  def SendUpdate(self):
-    """Constructs and sends a waveguide packet on the multicast interface."""
+  def GetState(self):
+    """Return a wgdata.State() for this object."""
     me = wgdata.Me(now=time.time(),
                    uptime_ms=(gettime() - self.starttime) * 1000,
                    consensus_key=self.consensus_key,
@@ -235,13 +245,17 @@ class WlanManager(object):
     channel_survey_list = self.channel_survey_list.values()
     assoc_list = self.assoc_list.values()
     arp_list = self.arp_list.values()
-    p = wgdata.EncodePacket(me=me,
-                            seen_bss_list=seen_bss_list,
-                            channel_survey_list=channel_survey_list,
-                            assoc_list=assoc_list,
-                            arp_list=arp_list)
-    self.Debug2('sending: %r',
-                (me, seen_bss_list, channel_survey_list, assoc_list, arp_list))
+    return wgdata.State(me=me,
+                        seen_bss=seen_bss_list,
+                        channel_survey=channel_survey_list,
+                        assoc=assoc_list,
+                        arp=arp_list)
+
+  def SendUpdate(self):
+    """Constructs and sends a waveguide packet on the multicast interface."""
+    state = self.GetState()
+    p = wgdata.EncodePacket(state)
+    self.Debug2('sending: %r', state)
     self.Debug('sent %s: %r bytes', self.vdevname, self.mcast.Send(p))
 
   def DoScans(self):
@@ -261,6 +275,7 @@ class WlanManager(object):
                 args=['iw', 'dev', self.vdevname, 'scan',
                       'ap-force',
                       'passive'])
+        self.UpdateStationInfo()
       self.next_scan_time = now
       self.did_initial_scan = True
     elif not self.allowed_freqs:
@@ -337,12 +352,94 @@ class WlanManager(object):
     ad = self.ShouldAutoDisable()
     if ad and self.auto_disabled != ad:
       self.Log('auto-disabling because of %s', self.AnonymizeMAC(ad))
-      helpers.WriteFileAtomic(self.disabled_filename, helpers.DecodeMAC(ad))
+      helpers.WriteFileAtomic(self.Filename('disabled'), helpers.DecodeMAC(ad))
     elif self.auto_disabled and not ad:
       self.Log('auto-enabling because %s disappeared',
                self.AnonymizeMAC(self.auto_disabled))
-      helpers.Unlink(self.disabled_filename)
+      helpers.Unlink(self.Filename('disabled'))
     self.auto_disabled = ad
+
+  def _ChooseChannel(self, state, candidates, hysteresis_freq):
+    """Recommend a wifi channel for a particular set of constraints."""
+    spreading = helpers.Experiment('WifiPrimarySpreading')
+    combos = autochannel.LegalCombos(self.allowed_freqs, candidates)
+    use_active_time = helpers.Experiment('WifiUseActiveTime')
+    cc = autochannel.SoloChooseChannel(state,
+                                       candidates=combos,
+                                       use_primary_spreading=spreading,
+                                       use_active_time=use_active_time,
+                                       hysteresis_freq=hysteresis_freq)
+    self.Log('%s', cc)
+    return cc.primary_freq
+
+  def ChooseChannel(self):
+    """Recommend a wifi channel for this device."""
+    freqs = list(sorted(self.allowed_freqs))
+    self.Log('Freqs: %s', ' '.join(str(f) for f in freqs))
+
+    apc = ''
+    for freq in freqs:
+      apc += '%s ' % len([bss for bss in self.bss_list.values()
+                          if bss.freq == freq])
+    self.Log('APcounts: %s', apc)
+    busy = ''
+
+    for freq in freqs:
+      cs = self.channel_survey_list.get(freq, None)
+      if cs:
+        frac = cs.busy_ms * 100 / (cs.observed_ms + 1)
+        busy += '%s%d ' % (
+            ('*' if cs.observed_ms < autochannel.AIRTIME_THRESHOLD_MS else ''),
+            frac)
+      else:
+        busy += '*0 '
+    self.Log('Busy%%: %s', busy)
+
+    state = self.GetState()
+
+    candidates_free = []
+    if self.flags & wgdata.ApFlags.Can2G:
+      if helpers.Experiment('WifiChannelsLimited2G'):
+        candidates2g = autochannel.C_24MAIN
+      else:
+        candidates2g = autochannel.C_24ANY
+      candidates_free += candidates2g
+      self.autochan_2g = self._ChooseChannel(
+          state, candidates2g, self.autochan_2g)
+      WriteFileIfMissing(self.Filename('autochan_2g.init'),
+                         str(self.autochan_2g))
+      helpers.WriteFileAtomic(self.Filename('autochan_2g'),
+                              str(self.autochan_2g))
+    if self.flags & wgdata.ApFlags.Can5G:
+      candidates5g = []
+      if helpers.Experiment('WifiLowIsHigh'):
+        # WifiLowIsHigh means to treat low-powered channels as part of the
+        # high-powered category.  Newer FCC rules allow high power
+        # transmission on the previously low-powered channels, but not all
+        # devices support it.
+        candidates5g += autochannel.C_5LOW + autochannel.C_5HIGH
+      elif opt.high_power:
+        candidates5g += autochannel.C_5HIGH
+      else:
+        candidates5g += autochannel.C_5LOW
+      if helpers.Experiment('WifiUseDFS'):
+        candidates5g += autochannel.C_5DFS
+      candidates_free += candidates5g
+      self.autochan_5g = self._ChooseChannel(
+          state, candidates5g, self.autochan_5g)
+      WriteFileIfMissing(self.Filename('autochan_5g.init'),
+                         str(self.autochan_5g))
+      helpers.WriteFileAtomic(self.Filename('autochan_5g'),
+                              str(self.autochan_5g))
+    self.autochan_free = self._ChooseChannel(
+        state, candidates_free, self.autochan_free)
+    WriteFileIfMissing(self.Filename('autochan_free.init'),
+                       str(self.autochan_free))
+    helpers.WriteFileAtomic(self.Filename('autochan_free'),
+                            str(self.autochan_free))
+    self.Log('Recommended freqs: %d %d -> %d',
+             self.autochan_2g, self.autochan_5g, self.autochan_free)
+    log.WriteEventFile('autochan_done')
 
   def _ReadArpTable(self):
     """Reads the kernel's ARP entries."""
@@ -441,13 +538,51 @@ class WlanManager(object):
     noise = active_ms = busy_ms = rx_ms = tx_ms = 0
     def AddEntry():
       if freq:
-        real_busy_ms = busy_ms - rx_ms - tx_ms
+        # TODO(apenwarr): ath9k: rx_ms includes all airtime, not just ours.
+        #   tx_ms is only time *we* were transmitting, so it doesn't count
+        #   toward the busy level of the channel for decision making
+        #   purposes.  We'd also like to forget time spent receiving from
+        #   our stations, but rx_ms includes that *plus* all time spent
+        #   receiving packets from anyone, unfortunately.  I don't know
+        #   the difference between rx_ms and busy_ms, but they seem to differ
+        #   only by a small percentage usually.
+        # TODO(apenwarr): ath10k: busy_ms is missing entirely.
+        #   And it looks like active_ms is filled with what should be
+        #   busy_ms, which means we have no idea what fraction of time it
+        #   was active.  The code below will treat all channels as 0.
+        real_busy_ms = busy_ms - tx_ms
         if real_busy_ms < 0: real_busy_ms = 0
-        ch = wgdata.Channel(freq=freq, noise_dbm=noise, observed_ms=active_ms,
-                            busy_ms=real_busy_ms)
-        if freq not in self.channel_survey_list:
-          self.Debug('Added: %r', ch)
-        self.channel_survey_list[freq] = ch
+        current = (active_ms, busy_ms, rx_ms, tx_ms)
+        if current != self.last_survey.get(freq, None):
+          oldch = self.channel_survey_list.get(freq, None)
+          # 'iw survey dump' results are single readings, which we want to
+          # accumulate over time.
+          #
+          # TODO(apenwarr): change iw to only clear counters when asked.
+          #   Right now it zeroes one channel of data whenever you rescan
+          #   that one channel, which leaves us to do this error-prone
+          #   accumulation by hand later.
+          #
+          # The current channel will be active for >100ms, and other channels
+          # will be ~50-100ms (because they record only the most recent
+          # offchannel event).  So we add a margin of safety, and accumulate
+          # for values <250ms, but *replace* for values >250ms.
+          if oldch and active_ms < 250:
+            old_observed, old_busy = oldch.observed_ms, oldch.busy_ms
+          else:
+            old_observed, old_busy = 0, 0
+          ch = wgdata.Channel(freq=freq,
+                              noise_dbm=noise,
+                              observed_ms=old_observed + active_ms,
+                              busy_ms=old_busy + real_busy_ms)
+          if freq not in self.channel_survey_list:
+            self.Debug('Added: %r', ch)
+          self.channel_survey_list[freq] = ch
+          # TODO(apenwarr): persist the survey results across reboots?
+          #   The channel usage stats are probably most useful over a long
+          #   time period.  On the other hand, if the device reboots, maybe
+          #   the environment will be different when it comes back.
+          self.last_survey[freq] = current
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'Survey data from', line)
@@ -564,8 +699,12 @@ def main():
   global opt
   o = options.Options(optspec)
   opt, flags, unused_extra = o.parse(sys.argv[1:])
+  if helpers.Experiment('WifiUseActiveTime'):
+    opt.initial_scans = max(opt.initial_scans, 5)
   opt.scan_interval = float(opt.scan_interval)
   opt.tx_interval = float(opt.tx_interval)
+  opt.autochan_interval = float(opt.autochan_interval)
+  opt.print_interval = float(opt.print_interval)
   if opt.watch_pid and opt.watch_pid <= 1:
     o.fatal('--watch-pid must be empty or > 1')
   log.LOGLEVEL = opt.debug
@@ -597,7 +736,7 @@ def main():
   if not managers:
     raise Exception('no wifi AP-mode devices found.  Try --fake.')
 
-  last_sent = last_print = 0
+  last_sent = last_autochan = last_print = 0
   while 1:
     if opt.watch_pid > 1:
       try:
@@ -615,6 +754,8 @@ def main():
     timeouts = [m.NextTimeout() for m in managers]
     if opt.tx_interval:
       timeouts.append(last_sent + opt.tx_interval)
+    if opt.autochan_interval:
+      timeouts.append(last_autochan + opt.autochan_interval)
     if opt.print_interval:
       timeouts.append(last_print + opt.print_interval)
     timeout = min(filter(None, timeouts))
@@ -642,15 +783,22 @@ def main():
     #   possible.  But if we do that, we need to rate limit it somehow.
     for m in managers:
       m.DoScans()
-    if opt.tx_interval and now - last_sent > opt.tx_interval:
-      last_sent = now
+    if ((opt.tx_interval and now - last_sent > opt.tx_interval) or
+        (opt.autochan_interval and
+         now - last_autochan > opt.autochan_interval)):
       if not opt.fake:
         CreateManagers(managers, high_power=opt.high_power)
       for m in managers:
         m.UpdateStationInfo()
+    if opt.tx_interval and now - last_sent > opt.tx_interval:
+      last_sent = now
       for m in managers:
         m.SendUpdate()
         log.WriteEventFile('sentpacket')
+    if opt.autochan_interval and now - last_autochan > opt.autochan_interval:
+      last_autochan = now
+      for m in managers:
+        m.ChooseChannel()
     if opt.print_interval and now - last_print > opt.print_interval:
       last_print = now
       selfmacs = set()
