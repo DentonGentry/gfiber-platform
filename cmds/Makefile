@@ -52,6 +52,10 @@ ifeq ($(BUILD_DNSSD),y)
 ARCH_TARGETS += dnssd_hosts
 endif
 
+ifeq ($(BUILD_IBEACON),y)
+ARCH_TARGETS += ibeacon
+endif
+
 AS=$(CROSS_COMPILE)as
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
@@ -155,6 +159,9 @@ statcatcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
 statcatcher: device_stats.pb.o statcatcher.o
 host-statcatcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread
 host-statcatcher: host-device_stats.pb.o host-statcatcher.o
+ibeacon: LIBS += -lbluetooth -luuid
+ibeacon: CFLAGS += -std=gnu99
+ibeacon: ibeacon.o
 
 TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
 runtests: all $(TESTS)
