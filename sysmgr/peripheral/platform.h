@@ -21,6 +21,7 @@ enum BrunoPlatformTypes {
   BRUNO_GFHD100,          /* Bruno */
   BRUNO_GFRG200,          /* Optimus noHDD */
   BRUNO_GFRG210,          /* Optimus HDD */
+  BRUNO_GFSC100,          /* Spacecast */
   BRUNO_PLATFORM_MAX
 };
 

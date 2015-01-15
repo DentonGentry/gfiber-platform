@@ -90,6 +90,33 @@ const FanControlParams FanControl::kGFRG210FanCtrlHddDefaults = {
                           pwm_step      : 2,
                           temp_overheat : 105,
                         };
+
+/*
+ * Defaults of Fan control parameters for GFSC100 (Spacecast).
+ * There is no direct SOC temp input, so we use the remote sensor.
+ * Mapping between external temp sensor and actual cpu temp was determined
+ * exterimentally.
+ */
+
+const FanControlParams FanControl::kGFSC100FanCtrlSocDefaults = {
+                          temp_setpt    : 86,   // fan on @ 89 (cpu =~ 93)
+                          temp_max      : 94,   // cpu =~ 100
+                          temp_step     : 2,
+                          duty_cycle_min: 30,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2,
+                          temp_overheat : 105,
+                        };
+
+const FanControlParams FanControl::kGFSC100FanCtrlHddDefaults = {
+                          temp_setpt    : 57,
+                          temp_max      : 60,
+                          temp_step     : 2,
+                          duty_cycle_min: 30,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2,
+                          temp_overheat : 105,
+                        };
 /*
  * Defaults of Fan control parameters for GFHD100 (Bruno)
  * the original duty_cycle_min value is set to 25
@@ -193,6 +220,12 @@ void FanControl::InitParams() {
       /* Set thermal fan policy parameters of GFRG210 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFRG210FanCtrlSocDefaults;
       pfan_ctrl_params_[BRUNO_IS_HDD] = kGFRG210FanCtrlHddDefaults;
+      max = BRUNO_IS_HDD;
+      break;
+    case BRUNO_GFSC100:
+      /* Set thermal fan policy parameters of GFSC100 */
+      pfan_ctrl_params_[BRUNO_SOC] = kGFSC100FanCtrlSocDefaults;
+      pfan_ctrl_params_[BRUNO_IS_HDD] = kGFSC100FanCtrlHddDefaults;
       max = BRUNO_IS_HDD;
       break;
     default:
