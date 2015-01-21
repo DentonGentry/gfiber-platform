@@ -21,6 +21,10 @@ ifeq ($(BUILD_DVBUTILS),y)
 DIRS+=dvbutils
 endif
 
+ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfibersc)
+DIRS+=diags
+endif
+
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib

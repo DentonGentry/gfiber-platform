@@ -1,0 +1,32 @@
+/*
+ * (C) Copyright 2015 Google, Inc.
+ * All rights reserved.
+ *
+ */
+
+#ifndef VENDOR_GOOGLE_DIAGS_SPACECAST_GPIO_H_
+#define VENDOR_GOOGLE_DIAGS_SPACECAST_GPIO_H_
+
+#include <inttypes.h>
+
+#define MISC_PIN_SELECT_REG 0x90470060
+#define MISC_PIN_SELECT_GPIO_MASK 0x30
+#define MISC_PIN_SELECT_GPIO_SELECTED 0x20
+#define GPIO_63_32_PIN_OUTPUT_REG 0x904700D0
+#define GPIO_63_32_PIN_OUTPUT_ENABLE_REG 0x904700D4
+#define PCIE0_RESET_GPIO_PIN_NUM 62
+#define PCIE0_DISABLE_GPIO_PIN_NUM 45
+#define GPIO_31_0_PIN_OUTPUT_REG 0x90470000
+#define GPIO_31_0_PIN_OUTPUT_ENABLE_REG 0x90470004
+#define PCIE1_RESET_GPIO_PIN_NUM 27
+#define PCIE1_DISABLE_GPIO_PIN_NUM 46
+#define AR8337_RST_GPIO_PIN_NUM 14
+#define MAX_GPIO_PIN_NUM 63
+#define GPIO_MISC_SELET_NUM 60
+#define FIRST_GPIO_SET_SIZE 32
+
+int gpio_63_32_out_set(int pin, int pinval);
+int gpio_31_0_out_set(int pin, int pinval);
+int enable_gpio_63_60_signal();
+
+#endif  // VENDOR_GOOGLE_DIAGS_SPACECAST_GPIO_H_
