@@ -22,6 +22,9 @@ channel_scan() {
       echo "  freq: $freq"
       echo "  signal: $rssi dBm"
       echo "  last seen: $last_seen ms ago"
+      echo "  Country: US     Environment: Indoor/Outdoor"
+      echo "  capability: ESS Privacy ShortPreamble ShortSlotTime (0x0431)"
+      echo "  HT capabilities:"
     fi
   done <scanresults.$dev
 }

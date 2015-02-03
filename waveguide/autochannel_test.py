@@ -85,7 +85,8 @@ def GenState(bssfreqs, surveys):
                  mac='',
                  flags=0)
   bss_list = [wgdata.BSS(is_ours=False, mac='', freq=freq, rssi=-40,
-                         flags=0, last_seen=time.time())
+                         flags=0, last_seen=time.time(), cap=0, phy=0,
+                         reg='US')
               for freq in bssfreqs]
   survey_list = [wgdata.Channel(freq=freq, noise_dbm=0,
                                 observed_ms=observed_ms, busy_ms=busy_ms)

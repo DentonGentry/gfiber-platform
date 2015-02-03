@@ -69,6 +69,7 @@ opt = None
 # MCAST_ADDRESS = '224.0.0.2'  # "all routers" address
 MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
 MCAST_PORT = 4442
+AP_LIST_FILE = ['']
 
 
 _gettime_rand = random.randint(0, 1000000)
@@ -309,6 +310,22 @@ class WlanManager(object):
     RunProc(callback=self._AssocResults,
             args=['iw', 'dev', self.vdevname, 'station', 'dump'])
 
+  def WriteApListFile(self):
+    """Write out a file of known APs."""
+    ap_list = []
+    for peer in self.peer_list.itervalues():
+      if peer.me.mac not in self.bss_list:
+        continue
+      bssid = helpers.DecodeMAC(peer.me.mac)
+      b = self.bss_list[peer.me.mac]
+      txt = 'bssid:%s|freq:%d|cap:0x%x|phy:%d|reg:%s'
+      s = txt % (bssid, b.freq, b.cap, b.phy, b.reg)
+      ap_list.append(s)
+    content = '\n'.join(ap_list)
+    if AP_LIST_FILE[0]:
+      filename = AP_LIST_FILE[0] + '.' + self.vdevname
+      helpers.WriteFileAtomic(filename, content)
+
   def ShouldAutoDisable(self):
     """Returns MAC address of high-powered peer if we should auto disable."""
     if self.flags & wgdata.ApFlags.HighPower:
@@ -499,12 +516,15 @@ class WlanManager(object):
     self.Debug('scan err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
     if errcode: return
     now = time.time()
-    mac = rssi = flags = last_seen = None
+    mac = freq = rssi = last_seen = None
+    reg = ''
+    flags = cap = phy = 0
     def AddEntry():
       if mac:
         is_ours = False  # TODO(apenwarr): calc from received waveguide packets
         bss = wgdata.BSS(is_ours=is_ours, freq=freq, mac=mac,
-                         rssi=rssi, flags=flags, last_seen=last_seen)
+                         rssi=rssi, flags=flags, last_seen=last_seen,
+                         cap=cap, phy=phy, reg=reg)
         if mac not in self.bss_list:
           self.Debug('Added: %r', bss)
         self.bss_list[mac] = bss
@@ -513,10 +533,10 @@ class WlanManager(object):
       g = re.match(r'BSS (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
       if g:
         AddEntry()
-        mac = rssi = flags = last_seen = None
+        mac = freq = rssi = last_seen = None
+        reg = ''
+        flags = cap = phy = 0
         mac = helpers.EncodeMAC(g.group(1))
-        rssi = last_seen = None
-        flags = 0
       g = re.match(r'freq: (\d+)', line)
       if g:
         freq = int(g.group(1))
@@ -526,8 +546,21 @@ class WlanManager(object):
       g = re.match(r'last seen: (\d+) ms ago', line)
       if g:
         last_seen = now - float(g.group(1))/1000
+      g = re.match(r'capability: .* \((\S+)\)', line)
+      if g:
+        cap = int(g.group(1), 0)
+      g = re.match(r'HT capabilities:', line)
+      if g:
+        phy = max(phy, 7)  # dot11_phy_type_ht = 7
+      g = re.match(r'VHT capabilities:', line)
+      if g:
+        phy = max(phy, 8)  # dot11_phy_type_vht = 8
+      g = re.match(r'Country: (\S\S) ', line)
+      if g:
+        reg = str(g.group(1))
     AddEntry()
     self.MaybeAutoDisable()
+    self.WriteApListFile()
 
   def _SurveyResults(self, errcode, stdout, stderr):
     """Callback for 'iw survey dump' results."""
@@ -716,6 +749,8 @@ def main():
   except OSError, e:
     if e.errno != errno.EEXIST:
       raise
+
+  AP_LIST_FILE[0] = os.path.join(opt.status_dir, 'APs')
 
   managers = []
   if opt.fake:

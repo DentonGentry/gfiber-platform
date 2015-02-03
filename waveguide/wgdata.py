@@ -22,7 +22,7 @@ import zlib
 
 
 PROTO_MAGIC = 'wave'
-PROTO_VERSION = 1
+PROTO_VERSION = 2
 
 
 class DecodeError(Exception):
@@ -63,8 +63,11 @@ Me_FMT = '!QQ16s6sI'
 # rssi: the power level received from this AP.
 # flags: see ApFlags.
 # last_seen: the time of the last time this AP was seen in a scan.
-BSS = namedtuple('BSS', 'is_ours,mac,freq,rssi,flags,last_seen')
-BSS_FMT = '!B6sHbII'
+# cap: capabilities bitmask.
+# phy: the dot11PHYType.
+# reg: regulatory domain, like 'US'.
+BSS = namedtuple('BSS', 'is_ours,mac,freq,rssi,flags,last_seen,cap,phy,reg')
+BSS_FMT = '!B6sHbIIHB2s'
 
 # struct representing observed information about traffic on a channel.
 #
@@ -117,7 +120,10 @@ def EncodePacket(state):
                            bss.freq,
                            bss.rssi,
                            bss.flags,
-                           now - bss.last_seen)
+                           now - bss.last_seen,
+                           bss.cap,
+                           bss.phy,
+                           bss.reg)
   chan_out = ''
   for chan in state.channel_survey:
     chan_out += struct.pack(Channel_FMT,
