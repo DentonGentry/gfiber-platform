@@ -17,6 +17,10 @@ ifeq ($(BUILD_LOGUPLOAD),y)
 DIRS+=logupload/client
 endif
 
+ifeq ($(BUILD_DVBUTILS),y)
+DIRS+=dvbutils
+endif
+
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
