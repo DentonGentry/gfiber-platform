@@ -172,14 +172,7 @@ int i2cprobe(int argc, char *argv[]) {
   controller = strtoul(argv[1], NULL, 0);
 
   for (device_addr = 1; device_addr < 127; device_addr++) {
-    /* Avoid probing these devices */
-    if ((device_addr == 0x69) || (device_addr == 0x0C)) {
-      continue;
-    }
     return_code = i2cr(controller, device_addr, 0, 1, 1, buf);
-    if (return_code != 0) {
-      return_code = i2cr(controller, device_addr, 0, 0, 1, buf);
-    }
     if (return_code == 0) {
       printf("Address 0x%02X responding\n", device_addr);
     }
