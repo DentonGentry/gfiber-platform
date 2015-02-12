@@ -5,7 +5,7 @@ default: all
 DIRS=libstacktrace ginstall sysmgr cmds base \
 	antirollback tvstat gpio-mailbox spectralanalyzer wifiblaster
 
-ifneq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberlt)
+ifeq ($(BUILD_WAVEGUIDE),y)
 DIRS+=waveguide
 endif
 
