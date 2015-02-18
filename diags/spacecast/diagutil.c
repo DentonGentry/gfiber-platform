@@ -40,6 +40,7 @@ int temperature(int argc, char *argv[]);
 int fan_speed(int argc, char *argv[]);
 int fan_rpm(int argc, char *argv[]);
 int flash_test(int argc, char *argv[]);
+int tpm_startup(int argc, char *argv[]);
 
 /* Define the command structure */
 typedef struct {
@@ -94,6 +95,8 @@ tCOMMAND command_list[] = {
     {"fan_rpm", fan_rpm},
     {"", NULL},
     {"flash_test", flash_test},
+    {"", NULL},
+    {"tpm_startup", tpm_startup},
     {"", NULL},
     {"version", version},
     {"", NULL},

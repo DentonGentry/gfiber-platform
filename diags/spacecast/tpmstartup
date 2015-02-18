@@ -1,3 +1,4 @@
+#!/usr/bin/python -S
 # Copyright (c) 2014, Infineon Technologies AG
 # All rights reserved.
 from sys import stderr,exit
