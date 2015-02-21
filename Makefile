@@ -2,9 +2,13 @@ default: all
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
-DIRS=libstacktrace ginstall sysmgr cmds base \
+DIRS=libstacktrace ginstall cmds base \
 	antirollback tvstat gpio-mailbox spectralanalyzer wifiblaster \
 	sysvar
+
+ifeq ($(BUILD_SYSMGR),y)
+DIRS+=sysmgr
+endif
 
 ifeq ($(BUILD_WAVEGUIDE),y)
 DIRS+=waveguide
