@@ -31,6 +31,8 @@
     } \
   } while (0)
 
+// If we ever change this to C++ pull in the arraysize macro instead.
+#define ARRAYSIZE(x) (sizeof(x)/sizeof(x[0]))
 
 struct getdatamem {
   char memory[4096]; // it'll be storing a URL, so this is big enough
@@ -183,30 +185,16 @@ static int do_request_via_ipv(CURL *curl_handle, const char *server_url,
   }
 }
 
-static int do_request(CURL *curl_handle, const char *server_url,
-    struct getdatamem *getdata, struct postdatamem *postdata) {
-  long http_code = 0;
-  int rv;
-  if ((rv = do_request_via_ipv(curl_handle, server_url, getdata, postdata,
-        CURL_IPRESOLVE_V6, &http_code))) {
-    fprintf(stderr, "curl failed with IPV6 http error: %ld\n", http_code);
-    if ((rv = do_request_via_ipv(curl_handle, server_url, getdata, postdata,
-          CURL_IPRESOLVE_V4, &http_code))) {
-      fprintf(stderr, "curl failed with IPV4 http error: %ld\n", http_code);
-      // We failed with both IPV6 and IPV4, log the failure. We will retry
-      // again the next minute in the main loop.
-      fprintf(stderr, "upload-logs failed: %ld\n", http_code);
-    }
-  }
-  return rv;
-}
-
 int upload_file(const char *server_url, const char* target_name, char* data,
-    ssize_t len, struct kvpair* kvpairs) {
+    ssize_t len, struct kvpair* kvpairs_save) {
   char url[2048];
   CURL *curl_handle = NULL;
   int timeval;
   struct getdatamem getdata;
+  int i;
+  int resolvers[2] = { CURL_IPRESOLVE_V6, CURL_IPRESOLVE_V4 };
+  const char *resolvers_str[2] = { "IPv6", "IPv4" };
+
   memset(&getdata, 0, sizeof(getdata));
   struct postdatamem postdata;
   memset(&postdata, 0, sizeof(postdata));
@@ -221,65 +209,84 @@ int upload_file(const char *server_url, const char* target_name, char* data,
     return -1;
   }
 
-  curl_handle = curl_easy_init();
-  if (!curl_handle) {
-    curl_global_cleanup();
-    fprintf(stderr, "failed initializing curl\n");
-    return -1;
-  }
+  for (i=0; i < ARRAYSIZE(resolvers); ++i) {
+    long http_code;
+    struct kvpair* kvpairs = kvpairs_save;
 
-  // Construct the full URL
-  snprintf(url, sizeof(url), "%s/upload/%s%s", server_url, target_name,
-      (kvpairs != NULL) ? "?" : "");
-  while (kvpairs != NULL) {
-    // Now add the URL parameters
-    size_t lim;
-    char *url_end;
-
-    char* encoded_key = curl_easy_escape(curl_handle, kvpairs->key, 0);
-    if (!encoded_key) {
-      fprintf(stderr, "failure in curl_easy_escape\n");
-      CURL_CLEANUP_AND_RETURN;
+    curl_handle = curl_easy_init();
+    if (!curl_handle) {
+      curl_global_cleanup();
+      fprintf(stderr, "failed initializing curl\n");
+      return -1;
     }
 
-    char *encoded_value = curl_easy_escape(curl_handle, kvpairs->value, 0);
-    if (!encoded_value) {
-      fprintf(stderr, "failure in curl_easy_escape\n");
-      CURL_CLEANUP_AND_RETURN;
+    // Construct the full URL
+    snprintf(url, sizeof(url), "%s/upload/%s%s", server_url, target_name,
+             (kvpairs != NULL) ? "?" : "");
+    while (kvpairs != NULL) {
+      // Now add the URL parameters
+      size_t lim;
+      char *url_end;
+
+      char* encoded_key = curl_easy_escape(curl_handle, kvpairs->key, 0);
+      if (!encoded_key) {
+        fprintf(stderr, "failure in curl_easy_escape\n");
+        CURL_CLEANUP_AND_RETURN;
+      }
+
+      char *encoded_value = curl_easy_escape(curl_handle, kvpairs->value, 0);
+      if (!encoded_value) {
+        fprintf(stderr, "failure in curl_easy_escape\n");
+        CURL_CLEANUP_AND_RETURN;
+      }
+
+      url_end = url + strlen(url);
+      lim = sizeof(url) - strlen(url);
+      snprintf(url_end, lim, "%s=%s", encoded_key, encoded_value);
+
+      curl_free(encoded_key);
+      curl_free(encoded_value);
+      kvpairs = kvpairs->next_pair;
+      if (kvpairs)
+        strncat(url, "&", sizeof(url));
     }
 
-    url_end = url + strlen(url);
-    lim = sizeof(url) - strlen(url);
-    snprintf(url_end, lim, "%s=%s", encoded_key, encoded_value);
+    http_code = 0;
+    if (do_request_via_ipv(
+            curl_handle, url, &getdata, NULL, resolvers[i], &http_code)) {
+      fprintf(stderr, "Curl failed in GET %s\n", resolvers_str[i]);
+      curl_easy_cleanup(curl_handle);
+      continue;
+    }
 
-    curl_free(encoded_key);
-    curl_free(encoded_value);
-    kvpairs = kvpairs->next_pair;
-    if (kvpairs)
-      strncat(url, "&", sizeof(url));
-  }
+    timeval = (int) time(NULL);
+    snprintf(postdata.content_type, sizeof(postdata.content_type),
+             "Content-Type: multipart/form-data; boundary=%s-%d",
+             FORM_DATA_SPLITTER_PREFIX, timeval);
+    snprintf(postdata.data_prefix, sizeof(postdata.data_prefix),
+             "--%s-%d\r\n"
+             "Content-Disposition: form-data; name=\"file\"; "
+             "filename=\"%s\"\r\n\r\n",
+             FORM_DATA_SPLITTER_PREFIX, timeval, target_name);
+    postdata.prefix_length = strlen(postdata.data_prefix);
+    snprintf(postdata.data_postfix, sizeof(postdata.data_postfix),
+             "\r\n--%s-%d--\r\n\r\n", FORM_DATA_SPLITTER_PREFIX, timeval);
+    postdata.postfix_length = strlen(postdata.data_postfix);
+    postdata.blob = data;
+    postdata.blob_length = len;
 
-  if (do_request(curl_handle, url, &getdata, NULL)) {
-    CURL_CLEANUP_AND_RETURN;
-  }
+    http_code = 0;
+    if (do_request_via_ipv(
+            curl_handle, getdata.memory, NULL, &postdata,
+            resolvers[i], &http_code)) {
+      curl_easy_cleanup(curl_handle);
+      fprintf(stderr, "curl failed with %s http error: %ld\n",
+              resolvers_str[i], http_code);
+      continue;
+    }
 
-  timeval = (int) time(NULL);
-  snprintf(postdata.content_type, sizeof(postdata.content_type),
-      "Content-Type: multipart/form-data; boundary=%s-%d",
-      FORM_DATA_SPLITTER_PREFIX, timeval);
-  snprintf(postdata.data_prefix, sizeof(postdata.data_prefix),
-      "--%s-%d\r\n"
-      "Content-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n\r\n",
-      FORM_DATA_SPLITTER_PREFIX, timeval, target_name);
-  postdata.prefix_length = strlen(postdata.data_prefix);
-  snprintf(postdata.data_postfix, sizeof(postdata.data_postfix),
-      "\r\n--%s-%d--\r\n\r\n", FORM_DATA_SPLITTER_PREFIX, timeval);
-  postdata.postfix_length = strlen(postdata.data_postfix);
-  postdata.blob = data;
-  postdata.blob_length = len;
-
-  if (do_request(curl_handle, getdata.memory, NULL, &postdata)) {
-    CURL_CLEANUP_AND_RETURN;
+    // If we get here, that means the GET and POST both succeeded.
+    break;
   }
 
   curl_easy_cleanup(curl_handle);
