@@ -728,6 +728,123 @@ def CreateManagers(managers, high_power):
   RunProc(callback=ParseDevList, args=['iw', 'dev'])
 
 
+class WifiblasterController(object):
+  """State machine and scheduler for packet blast testing.
+
+  WifiblasterController reads parameters from files:
+
+    wifiblaster.duration  Packet blast duration in seconds.
+    wifiblaster.enable    Enable packet blast testing.
+    wifiblaster.interval  Average time between packet blasts.
+    wifiblaster.size      Packet size in bytes.
+
+  When enabled, WifiblasterController runs packet blasts at random times as
+  governed by a Poisson process with rate = 1 / interval. Thus, packet blasts
+  are distributed uniformly over time, and every point in time is equally likely
+  to be measured by a packet blast. The average number of packet blasts in any
+  given window of W seconds is W / interval.
+
+  Each packet blast tests a random associated client. The results output by
+  wifiblaster are anonymized and written directly to the log.
+  """
+
+  def __init__(self, managers, basedir):
+    """Initializes WifiblasterController."""
+    self._managers = managers
+    self._basedir = basedir
+    self._interval = 0  # Disabled.
+    self._next_packet_blast_time = float('inf')
+    self._next_timeout = 0
+
+  def _ReadFile(self, filename):
+    """Returns the contents of a file."""
+    with open(filename) as f:
+      return f.read()
+
+  def _ReadParameter(self, name, typecast):
+    """Returns a parameter value read from a file."""
+    try:
+      s = self._ReadFile(os.path.join(self._basedir, 'wifiblaster.%s' % name))
+    except IOError:
+      return None
+    try:
+      return typecast(s)
+    except ValueError:
+      return None
+
+  def _LogWifiblasterResults(self, errcode, stdout, stderr):
+    """Callback for 'wifiblaster' results."""
+    log.Debug('wifiblaster err:%r stdout:%r stderr:%r',
+              errcode, stdout[:70], stderr)
+    if errcode:
+      return
+
+    def Repl(match):
+      return self._managers[0].AnonymizeMAC(helpers.EncodeMAC(match.group()))
+
+    for line in stdout.splitlines():
+      if re.search(r'not connected', line):
+        continue
+      log.Log('wifiblaster: %s' %
+              re.sub(r'([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', Repl, line))
+
+  def _StrToBool(self, s):
+    """Returns True if a string expresses a true value."""
+    return s.rstrip().lower() in ('true', '1')
+
+  def NextTimeout(self):
+    """Returns the time of the next event."""
+    return self._next_timeout
+
+  def Poll(self, now):
+    """Polls the state machine."""
+
+    def Disable():
+      self._interval = 0
+      self._next_packet_blast_time = float('inf')
+
+    def StartPacketBlastTimer(interval):
+      self._interval = interval
+      # Inter-arrival times in a Poisson process are exponentially distributed.
+      # The timebase slip prevents a burst of packet blasts in case we fall
+      # behind.
+      self._next_packet_blast_time = now + random.expovariate(1 / interval)
+
+    # Read parameters.
+    duration = self._ReadParameter('duration', float)
+    enable = self._ReadParameter('enable', self._StrToBool)
+    interval = self._ReadParameter('interval', float)
+    size = self._ReadParameter('size', int)
+
+    # Disable.
+    if not enable or duration <= 0 or interval <= 0 or size <= 0:
+      Disable()
+
+    # Enable or change interval.
+    elif self._interval != interval:
+      StartPacketBlastTimer(interval)
+
+    # Packet blast.
+    elif now >= self._next_packet_blast_time:
+      StartPacketBlastTimer(interval)
+      clients = [(manager.vdevname, assoc.mac)
+                 for manager in self._managers
+                 for assoc in manager.GetState().assoc]
+      if clients:
+        (interface, client) = random.choice(clients)
+        RunProc(callback=self._LogWifiblasterResults,
+                args=['wifiblaster',
+                      '-i', interface,
+                      '-d', str(duration),
+                      '-s', str(size),
+                      helpers.DecodeMAC(client)])
+
+    # Poll again in at most one second. This allows parameter changes (e.g. a
+    # long interval to a short interval) to take effect sooner than the next
+    # scheduled packet blast.
+    self._next_timeout = min(now + 1, self._next_packet_blast_time)
+
+
 def main():
   global opt
   o = options.Options(optspec)
@@ -771,6 +888,8 @@ def main():
   if not managers:
     raise Exception('no wifi AP-mode devices found.  Try --fake.')
 
+  wifiblaster_controller = WifiblasterController(managers, opt.status_dir)
+
   last_sent = last_autochan = last_print = 0
   while 1:
     if opt.watch_pid > 1:
@@ -793,6 +912,7 @@ def main():
       timeouts.append(last_autochan + opt.autochan_interval)
     if opt.print_interval:
       timeouts.append(last_print + opt.print_interval)
+    timeouts.append(wifiblaster_controller.NextTimeout())
     timeout = min(filter(None, timeouts))
     log.Debug2('now=%f timeout=%f  timeouts=%r', gettime(), timeout, timeouts)
     if timeout: timeout -= gettime()
@@ -856,6 +976,7 @@ def main():
                 ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
                          for i in sorted(p.assoc,
                                          key=lambda i: -i.rssi)))
+    wifiblaster_controller.Poll(now)
     if not r:
       log.WriteEventFile('ready')
 
