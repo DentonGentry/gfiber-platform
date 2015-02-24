@@ -209,7 +209,7 @@ int upload_file(const char *server_url, const char* target_name, char* data,
     return -1;
   }
 
-  for (i=0; i < ARRAYSIZE(resolvers); ++i) {
+  for (i=0; i < (int)ARRAYSIZE(resolvers); ++i) {
     long http_code;
     struct kvpair* kvpairs = kvpairs_save;
 
