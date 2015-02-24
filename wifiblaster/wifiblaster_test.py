@@ -101,7 +101,6 @@ class PktgenTest(unittest.TestCase):
 
   def setUp(self):
     self.pktgen = wifiblaster.Pktgen('wlan0')
-    self.pktgen._ReloadModule = mock.create_autospec(self.pktgen._ReloadModule)
     self.pktgen._ReadFile = mock.create_autospec(self.pktgen._ReadFile)
     self.pktgen._WriteFile = mock.create_autospec(self.pktgen._WriteFile)
 
@@ -111,9 +110,10 @@ class PktgenTest(unittest.TestCase):
         '     frags: 0  delay: 0  clone_skb: 0  ifname: wlan0\n'
         '     flows: 0 flowlen: 0\n'
         '     queue_map_min: 0  queue_map_max: 0\n'
+        '     duration: 0\n'
         '     dst_min:   dst_max: \n'
         '        src_min:   src_max: \n'
-        '     src_mac: 64:66:b3:1b:f7:ef dst_mac: f4:f5:e8:80:f2:12\n'
+        '     src_mac: 64:66:b3:1b:f7:ef dst_mac: 11:11:11:11:11:11\n'
         '     udp_src_min: 9  udp_src_max: 9  udp_dst_min: 9  udp_dst_max: 9\n'
         '     src_mac_count: 0  dst_mac_count: 0\n'
         '     Flags: \n'
@@ -127,7 +127,8 @@ class PktgenTest(unittest.TestCase):
         '     flows: 0\n'
         'Result: OK: 395196(c394984+d212) usec, 1000 (64byte,0frags)\n'
         '  2530pps 1Mb/sec (1295360bps) errors: 0\n')
-    self.assertEquals(self.pktgen.PacketBlast(), .395196)
+    self.assertEquals(self.pktgen.PacketBlast('11:11:11:11:11:11', 1000, 0, 64),
+                      .395196)
 
   def testPacketBlast_PacketBlastFailed(self):
     self.pktgen._ReadFile.return_value = (
@@ -135,9 +136,10 @@ class PktgenTest(unittest.TestCase):
         '     frags: 0  delay: 0  clone_skb: 0  ifname: wlan0\n'
         '     flows: 0 flowlen: 0\n'
         '     queue_map_min: 0  queue_map_max: 0\n'
+        '     duration: 0\n'
         '     dst_min:   dst_max: \n'
         '        src_min:   src_max: \n'
-        '     src_mac: 64:66:b3:1b:f7:ef dst_mac: 00:00:00:00:00:00\n'
+        '     src_mac: 64:66:b3:1b:f7:ef dst_mac: 11:11:11:11:11:11\n'
         '     udp_src_min: 9  udp_src_max: 9  udp_dst_min: 9  udp_dst_max: 9\n'
         '     src_mac_count: 0  dst_mac_count: 0\n'
         '     Flags: \n'
@@ -150,7 +152,9 @@ class PktgenTest(unittest.TestCase):
         '     cur_queue_map: 0\n'
         '     flows: 0\n'
         'Result: Idle\n')
-    self.assertRaises(Exception, self.pktgen.PacketBlast)
+    self.assertRaisesRegexp(Exception, r'Packet blast failed',
+                            self.pktgen.PacketBlast,
+                            '11:11:11:11:11:11', 1000, 0, 64)
 
 
 class WifiblasterTest(unittest.TestCase):
@@ -164,10 +168,13 @@ class WifiblasterTest(unittest.TestCase):
                                  tx_failed=self.tx_packets / 1000)
       }
 
-    def PacketBlastSideEffect():
-      if self.pktgen.SetClient.call_args[0][0] == '11:11:11:11:11:11':
-        self.tx_packets += self.pktgen.SetCount.call_args[0][0]
-      return 10
+    def PacketBlastSideEffect(client, count, duration, _):
+      if client == '11:11:11:11:11:11':
+        if count != 0:
+          self.tx_packets += count
+        elif duration != 0:
+          self.tx_packets += 1000 * duration
+      return duration
 
     self.iw = mock.create_autospec(wifiblaster.Iw)('wlan0')
     self.iw.GetClients.side_effect = GetClientsSideEffect
@@ -178,14 +185,14 @@ class WifiblasterTest(unittest.TestCase):
   def testPacketBlast(self):
     self.assertEquals(
         wifiblaster._PacketBlast(self.iw, self.pktgen,
-                                 '11:11:11:11:11:11', 1000, 64),
+                                 '11:11:11:11:11:11', 1, 64),
         'mac=11:11:11:11:11:11 tx_packets=1000 tx_retries=10 tx_failed=1 '
-        'elapsed=10 throughput=51200')
+        'throughput=512000')
 
   def testPacketBlast_ClientDisconnected(self):
     self.assertEquals(
         wifiblaster._PacketBlast(self.iw, self.pktgen,
-                                 '22:22:22:22:22:22', 1000, 64),
+                                 '22:22:22:22:22:22', 1, 64),
         'mac=22:22:22:22:22:22 not connected')
 
 

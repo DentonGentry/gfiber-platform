@@ -28,8 +28,8 @@ _OPTSPEC = """
 wifiblaster [options...] [clients...]
 --
 i,interface=  Name of access point interface [wlan0]
-c,count=      Number of packets to blast [1000]
-s,size=       Packet size [64]
+d,duration=   Packet blast duration in seconds [.1]
+s,size=       Packet size in bytes [64]
 """
 
 IwStat = collections.namedtuple('IwStat', ['tx_packets',
@@ -85,13 +85,8 @@ class Pktgen(object):
     """Initializes Pktgen on a given interface."""
     self._interface = interface
     self._control_file = '/proc/net/pktgen/pgctrl'
-    self._thread_file = '/proc/net/pktgen/kpktgend_0'
+    self._thread_file = '/proc/net/pktgen/kpktgend_1'
     self._device_file = '/proc/net/pktgen/%s' % interface
-
-  def _ReloadModule(self):
-    """Reloads the pktgen kernel module."""
-    subprocess.check_call(['modprobe', '-r', 'pktgen'])
-    subprocess.check_call(['modprobe', 'pktgen'])
 
   def _ReadFile(self, filename):
     """Returns the contents of a file."""
@@ -105,26 +100,18 @@ class Pktgen(object):
 
   def Initialize(self):
     """Resets and initializes pktgen."""
-    self._ReloadModule()
+    self._WriteFile(self._control_file, 'reset')
     self._WriteFile(self._thread_file, 'add_device %s' % self._interface)
     # Work around a bug on GFRG200 where transmits hang on queues other than BE.
     self._WriteFile(self._device_file, 'queue_map_min 2')
     self._WriteFile(self._device_file, 'queue_map_max 2')
 
-  def SetClient(self, client):
-    """Sets the client to blast packets to."""
+  def PacketBlast(self, client, count, duration, size):
+    """Starts a blocking packet blast."""
     self._WriteFile(self._device_file, 'dst_mac %s' % client)
-
-  def SetCount(self, count):
-    """Sets the number of packets to blast."""
     self._WriteFile(self._device_file, 'count %d' % count)
-
-  def SetSize(self, size):
-    """Set the packet size."""
+    self._WriteFile(self._device_file, 'duration %d' % (1000000 * duration))
     self._WriteFile(self._device_file, 'pkt_size %d' % size)
-
-  def PacketBlast(self):
-    """Starts a blocking packet blast with the current configuration."""
     self._WriteFile(self._control_file, 'start')
     result = self._ReadFile(self._device_file)
     if re.search(r'Result: OK', result):
@@ -133,18 +120,15 @@ class Pktgen(object):
     raise Exception('Packet blast failed')
 
 
-def _PacketBlast(iw, pktgen, client, count, size):
+def _PacketBlast(iw, pktgen, client, duration, size):
   """Blasts packets at a client and returns a string representing the result."""
-  # Configure pktgen.
-  pktgen.SetClient(client)
-  pktgen.SetCount(count)
-  pktgen.SetSize(size)
-
   try:
+    # Attempt to start an aggregation session.
+    pktgen.PacketBlast(client, 1, 0, size)
     # Get statistics before packet blast.
     before = iw.GetClients()[client]
     # Start packet blast.
-    elapsed = pktgen.PacketBlast()
+    elapsed = pktgen.PacketBlast(client, 0, duration, size)
     # Get statistics after packet blast.
     after = iw.GetClients()[client]
   except KeyError:
@@ -154,22 +138,22 @@ def _PacketBlast(iw, pktgen, client, count, size):
   throughput = 8 * size * (after.tx_packets - before.tx_packets) / elapsed
 
   # Format result.
-  return ('mac=%s tx_packets=%d tx_retries=%d tx_failed=%d elapsed=%g '
-          'throughput=%d') % (
+  return 'mac=%s tx_packets=%d tx_retries=%d tx_failed=%d throughput=%d' % (
       client,
       after.tx_packets - before.tx_packets,
       after.tx_retries - before.tx_retries,
       after.tx_failed - before.tx_failed,
-      elapsed,
       throughput)
 
 
 def main():
   # Parse and validate arguments.
   (opt, _, clients) = options.Options(_OPTSPEC).parse(sys.argv[1:])
-  if int(opt.count) <= 0:
-    raise Exception('count must be a positive integer')
-  if int(opt.size) <= 0:
+  opt.duration = float(opt.duration)
+  opt.size = int(opt.size)
+  if opt.duration <= 0:
+    raise Exception('duration must be positive')
+  if opt.size <= 0:
     raise Exception('size must be a positive integer')
 
   # Initialize iw and pktgen.
@@ -192,7 +176,7 @@ def main():
 
   # Blast packets at each client.
   for client in clients:
-    print _PacketBlast(iw, pktgen, client, opt.count, opt.size)
+    print _PacketBlast(iw, pktgen, client, opt.duration, opt.size)
 
 
 if __name__ == '__main__':
