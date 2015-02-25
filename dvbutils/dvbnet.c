@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -26,6 +27,22 @@
 #include <linux/dvb/net.h>
 
 #define MAX_INTERFACES 10
+
+static int dvb_open(int adapter, int device, const char* type) {
+  int fd;
+  char s[100];
+  if (snprintf(s, sizeof(s), "/dev/dvb/adapter%d/%s%d",
+               adapter, type, device) < 0) {
+    errno = EINVAL;
+    return -1;
+  }
+  fd = open(s, O_RDWR);
+  if (fd < 0) {
+    fprintf(stderr, "dvb_open: %s: %s\n", strerror(errno), s);
+    return -1;
+  }
+  return fd;
+}
 
 static int dvb_add_netif(int netfd, int pid, int ule) {
   struct dvb_net_if p = {0};
@@ -56,30 +73,20 @@ static int dvb_get_netif(int netfd, int if_num, int* pid, int* feedtype) {
   return err;
 }
 
-static int dvb_open(int adapter, int device, const char* type) {
-  char s[100];
-  if (snprintf(s, sizeof(s), "/dev/dvb/adapter%d/%s%d",
-               adapter, type, device) < 0) {
-    return -EINVAL;
-  }
-  return open(s, O_RDWR);
-}
-
 static void usage(const char* prog) {
   fprintf(stderr, "Usage:\n");
   fprintf(stderr, "  %s [options] -p <PID> [-u]\n", prog);
-  fprintf(stderr, "               Add network interfaces\n");
+  fprintf(stderr, "    Add network interfaces\n");
+  fprintf(stderr, "      -p PID     Program ID (0 - 0x2000)\n");
+  fprintf(stderr, "      -u         Use ULE instead of MPE\n");
   fprintf(stderr, "  %s [options] -r <Number>\n", prog);
-  fprintf(stderr, "               Remove network interfaces\n");
+  fprintf(stderr, "    Remove network interfaces\n");
+  fprintf(stderr, "      -r Number  Network interface number\n");
   fprintf(stderr, "  %s [options] -l\n", prog);
-  fprintf(stderr, "               List network interfaces\n");
-  fprintf(stderr, "Options:\n");
-  fprintf(stderr, "    -a Adapter Adapter device (default 0)\n");
-  fprintf(stderr, "    -d Network Network device (default 0)\n");
-  fprintf(stderr, "    -p PID     Program ID (0 - 0x2000)\n");
-  fprintf(stderr, "    -s Size    Demux buffer size\n");
-  fprintf(stderr, "    -u         Use ULE instead of MPE\n");
-  fprintf(stderr, "    -r Number  Network interface number\n");
+  fprintf(stderr, "    List network interfaces\n");
+  fprintf(stderr, "  Options:\n");
+  fprintf(stderr, "      -a Adapter Adapter device (default 0)\n");
+  fprintf(stderr, "      -d Network Network device (default 0)\n");
   exit(EXIT_FAILURE);
 }
 

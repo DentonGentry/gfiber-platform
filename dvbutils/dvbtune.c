@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <poll.h>
+#include <string.h>
 #include <strings.h>
 #include <time.h>
 
@@ -32,15 +33,22 @@
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 
 static int dvb_open(int adapter, int device, const char* type) {
+  int fd;
   char s[100];
   if (snprintf(s, sizeof(s), "/dev/dvb/adapter%d/%s%d",
                adapter, type, device) < 0) {
-    return -EINVAL;
+    errno = EINVAL;
+    return -1;
   }
-  return open(s, O_RDWR);
+  fd = open(s, O_RDWR);
+  if (fd < 0) {
+    fprintf(stderr, "dvb_open: %s: %s\n", strerror(errno), s);
+    return -1;
+  }
+  return fd;
 }
 
-static int dvb_fe_set_properties(int fefd, int mod, int ifreq, int sr,
+static int dvb_fe_set_properties(int fefd, int sys, int mod, int ifreq, int sr,
                                  int fec, int voltage, int tone) {
   int num = 0;
   struct dtv_properties ps;
@@ -56,8 +64,7 @@ static int dvb_fe_set_properties(int fefd, int mod, int ifreq, int sr,
     {DTV_TONE, tone},
     {DTV_PILOT, PILOT_AUTO},
     {DTV_ROLLOFF, ROLLOFF_AUTO},
-    // TODO: Add command option for delivery system.
-    {DTV_DELIVERY_SYSTEM, SYS_DVBS2},
+    {DTV_DELIVERY_SYSTEM, sys},
     {DTV_TUNE, 1},
   };
 
@@ -134,6 +141,66 @@ static int str2fec(const char* s) {
   return fec;
 }
 
+static struct {
+  const char* name;
+  fe_delivery_system_t system;
+} system_map[] = {
+  {"atsc", SYS_ATSC},
+  {"cmmb", SYS_CMMB},
+  {"dab", SYS_DAB},
+  {"dss", SYS_DSS},
+  {"dvbc_annex_ac", SYS_DVBC_ANNEX_AC},
+  {"dvbc_annex_b", SYS_DVBC_ANNEX_B},
+  {"dvbh", SYS_DVBH},
+  {"dvbs", SYS_DVBS},
+  {"dvbs2", SYS_DVBS2},
+  {"dvbt", SYS_DVBT},
+  {"dvbt2", SYS_DVBT2},
+  {"isdbc", SYS_ISDBC},
+  {"isdbs", SYS_ISDBS},
+  {"isdbt", SYS_ISDBT},
+  {"turbo", SYS_TURBO},
+};
+
+static fe_delivery_system_t str2system(const char* s) {
+  int i;
+  for (i = 0; i < ARRAY_SIZE(system_map); i++) {
+    if (strcasecmp(s, system_map[i].name) == 0) {
+      return system_map[i].system;
+    }
+  }
+  return SYS_UNDEFINED;
+}
+
+static struct {
+  const char* name;
+  fe_modulation_t modulation;
+} modulation_map[] = {
+  {"apsk16", APSK_16},
+  {"apsk32", APSK_32},
+  {"dqpsk", DQPSK},
+  {"psk8", PSK_8},
+  {"qam128", QAM_128},
+  {"qam16", QAM_16},
+  {"qam256", QAM_256},
+  {"qam32", QAM_32},
+  {"qam64", QAM_64},
+  {"qamauto", QAM_AUTO},
+  {"qpsk", QPSK},
+  {"vsb16", VSB_16},
+  {"vsb8", VSB_8},
+};
+
+static fe_modulation_t str2modulation(const char* s) {
+  int i;
+  for (i = 0; i < ARRAY_SIZE(modulation_map); i++) {
+    if (strcasecmp(s, modulation_map[i].name) == 0) {
+      return modulation_map[i].modulation;
+    }
+  }
+  return QPSK;
+}
+
 static int64_t time_ms() {
   struct timespec tv = {0};
   if (clock_gettime(CLOCK_MONOTONIC, &tv) < 0) {
@@ -177,9 +244,17 @@ static void usage(const char* prog) {
   fprintf(stderr, "Usage: %s [options]\n", prog);
   fprintf(stderr, "    -a Adapter Adapter device (default 0)\n");
   fprintf(stderr, "    -d Device  Front end device (default 0)\n");
+  fprintf(stderr, "    -s System  Delivery system (default DVBS2)\n");
+  fprintf(stderr, "         [atsc cmmb dab dss dvbc_annex_ac]\n");
+  fprintf(stderr, "         [dvbc_annex_b dvbh dvbs dvbs2 dvbt]\n");
+  fprintf(stderr, "         [dvbt2 isdbc isdbs isdbt turbo]\n");
+  fprintf(stderr, "    -m Mod     Modulation (default psk8)\n");
+  fprintf(stderr, "         [apsk16 apsk32 dqpsk psk8 qpsk vsb8 vsb16]\n");
+  fprintf(stderr, "         [qam16 qam32 qam64 qam128 qam256 qamauto]\n");
   fprintf(stderr, "    -i Freq    Intermediate frequency in kHz (required)\n");
   fprintf(stderr, "    -r Rate    Symbol rate in 1000's (required)\n");
   fprintf(stderr, "    -c FEC     Forward Error Correction code\n");
+  fprintf(stderr, "         [none auto 12 23 34 35 45 56 67 78 910]\n");
   fprintf(stderr, "    -p <v|h>   Polarization voltage (default off)\n");
   fprintf(stderr, "    -t         Turn on 22kHz tone\n");
   fprintf(stderr, "    -w timeout Milliseconds to wait for lock\n");
@@ -192,7 +267,6 @@ int main(int argc, char** argv) {
   int opt;
   int adapter = 0;
   int ifreq_khz = 0;
-  // TODO: Add command option for modulation.
   int mod = PSK_8;
   int sr_k = 0;
   int fec = FEC_AUTO;
@@ -203,8 +277,9 @@ int main(int argc, char** argv) {
   int required_args = 0;
   int loop = 1;
   int timeout = 2000;
+  int delivery_sys = SYS_DVBS2;
 
-  while ((opt = getopt(argc, argv, "a:d:i:p:r:c:w:txh")) != -1) {
+  while ((opt = getopt(argc, argv, "a:d:i:p:r:c:w:s:m:txh")) != -1) {
     switch (opt) {
       case 'a':
         adapter = atoi(optarg);
@@ -242,6 +317,12 @@ int main(int argc, char** argv) {
         }
         break;
       }
+      case 's':
+        delivery_sys = str2system(optarg);
+        break;
+      case 'm':
+        mod = str2modulation(optarg);
+        break;
       case 'x':
         loop = 0;
         break;
@@ -259,7 +340,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  err = dvb_fe_set_properties(fefd, mod, ifreq_khz, sr_k*1000, fec, voltage, tone);
+  err = dvb_fe_set_properties(fefd, delivery_sys, mod, ifreq_khz,
+                              sr_k*1000, fec, voltage, tone);
   if (err < 0) {
     perror("dvb_fe_set_properties");
   }
