@@ -100,9 +100,71 @@ void set_adv_data(int s, const char *uuidstr, int major, int minor,
   }
 }
 
-int advertise_ibeacon(const char *uuidstr,
-    int major, int minor, uint8_t tx_power,
-    int interval_ms)
+void set_adv_params(int s, int interval_ms)
+{
+  le_set_advertising_parameters_cp aparams;
+  struct hci_request hcirq;
+  uint8_t status;
+
+  memset(&aparams, 0, sizeof(aparams));
+  aparams.min_interval = htobs(interval_ms);
+  aparams.max_interval = htobs(interval_ms);
+  aparams.advtype = 3;  // advertising non-connectable
+  aparams.chan_map = 7;  // all three advertising channels
+
+  memset(&hcirq, 0, sizeof(hcirq));
+  hcirq.ogf = OGF_LE_CTL;
+  hcirq.ocf = OCF_LE_SET_ADVERTISING_PARAMETERS;
+  hcirq.cparam = &aparams;
+  hcirq.clen = LE_SET_ADVERTISING_PARAMETERS_CP_SIZE;
+  hcirq.rparam = &status;
+  hcirq.rlen = 1;
+
+  if (hci_send_req(s, &hcirq, 1000)) {
+    perror("hci_send_req OCF_LE_SET_ADVERTISING_PARAMETERS");
+    hci_close_dev(s);
+    exit(1);
+  }
+
+  if (status) {
+    fprintf(stderr, "OCF_LE_SET_ADVERTISING_PARAMETERS status %d\n", status);
+    hci_close_dev(s);
+    exit(1);
+  }
+}
+
+void set_adv_enable(int s, uint8_t enable)
+{
+  le_set_advertise_enable_cp aenable;
+  struct hci_request hcirq;
+  uint8_t status;
+
+  memset(&aenable, 0, sizeof(aenable));
+  aenable.enable = enable;
+
+  memset(&hcirq, 0, sizeof(hcirq));
+  hcirq.ogf = OGF_LE_CTL;
+  hcirq.ocf = OCF_LE_SET_ADVERTISE_ENABLE;
+  hcirq.cparam = &aenable;
+  hcirq.clen = LE_SET_ADVERTISE_ENABLE_CP_SIZE;
+  hcirq.rparam = &status;
+  hcirq.rlen = 1;
+
+  if (hci_send_req(s, &hcirq, 1000)) {
+    perror("hci_send_req OCF_LE_SET_ADVERTISE_ENABLE");
+    hci_close_dev(s);
+    exit(1);
+  }
+
+  if (status) {
+    fprintf(stderr, "OCF_LE_SET_ADVERTISE_ENABLE status %d\n", status);
+    hci_close_dev(s);
+    exit(1);
+  }
+}
+
+int advertise_ibeacon(int enable, const char *uuidstr,
+    int major, int minor, uint8_t tx_power)
 {
   int dev_id = hci_get_route(NULL);
   int s = -1;
@@ -112,7 +174,13 @@ int advertise_ibeacon(const char *uuidstr,
     return(1);
   }
 
-  set_adv_data(s, uuidstr, major, minor, tx_power);
+  if (enable) {
+    set_adv_data(s, uuidstr, major, minor, tx_power);
+    set_adv_params(s, 200);
+    set_adv_enable(s, 1);
+  } else {
+    set_adv_enable(s, 0);
+  }
 
   hci_close_dev(s);
   return(0);
@@ -120,12 +188,12 @@ int advertise_ibeacon(const char *uuidstr,
 
 void usage(const char *progname)
 {
-  fprintf(stderr, "usage: %s -u uuid -m major -n minor -t txpow "
-      "-i interval\n", progname);
-  fprintf(stderr, "\t-i interval: advertisement interval in msec\n");
-  fprintf(stderr, "\t-m major: major number to advertise\n");
-  fprintf(stderr, "\t-n minor: minor number to advertise\n");
-  fprintf(stderr, "\t-t txpow: transmit power\n");
+  fprintf(stderr, "usage: %s [-d | -m major -n minor -t txpow -u uuid]\n",
+      progname);
+  fprintf(stderr, "\t-d: disable BTLE advertisement.\n");
+  fprintf(stderr, "\t-m major: major number to advertise.\n");
+  fprintf(stderr, "\t-n minor: minor number to advertise.\n");
+  fprintf(stderr, "\t-t txpow: transmit power.\n");
   fprintf(stderr, "\t-u uuid: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx\n");
   exit(1);
 }
@@ -136,14 +204,13 @@ int main(int argc, char **argv)
   const char *uuidstr = NULL;
   int major = -1;
   int minor = -1;
-  int interval_ms = 50;
   uint8_t tx_power = 0xff;
-  char ibuf[80];
+  int do_disable = 0;
 
-  while ((c = getopt(argc, argv, "i:m:n:t:u:")) != -1) {
+  while ((c = getopt(argc, argv, "dm:n:t:u:")) != -1) {
     switch(c) {
-      case 'i':
-        interval_ms = atoi(optarg);
+      case 'd':
+        do_disable = 1;
         break;
       case 'm':
         major = atoi(optarg);
@@ -163,11 +230,17 @@ int main(int argc, char **argv)
     }
   }
 
+  if (do_disable) {
+    advertise_ibeacon(0, NULL, 0, 0, 0);
+    return 0;
+  }
+
   if ((uuidstr == NULL) || (major < 0) || (major > 65535) ||
-      (minor < 0) || (minor > 65535) || (interval_ms < 0)) {
+      (minor < 0) || (minor > 65535)) {
     usage(argv[0]);
   }
 
-  advertise_ibeacon(uuidstr, major, minor, tx_power, interval_ms);
-  read(0, ibuf, sizeof(ibuf));
+  advertise_ibeacon(1, uuidstr, major, minor, tx_power);
+
+  return 0;
 }
