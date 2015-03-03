@@ -236,6 +236,41 @@ int gpiooutstat(int argc, char *argv[]) {
   return rc;
 }
 
+static void board_info_usage(void) {
+  printf("board_info\n");
+  printf("Example:\n");
+  printf("board_info\n");
+  printf("query hardware board info\n");
+}
+
+int board_info(int argc, char *argv[]) {
+  uint32_t gpio_63_32_input, data;
+
+  if ((argc != 1) || (argv == NULL)) {
+    board_info_usage();
+    return -1;
+  }
+
+  // Set both board ID and HW REV bits to input
+  read_physical_addr(GPIO_63_32_PIN_OUTPUT_EN_REG, &data);
+  data |= (GPIO_HW_REV_MASK << GPIO_HW_REV_SHIFT) |
+          (GPIO_BOARD_ID_MASK << GPIO_BOARD_ID_SHIFT);
+  write_physical_addr(GPIO_63_32_PIN_OUTPUT_EN_REG, data);
+
+  // Select both board ID and HW REV bits to GPIO
+  read_physical_addr(GPIO_63_32_PIN_SELECT_REG, &data);
+  data |= (GPIO_HW_REV_MASK << GPIO_HW_REV_SHIFT) |
+          (GPIO_BOARD_ID_MASK << GPIO_BOARD_ID_SHIFT);
+  write_physical_addr(GPIO_63_32_PIN_SELECT_REG, data);
+
+  // Read board ID and HW rev GPIO pins
+  read_physical_addr(GPIO_63_32_PIN_INPUT_REG, &gpio_63_32_input);
+  printf("Board ID: %d, Hardware Rev: %d\n",
+         (gpio_63_32_input >> GPIO_BOARD_ID_SHIFT) & GPIO_BOARD_ID_MASK,
+         (gpio_63_32_input >> GPIO_HW_REV_SHIFT) & GPIO_HW_REV_MASK);
+  return 0;
+}
+
 static void gpiodebugset_usage(void) {
   printf("gpiodebugset <mask in hex>\n");
   printf("Example:\n");

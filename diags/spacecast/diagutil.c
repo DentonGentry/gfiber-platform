@@ -19,6 +19,7 @@ int iowrite(int argc, char **argv);
 int gpioout(int argc, char *argv[]);
 int gpiodisableout(int argc, char *argv[]);
 int gpiooutstat(int argc, char *argv[]);
+int board_info(int argc, char *argv[]);
 int send_ip(int argc, char *argv[]);
 int send_eth(int argc, char *argv[]);
 int send_if_to_mac(int argc, char *argv[]);
@@ -75,6 +76,7 @@ tCOMMAND command_list[] = {
     {"gpioout", gpioout},
     {"gpiooutstat", gpiooutstat},
     {"gpiodisableout", gpiodisableout},
+    {"board_info", board_info},
     {"", NULL},
     {"send_ip", send_ip},
     {"send_eth", send_eth},
