@@ -58,6 +58,7 @@ static int check_mtd(void) {
  * erase_mtd - erase MTD device
  */
 static int erase_mtd(int idx) {
+  int res;
   struct mtd_info_user mi;
   struct erase_info_user ei;
 
@@ -70,13 +71,19 @@ static int erase_mtd(int idx) {
   ei.start = 0;
   ei.length = mi.erasesize;
   while (ei.start < SYSVAR_BLOCK_SIZE) {
-    /* unlock and erase data on MTD device */
-    if (ioctl(mtd_dev[idx], MEMUNLOCK, &ei)) {
+    /* For select devices, unlocking is not implemented.  So, if errno
+     * is set to something like EOPNOTSUPP, it is not an error.  It is simply
+     * not required to write/erase a block of the device. */
+    res = ioctl(mtd_dev[idx], MEMUNLOCK, &ei);
+    if (res != 0 && errno != EOPNOTSUPP) {
       print_err("unlock MTD device ", idx);
       return SYSVAR_ERASE_ERR;
     }
 
-    mtd_dev_unlocked[idx] = 1;
+    /* Only mark the device as unlocked if the unlock was successful. */
+    if (res == 0) {
+      mtd_dev_unlocked[idx] = 1;
+    }
 
     if (ioctl(mtd_dev[idx], MEMERASE, &ei)) {
       print_err("erase MTD device ", idx);
