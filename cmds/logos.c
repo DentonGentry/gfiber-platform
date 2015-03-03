@@ -656,6 +656,25 @@ int main(int argc, char **argv) {
     }
     dup2(fd, 1);  // make it stdout
     close(fd);
+
+    // Dup stderr to /dev/null so that processes redirected to logos and
+    // backgrounded don't hold on to any descriptors that were controlled by the
+    // foreground.
+    fd = open("/dev/null", O_WRONLY);
+    if (fd < 0) {
+      perror("/dev/null");
+      return 3;
+    }
+    dup2(fd, 2); // stderr -> /dev/null
+    close(fd);
+
+    // Chdir to / so that we don't prevent filesystems from unmounting just
+    // because we happened to be in that directory while starting a long-running
+    // task.
+    if (chdir("/") != 0) {
+      perror("chdir /");
+      return 3;
+    }
   }
 
   while (1) {
