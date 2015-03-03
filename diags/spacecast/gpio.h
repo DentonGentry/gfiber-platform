@@ -25,6 +25,14 @@
 #define GPIO_MISC_SELET_NUM 60
 #define FIRST_GPIO_SET_SIZE 32
 
+#define GPIO_63_32_PIN_OUTPUT_EN_REG 0x904700D4
+#define GPIO_63_32_PIN_INPUT_REG 0x904700D8
+#define GPIO_63_32_PIN_SELECT_REG 0x904700DC
+#define GPIO_HW_REV_MASK 0x7
+#define GPIO_HW_REV_SHIFT (52-32)
+#define GPIO_BOARD_ID_MASK 0x7
+#define GPIO_BOARD_ID_SHIFT (55-32)
+
 int gpio_63_32_out_set(int pin, int pinval);
 int gpio_31_0_out_set(int pin, int pinval);
 int enable_gpio_63_60_signal();
