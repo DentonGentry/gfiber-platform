@@ -61,6 +61,7 @@ HNVRAM = 'hnvram'
 MTD_PREFIX = '/dev/mtd'
 SYSCLASSMTD = '/sys/class/mtd'
 MMCBLK = '/dev/mmcblk0'
+HARDDISK = '/dev/sda'
 PROC_CMDLINE = '/proc/cmdline'
 PROC_MTD = '/proc/mtd'
 SGDISK = 'sgdisk'
@@ -212,8 +213,8 @@ def GetMtdDevForNameList(names):
   raise KeyError(names)
 
 
-def GetGptPartitionForName(name):
-  """Find the mmcmlk0p# for a named partition.
+def GetGptPartitionForName(blk_dev, name):
+  """Find the device node for a named partition.
 
   From sgdisk -p we have:
 
@@ -230,19 +231,22 @@ def GetGptPartitionForName(name):
   Returns:
     Device file of named partition
   """
-  cmd = [SGDISK, '-p', MMCBLK]
+  cmd = [SGDISK, '-p', blk_dev]
   devnull = open('/dev/null', 'w')
   try:
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=devnull)
   except OSError:
     return None  # no sgdisk, must not be a platform that supports it
-  mmcpart = None
+  infix = ''
+  if blk_dev.startswith("/dev/mmcblk"):
+    infix = 'p'
+  part = None
   for line in p.stdout:
     fields = line.strip().split()
     if len(fields) == 7 and fields[6] == name:
-      mmcpart = MMCBLK + 'p' + fields[0]
+      part = blk_dev + infix + fields[0]
   p.wait()
-  return mmcpart
+  return part
 
 
 def IsDeviceNoSigning():
@@ -851,7 +855,12 @@ def main():
     if rootfs:
       partition_name = 'rootfs%d' % partition
       mtd = GetMtdDevForNameOrNone(partition_name)
-      gpt = GetGptPartitionForName(partition_name)
+      if GetPlatform().startswith('GFSC'):
+        gpt = GetGptPartitionForName(HARDDISK, partition_name)
+        if gpt:
+          mtd = None
+      else:
+        gpt = GetGptPartitionForName(MMCBLK, partition_name)
       if mtd:
         Log('Installing raw rootfs image to ubi partition %r\n' % mtd)
         VerbosePrint('Writing raw rootfs to %r\n', mtd)
@@ -875,7 +884,7 @@ def main():
           raise Fatal('Incompatible device: unrecognized kernel format')
       partition_name = 'kernel%d' % partition
       mtd = GetMtdDevForNameOrNone(partition_name)
-      gpt = GetGptPartitionForName(partition_name)
+      gpt = GetGptPartitionForName(MMCBLK, partition_name)
       if mtd:
         VerbosePrint('Writing kernel to %r\n' % mtd)
         InstallToMtd(kern, mtd)
