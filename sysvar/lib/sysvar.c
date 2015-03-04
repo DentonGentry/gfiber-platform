@@ -103,7 +103,8 @@ static void sysvar_len(struct sysvar_buf *buf, int len) {
 /*
  * sysvar_copy - copy data from/to the data buffer
  */
-static void sysvar_copy(char *dst, char *src, int len, char end) {
+static void sysvar_copy(unsigned char *dst, unsigned char *src, int len,
+                        unsigned char end) {
   int i;
 
   if (end == SYSVAR_STR_TO_BUF) {
@@ -192,7 +193,10 @@ int load_var(struct sysvar_buf *buf) {
       break;
 
     /* name of system variable */
-    sysvar_copy(name, (char *)&buf->data[i], SYSVAR_NAME, SYSVAR_BUF_TO_STR);
+    sysvar_copy((unsigned char *)name,
+                &buf->data[i],
+                SYSVAR_NAME,
+                SYSVAR_BUF_TO_STR);
     i += SYSVAR_NAME;
 
     /* length of system variable */
@@ -206,7 +210,8 @@ int load_var(struct sysvar_buf *buf) {
 
     i += 2;
     /* copy system variable */
-    sysvar_copy(value, (char *)&buf->data[i], len, SYSVAR_BUF_TO_STR);
+    sysvar_copy((unsigned char *)value, &buf->data[i], len,
+                SYSVAR_BUF_TO_STR);
 
     /* add system variable to data list */
     ret = set_var(buf, name, value);
@@ -228,8 +233,8 @@ int save_var(struct sysvar_buf *buf) {
 
   for (i = 0; i < buf->total_len && curr != NULL; i += len) {
     /* name of system variable */
-    sysvar_copy((char *)&buf->data[i], curr->name,
-                 SYSVAR_NAME, SYSVAR_STR_TO_BUF);
+    sysvar_copy(&buf->data[i], (unsigned char *)curr->name, SYSVAR_NAME,
+                SYSVAR_STR_TO_BUF);
     i += SYSVAR_NAME;
 
     /* length of system variable */
@@ -242,7 +247,8 @@ int save_var(struct sysvar_buf *buf) {
     i += 2;
 
     /* copy system variable */
-    sysvar_copy((char *)&buf->data[i], curr->value, len, SYSVAR_STR_TO_BUF);
+    sysvar_copy(&buf->data[i], (unsigned char *)curr->value, len,
+                SYSVAR_STR_TO_BUF);
 
     curr = curr->next;
   }
