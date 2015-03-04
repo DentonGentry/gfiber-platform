@@ -18,7 +18,6 @@
 __author__ = 'mikemu@google.com (Mike Mu)'
 
 import unittest
-import mock
 import wifiblaster
 
 
@@ -26,10 +25,9 @@ class IwTest(unittest.TestCase):
 
   def setUp(self):
     self.iw = wifiblaster.Iw('wlan0')
-    self.iw._StationDump = mock.create_autospec(self.iw._StationDump)
 
   def testGetClients(self):
-    self.iw._StationDump.return_value = (
+    self.iw._StationDump = lambda: (
         'Station 11:11:11:11:11:11 (on wlan0)\n'
         '\tinactive time:\tx\n'
         '\trx bytes:\tx\n'
@@ -73,7 +71,7 @@ class IwTest(unittest.TestCase):
                                                 tx_failed=2)})
 
   def testGetClients_MissingCounter(self):
-    self.iw._StationDump.return_value = (
+    self.iw._StationDump = lambda: (
         'Station 11:11:11:11:11:11 (on wlan0)\n'
         '\tinactive time:\tx\n'
         '\trx bytes:\tx\n'
@@ -101,11 +99,12 @@ class PktgenTest(unittest.TestCase):
 
   def setUp(self):
     self.pktgen = wifiblaster.Pktgen('wlan0')
-    self.pktgen._ReadFile = mock.create_autospec(self.pktgen._ReadFile)
-    self.pktgen._WriteFile = mock.create_autospec(self.pktgen._WriteFile)
+    self.files = {}
+    self.pktgen._ReadFile = lambda filename: self.files[filename]
+    self.pktgen._WriteFile = lambda filename, s: None
 
   def testPacketBlast(self):
-    self.pktgen._ReadFile.return_value = (
+    self.files['/proc/net/pktgen/wlan0'] = (
         'Params: count 1000  min_pkt_size: 64  max_pkt_size: 64\n'
         '     frags: 0  delay: 0  clone_skb: 0  ifname: wlan0\n'
         '     flows: 0 flowlen: 0\n'
@@ -113,7 +112,7 @@ class PktgenTest(unittest.TestCase):
         '     duration: 0\n'
         '     dst_min:   dst_max: \n'
         '        src_min:   src_max: \n'
-        '     src_mac: 64:66:b3:1b:f7:ef dst_mac: 11:11:11:11:11:11\n'
+        '     src_mac: 11:11:11:11:11:11 dst_mac: 22:22:22:22:22:22\n'
         '     udp_src_min: 9  udp_src_max: 9  udp_dst_min: 9  udp_dst_max: 9\n'
         '     src_mac_count: 0  dst_mac_count: 0\n'
         '     Flags: \n'
@@ -127,11 +126,11 @@ class PktgenTest(unittest.TestCase):
         '     flows: 0\n'
         'Result: OK: 395196(c394984+d212) usec, 1000 (64byte,0frags)\n'
         '  2530pps 1Mb/sec (1295360bps) errors: 0\n')
-    self.assertEquals(self.pktgen.PacketBlast('11:11:11:11:11:11', 1000, 0, 64),
+    self.assertEquals(self.pktgen.PacketBlast('22:22:22:22:22:22', 1000, 0, 64),
                       .395196)
 
   def testPacketBlast_PacketBlastFailed(self):
-    self.pktgen._ReadFile.return_value = (
+    self.files['/proc/net/pktgen/wlan0'] = (
         'Params: count 1000  min_pkt_size: 0  max_pkt_size: 0\n'
         '     frags: 0  delay: 0  clone_skb: 0  ifname: wlan0\n'
         '     flows: 0 flowlen: 0\n'
@@ -139,7 +138,7 @@ class PktgenTest(unittest.TestCase):
         '     duration: 0\n'
         '     dst_min:   dst_max: \n'
         '        src_min:   src_max: \n'
-        '     src_mac: 64:66:b3:1b:f7:ef dst_mac: 11:11:11:11:11:11\n'
+        '     src_mac: 11:11:11:11:11:11 dst_mac: 22:22:22:22:22:22\n'
         '     udp_src_min: 9  udp_src_max: 9  udp_dst_min: 9  udp_dst_max: 9\n'
         '     src_mac_count: 0  dst_mac_count: 0\n'
         '     Flags: \n'
@@ -154,13 +153,13 @@ class PktgenTest(unittest.TestCase):
         'Result: Idle\n')
     self.assertRaisesRegexp(Exception, r'Packet blast failed',
                             self.pktgen.PacketBlast,
-                            '11:11:11:11:11:11', 1000, 0, 64)
+                            '22:22:22:22:22:22', 1000, 0, 64)
 
 
 class WifiblasterTest(unittest.TestCase):
 
   def setUp(self):
-    def GetClientsSideEffect():
+    def GetClients():
       return {
           '11:11:11:11:11:11':
               wifiblaster.IwStat(tx_packets=self.tx_packets,
@@ -168,7 +167,7 @@ class WifiblasterTest(unittest.TestCase):
                                  tx_failed=self.tx_packets / 1000)
       }
 
-    def PacketBlastSideEffect(client, count, duration, _):
+    def PacketBlast(client, count, duration, _):
       if client == '11:11:11:11:11:11':
         if count != 0:
           self.tx_packets += count
@@ -176,10 +175,10 @@ class WifiblasterTest(unittest.TestCase):
           self.tx_packets += 1000 * duration
       return duration
 
-    self.iw = mock.create_autospec(wifiblaster.Iw)('wlan0')
-    self.iw.GetClients.side_effect = GetClientsSideEffect
-    self.pktgen = mock.create_autospec(wifiblaster.Pktgen)('wlan0')
-    self.pktgen.PacketBlast.side_effect = PacketBlastSideEffect
+    self.iw = wifiblaster.Iw('wlan0')
+    self.iw.GetClients = GetClients
+    self.pktgen = wifiblaster.Pktgen('wlan0')
+    self.pktgen.PacketBlast = PacketBlast
     self.tx_packets = 0
 
   def testPacketBlast(self):
