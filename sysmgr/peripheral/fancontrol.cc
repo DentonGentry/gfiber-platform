@@ -46,7 +46,7 @@ const FanControlParams FanControl::kGFMS100FanCtrlSocDefaults = {
                         };
 
 const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
-                          temp_setpt    : 57,
+                          temp_setpt    : 56,
                           temp_max      : 60,
                           temp_step     : 2,
                           duty_cycle_min: 25,
@@ -82,7 +82,7 @@ const FanControlParams FanControl::kGFRG210FanCtrlSocDefaults = {
                         };
 
 const FanControlParams FanControl::kGFRG210FanCtrlHddDefaults = {
-                          temp_setpt    : 57,
+                          temp_setpt    : 56,
                           temp_max      : 60,
                           temp_step     : 2,
                           duty_cycle_min: 30,
@@ -109,7 +109,7 @@ const FanControlParams FanControl::kGFSC100FanCtrlSocDefaults = {
                         };
 
 const FanControlParams FanControl::kGFSC100FanCtrlHddDefaults = {
-                          temp_setpt    : 57,
+                          temp_setpt    : 56,
                           temp_max      : 60,
                           temp_step     : 2,
                           duty_cycle_min: 30,
