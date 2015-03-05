@@ -34,7 +34,7 @@ typedef enum _bool{false, true} bool;
 #define SYSVAR_RO_OFFSET0   0x00140000  /* location of system variables(RO) */
 #define SYSVAR_RO_OFFSET1   0x00160000  /* location of system variables(RO backup) */
 
-#define SYSVAR_MTD_DEVICE   4           /* number of MTD devices */
+#define SYSVAR_MTD_DEVICE   4           /* maximum number of MTD devices. */
 #define SYSVAR_RW_NAME0     "/dev/mtd2" /* MTD device of system variables(RW) */
 #define SYSVAR_RW_NAME1     "/dev/mtd3" /* MTD device of system variables(RW backup) */
 #define SYSVAR_RO_NAME0     "/dev/mtd4" /* MTD device of system variables(RO) */
