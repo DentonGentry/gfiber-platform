@@ -53,6 +53,7 @@ all:	$(TARGETS)
 install:
 	$(INSTALL) -m 0755 diags $(BINDIR)/
 	$(INSTALL) -m 0755 tpmstartup $(BINDIR)/
+	$(INSTALL) -m 0755 usb-diags $(BINDIR)/
 
 install-libs:
 	@:

@@ -1,0 +1,45 @@
+#!/bin/sh
+# command to test USB storage device
+#
+
+USB_DEVICE="/dev/sdb1"
+USB_FILE_PATH="/tmp/usb"
+USB_TEST_FILE="$USB_FILE_PATH/usb-diags-file"
+USB_PRESENT_TEXT="present"
+USB_NOT_PRESENT_TEXT="not present"
+
+is_usb_present()
+{
+  [ -e $USB_DEVICE ] &&  echo $USB_PRESENT_TEXT || echo $USB_NOT_PRESENT_TEXT
+}
+
+case "$1" in
+  present)
+    is_usb_present
+    ;;
+  mount)
+    if [ "$(is_usb_present)" = "$USB_PRESENT_TEXT" ]; then
+      mkdir -p $USB_FILE_PATH
+      mount -t vfat $USB_DEVICE $USB_FILE_PATH && echo "mount: successful" ||\
+      echo "mount: failed"
+    else
+      echo "USB not present"
+    fi
+    ;;
+  test)
+    if [ "$(is_usb_present)" = "$USB_NOT_PRESENT_TEXT" ]; then
+      echo "USB not present"
+    elif [ ! -e "$2" ]; then
+      echo "\"$2\" does not exist"
+    elif [ ! -e $USB_FILE_PATH ]; then
+      echo "USB not mounted"
+    elif ! cp $2 $USB_TEST_FILE; then
+      echo "copy $2 to $USB_TEST_FILE failed"
+    else
+      cmp $2 $USB_TEST_FILE && echo "test passed" || echo "test failed"
+    fi
+    ;;
+  *)
+    echo "Usage: $0 {present|mount|test in-file}" >&2
+    exit 1
+esac
