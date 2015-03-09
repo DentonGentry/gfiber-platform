@@ -41,7 +41,7 @@ const FanControlParams FanControl::kGFMS100FanCtrlSocDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 25,
                           duty_cycle_max: 100,
-                          pwm_step      : 2,
+                          pwm_step      : 1,
                           temp_overheat : 120,
                         };
 
@@ -51,7 +51,7 @@ const FanControlParams FanControl::kGFMS100FanCtrlHddDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 25,
                           duty_cycle_max: 100,
-                          pwm_step      : 2,
+                          pwm_step      : 1,
                           temp_overheat : 120,
                         };
 
@@ -67,7 +67,7 @@ const FanControlParams FanControl::kGFRG200FanCtrlSocDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
-                          pwm_step      : 2,
+                          pwm_step      : 1,
                           temp_overheat : 105,
                         };
 
@@ -77,7 +77,7 @@ const FanControlParams FanControl::kGFRG210FanCtrlSocDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
-                          pwm_step      : 2,
+                          pwm_step      : 1,
                           temp_overheat : 105,
                         };
 
@@ -87,7 +87,7 @@ const FanControlParams FanControl::kGFRG210FanCtrlHddDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
-                          pwm_step      : 2,
+                          pwm_step      : 1,
                           temp_overheat : 105,
                         };
 
@@ -104,7 +104,7 @@ const FanControlParams FanControl::kGFSC100FanCtrlSocDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
-                          pwm_step      : 2,
+                          pwm_step      : 1,
                           temp_overheat : 105,
                         };
 
@@ -114,7 +114,7 @@ const FanControlParams FanControl::kGFSC100FanCtrlHddDefaults = {
                           temp_step     : 2,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
-                          pwm_step      : 2,
+                          pwm_step      : 1,
                           temp_overheat : 105,
                         };
 /*
