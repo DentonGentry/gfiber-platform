@@ -181,11 +181,12 @@ static void setPWMValue(PinHandle handle, int gpio, int pwm, int value) {
   setRegister(handle, REG_PWM_HI(pwm), (timer-1) | PWM_TIMER_ENABLE_MASK);      /* timer reg is 0-based */
 }
 
+/* should return RPS, not RPM */
 static int getFan(PinHandle handle) {
   static int rpm_failed = 0;
   if (!rpm_failed) {
     int val = read_file_long(SYS_RPM);
-    if (val >= 0) return val;
+    if (val >= 0) return (val+30)/60;   // rounded
     rpm_failed = 1;     // old bootloader doesn't enable tachometer
   }
   return 0;
