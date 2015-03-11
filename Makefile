@@ -30,6 +30,10 @@ ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfibersc)
 DIRS+=diags
 endif
 
+ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberwc)
+DIRS+=diags
+endif
+
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
