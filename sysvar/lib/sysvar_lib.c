@@ -13,6 +13,49 @@ char *mtd_name[SYSVAR_MTD_DEVICE] = {
   SYSVAR_RW_NAME0, SYSVAR_RW_NAME1, SYSVAR_RO_NAME0, SYSVAR_RO_NAME1
 };
 
+/* Static function prototypes */
+static int check_mtd(void);
+static int data_load(struct sysvar_buf *buf, int idx);
+static int data_recovery(struct sysvar_buf *buf, int idx);
+static int data_save(struct sysvar_buf *buf, int *idx);
+static int erase_mtd(int idx);
+static void print_err(char *err, int idx);
+static bool sysvar_buf_init(struct sysvar_buf *buf, bool is_ro);
+
+
+/*
+ * sysvar_buf_init - Initializes a sysvar_buf struct.
+ */
+static bool sysvar_buf_init(struct sysvar_buf *buf, bool is_ro) {
+  if (buf == NULL) {
+    return false;
+  }
+  memset(buf, 0, sizeof(*buf));
+  buf->data = (unsigned char *) malloc(SYSVAR_BLOCK_SIZE);
+  if (buf->data == NULL) {
+    print_err("allocate data buffer ", -1);
+    return false;
+  }
+  buf->list = (struct sysvar_list *)malloc(sizeof(struct sysvar_list));
+  if (buf->list == NULL) {
+    print_err("allocate data list ", -1);
+    free(buf->data);
+    return false;
+  }
+
+  buf->data_len = SYSVAR_BLOCK_SIZE;
+  buf->total_len = SYSVAR_BLOCK_SIZE - SYSVAR_HEAD;
+  buf->free_len = buf->total_len;
+  buf->readonly = is_ro;
+
+  snprintf(buf->list->name, sizeof(buf->list->name), "%s", is_ro ? "ro" : "rw");
+  buf->list->value = NULL;
+  buf->list->len = SYSVAR_NAME + 2;
+  buf->list->next = NULL;
+  buf->loaded = false;
+  return true;
+}
+
 /*
  * print_err - print the error message
  */
@@ -227,12 +270,10 @@ int open_mtd(void) {
 
   /* check MTD devices */
   for (i = 0; i < SYSVAR_MTD_DEVICE; i++) {
-    if (mtd_dev[i] >= 0)
+    if (mtd_dev[i] >= 0) {
       return SYSVAR_SUCCESS;
+    }
   }
-
-  memset(&rw_buf, 0, sizeof(rw_buf));
-  memset(&ro_buf, 0, sizeof(ro_buf));
 
   /* open MTD devices */
   for (i = 0; i < SYSVAR_MTD_DEVICE; i++) {
@@ -243,45 +284,10 @@ int open_mtd(void) {
     }
   }
 
-  /* allocate data buffers */
-  rw_buf.data = (unsigned char *)malloc(SYSVAR_BLOCK_SIZE);
-  ro_buf.data = (unsigned char *)malloc(SYSVAR_BLOCK_SIZE);
-  if (!rw_buf.data || !ro_buf.data) {
-    print_err("allocate data buffer ", -1);
+  if (!sysvar_buf_init(&rw_buf, false) ||
+      !sysvar_buf_init(&ro_buf, true) ||
+      loadvar()) {
     goto open_err;
-  }
-
-  /* allocate data lists */
-  rw_buf.list = (struct sysvar_list *)malloc(sizeof(struct sysvar_list));
-  ro_buf.list = (struct sysvar_list *)malloc(sizeof(struct sysvar_list));
-  if (!rw_buf.list || !ro_buf.list) {
-    print_err("allocate data list ", -1);
-    goto open_err;
-  }
-
-  rw_buf.data_len = SYSVAR_BLOCK_SIZE;
-  rw_buf.total_len = SYSVAR_BLOCK_SIZE - SYSVAR_HEAD;
-  rw_buf.free_len = rw_buf.total_len;
-  rw_buf.readonly = false;
-
-  strncpy(rw_buf.list->name, "rw", SYSVAR_NAME);
-  rw_buf.list->value = NULL;
-  rw_buf.list->len = SYSVAR_NAME + 2;
-  rw_buf.list->next = NULL;
-
-  ro_buf.data_len = SYSVAR_BLOCK_SIZE;
-  ro_buf.total_len = SYSVAR_BLOCK_SIZE - SYSVAR_HEAD;
-  ro_buf.free_len = ro_buf.total_len;
-  ro_buf.readonly = true;
-
-  strncpy(rw_buf.list->name, "ro", SYSVAR_NAME);
-  ro_buf.list->value = NULL;
-  ro_buf.list->len = SYSVAR_NAME + 2;
-  ro_buf.list->next = NULL;
-
-  if (!rw_buf.loaded || !ro_buf.loaded) {
-    if (loadvar())
-      goto open_err;
   }
   return SYSVAR_SUCCESS;
 
