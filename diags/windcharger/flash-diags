@@ -1,0 +1,58 @@
+#!/bin/ash
+# command to test USB storage device
+#
+
+# 2^10 is 1K.
+ONE_K_LEN=10
+ONE_K=1024
+WC_FLASH_TEST_DEV_NAME=test
+TMP_FILE=/tmp/flash_test_pattern
+result=
+test_failed=
+
+while IFS=" :" read dev size erasesize name; do
+  name=${name#\"}
+  name=${name%\"}
+  if [ "$name" = "$WC_FLASH_TEST_DEV_NAME" ]; then
+    result=${dev#mtd}
+    total_size=$size
+    # erase_size is saved value for later use. erasesize is /proc/mtd name
+    erase_size=$erasesize
+    # fall through in case there's a subsequent device with same name
+  fi
+done < /proc/mtd
+
+if [ -n "$result" ]; then
+  total_size=$(echo $((0x$total_size)))
+  erase_size=$(echo $((0x$erase_size)))
+  file_len_in_k=$(expr $total_size / $ONE_K)
+  num_blocks=$(expr $total_size / $erase_size)
+  echo -n "test flash /dev/mtd$result size $total_size ($file_len_in_k K) "
+  echo "erasesize $erase_size block count $num_blocks"
+else
+  echo "cannot find test flash dev"
+  exit 1
+fi
+
+for pattern in '\x5A' '\xA5' '\x55' '\xAA' '\x00' '\x0F' '\xF0' '\xFF'
+do
+  echo "test with pattern" $pattern
+  s=$pattern
+  # in WindCharger shell "for i in {1..n}" does not work. So use "seq"
+  # setup 1K test pattern
+  for i in $(seq 1 $ONE_K_LEN); do
+    s=$s$s;
+  done
+  rm -f $TMP_FILE
+  for i in $(seq 1 $file_len_in_k); do
+    echo -n -e $s >> $TMP_FILE;
+  done
+  flash_erase /dev/mtd$result 0 $num_blocks
+  cp $TMP_FILE /dev/mtd$result && cmp $TMP_FILE /dev/mtd$result || test_failed=1
+  if [ -n "$test_failed" ]; then
+    echo "pattern test failed"
+    exit 1
+  fi
+  echo "pattern verified ... passed"
+done
+echo "flash test passed"
