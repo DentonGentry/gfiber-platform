@@ -59,6 +59,7 @@ class GinstallTest(unittest.TestCase):
     self.old_secureboot = ginstall.SECUREBOOT
     self.old_hnvram = ginstall.HNVRAM
     self.old_mtd_prefix = ginstall.MTD_PREFIX
+    self.old_sysblock = ginstall.SYSBLOCK
     self.old_sysclassmtd = ginstall.SYSCLASSMTD
     self.old_mmcblk = ginstall.MMCBLK
     self.old_proc_mtd = ginstall.PROC_MTD
@@ -68,9 +69,12 @@ class GinstallTest(unittest.TestCase):
                           self.old_path)
     shutil.rmtree('testdata/bin.tmp', ignore_errors=True)
     os.mkdir('testdata/bin.tmp')
+    shutil.rmtree('testdata/sys/block', ignore_errors=True)
+    os.makedirs('testdata/sys/block')
     ginstall.ETCPLATFORM = 'testdata/etc/platform'
     ginstall.SECUREBOOT = 'testdata/tmp/gpio/ledcontrol/secure_boot'
     ginstall.MTD_PREFIX = 'testdata/dev/mtd'
+    ginstall.SYSBLOCK = 'testdata/sys/block'
     ginstall.SYSCLASSMTD = 'testdata/sys/class/mtd'
     ginstall.PROC_MTD = 'testdata/proc/mtd'
     ginstall.SGDISK = 'testdata/sgdisk'
@@ -84,6 +88,7 @@ class GinstallTest(unittest.TestCase):
     ginstall.SECUREBOOT = self.old_secureboot
     ginstall.HNVRAM = self.old_hnvram
     ginstall.MTD_PREFIX = self.old_mtd_prefix
+    ginstall.SYSBLOCK = self.old_sysblock
     ginstall.SYSCLASSMTD = self.old_sysclassmtd
     ginstall.MMCBLK = self.old_mmcblk
     ginstall.PROC_MTD = self.old_proc_mtd
@@ -384,6 +389,16 @@ class GinstallTest(unittest.TestCase):
     in_f = StringIO.StringIO('platforms: [ GFUNITTEST, GFFOOBAR ]\n')
     manifest = ginstall.ParseManifest(in_f)
     self.assertTrue(ginstall.CheckPlatform(manifest))
+
+  def testGetInternalHarddisk(self):
+    os.mkdir('testdata/sys/block/sda')
+    open('testdata/sys/block/sda/removable', 'w').write('1')
+    os.mkdir('testdata/sys/block/sdc')
+    open('testdata/sys/block/sdc/removable', 'w').write('0')
+    self.assertEqual(ginstall.GetInternalHarddisk(), '/dev/sdc')
+
+    os.mkdir('testdata/sys/block/sdb')
+    self.assertEqual(ginstall.GetInternalHarddisk(), '/dev/sdb')
 
   def MakeImgWManifestVersion(self, version):
     in_f = StringIO.StringIO('installer_version: %s\n' % version)
