@@ -41,5 +41,7 @@ case "$1" in
     ;;
   *)
     echo "Usage: $0 {present|mount|test in-file}" >&2
+    echo "$0 is complete"
     exit 1
 esac
+echo "$0 is complete"

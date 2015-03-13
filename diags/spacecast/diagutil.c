@@ -118,13 +118,15 @@ static void usage(void) {
 }
 
 int main(int argc, char *argv[]) {
-  int i;
+  int i, rc;
 
   if (argc > 1) {
     /* Search the command list for a match */
     for (i = 0; command_list[i].name != NULL; ++i) {
       if (strcmp(argv[1], command_list[i].name) == 0) {
-        return command_list[i].funcp(argc - 1, &argv[1]);
+        rc = command_list[i].funcp(argc - 1, &argv[1]);
+        printf("%s is complete\n", argv[1]);
+        return rc;
       }
     }
   }
