@@ -360,8 +360,8 @@ void FanControl::ComputeDutyCycle(
   uint16_t fan_speed,
   uint16_t *new_duty_cycle_pwm) {
 
-  uint16_t  soc_compute_duty_cycle = duty_cycle_pwm_;
-  uint16_t  hdd_compute_duty_cycle = duty_cycle_pwm_;
+  uint16_t  soc_compute_duty_cycle = 0;
+  uint16_t  hdd_compute_duty_cycle = 0;
   FanControlParams  *psoc = &pfan_ctrl_params_[BRUNO_SOC];
   FanControlParams  *phdd = get_hdd_fan_ctrl_parms();
 
@@ -371,66 +371,72 @@ void FanControl::ComputeDutyCycle(
                << " fan_speed="    << fan_speed;
 
   /* check SOC temps */
-  if (soc_temp > psoc->temp_max) {
-    soc_compute_duty_cycle = psoc->duty_cycle_max;
-  }
-  else if (soc_temp > (psoc->temp_setpt + psoc->temp_step)) {
-    if (fan_speed == kFanSpeedNotSpinning) {
-      soc_compute_duty_cycle = psoc->duty_cycle_min;
+  if (psoc) {
+    soc_compute_duty_cycle = duty_cycle_pwm_;
+    if (soc_temp > psoc->temp_max) {
+      soc_compute_duty_cycle = psoc->duty_cycle_max;
     }
-    else if (duty_cycle_pwm_ < psoc->duty_cycle_max) {
-      /* 1. Possibly, the fan still stops due to duty_cycle_pwm_ is not large
-       *    enough. Continue increase the duty cycle.
-       * 2. Or the fan is running, but it's not fast enough to cool down
-       *    the unit.
-       */
-      soc_compute_duty_cycle = duty_cycle_pwm_ + psoc->pwm_step;
-      if (soc_compute_duty_cycle > psoc->duty_cycle_max)
-        soc_compute_duty_cycle = psoc->duty_cycle_max;
+    else if (soc_temp > (psoc->temp_setpt + psoc->temp_step)) {
+      if (fan_speed == kFanSpeedNotSpinning) {
+        soc_compute_duty_cycle = psoc->duty_cycle_min;
+      }
+      else if (duty_cycle_pwm_ < psoc->duty_cycle_max) {
+        /* 1. Possibly, the fan still stops due to duty_cycle_pwm_ is not large
+         *    enough. Continue increase the duty cycle.
+         * 2. Or the fan is running, but it's not fast enough to cool down
+         *    the unit.
+         */
+        soc_compute_duty_cycle = duty_cycle_pwm_ + psoc->pwm_step;
+        if (soc_compute_duty_cycle > psoc->duty_cycle_max)
+          soc_compute_duty_cycle = psoc->duty_cycle_max;
+      }
     }
-  }
-  else if (soc_temp < (psoc->temp_setpt - psoc->temp_step)) {
-    if ((fan_speed == kFanSpeedNotSpinning) ||
-        (duty_cycle_pwm_ < psoc->pwm_step)) {
-      soc_compute_duty_cycle = kPwmMinValue;
-    }
-    else {
-      /* Reduce fan pwm if soc_temp is lower than
-       * the (temp_setpt - temp_step) and plus fan is still spinning
-       */
-      soc_compute_duty_cycle = duty_cycle_pwm_ - psoc->pwm_step;
+    else if (soc_temp < (psoc->temp_setpt - psoc->temp_step)) {
+      if ((fan_speed == kFanSpeedNotSpinning) ||
+          (duty_cycle_pwm_ < psoc->pwm_step)) {
+        soc_compute_duty_cycle = kPwmMinValue;
+      }
+      else {
+        /* Reduce fan pwm if soc_temp is lower than
+         * the (temp_setpt - temp_step) and plus fan is still spinning
+         */
+        soc_compute_duty_cycle = duty_cycle_pwm_ - psoc->pwm_step;
+      }
     }
   }
 
   /* check HDD temps */
-  if (if_hdd_temp_over_temp_max(hdd_temp, phdd) == true) {
-    hdd_compute_duty_cycle = phdd->duty_cycle_max;
-  }
-  else if (if_hdd_temp_over_temp_setpt(hdd_temp, phdd) == true) {
-    if (fan_speed == kFanSpeedNotSpinning) {
-      hdd_compute_duty_cycle = phdd->duty_cycle_min;
+  if (phdd) {
+    hdd_compute_duty_cycle = duty_cycle_pwm_;
+    if (if_hdd_temp_over_temp_max(hdd_temp, phdd) == true) {
+      hdd_compute_duty_cycle = phdd->duty_cycle_max;
     }
-    else if (duty_cycle_pwm_ < phdd->duty_cycle_max) {
-      /* 1. Possibly, the fan still stops due to duty_cycle_pwm_ is not large
-       *    enough. Continue increase the duty cycle.
-       * 2. Or the fan is running, but it's not fast enough to cool down
-       *    the unit.
-       */
-      hdd_compute_duty_cycle = duty_cycle_pwm_ + phdd->pwm_step;
-      if (hdd_compute_duty_cycle > phdd->duty_cycle_max)
-        hdd_compute_duty_cycle = phdd->duty_cycle_max;
+    else if (if_hdd_temp_over_temp_setpt(hdd_temp, phdd) == true) {
+      if (fan_speed == kFanSpeedNotSpinning) {
+        hdd_compute_duty_cycle = phdd->duty_cycle_min;
+      }
+      else if (duty_cycle_pwm_ < phdd->duty_cycle_max) {
+        /* 1. Possibly, the fan still stops due to duty_cycle_pwm_ is not large
+         *    enough. Continue increase the duty cycle.
+         * 2. Or the fan is running, but it's not fast enough to cool down
+         *    the unit.
+         */
+        hdd_compute_duty_cycle = duty_cycle_pwm_ + phdd->pwm_step;
+        if (hdd_compute_duty_cycle > phdd->duty_cycle_max)
+          hdd_compute_duty_cycle = phdd->duty_cycle_max;
+      }
     }
-  }
-  else if (if_hdd_temp_lower_than_temp_setpt(hdd_temp, phdd) == true) {
-    if ((fan_speed == kFanSpeedNotSpinning) ||
-        (duty_cycle_pwm_ < phdd->pwm_step)) {
-      hdd_compute_duty_cycle = kPwmMinValue;
-    }
-    else {
-      /* Reduce fan pwm if both soc_temp and hdd_temp are lower than
-       * their (temp_setpt - temp_step) and plus fan is still spinning
-       */
-      hdd_compute_duty_cycle = duty_cycle_pwm_ - phdd->pwm_step;
+    else if (if_hdd_temp_lower_than_temp_setpt(hdd_temp, phdd) == true) {
+      if ((fan_speed == kFanSpeedNotSpinning) ||
+          (duty_cycle_pwm_ < phdd->pwm_step)) {
+        hdd_compute_duty_cycle = kPwmMinValue;
+      }
+      else {
+        /* Reduce fan pwm if both soc_temp and hdd_temp are lower than
+         * their (temp_setpt - temp_step) and plus fan is still spinning
+         */
+        hdd_compute_duty_cycle = duty_cycle_pwm_ - phdd->pwm_step;
+      }
     }
   }
 
