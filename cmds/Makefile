@@ -15,6 +15,7 @@ TARGETS=\
 	chg_mod_own \
 	dir-monitor \
 	diskbench \
+	gsetsid \
 	ionice \
 	mcastreceive \
 	memwatcher \
