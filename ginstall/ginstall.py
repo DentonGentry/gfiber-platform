@@ -17,6 +17,7 @@
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
+import glob
 import hashlib
 import os
 import re
@@ -60,8 +61,8 @@ SECUREBOOT = '/tmp/gpio/ledcontrol/secure_boot'
 HNVRAM = 'hnvram'
 MTD_PREFIX = '/dev/mtd'
 SYSCLASSMTD = '/sys/class/mtd'
+SYSBLOCK = '/sys/block'
 MMCBLK = '/dev/mmcblk0'
-HARDDISK = '/dev/sda'
 PROC_CMDLINE = '/proc/cmdline'
 PROC_MTD = '/proc/mtd'
 SGDISK = 'sgdisk'
@@ -116,6 +117,18 @@ def GetPlatform():
 def GetVersion():
   return open(ETCVERSION).read().strip()
 
+def GetInternalHarddisk():
+  for blkdev in sorted(glob.glob(SYSBLOCK + '/sd?')):
+    try:
+      with open(blkdev + '/removable') as f:
+        removable = f.read().rstrip()
+    except (OSError, IOError) as e:
+      removable = '0'
+
+    if removable == '0':
+      return '/dev/' + blkdev[-3:];
+
+  return '/dev/nodisk'
 
 def SetBootPartition(partition):
   VerbosePrint('Setting boot partition to kernel%d\n', partition)
@@ -856,7 +869,7 @@ def main():
       partition_name = 'rootfs%d' % partition
       mtd = GetMtdDevForNameOrNone(partition_name)
       if GetPlatform().startswith('GFSC'):
-        gpt = GetGptPartitionForName(HARDDISK, partition_name)
+        gpt = GetGptPartitionForName(GetInternalHarddisk(), partition_name)
         if gpt:
           mtd = None
       else:
