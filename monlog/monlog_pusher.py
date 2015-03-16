@@ -38,14 +38,16 @@ import urllib2
 from urllib2 import HTTPError
 from urllib2 import URLError
 
-CONTENT_TYPE = 'Content-Type'
 APP_JSON = 'application/json'
 APP_FORM_URL_ENCODED = 'application/x-www-form-urlencoded'
 AUTHORIZATION = 'Authorization'
+CONTENT_TYPE = 'Content-Type'
+COMPLETE_SPACECAST_LOG_PATTERN = 'spacecast_log'
 DEVICE_REG_INFO = '/chroot/chromeos/var/lib/buffet/device_reg_info'
 LOG_DIR = '/tmp/applogs/'
-LOG_TYPE_STRUCTURED = 'structuredLogs'
+LOG_TYPE_METRICS = 'metrics'
 LOG_SERVER_PATH = 'https://www.googleapis.com/devicestats/v1/devices/'
+METRIC_BATCH_CREATE_POINTS = 'metrics:batchCreatePoints'
 POLL_SEC = 300
 
 
@@ -66,16 +68,17 @@ class LogCollector(object):
 
   def __init__(self, log_dir):
     self._log_dir = log_dir
-    self._logs = []
-    self._CollectLogs()
+    # Log collection is the map from log_file to log_data.
+    self._log_collection = {}
 
-  def _CollectLogs(self):
+  def CollectLogs(self):
     """Collects the logs and constructs the log collection.
 
     Raises:
       ExeException: if there is any error.
     """
-    # Filter the files and loop through each file in timestamp order.
+    # The complete log files must have the format: <application>_log.<timestamp>
+    # Filter the complete logs and loop through each file in timestamp order.
     try:
       log_dir_contents = os.listdir(self._log_dir)
     except OSError as e:
@@ -83,30 +86,44 @@ class LogCollector(object):
                          % (self._log_dir, e.errno))
     else:
       log_files = [os.path.join(self._log_dir, f) for f in log_dir_contents
-                   if os.path.isfile(os.path.join(self._log_dir, f))]
-      log_files.sort(key=os.path.getmtime)
+                   if os.path.isfile(os.path.join(self._log_dir, f)) and
+                   f.startswith(COMPLETE_SPACECAST_LOG_PATTERN)]
     for log_file in log_files:
       try:
         with open(log_file) as f:
-          self._logs.append(f.read())
+          # Log file should be in json format. Raises exception if it is not.
+          self._log_collection[log_file] = json.load(f)
       except IOError as e:
+        # Remove the bad log file.
+        self.RemoveLogFile(log_file)
         raise ExeException('Failed to open file %s. Error: %r'
                            % (log_file, e.errno))
-      finally:
-        # Remove the log to clean up log_dir.
-        os.remove(log_file)
+      except ValueError as e:
+        # Remove the bad log file.
+        self.RemoveLogFile(log_file)
+        raise ExeException('Failed to load json in file %s. Error: %r'
+                           % (log_file, e))
 
   def IsEmpty(self):
     """Checks if there is any pending log to push."""
-    return not self._logs
+    return not self._log_collection
 
-  def GetNextLog(self):
-    """Returns the next log data and type in the collection."""
-    # Pop will return and erase the first log data in the collection.
-    # TODO(hunguyen): Only support structuredLogs in the first phase.
-    if not self._logs:
-      return None, None
-    return self._logs.pop(0), LOG_TYPE_STRUCTURED
+  def GetAvailableLog(self):
+    """Gets an available log_file, log_data and log_type in the collection."""
+    # Pop will return and erase one log data in the collection.
+    # TODO(hunguyen): Only support log_type=metricPoints in the first phase.
+    if not self._log_collection:
+      return None, None, None
+
+    log_file, log_data = self._log_collection.popitem()
+    return log_file, log_data, LOG_TYPE_METRICS
+
+  def RemoveLogFile(self, log_file):
+    try:
+      os.remove(log_file)
+    except IOError as e:
+      raise ExeException('Failed to remove file %s. Error: %r'
+                         % (log_file, e.errno))
 
 
 class LogPusher(object):
@@ -119,6 +136,8 @@ class LogPusher(object):
   def __init__(self, log_server_path, dev_reg_info=DEVICE_REG_INFO):
     self._log_server_path = log_server_path
     self._dev_reg_info = dev_reg_info
+    self._device_id, self._token_type, self._access_token = (
+        self._GetAccessToken())
 
   def PushLog(self, log_data, log_type):
     """Sends log data to the log server endpoint.
@@ -127,24 +146,29 @@ class LogPusher(object):
       log_data: the log content to be sent.
       log_type: 'structured', 'unstructured', or 'metrics'.
     Returns:
-      true if log was sent successfully.
+      True if log was sent successfully.
     Raises:
-      ExeException: if there is any URLError.
+      ExeException: if there is any error.
     """
-    # MonLog server authorization requires access_token and device_id.
-    device_id, token_type, access_token = self.GetAccessToken()
+
+    # TODO(hunguyen): Only support log_type=metrics in phase 1.
+    if log_type != LOG_TYPE_METRICS:
+      raise ExeException('Unsupported log_type=%s' % log_type)
 
     # Prepare the connection to the log server.
     try:
-      # Log data should be in json format.
-      data = urllib.urlencode(log_data)
+      # Log data should be in json format. Add deviceid field to the log data.
+      log_data['deviceId'] = self._device_id
+      # TODO(hunguyen): Make sure there is no space in log_data added to URL.
+      data = json.dumps(log_data, separators=(',', ':'))
     except TypeError as e:
       raise ExeException('Failed to encode data %r. Error: %r'
                          % (log_data, e))
 
-    req = urllib2.Request(self._log_server_path + device_id + '/' + log_type, data)
+    req = urllib2.Request(self._log_server_path + self._device_id + '/' +
+                          METRIC_BATCH_CREATE_POINTS, data)
     req.add_header(CONTENT_TYPE, APP_JSON)
-    req.add_header(AUTHORIZATION, token_type + ' ' + access_token)
+    req.add_header(AUTHORIZATION, self._token_type + ' ' + self._access_token)
 
     try:
       urllib2.urlopen(req)
@@ -159,23 +183,28 @@ class LogPusher(object):
 
     return True
 
-  def GetAccessToken(self):
+  def _GetAccessToken(self):
     """Gets authorization info i.e. device_id, access_token, and token_type.
 
     Returns:
       Tuple (device_id, token_type, access_token)
+    Raises:
+      ExeException: if there is any error.
     """
 
     # Since MonLog shares registration info with GCD server, we will get the
     # access_token and token_type via GCD registration info, which is stored
     # in dev_reg_info file.
-    with open(self._dev_reg_info) as f:
-      # device_reg_info should be in json format
-      try:
+    try:
+      with open(self._dev_reg_info) as f:
+        # device_reg_info should be in json format
         dev_reg_info_json = json.load(f)
-      except ValueError as e:
-        raise ExeException('Failed to load json in file %s. %r'
-                           % (self._dev_reg_info, e))
+    except IOError as e:
+      raise ExeException('Failed to open file %s. Error: %r'
+                         % (self._dev_reg_info, e))
+    except ValueError as e:
+      raise ExeException('Failed to load json in file %s. Error: %r'
+                         % (self._dev_reg_info, e))
 
     # Get URL to the OAuth2 server.
     oauth_url = dev_reg_info_json['oauth_url'] + 'token'
@@ -193,8 +222,7 @@ class LogPusher(object):
     try:
       oauth_data = urllib.urlencode(oauth_data_dict)
     except TypeError as e:
-      raise ExeException('Failed to encode data %r. %r'
-                         % (oauth_data, e))
+      raise ExeException('Failed to encode data %r. %r' % (oauth_data, e))
 
     req = urllib2.Request(oauth_url, oauth_data)
     req.add_header(CONTENT_TYPE, APP_FORM_URL_ENCODED)
@@ -238,20 +266,26 @@ def GetArgs():
   log_dir = args.log_dir
   log_server_path = args.log_server_path
   poll_interval = args.poll_interval
-  return log_dir, log_server, poll_interval
+  return log_dir, log_server_path, poll_interval
 
 
 def main():
   log_dir, log_server_path, poll_interval = GetArgs()
-  log_collector = LogCollector(log_dir)
-  log_pusher = LogPusher(log_server_path)
 
   while True:
-    time.sleep(poll_interval)
-    # Loop through the log collection and send out logs.
-    while not log_collector.IsEmpty():
-      log_data, log_type = log_collector.GetNextLog()
-      log_pusher.PushLog(log_data, log_type)
+    try:
+      time.sleep(poll_interval)
+      log_collector = LogCollector(log_dir)
+      log_pusher = LogPusher(log_server_path)
+      log_collector.CollectLogs()
+      # Loop through the log collection and send out logs.
+      while not log_collector.IsEmpty():
+        log_file, log_data, log_type = log_collector.GetAvailableLog()
+        print 'Pushing log_file=', log_file, ' to MonLog server.'
+        log_pusher.PushLog(log_data, log_type)
+        log_collector.RemoveLogFile(log_file)
+    except ExeException as e:
+      print 'Exception caught: ', e.value
 
 
 if __name__ == '__main__':
