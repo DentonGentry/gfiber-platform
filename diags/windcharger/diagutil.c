@@ -22,6 +22,7 @@ int check_reset_button(int argc, char *argv[]);
 int cpu_reset(int argc, char *argv[]);
 int set_red_led(int argc, char *argv[]);
 int set_blue_led(int argc, char *argv[]);
+int set_poe(int argc, char *argv[]);
 int send_if_to_if(int argc, char *argv[]);
 int send_if(int argc, char *argv[]);
 int send_if_to_mac(int argc, char *argv[]);
@@ -58,6 +59,7 @@ tCOMMAND command_list[] = {
     {"cpu_reset", cpu_reset},
     {"set_red_led", set_red_led},
     {"set_blue_led", set_blue_led},
+    {"set_poe", set_poe},
     {"", NULL},
     {"send_if_to_if", send_if_to_if},
     {"send_if", send_if},
