@@ -27,6 +27,7 @@ int send_if_to_if(int argc, char *argv[]);
 int send_if(int argc, char *argv[]);
 int send_if_to_mac(int argc, char *argv[]);
 int test_both_ports(int argc, char *argv[]);
+int loopback_test(int argc, char *argv[]);
 
 /* Define the command structure */
 typedef struct {
@@ -65,6 +66,7 @@ tCOMMAND command_list[] = {
     {"send_if", send_if},
     {"send_if_to_mac", send_if_to_mac},
     {"test_both_ports", test_both_ports},
+    {"loopback_test", loopback_test},
     {"", NULL},
     {"version", version},
     {"", NULL},

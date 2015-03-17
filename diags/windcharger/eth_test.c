@@ -59,11 +59,45 @@
 #define ETH_BYTES_NAME "bytes:"
 #define ONE_MEG (1024 * 1024)
 
-static void send_ip_usage(void) {
-  printf("send_ip <address> <port> <num>\n");
-  printf("Example:\n");
-  printf("send_ip  192.168.1.1 10000 1\n");
-  printf("send 1 msg to ip address 192.168.1.1 port 10000\n");
+#define ETH_DEBUG_PORT_ADDR_REG 0x1D
+#define ETH_DEBUG_PORT_DATA_REG 0x1E
+#define ETH_EXT_LPBK_PORT_ADDR_OFFSET 0xB
+#define ETH_EXT_LPBK_PORT_SET_DATA 0x3C40
+#define ETH_EXT_LPBK_PORT_CLEAR_DATA 0xBC00
+#define ETH_LAN_IF_PORT 4
+#define ETH_WAN_IF_PORT 0
+#define ETH_DEBUG_CMD "ethreg -i %s -p %d 0x%x=0x%x > /dev/null"
+
+// WindCharger external loopback is set and cleared via Port Debug Registers.
+// Debug port address offset register is 0x1D and RW port is 0x1E. It needs to
+// First set the address offset, then read/write the data RW port. The
+// following are functions to set up/take down external loopback.
+
+void eth_set_debug_reg(char *if_name, unsigned short port, unsigned short addr,
+                       unsigned short data) {
+  char cmd[MAX_CMD_SIZE];
+
+  snprintf(cmd, MAX_CMD_SIZE, ETH_DEBUG_CMD, if_name, port, addr, data);
+  system_cmd(cmd);
+}
+
+int eth_external_loopback(char *if_name, bool set_not_clear) {
+  unsigned short data = ETH_EXT_LPBK_PORT_SET_DATA;
+
+  if (!set_not_clear) data = ETH_EXT_LPBK_PORT_CLEAR_DATA;
+
+  if (strcmp(if_name, LAN_PORT_NAME) == 0) {
+    eth_set_debug_reg(if_name, ETH_LAN_IF_PORT, ETH_DEBUG_PORT_ADDR_REG,
+                      ETH_EXT_LPBK_PORT_ADDR_OFFSET);
+    eth_set_debug_reg(if_name, ETH_LAN_IF_PORT, ETH_DEBUG_PORT_DATA_REG, data);
+  } else if (strcmp(if_name, WAN_PORT_NAME) == 0) {
+    eth_set_debug_reg(if_name, ETH_WAN_IF_PORT, ETH_DEBUG_PORT_ADDR_REG,
+                      ETH_EXT_LPBK_PORT_ADDR_OFFSET);
+    eth_set_debug_reg(if_name, ETH_WAN_IF_PORT, ETH_DEBUG_PORT_DATA_REG, data);
+  } else {
+    return -1;
+  }
+  return 0;
 }
 
 void send_mac_pkt(char *if_name, char *out_name, unsigned int xfer_len,
@@ -196,6 +230,13 @@ void send_mac_pkt(char *if_name, char *out_name, unsigned int xfer_len,
   close(sockfd);
 }
 
+static void send_ip_usage(void) {
+  printf("send_ip <address> <port> <num>\n");
+  printf("Example:\n");
+  printf("send_ip  192.168.1.1 10000 1\n");
+  printf("send 1 msg to ip address 192.168.1.1 port 10000\n");
+}
+
 int send_ip(int argc, char *argv[]) {
   int sockfd, portno, i, n;
   struct sockaddr_in serv_addr;
@@ -235,16 +276,6 @@ int send_ip(int argc, char *argv[]) {
   printf("send %d packets to %u.%u.%u.%u:0x%08x port %d\n", n, ipaddr[0],
          ipaddr[1], ipaddr[2], ipaddr[3], serv_addr.sin_addr.s_addr, portno);
 
-  return 0;
-}
-
-int setup_loopback(int port) {
-  if (port < 0 || port > ETH_MAX_LAN_PORTS) return -1;
-  return 0;
-}
-
-int take_down_loopback(int port) {
-  if (port < 0 || port > ETH_MAX_LAN_PORTS) return -1;
   return 0;
 }
 
@@ -347,145 +378,6 @@ int send_if(int argc, char *argv[]) {
 
   printf("Sent %d pkt of size %d from %s to %s\n", n, BUF_SIZ, argv[1],
          argv[2]);
-
-  return 0;
-}
-
-static void loopback_usage(void) {
-  printf(
-      "loopback <PHY ports in bit mask (hex)> <num> "
-      "[-b <pkt byte size (max %d)>] "
-      "[-t <time delay in micro-second between pkt send>]\n",
-      BUF_SIZ);
-  printf("Example:\n");
-  printf("loopback 0x1F 100\n");
-  printf("loopback PHY port 0, 1, 2, 3 ,4 with 100 msgs\n");
-  printf("loopback 0xF 100 -b 256 -t 250\n");
-  printf(
-      "loopback PHY port 0, 1, 2, 3 with 100 msgs of size 256 bytes "
-      "and 250 us delay\n");
-}
-
-int loopback(int argc, char *argv[]) {
-  int n, port, pass_num, j;
-  unsigned int xfer_len = ETH_PKTS_LEN_DEFAULT, xfer_wait = 250, rx_wait = 2;
-  char if_name[IFNAMSIZ];
-  char out_name[IFNAMSIZ];
-  // char cmd[MAX_CMD_SIZE];
-  int rx_pkts, tx_pkts, rx_errs, tx_errs;
-  int prev_rx_pkts, prev_tx_pkts, prev_rx_errs, prev_tx_errs;
-  unsigned int portMask;
-  static const int kLoopbackRetries = 3;
-
-  /* Get interface name */
-  if ((argc != 3) && (argc != 5) && (argc != 7)) {
-    printf("%s invalid params\n", FAIL_TEXT);
-    loopback_usage();
-    return -1;
-  }
-
-#if 0
-  // Increase the buffer size
-  sprintf(cmd, "echo %d > /proc/sys/net/core/rmem_max", ETH_BUFFER_SIZE);
-  system_cmd(cmd);
-  sprintf(cmd, "echo %d > /proc/sys/net/core/rmem_default", ETH_BUFFER_SIZE);
-  system_cmd(cmd);
-  sprintf(cmd, "echo %d > /proc/sys/net/core/wmem_max", ETH_BUFFER_SIZE);
-  system_cmd(cmd);
-  sprintf(cmd, "echo %d > /proc/sys/net/core/wmem_default", ETH_BUFFER_SIZE);
-  system_cmd(cmd);
-#endif
-
-  portMask = strtoul(argv[1], NULL, 16);
-  n = strtoul(argv[2], NULL, 10);
-  pass_num = (int)(n * ETH_LOOPBACK_PASS_FACTOR);
-
-  if (argc >= 5) {
-    unsigned int tmp;
-    tmp = strtoul(argv[4], NULL, 10);
-    if (strcmp(argv[3], "-b") == 0) {
-      if (tmp > BUF_SIZ) {
-        printf("%s invalid params\n", FAIL_TEXT);
-        loopback_usage();
-        return -1;
-      }
-      xfer_len = tmp;
-
-      if (argc == 7) {
-        if (strcmp(argv[5], "-t") == 0) {
-          xfer_wait = strtoul(argv[6], NULL, 10);
-        } else {
-          printf("%s invalid params\n", FAIL_TEXT);
-          loopback_usage();
-          return -1;
-        }
-      }
-    } else if (strcmp(argv[3], "-t") == 0) {
-      xfer_wait = tmp;
-      if (argc == 7) {
-        if (strcmp(argv[5], "-b") == 0) {
-          xfer_len = strtoul(argv[6], NULL, 10);
-          if (xfer_len > BUF_SIZ) {
-            printf("%s invalid params\n", FAIL_TEXT);
-            loopback_usage();
-            return -1;
-          }
-        } else {
-          printf("%s invalid params\n", FAIL_TEXT);
-          loopback_usage();
-          return -1;
-        }
-      }
-    } else {
-      printf("%s invalid params\n", FAIL_TEXT);
-      loopback_usage();
-      return -1;
-    }
-  }
-
-  strcpy(if_name, LAN_PORT_NAME);
-  strcpy(out_name, LAN_PORT_NAME);
-
-  printf("Sending %d packets of size %d delay %d\n", n, xfer_len, xfer_wait);
-
-  for (port = 0; port < ETH_MAX_LAN_PORTS; ++port) {
-    if (portMask & (1 << port)) {
-      for (j = 0; j < kLoopbackRetries; ++j) {
-        setup_loopback(port);
-        sleep(ETH_WAIT_AFTER_LOOPBACK_SET);
-        rx_pkts = 0;
-        get_ip_stat(&prev_rx_pkts, &prev_tx_pkts, &prev_rx_errs, &prev_tx_errs,
-                    LAN_PORT_NAME);
-        system_cmd("uptime");
-
-        send_mac_pkt(if_name, out_name, xfer_len, xfer_wait, n, NULL);
-        system_cmd("uptime");
-        rx_pkts = 0;
-        sleep(rx_wait);
-        get_ip_stat(&rx_pkts, &tx_pkts, &rx_errs, &tx_errs, LAN_PORT_NAME);
-        rx_pkts -= prev_rx_pkts;
-        tx_pkts -= prev_tx_pkts;
-        rx_errs -= prev_rx_errs;
-        tx_errs -= prev_tx_errs;
-        take_down_loopback(port);
-        if ((rx_pkts >= pass_num) && (tx_pkts >= pass_num) && (rx_errs == 0) &&
-            (tx_errs == 0)) {
-          printf("PHY %d passed loop back test. Sent %d:%d, Received %d\n",
-                 port, n, tx_pkts, rx_pkts);
-          fflush(stdout);
-          break;
-        } else {
-          if (j == (kLoopbackRetries - 1)) {
-            printf(
-                "%s PHY %d failed loop back test. Sent %d:%d, Received %d, "
-                "Errs %d:%d\n",
-                FAIL_TEXT, port, n, tx_pkts, rx_pkts, tx_errs, rx_errs);
-          }
-          fflush(stdout);
-        }
-      }
-    }
-  }
 
   return 0;
 }
@@ -694,21 +586,6 @@ int send_if_to_mac(int argc, char *argv[]) {
   return 0;
 }
 
-static void lan_lpbk_usage(void) {
-  printf("lan_lpbk <on/off>\n");
-  printf("Example:\n");
-  printf("lan_lpbk on\n");
-  printf("set all lan ports loop back to external\n");
-}
-
-int lan_lpbk(int argc, char *argv[]) {
-  if (argc != 2 || argv == NULL) {
-    lan_lpbk_usage();
-    return -1;
-  }
-  return 0;
-}
-
 static void traffic_usage(void) {
   printf("traffic <test duration> [<%s print period>]\n",
          ETH_TRAFFIC_TEST_PERIOD_SYMBOL);
@@ -809,7 +686,6 @@ static void test_both_ports_usage(void) {
 }
 
 int test_both_ports(int argc, char *argv[]) {
-  // char cmd[MAX_CMD_SIZE];
   int duration, num = -1, collected_count = 0;
   int pid, pid1, pid2;
   int print_period = ETH_TRAFFIC_REPORT_PERIOD;
@@ -841,8 +717,8 @@ int test_both_ports(int argc, char *argv[]) {
     }
 
     print_period = strtoul(argv[3], NULL, 0);
-    if (((print_period == 0) && (duration < 0)) || 
-        (print_period < 0) || (print_period > ETH_TRAFFIC_MAX_REPORT_PERIOD)) {
+    if (((print_period == 0) && (duration < 0)) || (print_period < 0) ||
+        (print_period > ETH_TRAFFIC_MAX_REPORT_PERIOD)) {
       test_both_ports_usage();
       return -1;
     }
@@ -948,8 +824,8 @@ int test_both_ports(int argc, char *argv[]) {
       printf("%s->%s: %3.3f Mb/s (%d:%d), %s->%s: %3.3f Mb/s (%d:%d)\n",
              ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT, src_throughput, src_diff,
              prev_src_rx_errs + prev_dst_tx_errs, ETH_TRAFFIC_PORT,
-             ETH_TRAFFIC_DST_PORT, dst_throughput, dst_diff, prev_dst_rx_errs +
-             prev_src_tx_errs);
+             ETH_TRAFFIC_DST_PORT, dst_throughput, dst_diff,
+             prev_dst_rx_errs + prev_src_tx_errs);
     }
     prev_src_rx = src_rx_pkts;
     prev_dst_rx = dst_rx_pkts;
@@ -959,18 +835,171 @@ int test_both_ports(int argc, char *argv[]) {
     prev_dst_tx_errs = dst_tx_errs;
   }
 
-  src_average_throughput = src_average_throughput / ((float) collected_count);
-  dst_average_throughput = dst_average_throughput / ((float) collected_count);
+  src_average_throughput = src_average_throughput / ((float)collected_count);
+  dst_average_throughput = dst_average_throughput / ((float)collected_count);
   if (src_total_errs > 0 || dst_total_errs > 0) {
-    printf("%s %s->%s: %3.3f Mb/s (%d), %s-%s: %3.3f Mb/s (%d)\n",
-           FAIL_TEXT, ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT,
-           src_average_throughput, src_total_errs, ETH_TRAFFIC_PORT,
-           ETH_TRAFFIC_DST_PORT, dst_average_throughput, dst_total_errs);
+    printf("%s %s->%s: %3.3f Mb/s (%d), %s-%s: %3.3f Mb/s (%d)\n", FAIL_TEXT,
+           ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT, src_average_throughput,
+           src_total_errs, ETH_TRAFFIC_PORT, ETH_TRAFFIC_DST_PORT,
+           dst_average_throughput, dst_total_errs);
   } else {
-    printf("%s %s->%s: %3.3f Mb/s (%d), %s-%s: %3.3f Mb/s (%d)\n",
-           PASS_TEXT, ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT,
-           src_average_throughput, src_total_errs, ETH_TRAFFIC_PORT,
-           ETH_TRAFFIC_DST_PORT, dst_average_throughput, dst_total_errs);
+    printf("%s %s->%s: %3.3f Mb/s (%d), %s-%s: %3.3f Mb/s (%d)\n", PASS_TEXT,
+           ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT, src_average_throughput,
+           src_total_errs, ETH_TRAFFIC_PORT, ETH_TRAFFIC_DST_PORT,
+           dst_average_throughput, dst_total_errs);
+  }
+
+  return 0;
+}
+
+static void loopback_test_usage(void) {
+  printf(
+      "loopback_test <interface> <duration in secs> "
+      "[<%s print-period in secs>]\n",
+      ETH_TRAFFIC_TEST_PERIOD_SYMBOL);
+  printf("- duration >=1 or -1 (forever)\n");
+  printf("- print-period >= 0 and <= %d\n", ETH_TRAFFIC_MAX_REPORT_PERIOD);
+  printf("- print-period > 0 if duration > 0\n");
+  printf("- print-period = 0 prints only the summary\n");
+}
+
+int loopback_test(int argc, char *argv[]) {
+  int duration, num = -1, collected_count = 0, total_errs = 0, prev_errs = 0;
+  int pid, pid1, pid2, print_period = ETH_TRAFFIC_REPORT_PERIOD;
+  unsigned int pkt_len = 128;
+  int rx_pkts, tx_pkts, rx_errs, tx_errs, prev_rx, prev_tx, tx_diff, rx_diff;
+  int prev_rx_errs, prev_tx_errs;
+  bool print_every_period = true, traffic_problem = false, problem = false;
+  ;
+  float average_throughput = 0.0, throughput;
+  unsigned char dst_mac[6] = {0, 0, 0, 0, 0, 0};
+
+  if ((argc != 3) && (argc != 5)) {
+    loopback_test_usage();
+    return -1;
+  }
+
+  if ((strcmp(argv[1], LAN_PORT_NAME) != 0) &&
+      (strcmp(argv[1], WAN_PORT_NAME) != 0)) {
+    printf("Invalid Ethernet Interface %s\n", argv[1]);
+    return -1;
+  }
+
+  duration = strtol(argv[2], NULL, 0);
+  if ((duration < -1) || (duration == 0)) {
+    loopback_test_usage();
+    return -1;
+  }
+
+  if (argc == 5) {
+    if (strcmp(argv[3], ETH_TRAFFIC_TEST_PERIOD_SYMBOL) != 0) {
+      loopback_test_usage();
+      return -1;
+    }
+
+    print_period = strtoul(argv[4], NULL, 0);
+    if (((print_period == 0) && (duration < 0)) || (print_period < 0) ||
+        (print_period > ETH_TRAFFIC_MAX_REPORT_PERIOD)) {
+      loopback_test_usage();
+      return -1;
+    }
+    if (print_period == 0) {
+      print_every_period = false;
+      print_period = ETH_TRAFFIC_REPORT_PERIOD;
+    }
+  }
+
+  eth_external_loopback(argv[1], true);
+
+  get_ip_stat(&rx_pkts, &tx_pkts, &rx_errs, &tx_errs, argv[1]);
+  prev_rx = rx_pkts;
+  prev_tx = tx_pkts;
+  prev_rx_errs = rx_errs;
+  prev_tx_errs = tx_errs;
+
+  pid = fork();
+  if (pid < 0) {
+    printf("Server fork error %d, errno %d\n", pid, errno);
+    return -1;
+  }
+  if (pid == 0) {
+    // Child process
+    send_mac_pkt(ETH_TRAFFIC_PORT, ETH_TRAFFIC_DST_PORT, pkt_len, 0, num, NULL);
+    exit(0);
+  }
+  // Parent process
+  pid1 = pid;
+
+  pid = fork();
+  if (pid < 0) {
+    printf("Server fork error %d, errno %d\n", pid, errno);
+    eth_external_loopback(argv[1], false);
+    return -1;
+  }
+  if (pid == 0) {
+    // Child process
+    send_mac_pkt(argv[1], NULL, pkt_len, 0, num, dst_mac);
+    exit(0);
+  }
+  // Parent process
+  pid2 = pid;
+
+  while (duration != 0) {
+    if (duration >= 0) {
+      if (duration <= print_period) {
+        sleep(duration);
+        print_period = duration;
+        duration = 0;
+        kill(pid1, SIGKILL);
+        kill(pid2, SIGKILL);
+        // printf("Killed processes %d and %d\n", pid1, pid2);
+      } else {
+        duration -= print_period;
+        sleep(print_period);
+      }
+    } else {
+      sleep(print_period);
+    }
+
+    get_ip_stat(&rx_pkts, &tx_pkts, &rx_errs, &tx_errs, argv[1]);
+    if (rx_pkts >= prev_rx) {
+      rx_diff = rx_pkts - prev_rx;
+    } else {
+      rx_diff = (MAX_INT - prev_rx) + rx_pkts;
+    }
+    if (tx_pkts >= prev_tx) {
+      tx_diff = tx_pkts - prev_tx;
+    } else {
+      tx_diff = (MAX_INT - prev_tx) + tx_pkts;
+    }
+    throughput = (((float)rx_diff) * 8) / (float)(print_period * ONE_MEG);
+    average_throughput += throughput;
+    total_errs += rx_errs + tx_errs - prev_rx_errs - prev_tx_errs;
+    ++collected_count;
+    if ((rx_diff == 0) || (tx_diff > rx_diff)) problem = true;
+    traffic_problem |= problem;
+    if (print_every_period) {
+      printf("%s %s: %3.3f Mb/s (%d:%d) errors: %d\n",
+             (problem) ? FAIL_TEXT : PASS_TEXT, argv[1], throughput, tx_diff,
+             rx_diff, total_errs - prev_errs);
+    }
+    prev_rx = rx_pkts;
+    prev_tx = tx_pkts;
+    prev_rx_errs = rx_errs;
+    prev_tx_errs = tx_errs;
+    prev_errs = total_errs;
+    problem = false;
+  }
+
+  eth_external_loopback(argv[1], false);
+
+  average_throughput /= ((float)collected_count);
+  if ((total_errs > 0) || traffic_problem) {
+    printf("%s overall %s: %3.3f Mb/s errors: %d\n", FAIL_TEXT, argv[1],
+           average_throughput, total_errs);
+  } else {
+    printf("%s overall %s: %3.3f Mb/s errors: %d\n", PASS_TEXT, argv[1],
+           average_throughput, total_errs);
   }
 
   return 0;
