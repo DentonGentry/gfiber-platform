@@ -124,7 +124,7 @@ def GetInternalHarddisk():
     if dev_path.find('usb') == -1:
         return os.path.join('/dev', os.path.basename(blkdev))
 
-  return '/dev/nodisk'
+  return None
 
 
 def SetBootPartition(partition):
@@ -866,9 +866,11 @@ def main():
       partition_name = 'rootfs%d' % partition
       mtd = GetMtdDevForNameOrNone(partition_name)
       if GetPlatform().startswith('GFSC'):
-        gpt = GetGptPartitionForName(GetInternalHarddisk(), partition_name)
-        if gpt:
-          mtd = None
+        hdd = GetInternalHarddisk()
+        if hdd:
+          gpt = GetGptPartitionForName(hdd, partition_name)
+          if gpt:
+            mtd = None
       else:
         gpt = GetGptPartitionForName(MMCBLK, partition_name)
       if mtd:
