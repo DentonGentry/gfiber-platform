@@ -391,6 +391,8 @@ class GinstallTest(unittest.TestCase):
     self.assertTrue(ginstall.CheckPlatform(manifest))
 
   def testGetInternalHarddisk(self):
+    self.assertEqual(ginstall.GetInternalHarddisk(), None)
+
     os.mkdir('testdata/sys/block/sda')
     os.symlink('testdata/sys/block/sda/usb_disk',
                'testdata/sys/block/sda/device')
