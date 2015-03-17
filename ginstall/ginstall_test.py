@@ -392,9 +392,11 @@ class GinstallTest(unittest.TestCase):
 
   def testGetInternalHarddisk(self):
     os.mkdir('testdata/sys/block/sda')
-    open('testdata/sys/block/sda/removable', 'w').write('1')
+    os.symlink('testdata/sys/block/sda/usb_disk',
+               'testdata/sys/block/sda/device')
     os.mkdir('testdata/sys/block/sdc')
-    open('testdata/sys/block/sdc/removable', 'w').write('0')
+    os.symlink('testdata/sys/block/sdc/sata_disk',
+               'testdata/sys/block/sdc/device')
     self.assertEqual(ginstall.GetInternalHarddisk(), '/dev/sdc')
 
     os.mkdir('testdata/sys/block/sdb')

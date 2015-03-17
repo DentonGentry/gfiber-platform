@@ -117,18 +117,15 @@ def GetPlatform():
 def GetVersion():
   return open(ETCVERSION).read().strip()
 
+
 def GetInternalHarddisk():
   for blkdev in sorted(glob.glob(SYSBLOCK + '/sd?')):
-    try:
-      with open(blkdev + '/removable') as f:
-        removable = f.read().rstrip()
-    except (OSError, IOError) as e:
-      removable = '0'
-
-    if removable == '0':
-      return '/dev/' + blkdev[-3:];
+    dev_path = os.path.realpath(blkdev + '/device')
+    if dev_path.find('usb') == -1:
+        return os.path.join('/dev', os.path.basename(blkdev))
 
   return '/dev/nodisk'
+
 
 def SetBootPartition(partition):
   VerbosePrint('Setting boot partition to kernel%d\n', partition)
