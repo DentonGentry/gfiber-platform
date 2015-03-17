@@ -308,6 +308,29 @@ int set_blue_led(int argc, char *argv[]) {
   }
 }
 
+static void set_poe_usage(void) {
+  printf("set_poe <on/off>\n");
+  printf("Example:\n");
+  printf("set_poe on\n");
+  printf("Turn on PoE\n");
+}
+
+int set_poe(int argc, char *argv[]) {
+  if (argc != 2) {
+    set_poe_usage();
+    return -1;
+  }
+
+  if (strcmp(argv[1], LED_ON_OPTION) == 0) {
+    return set_gpio_pin(GPIO_POE_PIN, 0);
+  } else if (strcmp(argv[1], LED_OFF_OPTION) == 0) {
+    return set_gpio_pin(GPIO_POE_PIN, 1);
+  } else {
+    set_poe_usage();
+    return -1;
+  }
+}
+
 static void check_reset_button_usage(void) {
   printf("check_reset_button\n");
   printf("Example:\n");
