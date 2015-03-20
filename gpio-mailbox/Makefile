@@ -35,6 +35,11 @@ ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberlt)
   NOSTUB=1
 endif
 
+ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberwc)
+  CFLAGS += -DWINDCHARGER
+  NOSTUB=1
+endif
+
 ifndef NOSTUB
   CFLAGS += -DSTUB
   LDFLAGS += -lm
