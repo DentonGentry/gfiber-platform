@@ -161,7 +161,7 @@ static int do_request_via_ipv(CURL *curl_handle, const char *server_url,
   *http_code = 500;
   curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, http_code);
   if (curl_res != CURLE_OK) {
-    *http_code = 500;
+    *http_code = 599;
     fprintf(stderr, "request failed: %s (%d)\n", curl_easy_strerror(curl_res),
         curl_res);
     return -1;
