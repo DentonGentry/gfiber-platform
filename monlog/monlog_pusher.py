@@ -58,6 +58,10 @@ class Error(Exception):
 class ExeException(Error):
   """Empty Exception Class just to raise an Error on bad execution."""
 
+  def __init__(self, errormsg):
+    super(ExeException, self).__init__(errormsg)
+    self.errormsg = errormsg
+
 
 class LogCollector(object):
   """LogCollector class.
@@ -285,7 +289,7 @@ def main():
         log_pusher.PushLog(log_data, log_type)
         log_collector.RemoveLogFile(log_file)
     except ExeException as e:
-      print 'Exception caught: ', e.value
+      print 'Exception caught: ', e.errormsg
 
 
 if __name__ == '__main__':
