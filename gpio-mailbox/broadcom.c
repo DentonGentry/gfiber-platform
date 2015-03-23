@@ -537,9 +537,12 @@ int has_fan(void) {
  * This setting isn't as bad as it sounds, though, because we don't poll
  * 100% of the time; we only do it for a fraction of a second every now
  * and then.
+ *
+ * Fans in CPE1.0 generate 2 pulses per revolution
  */
 #define FAN_POLL_HZ             2000
 #define FAN_USEC_PER_TICK       (1000000 / (FAN_POLL_HZ))
+#define PULSES_PER_REV          2
 
 int get_fan(void) {
   long long start = 0, end = 0;
@@ -567,7 +570,7 @@ int get_fan(void) {
 
   // return pulses/sec from the fan
   // number of pulses/rotation varies with fan model, so this isn't rpm
-  return (fan_flips * 1000 / (fan_loop_time + 1));
+  return (fan_flips * 1000 / (fan_loop_time + 1) / PULSES_PER_REV);
 }
 
 void set_fan(int wantspeed) {
