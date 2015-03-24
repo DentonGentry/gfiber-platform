@@ -269,7 +269,7 @@ def GetArgs():
   args = parser.parse_args()
   log_dir = args.log_dir
   log_server_path = args.log_server_path
-  poll_interval = args.poll_interval
+  poll_interval = float(args.poll_interval)
   return log_dir, log_server_path, poll_interval
 
 
