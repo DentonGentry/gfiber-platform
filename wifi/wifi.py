@@ -13,6 +13,7 @@ import time
 import options
 
 import autochannel
+import bandsteering
 import configs
 import experiment
 import iw
@@ -25,6 +26,8 @@ _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
 experiment.register('NoSwapWifiPrimaryChannel')  # checked by hostapd itself
 experiment.register('NoAutoNarrowWifiChannel')  # checked by hostapd itself
 experiment.register('Wifi80211k')
+experiment.register('WifiBandsteering')
+experiment.register('WifiReverseBandsteering')
 
 
 # pylint: disable=protected-access
@@ -442,12 +445,13 @@ def _is_wpa_supplicant_running(interface):
       ['wpa_cli', '-i', interface, 'status'], no_stdout=True) == 0
 
 
-def _start_hostapd(interface, config_filename):
+def _start_hostapd(interface, config_filename, band):
   """Starts a babysat hostapd.
 
   Args:
     interface: The interface on which to start hostapd.
     config_filename: The filename of the hostapd configuration.
+    band: The band on which hostapd is being started.
 
   Returns:
     Whether hostapd was started successfully.
@@ -461,8 +465,9 @@ def _start_hostapd(interface, config_filename):
   utils.babysit(['alivemonitor', alivemonitor_filename, '30', '2', '65',
                  'hostapd',
                  '-A', alivemonitor_filename,
-                 '-F', _FINGERPRINTS_DIRECTORY,
-                 config_filename],
+                 '-F', _FINGERPRINTS_DIRECTORY] +
+                bandsteering.hostapd_options(band) +
+                [config_filename],
                 'hostapd-%s' % interface, 10, pid_filename)
 
   # Wait for hostapd to start, and return False if it doesn't.
@@ -600,7 +605,7 @@ def _maybe_restart_hostapd(interface, config, opt):
   if not forced:
     utils.atomic_write(tmp_config_filename, config)
 
-  if not _start_hostapd(interface, tmp_config_filename):
+  if not _start_hostapd(interface, tmp_config_filename, str(opt.band)):
     utils.log('hostapd failed to start. Look at hostapd logs for details.')
     return False
 
