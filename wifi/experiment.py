@@ -26,7 +26,7 @@ def register(name):
     os.rename(filename('requested'), filename('active'))
   elif os.path.exists(filename('unrequested')):
     os.remove(filename('active'))
-    os.remove(filename('requested'))
+    os.remove(filename('unrequested'))
 
 
 def enabled(name):

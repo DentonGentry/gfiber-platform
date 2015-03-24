@@ -2,7 +2,6 @@
 
 """Tests for configs.py."""
 
-import os
 import subprocess
 
 import configs
@@ -310,7 +309,8 @@ def generate_hostapd_config_test():
 
   # Now enable extra short timeout intervals and the Wifi80211k experiment.
   experiment._EXPERIMENTS_DIR = '/tmp'
-  open('/tmp/Wifi80211k.active', 'a').close()
+  open('/tmp/Wifi80211k.requested', 'a').close()
+  experiment.register('Wifi80211k')
   FakeOptDict.extra_short_timeout_intervals = True
   new_config = '\n'.join((
       _HOSTAPD_CONFIG,
@@ -320,7 +320,6 @@ def generate_hostapd_config_test():
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', FakeOptDict)
   wvtest.WVPASSEQ(new_config, config)
-  os.remove('/tmp/Wifi80211k.active')
 
 
 if __name__ == '__main__':
