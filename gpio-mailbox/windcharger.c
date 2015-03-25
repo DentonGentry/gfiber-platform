@@ -82,7 +82,7 @@ struct platform_info platforms[] = {
     .clear_offset = 0x4,
     .led_red = {
       .is_present = 1,
-      .shift = 17,
+      .shift = 16,
       .direction_value = 0,
       .old_val = -1,
     },
