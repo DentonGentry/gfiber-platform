@@ -308,9 +308,10 @@ def generate_hostapd_config_test():
   wvtest.WVPASSEQ(_HOSTAPD_CONFIG, config)
 
   # Now enable extra short timeout intervals and the Wifi80211k experiment.
+  experiment._EXPERIMENTS_TMP_DIR = '/tmp'
   experiment._EXPERIMENTS_DIR = '/tmp'
-  open('/tmp/Wifi80211k.requested', 'a').close()
-  experiment.register('Wifi80211k')
+  open('/tmp/Wifi80211k.available', 'a').close()
+  open('/tmp/Wifi80211k.active', 'a').close()
   FakeOptDict.extra_short_timeout_intervals = True
   new_config = '\n'.join((
       _HOSTAPD_CONFIG,
