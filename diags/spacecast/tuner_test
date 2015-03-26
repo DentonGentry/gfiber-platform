@@ -1,0 +1,116 @@
+#!/bin/sh
+
+################################################################################
+#   Simple tool to test DVB tuner by snooping the signal and redirecting the
+# result to the output file, which is used to compare with the input signal.
+#
+# - Usage:
+#     tuner_test {start|stop|help}
+#
+################################################################################
+
+usage() {
+  cat <<EOF
+usage: tuner_test {start|stop|help} [options] ...
+
+options:
+  --freq=1400000                     Intermediate tuning frequency in kHz
+                                     (default = 1400 MHz)
+  --rate=30000                       Symbol rate in 1000s (default = 30000)
+  --rec=34                           Forward Error Correct code (default = 34)
+  --system=dvbs2                     Delivery system (default = dvbs2)
+  --type=ts                          Stream type to snoop on (default = ts)
+  --pid=0x1FFF                       PID channel to snoop on (default = 0x1FFF)
+  --outfile=/tmp/ts_file             Snoop output file (default = /tmp/ts_file)
+
+EOF
+  return 0
+}
+
+failmsg() {
+  local rval=$?
+  echo "FAIL: $0: $* Abort tuner test!" 1>&2
+  [ ${rval} -ne 0 ] && return ${rval}
+  return 1
+}
+
+parse_args() {
+  local arg
+  opt_action=
+  opt_freq=1400000
+  opt_rate=30000
+  opt_fec=34
+  opt_system="dvbs2"
+  opt_type="ts"
+  opt_pid=0x1FFF  # PID of the SFC-Transmitter.
+  opt_outfile="/tmp/ts_dump"
+
+  # First parse action.
+  case "$1" in
+    start) opt_action="start";;
+    stop) opt_action="stop";;
+    *help) usage && exit 0;;
+    *) failmsg "Unknown action [$1]; try --help." || return;;
+  esac
+  shift
+
+  # Then parse options.
+  while [ $# -ge 1 ]; do
+    # Arg starting with dash is formally an option.
+    case "$1" in (-*);; (*) break;; esac
+    arg=$1
+    shift
+    case "${arg}" in
+      --) break;;
+      --freq=*) opt_freq=${arg#*=};;
+      --rate=*) opt_rate=${arg#*=};;
+      --fec=*) opt_fec=${arg#*=};;
+      --system=*) opt_system=${arg#*=};;
+      --type=*) opt_type=${arg#*=};;
+      --pid=*) opt_pid=${arg#*=};;
+      --outfile=*) opt_outfile=${arg#*=};;
+      *) failmsg "Unknown option ${arg}; try --help." || return;;
+    esac
+  done
+}
+
+# Starts DVB tuner, DVB snoop, and redirect results to specified output file.
+start() {
+  # Kill any running tuner.
+  pkill -9 dvbtune
+
+  # Start DVB tuner.
+  dvbtune -s ${opt_system} -i ${opt_freq} -r ${opt_rate} -c ${opt_fec} &
+  ps -ef | grep " $! " | grep -v grep >/dev/null ||
+    failmsg "Failed to start tuner..." || return
+
+  # Remove previous outfile.
+  rm -rf ${opt_outfile}
+
+  # Start DVB snoop.
+  dvbsnoop -s ${opt_type} -pd 0 -ph 2 -hideproginfo ${opt_pid} >${opt_outfile} \
+    2>/dev/null &
+}
+
+# Stops DVB tuner, DVB snoop, and returns output file.
+stop() {
+  # Stop the snoop.
+  pkill -9 dvbsnoop
+
+  # Stop the tuner.
+  pkill -9 dvbtune
+
+  # Return the output file.
+  echo "Snooping output can be found in ${opt_outfile}."
+
+  # Get md5sum of the file content.
+  echo "md5sum=$(md5sum ${opt_outfile})"
+}
+
+main() {
+  parse_args "$@" || return
+  ${opt_action} || return
+  echo "$0 ${opt_action} completed succesfully."
+}
+
+main "$@"
