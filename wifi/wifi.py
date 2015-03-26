@@ -30,7 +30,7 @@ _OPTSPEC = """
 {bin} restore       Restore saved client and access point options.  Takes -b, -S.
 {bin} show          Print all known parameters.  Takes -b, -S.
 --
-b,band=                           Wifi band(s) to use (5 GHz and/or 2.4 GHz). set commands have a default of 2.4 and cannot take multiple-band values. [2.4 5]
+b,band=                           Wifi band(s) to use (5 GHz and/or 2.4 GHz).  set commands have a default of 2.4 and cannot take multiple-band values.  [2.4 5]
 c,channel=                        Channel to use [auto]
 a,autotype=                       Autochannel method to use (LOW, HIGH, DFS, NONDFS, ANY,OVERLAP) [NONDFS]
 s,ssid=                           SSID to use [{ssid}]
@@ -46,7 +46,7 @@ X,extra-short-timeout-intervals   Use extra short timeout intervals for stress t
 P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
 S,interface-suffix=               Interface suffix []
 """.format(bin=__file__.split('/')[-1],
-           ssid='%s_TestWifi' % subprocess.check_output(['serial']).strip())
+           ssid='%s_TestWifi' % subprocess.check_output(('serial')).strip())
 
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
 
@@ -59,13 +59,13 @@ experiment.register('WifiHostapdLogging')
 
 
 # pylint: disable=protected-access
-subprocess.call(['mkdir', '-p', utils._CONFIG_DIR])
+subprocess.call(('mkdir', '-p', utils._CONFIG_DIR))
 
 
 def _stop_hostapd(interface):
   """Stops hostapd from running on the given interface.
 
-  Also removes the pid file, sets the interface down and deletes the monitor
+  Also removes the pid file, sets them interface down and deletes the monitor
   interface, if it exists.
 
   Args:
@@ -75,7 +75,7 @@ def _stop_hostapd(interface):
     Whether hostapd was successfully stopped and cleaned up.
   """
   if not _is_hostapd_running(interface):
-    utils.log('hostapd already not running')
+    utils.log('hostapd already not running.')
     return True
 
   config_filename = utils.get_filename(
@@ -85,14 +85,14 @@ def _stop_hostapd(interface):
   if not utils.kill_pid('hostapd .* %s$' % config_filename, pid_filename):
     return False
 
-  # TODO(apenwarr): hostapd doesn't always delete interface mon.$ifc. Then it
-  # gets confused by the fact that it already exists. Let's help out.  We should
-  # really fix this by eliminating the need for hostapd to have a monitor
-  # interface at all (which is deprecated anyway) Remove this line when our
-  # hostapd no longer needs a monitor interface.
-  utils.subprocess_quiet(['iw', 'dev', 'mon.%s' % interface, 'del'])
+  # TODO(apenwarr): hostapd doesn't always delete interface mon.$ifc.  Then it
+  # gets confused by the fact that it already exists.  Let's help out.  We
+  # should really fix this by eliminating the need for hostapd to have a
+  # monitor interface at all (which is deprecated anyway) Remove this line when
+  # our hostapd no longer needs a monitor interface.
+  utils.subprocess_quiet(('iw', 'dev', 'mon.%s' % interface, 'del'))
 
-  subprocess.check_call(['ip', 'link', 'set', interface, 'down'])
+  subprocess.check_call(('ip', 'link', 'set', interface, 'down'))
 
   return True
 
@@ -109,7 +109,7 @@ def _stop_wpa_supplicant(interface):
     Whether wpa_supplicant was successfully stopped.
   """
   if not _is_wpa_supplicant_running(interface):
-    utils.log('wpa_supplicant already not running')
+    utils.log('wpa_supplicant already not running.')
     return True
 
   pid_filename = utils.get_filename(
@@ -121,7 +121,7 @@ def _stop_wpa_supplicant(interface):
     return False
 
   try:
-    subprocess.check_call(['ip', 'link', 'set', interface, 'down'])
+    subprocess.check_call(('ip', 'link', 'set', interface, 'down'))
   except subprocess.CalledProcessError:
     return False
 
@@ -139,7 +139,7 @@ def _set_wifi_broadcom(opt):
   """
   def wl(*args):
     utils.log('wl %s', ' '.join(args))
-    subprocess.check_call(['wl'] + list(args))
+    subprocess.check_call(('wl') + list(args))
 
   utils.log('Configuring broadcom wifi.')
   wl('radio', 'on')
@@ -163,7 +163,7 @@ def _set_wifi_broadcom(opt):
     # enough time to scan all the 2.4 or 5 GHz channels at 100ms each
     time.sleep(3)
     utils.log('wl autochannel')
-    channel = subprocess.check_output(['wl', 'autochannel']).split()[0]
+    channel = subprocess.check_output(('wl', 'autochannel')).split()[0]
 
   wl('ap', '1')
   wl('chanspec', channel)
@@ -247,7 +247,7 @@ def set_wifi(opt):
     # relevant if client was started recently).
     # TODO(rofrankel): Consider shortcutting this loop if wpa_cli shows status
     # is SCANNING (and other values)?
-    utils.log('Client running on same band; finding its width and channel')
+    utils.log('Client running on same band; finding its width and channel.')
     for _ in xrange(50):
       client_band = _get_wpa_band(client_interface)
       client_width, client_channel = iw.find_width_and_channel(client_interface)
@@ -321,9 +321,9 @@ def set_wifi(opt):
 
   try:
     utils.log('getting phy info...')
-    with open(os.devnull, 'wb') as devnull:
+    with open(os.devnull, 'w') as devnull:
       try:
-        phy_info = subprocess.check_output(['iw', 'phy', phy, 'info'],
+        phy_info = subprocess.check_output(('iw', 'phy', phy, 'info'),
                                            stderr=devnull)
       except subprocess.CalledProcessError as e:
         raise utils.BinWifiException(
@@ -418,9 +418,9 @@ def restore_wifi(opt):
   return True
 
 
-# TODO(apenwarr): extend this to notice actual running settings.
+# TODO(apenwarr): Extend this to notice actual running settings.
 #  Including whether hostapd is up or down, etc.
-# TODO(rofrankel): extend this to show client interface info.
+# TODO(rofrankel): Extend this to show client interface info.
 @iw.requires_iw
 def show_wifi(opt):
   """Prints information about wifi interfaces on this device.
@@ -438,7 +438,7 @@ def show_wifi(opt):
       continue
 
     print('Band: %s' % band)
-    for tokens in utils.subprocess_line_tokens(['iw', 'reg', 'get']):
+    for tokens in utils.subprocess_line_tokens(('iw', 'reg', 'get')):
       if len(tokens) >= 2 and tokens[0] == 'country':
         print('RegDomain: %s' % tokens[1].strip(':'))
         break
@@ -453,13 +453,13 @@ def show_wifi(opt):
 
     print('AutoChannel: %r' % os.path.exists('/tmp/autochan.%s' % interface))
     try:
-      with open('/tmp/autotype.%s' % interface, 'r') as autotype:
+      with open('/tmp/autotype.%s' % interface) as autotype:
         print('AutoType: %s' % autotype.read().strip())
     except IOError:
       pass
 
     print('Station List for band: %s' % band)
-    subprocess.call(['iw', 'dev', interface, 'station', 'dump'])
+    subprocess.call(('iw', 'dev', interface, 'station', 'dump'))
 
     print('\n')
 
@@ -468,12 +468,12 @@ def show_wifi(opt):
 
 def _is_hostapd_running(interface):
   return utils.subprocess_quiet(
-      ['hostapd_cli', '-i', interface, 'status'], no_stdout=True) == 0
+      ('hostapd_cli', '-i', interface, 'status'), no_stdout=True) == 0
 
 
 def _is_wpa_supplicant_running(interface):
   return utils.subprocess_quiet(
-      ['wpa_cli', '-i', interface, 'status'], no_stdout=True) == 0
+      ('wpa_cli', '-i', interface, 'status'), no_stdout=True) == 0
 
 
 def _start_hostapd(interface, config_filename, band, ssid):
@@ -494,12 +494,12 @@ def _start_hostapd(interface, config_filename, band, ssid):
       'hostapd', utils.FILENAME_KIND.alive, interface, tmp=True)
 
   utils.log('Starting hostapd.')
-  utils.babysit(['alivemonitor', alivemonitor_filename, '30', '2', '65',
+  utils.babysit(('alivemonitor', alivemonitor_filename, '30', '2', '65',
                  'hostapd',
                  '-A', alivemonitor_filename,
-                 '-F', _FINGERPRINTS_DIRECTORY] +
+                 '-F', _FINGERPRINTS_DIRECTORY) +
                 bandsteering.hostapd_options(band, ssid) +
-                [config_filename],
+                (config_filename,),
                 'hostapd-%s' % interface, 10, pid_filename)
 
   # Wait for hostapd to start, and return False if it doesn't.
@@ -529,14 +529,14 @@ def _start_hostapd(interface, config_filename, band, ssid):
 
 
 def _get_wpa_state(interface):
-  for line in utils.subprocess_lines(['wpa_cli', '-i', interface, 'status']):
+  for line in utils.subprocess_lines(('wpa_cli', '-i', interface, 'status')):
     tokens = line.split('=')
     if tokens and tokens[0] == 'wpa_state':
       return tokens[1]
 
 
 def _get_wpa_band(interface):
-  for line in utils.subprocess_lines(['wpa_cli', '-i', interface, 'status']):
+  for line in utils.subprocess_lines(('wpa_cli', '-i', interface, 'status')):
     tokens = line.split('=')
     if tokens and tokens[0] == 'freq':
       try:
@@ -563,8 +563,8 @@ def _start_wpa_supplicant(interface, config_filename):
       'wpa_supplicant', utils.FILENAME_KIND.pid, interface, tmp=True)
 
   utils.log('Starting wpa_supplicant.')
-  utils.babysit(['wpa_supplicant', '-Dnl80211', '-i', interface,
-                 '-c', config_filename],
+  utils.babysit(('wpa_supplicant', '-Dnl80211', '-i', interface,
+                 '-c', config_filename),
                 'wpa_supplicant-%s' % interface, 10, pid_filename)
 
   # Wait for wpa_supplicant to start, and return False if it doesn't.
@@ -584,7 +584,7 @@ def _start_wpa_supplicant(interface, config_filename):
 
   for _ in xrange(50):
     if not utils.check_pid(pid_filename):
-      utils.log('wpa_supplicant process died')
+      utils.log('wpa_supplicant process died.')
       return False
     if _is_wpa_supplicant_running(interface):
       break
@@ -601,10 +601,10 @@ def _start_wpa_supplicant(interface, config_filename):
     sys.stderr.write('.')
     time.sleep(0.1)
 
-  utils.log('wpa_supplicant did not connect')
+  utils.log('wpa_supplicant did not connect.')
   if not _stop_wpa_supplicant(interface):
     raise utils.BinWifiException(
-        "Couldn't stop wpa_supplicant after it failed to connect. "
+        "Couldn't stop wpa_supplicant after it failed to connect.  "
         "Consider killing it manually.")
 
   return False
@@ -633,17 +633,17 @@ def _maybe_restart_hostapd(interface, config, opt):
   current_config = None
 
   try:
-    with open(tmp_config_filename, 'r') as tmp_config_file:
+    with open(tmp_config_filename) as tmp_config_file:
       current_config = tmp_config_file.read()
   except IOError:
     pass
 
   if not _is_hostapd_running(interface):
-    utils.log('hostapd not running yet, starting')
+    utils.log('hostapd not running yet, starting.')
   elif current_config != config:
-    utils.log('hostapd config changed, restarting')
+    utils.log('hostapd config changed, restarting.')
   elif opt.force_restart:
-    utils.log('Forced restart requested')
+    utils.log('Forced restart requested.')
     forced = True
   else:
     utils.log('hostapd-%s already configured and running', interface)
@@ -657,7 +657,7 @@ def _maybe_restart_hostapd(interface, config, opt):
     utils.atomic_write(tmp_config_filename, config)
 
   if not _start_hostapd(interface, tmp_config_filename, opt.band, opt.ssid):
-    utils.log('hostapd failed to start. Look at hostapd logs for details.')
+    utils.log('hostapd failed to start.  Look at hostapd logs for details.')
     return False
 
   return True
@@ -710,18 +710,18 @@ def _maybe_restart_wpa_supplicant(interface, config, opt):
   band = opt.band
 
   try:
-    with open(tmp_config_filename, 'r') as tmp_config_file:
+    with open(tmp_config_filename) as tmp_config_file:
       current_config = tmp_config_file.read()
   except IOError:
     pass
 
   if not _is_wpa_supplicant_running(interface):
-    utils.log('wpa_supplicant not running yet, starting')
+    utils.log('wpa_supplicant not running yet, starting.')
   elif current_config != config:
     # TODO(rofrankel): Consider using wpa_cli reconfigure here.
-    utils.log('wpa_supplicant config changed, restarting')
+    utils.log('wpa_supplicant config changed, restarting.')
   elif opt.force_restart:
-    utils.log('Forced restart requested')
+    utils.log('Forced restart requested.')
     forced = True
   else:
     utils.log('wpa_supplicant-%s already configured and running', interface)
@@ -749,7 +749,7 @@ def _maybe_restart_wpa_supplicant(interface, config, opt):
 
   if not _start_wpa_supplicant(interface, tmp_config_filename):
     raise utils.BinWifiException(
-        'wpa_supplicant failed to start. Look at wpa_supplicant logs for '
+        'wpa_supplicant failed to start.  Look at wpa_supplicant logs for '
         'details.')
 
   if restart_hostapd:
@@ -798,7 +798,7 @@ def set_client_wifi(opt):
     if not iw.does_interface_exist(interface):
       utils.log('Creating client interface %s', interface)
       utils.subprocess_quiet(
-          ['iw', 'phy', phy, 'interface', 'add', interface, 'type', 'station'],
+          ('iw', 'phy', phy, 'interface', 'add', interface, 'type', 'station'),
           no_stdout=True)
       ap_mac_address = utils.get_mac_address_for_interface(
           iw.find_interface_from_phy(
@@ -806,7 +806,7 @@ def set_client_wifi(opt):
               opt.interface_suffix))
       mac_address = utils.increment_mac_address(ap_mac_address)
       subprocess.check_call(
-          ['ip', 'link', 'set', interface, 'address', mac_address])
+          ('ip', 'link', 'set', interface, 'address', mac_address))
 
   wpa_config = configs.generate_wpa_supplicant_config(
       opt.ssid, os.environ['WIFI_CLIENT_PSK'])
@@ -847,7 +847,7 @@ def stop_client_wifi(opt):
 
 
 def stringify_options(optdict):
-  for option in ['channel', 'width', 'band', 'ssid']:
+  for option in ('channel', 'width', 'band', 'ssid'):
     optdict.__setitem__(option, str(optdict.__getitem__(option)))
 
 

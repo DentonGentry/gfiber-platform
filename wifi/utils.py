@@ -14,11 +14,15 @@ import unicodedata
 
 _CONFIG_DIR = '/config/wifi'
 FILENAME_KIND = collections.namedtuple(
-    'FilenameKind', ['options', 'config', 'pid', 'alive'])(
+    'FilenameKind', ('options', 'config', 'pid', 'alive'))(
         options='opts', config='conf', pid='pid', alive='alive')
 
 
-class BinWifiException(Exception):
+class Error(Exception):
+  """Common base class for all exception types in /bin/wifi."""
+
+
+class BinWifiException(Error):
 
   def __init__(self, message, *args):
     super(BinWifiException, self).__init__(message)
@@ -43,7 +47,7 @@ def atomic_write(filename, data):
     data: The data to write.
 
   Raises:
-    BinWifiException:  If the write fails.
+    BinWifiException: If the write fails.
   """
   tmp_filename = filename + '.new'
   try:
@@ -56,7 +60,7 @@ def atomic_write(filename, data):
 
 def subprocess_quiet(args, no_stderr=True, no_stdout=False):
   """Run a subprocess command with no stderr, and optionally no stdout."""
-  with open(os.devnull, 'wb') as devnull:
+  with open(os.devnull, 'w') as devnull:
     kwargs = {}
     if no_stderr:
       kwargs['stderr'] = devnull
@@ -74,11 +78,11 @@ def subprocess_output_or_none(args):
 
 def subprocess_lines(args, no_stderr=False):
   """Yields each line in the stdout of a subprocess call."""
-  with open(os.devnull, 'wb') as devnull:
+  with open(os.devnull, 'w') as devnull:
     kwargs = {}
     if no_stderr:
       kwargs['stderr'] = devnull
-    for line in subprocess.check_output(args, **kwargs).split(b'\n'):
+    for line in subprocess.check_output(args, **kwargs).split('\n'):
       yield line
 
 
@@ -90,7 +94,7 @@ def babysit(command, name, retry_timeout, pid_filename):
   """Run a command wrapped with babysit and startpid, and piped to logos.
 
   Args:
-    command: The command to run, e.g. ['ls', '-l'].
+    command: The command to run, e.g. ('ls', '-l').
     name: The name to pass to logos.
     retry_timeout: The babysit retry_timeout, in seconds.
     pid_filename: The filename to use for the startpid pid file.
@@ -98,12 +102,12 @@ def babysit(command, name, retry_timeout, pid_filename):
   Returns:
     The name of the interface if found, otherwise None.
   """
-  args = ['babysit', str(retry_timeout), 'startpid', pid_filename] + command
+  args = ('babysit', str(retry_timeout), 'startpid', pid_filename) + command
   process = subprocess.Popen(args,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
   # Sleep for two seconds to give startpid time to create the pid filename.
   time.sleep(2)
-  subprocess.Popen(['logos', name], stdin=process.stdout)
+  subprocess.Popen(('logos', name), stdin=process.stdout)
 
 
 def get_mac_address_for_interface(interface):
@@ -146,9 +150,9 @@ def check_pid(pid_filename):
     BinWifiException: If the pidfile cannot be opened.
   """
   try:
-    with open(pid_filename, 'r') as pid_file:
+    with open(pid_filename) as pid_file:
       pid = pid_file.read().strip()
-      return subprocess_quiet(['kill', '-0', pid]) == 0
+    return subprocess_quiet(('kill', '-0', pid)) == 0
   except IOError as e:
     raise BinWifiException("Couldn't open specified pidfile %s: %s",
                            pid_filename, e)
@@ -165,15 +169,17 @@ def kill_pid(program, pid_filename):
     Whether stopping the program succeeded.
   """
   try:
-    subprocess.check_call(['pkillwait', '-f', program])
-    subprocess.check_call(['killpid', pid_filename])
-    try:
-      os.remove(pid_filename)
-    except OSError:
-      pass
+    subprocess.check_call(('pkillwait', '-f', program))
+    subprocess.check_call(('killpid', pid_filename))
   except subprocess.CalledProcessError as e:
     log('Error stopping process: %s', e)
     return False
+  finally:
+    try:
+      os.remove(pid_filename)
+    except OSError:
+      if os.path.exists(pid_filename):
+        raise
 
   return True
 
@@ -233,7 +239,7 @@ def validate_set_wifi_options(band, width, autotype, protocols, encryption):
   if encryption == 'WEP' or '_PSK_' in encryption:
     if 'WIFI_PSK' not in os.environ:
       raise BinWifiException(
-          'encryption enabled; use WIFI_PSK=whatever wifi set ...')
+          'Encryption enabled; use WIFI_PSK=whatever wifi set ...')
 
 
 def sanitize_ssid(ssid):
@@ -242,7 +248,7 @@ def sanitize_ssid(ssid):
   We use hostapd's utf8_ssid option to specify a UTF8 SSID.
 
   Args:
-    ssid:  The SSID to sanitize, as a string.
+    ssid: The SSID to sanitize, as a string.
 
   Returns:
     The sanitized SSID, as a UTF8-encoded string.
@@ -258,13 +264,13 @@ def validate_and_sanitize_psk(psk):
   hex characters.
 
   Args:
-    psk:  The PSK to validate, as a string.
+    psk: The PSK to validate, as a string.
 
   Returns:
     The sanitized PSK, as a string.
 
   Raises:
-    BinWifiException:  If the PSK is invalid.
+    BinWifiException: If the PSK is invalid.
   """
   if len(psk) == 64:
     try:
@@ -283,5 +289,3 @@ def validate_and_sanitize_psk(psk):
     raise BinWifiException('PSK is not of a valid length: %d', len(psk))
 
   return psk
-
-

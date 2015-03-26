@@ -16,8 +16,8 @@ _experiment_enabled = set()
 
 # TODO(rofrankel): Move registration to /etc/init.d/S50wifi.
 def register(name):
-  if subprocess.call(['register_experiment', name]) != 0:
-    utils.log('Failed to register experiment %s', name)
+  if subprocess.call(('register_experiment', name)) != 0:
+    utils.log('Failed to register experiment %s.', name)
 
 
 def enabled(name):
@@ -35,14 +35,14 @@ def enabled(name):
                                      name + '.available')):
     if name not in _experiment_warned:
       _experiment_warned.add(name)
-      utils.log('Warning: experiment %r not registered\n', name)
+      utils.log('Warning: experiment %r not registered.', name)
   else:
     is_enabled = os.path.exists(os.path.join(_EXPERIMENTS_DIR,
                                              name + '.active'))
     if is_enabled and name not in _experiment_enabled:
       _experiment_enabled.add(name)
-      utils.log('Notice: using experiment %r\n', name)
+      utils.log('Notice: using experiment %r.', name)
     elif not is_enabled and name in _experiment_enabled:
       _experiment_enabled.remove(name)
-      utils.log('Notice: stopping experiment %r\n', name)
+      utils.log('Notice: stopping experiment %r.', name)
     return is_enabled

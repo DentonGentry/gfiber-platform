@@ -9,16 +9,16 @@ import utils
 from wvtest import wvtest
 
 
-_VALIDATION_PASS = [
+_VALIDATION_PASS = (
     {},
     {'band': '5'},
     {'width': '40'},
     {'autotype': 'ANY'},
-    {'protocols': ['a', 'b', 'ac']},
+    {'protocols': ('a', 'b', 'ac')},
     {'encryption': 'NONE'},
-]
+)
 
-_VALIDATION_FAIL = [
+_VALIDATION_FAIL = (
     # Invalid bands
     {'band': 2.4},
     {'band': '2.5'},
@@ -35,7 +35,7 @@ _VALIDATION_FAIL = [
     # Invalid width/protocols
     {'width': '40', 'protocols': set('abg')},
     {'width': '80', 'protocols': set('abgn')},
-]
+)
 
 
 _DEFAULTS = collections.OrderedDict((('band', '2.4'), ('width', '20'),
@@ -60,7 +60,7 @@ def validate_set_options_test():
     try:
       utils.validate_set_wifi_options(*modify_defaults(**case).values())
     except utils.BinWifiException:
-      wvtest.WVFAIL('Test failed')
+      wvtest.WVFAIL('Test failed.')
 
   for case in _VALIDATION_FAIL:
     wvtest.WVEXCEPT(
@@ -95,8 +95,8 @@ def sanitize_ssid_test():
   unicode_control_char = u'\u200e'.encode('utf-8')
   non_utf8 = '\x97'
   wvtest.WVPASSEQ(hebrew,
-                  utils.sanitize_ssid(''.join([hebrew, unicode_control_char,
-                                               non_utf8])))
+                  utils.sanitize_ssid(''.join((hebrew, unicode_control_char,
+                                               non_utf8))))
 
 
 @wvtest.wvtest

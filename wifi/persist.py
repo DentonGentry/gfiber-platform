@@ -3,6 +3,7 @@
 """Functions related to persisting command line options."""
 
 import ast
+import errno
 import os
 
 import utils
@@ -21,7 +22,7 @@ def save_options(program, band, argv, tmp=False):
     tmp: Whether to save options to /tmp or _CONFIG_DIR.
   """
   to_save = {
-      'argv': [arg for arg in argv if arg not in ['-P', '--persist']],
+      'argv': [arg for arg in argv if arg not in ('-P', '--persist')],
       'env': {},
   }
 
@@ -39,7 +40,7 @@ def save_options(program, band, argv, tmp=False):
 
 
 def load_options(program, band, tmp):
-  """Loads program options.
+  """Loads program options, if any have been saved.
 
   Args:
     program: The program for which to load options.
@@ -54,12 +55,14 @@ def load_options(program, band, tmp):
   filename = utils.get_filename(program, utils.FILENAME_KIND.options, band,
                                 tmp=tmp)
   try:
-    with open(filename, 'r') as options_file:
+    with open(filename) as options_file:
       saved = ast.literal_eval(options_file.read())
       os.environ.update(saved['env'])
       return saved['argv']
-  except IOError:
-    return None
+  except IOError as e:
+    if e.args[0] == errno.ENOENT:
+      return None
+    raise
 
 
 def delete_options(program, band):
@@ -76,12 +79,12 @@ def delete_options(program, band):
   if os.path.exists(filename):
     try:
       os.remove(filename)
-      utils.log('Removed persisted options for %s GHz %s', band, program)
+      utils.log('Removed persisted options for %s GHz %s.', band, program)
     except OSError:
-      utils.log('Failed to remove persisted options for %s GHz %s',
+      utils.log('Failed to remove persisted options for %s GHz %s.',
                 band, program)
       return False
   else:
-    utils.log('No persisted options to remove for %s GHz %s', band, program)
+    utils.log('No persisted options to remove for %s GHz %s.', band, program)
 
   return True

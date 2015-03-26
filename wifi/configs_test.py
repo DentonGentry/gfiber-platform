@@ -22,9 +22,9 @@ network={
 
 @wvtest.wvtest
 def generate_wpa_supplicant_config_test():
-  if subprocess.call(['which', 'wpa_passphrase']) != 0:
+  if subprocess.call(('which', 'wpa_passphrase')) != 0:
     utils.log(
-        'Can\'t test generate_wpa_supplicant_config without wpa_passphrase')
+        'Can\'t test generate_wpa_supplicant_config without wpa_passphrase.')
     return
 
   config = configs.generate_wpa_supplicant_config(
@@ -308,7 +308,7 @@ def generate_hostapd_config_test():
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', FakeOptDict)
-  wvtest.WVPASSEQ('\n'.join([_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA]), config)
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA)), config)
 
   # Test with no encryption.
   default_encryption, FakeOptDict.encryption = FakeOptDict.encryption, 'NONE'
@@ -325,7 +325,8 @@ def generate_hostapd_config_test():
   open('/tmp/Wifi80211k.active', 'a').close()
   FakeOptDict.extra_short_timeout_intervals = True
   new_config = '\n'.join((
-      '\n'.join([_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA]),
+      _HOSTAPD_CONFIG,
+      _HOSTAPD_CONFIG_WPA,
       configs._EXPERIMENT_80211K_TPL.format(interface='wlan0'),
       configs._EXTRA_SHORT_TIMEOUT_INTERVALS_TPL))
   config = configs.generate_hostapd_config(

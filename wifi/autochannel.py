@@ -83,49 +83,52 @@ def scan(interface, band, autotype, width):
 
   permitted_frequencies = get_permitted_frequencies(band, autotype, width)
 
-  subprocess.call(['ip', 'link', 'set', interface, 'up'])
+  subprocess.call(('ip', 'link', 'set', interface, 'up'))
 
-  # TODO(apenwarr): we really want to clear any old survey results first. But
-  #  there seems to be no iw command for that yet...
-  # TODO(apenwarr): This only scans each channel for 100ms. Ideally it should
-  #  scan for longer, to get a better activity sample. It would also be nice to
-  #  continue scanning in the background while hostapd is running, using 'iw
-  #  offchannel'. Retry this a few times if it fails, just in case there was a
-  #  scan already in progress started somewhere else (eg. from waveguide).
-  for _ in range(9):
-    if utils.subprocess_quiet(['iw', 'dev', interface, 'scan', 'passive'],
+  # TODO(apenwarr): We really want to clear any old survey results first.  But
+  # there seems to be no iw command for that yet...
+  #
+  # TODO(apenwarr): This only scans each channel for 100ms.  Ideally it should
+  # scan for longer, to get a better activity sample.  It would also be nice to
+  # continue scanning in the background while hostapd is running, using 'iw
+  # offchannel'.  Retry this a few times if it fails, just in case there was a
+  # scan already in progress started somewhere else (e.g. from waveguide).
+  for _ in xrange(9):
+    if utils.subprocess_quiet(('iw', 'dev', interface, 'scan', 'passive'),
                               no_stdout=True) == 0:
       break
     time.sleep(0.5)
 
-  # TODO(apenwarr): this algorithm doesn't deal with overlapping channels. Just
-  #  because channel 1 looks good doesn't mean we should use it; activity in
-  #  overlapping channels could destroy performance.  In fact, overlapping
-  #  channel activity is much worse than activity on the main channel.  Also, if
-  #  using 40 MHz or 80 MHz channel width, we should count activity in all the
-  #  20 MHz sub-channels separately, and choose the least-active sub-channel as
-  #  the primary.
+  # TODO(apenwarr): This algorithm doesn't deal with overlapping channels. Just
+  # because channel 1 looks good doesn't mean we should use it; activity in
+  # overlapping channels could destroy performance.  In fact, overlapping
+  # channel activity is much worse than activity on the main channel.  Also, if
+  # using 40 MHz or 80 MHz channel width, we should count activity in all the 20
+  # MHz sub-channels separately, and choose the least-active sub-channel as the
+  # primary.
   best_frequency = best_noise = best_ratio = frequency = None
   for tokens in utils.subprocess_line_tokens(
-      ['iw', 'dev', interface, 'survey', 'dump']):
-    # TODO(apenwarr): Randomize the order of channels. Otherwise when channels
-    #  are all about equally good, we would always choose exactly the same
-    #  channel, which might be bad in the case of hidden nodes.
+      ('iw', 'dev', interface, 'survey', 'dump')):
+    # TODO(apenwarr): Randomize the order of channels.  Otherwise when channels
+    # are all about equally good, we would always choose exactly the same
+    # channel, which might be bad in the case of hidden nodes.
     if len(tokens) >= 2 and tokens[0] == 'frequency:':
       frequency = tokens[1]
       noise = active = busy = None
     elif len(tokens) >= 2 and tokens[0] == 'noise:':
       noise = int(tokens[1])
-    elif len(tokens) >= 4 and ' '.join(tokens[:3]) == 'channel active time:':
+    elif len(tokens) >= 4 and tokens[:3] == ('channel', 'active', 'time:'):
       active = int(tokens[3])
-    elif len(tokens) >= 4 and ' '.join(tokens[:3]) == 'channel receive time:':
+    elif len(tokens) >= 4 and tokens[:3] == ('channel', 'receive', 'time:'):
       busy = int(tokens[3])
+      # TODO(rofrankel): busy or 1 might make more sense than busy + 1 here;
+      # need to discuss with apenwarr@.
       ratio = (active + 1) * 1000 / (busy + 1)
 
       if frequency not in permitted_frequencies.split():
         continue
 
-      # some radios support both bands, but we only want to match channels on
+      # Some radios support both bands, but we only want to match channels on
       # the band we have chosen.
       if band[0] != frequency[0]:
         continue
@@ -136,17 +139,17 @@ def scan(interface, band, autotype, width):
         best_frequency, best_ratio, best_noise = frequency, ratio, noise
 
   if not best_frequency:
-    utils.log('autoscan did not find any channel, picking random channel')
-    utils.log('permitted frequencies: %s', permitted_frequencies)
+    utils.log('Autoscan did not find any channel, picking random channel.')
+    utils.log('Permitted frequencies: %s', permitted_frequencies)
     if not permitted_frequencies:
-      utils.log('no default channel: type=%s band=%s width=%s',
+      utils.log('No default channel: type=%s band=%s width=%s',
                 autotype, band, width)
       return None
     best_frequency = random.choice(permitted_frequencies.split())
 
   utils.log('autofreq=%s', best_frequency)
 
-  for tokens in utils.subprocess_line_tokens(['iw', 'phy']):
+  for tokens in utils.subprocess_line_tokens(('iw', 'phy')):
     if len(tokens) >= 4 and tokens[2] == 'MHz':
       frequency = tokens[1]
       if frequency == best_frequency:
@@ -154,7 +157,7 @@ def scan(interface, band, autotype, width):
         break
 
   if not channel:
-    utils.log('No channel number matched freq=%s', best_frequency)
+    utils.log('No channel number matched freq=%s.', best_frequency)
     return None
 
   utils.log('autochannel=%s', channel)

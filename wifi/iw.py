@@ -11,13 +11,13 @@ import utils
 
 
 INTERFACE_TYPE = collections.namedtuple(
-    'InterfaceType', ['ap', 'client'])(ap='lan', client='cli')
+    'InterfaceType', ('ap', 'client'))(ap='lan', client='cli')
 
-RUNNABLE_IW = lambda: subprocess.call(['runnable', 'iw']) == 0
-RUNNABLE_WL = lambda: subprocess.call(['runnable', 'wl']) == 0
+RUNNABLE_IW = lambda: subprocess.call(('runnable', 'iw')) == 0
+RUNNABLE_WL = lambda: subprocess.call(('runnable', 'wl')) == 0
 
 
-class RequiresIwException(Exception):
+class RequiresIwException(utils.Error):
 
   def __init__(self, function_name):
     super(RequiresIwException, self).__init__()
@@ -38,26 +38,31 @@ def requires_iw(f):
 
 
 def _phy(**kwargs):
-  return subprocess.check_output(['iw', 'phy'], **kwargs)
+  return subprocess.check_output(('iw', 'phy'), **kwargs)
 
 
 def _dev(**kwargs):
-  return subprocess.check_output(['iw', 'dev'], **kwargs)
+  return subprocess.check_output(('iw', 'dev'), **kwargs)
 
 
 def _info(interface, **kwargs):
-  return subprocess.check_output(['iw', interface, 'info'], **kwargs)
+  return subprocess.check_output(('iw', interface, 'info'), **kwargs)
 
 
 def _link(interface, **kwargs):
-  return subprocess.check_output(['iw', interface, 'link'], **kwargs)
+  return subprocess.check_output(('iw', interface, 'link'), **kwargs)
+
+
+_WIPHY_RE = re.compile(r'Wiphy (?P<phy>\S+)')
+_FREQUENCY_AND_CHANNEL_RE = re.compile(r'\s*\* (?P<frequency>\d+) MHz'
+                                       r' \[(?P<channel>\d+)\]')
 
 
 def phy_parsed(**kwargs):
   """Parse the results of 'iw phy'.
 
   Args:
-    **kwargs:  Passed to the underlying subprocess call.
+    **kwargs: Passed to the underlying subprocess call.
 
   Returns:
     A dict of the the form: {'phyX': 'frequency_and_channel': [(F, C), ...]}
@@ -65,51 +70,57 @@ def phy_parsed(**kwargs):
   result = {}
   phy = None
 
-  for tokens in (line.split() for line in _phy(**kwargs).split(b'\n')):
-    if tokens and tokens[0] == 'Wiphy':
-      phy = tokens[1]
-      result[phy] = {
-          'frequency_and_channel': [],
-      }
-    elif len(tokens) >= 4 and tokens[2] == 'MHz':
-      result[phy]['frequency_and_channel'].append(
-          (tokens[1], tokens[3].strip('[]')))
+  for line in _phy(**kwargs).split('\n'):
+    match = _WIPHY_RE.match(line)
+    if match:
+      phy = match.group('phy')
+      result[phy] = {'frequency_and_channel': []}
+    else:
+      match = _FREQUENCY_AND_CHANNEL_RE.match(line)
+      if match:
+        result[phy]['frequency_and_channel'].append(
+            (match.group('frequency'), match.group('channel')))
 
   return result
+
+
+_PHY_RE = re.compile(r'(?P<phy>phy#\S+)')
+_INTERFACE_RE = re.compile(r'\s*Interface (?P<interface>\S+)')
 
 
 def dev_parsed(**kwargs):
   """Parse the results of 'iw dev'.
 
   Args:
-    **kwargs:  Passed to the underlying subprocess call.
+    **kwargs: Passed to the underlying subprocess call.
 
   Returns:
     A dict of the the form: {'phyX': 'interfaces': ['interfaceN', ...]}
   """
   result = {}
-  for tokens in (line.split() for line in _dev(**kwargs).split(b'\n')):
-    if tokens and tokens[0].startswith('phy#'):
-      phy = ''.join(tokens[0].split('#'))
-      result[phy] = {
-          'interfaces': []
-      }
-    elif len(tokens) >= 2 and tokens[0] == 'Interface':
-      result[phy]['interfaces'].append(tokens[1])
+  for line in _dev(**kwargs).split('\n'):
+    match = _PHY_RE.match(line)
+    if match:
+      phy = match.group('phy').replace('#', '')
+      result[phy] = {'interfaces': []}
+    else:
+      match = _INTERFACE_RE.match(line)
+      if match:
+        result[phy]['interfaces'].append(match.group('interface'))
 
   return result
 
 
 _CHANNEL_WIDTH_RE = re.compile(
-    r'\s+channel (?P<channel>\d+).*width: (?P<width>\d+).*')
+    r'\s+channel (?P<channel>\d+).*width: (?P<width>\d+)')
 
 
 def info_parsed(interface, **kwargs):
   """Parse the results of 'iw <interface> info'.
 
   Args:
-    interface:  The interface
-    **kwargs:  Passed to the underlying subprocess call.
+    interface: The interface.
+    **kwargs: Passed to the underlying subprocess call.
 
   Returns:
     A dict of the the form: {'width': W, 'channel': C, ...}; the additional keys
@@ -117,7 +128,7 @@ def info_parsed(interface, **kwargs):
   """
   result = {'width': None, 'channel': None}
 
-  for line in _info(interface, **kwargs).split(b'\n'):
+  for line in _info(interface, **kwargs).split('\n'):
     match = _CHANNEL_WIDTH_RE.match(line)
     if match:
       result['width'] = match.group('width')
@@ -131,25 +142,25 @@ def info_parsed(interface, **kwargs):
   return result
 
 
-_WIDTH_RE = re.compile(r'.*[^\d](?P<width>\d+)MHz.*')
-_FREQUENCY_RE = re.compile(r'.*freq: (?P<frequency>\d+)')
+_WIDTH_RE = re.compile(r'[^\d](?P<width>\d+)MHz.*')
+_FREQUENCY_RE = re.compile(r'\s*freq: (?P<frequency>\d+)')
 
 
 def link_parsed(interface, **kwargs):
   """Parse the results of 'iw <interface> link'.
 
   Args:
-    interface:  The interface
-    **kwargs:  Passed to the underlying subprocess call.
+    interface: The interface.
+    **kwargs: Passed to the underlying subprocess call.
 
   Returns:
     A dict of the the form: {'width': W, 'frequency': F}
   """
   result = {'width': None, 'frequency': None}
 
-  for line in _link(interface, **kwargs).split(b'\n'):
+  for line in _link(interface, **kwargs).split('\n'):
     if 'tx bitrate' in line:
-      match = _WIDTH_RE.match(line)
+      match = _WIDTH_RE.search(line)
       if match:
         result['width'] = match.group('width')
 
@@ -191,14 +202,15 @@ def find_interface_from_phy(phy, interface_type, interface_suffix):
   Returns:
     The name of the interface if found, otherwise None.
   """
-  if interface_type not in [INTERFACE_TYPE.ap, INTERFACE_TYPE.client]:
-    utils.log('Invalid interface type %s', interface_type)
+  if interface_type not in (INTERFACE_TYPE.ap, INTERFACE_TYPE.client):
+    utils.log('Invalid interface type %s.', interface_type)
     return None
 
-  pattern = r'^w{ifc_type}[0-9]{ifc_suffix}$'.format(
-      ifc_type=interface_type, ifc_suffix=interface_suffix)
+  pattern = re.compile(r'w{interface_type}[0-9]{interface_suffix}\Z'.format(
+      interface_type=re.escape(interface_type),
+      interface_suffix=re.escape(interface_suffix)))
   for interface in dev_parsed()[phy]['interfaces']:
-    if re.match(pattern, interface):
+    if pattern.match(interface):
       return interface
 
 
@@ -231,14 +243,14 @@ def find_width_and_channel(interface):
     of which may be None.
   """
   # This doesn't work on TV boxes.
-  with open(os.devnull, 'wb') as devnull:
+  with open(os.devnull, 'w') as devnull:
     info_result = info_parsed(interface, stderr=devnull)
     result = (info_result['width'], info_result['channel'])
     if None not in result:
       return result
 
   # This works on TV boxes.
-  with open(os.devnull, 'wb') as devnull:
+  with open(os.devnull, 'w') as devnull:
     link_result = link_parsed(interface, stderr=devnull)
   width, frequency = link_result['width'], link_result['frequency']
 
@@ -259,7 +271,7 @@ def find_width_and_channel(interface):
 
 
 def does_interface_exist(interface):
-  return utils.subprocess_quiet(['iw', interface, 'info'], no_stdout=True) == 0
+  return utils.subprocess_quiet(('iw', interface, 'info'), no_stdout=True) == 0
 
 
 def create_client_interface(interface, phy, suffix):
@@ -273,16 +285,16 @@ def create_client_interface(interface, phy, suffix):
   Returns:
     Whether interface creation succeeded.
   """
-  utils.log('Creating client interface %s', interface)
+  utils.log('Creating client interface %s.', interface)
   try:
     utils.subprocess_quiet(
-        ['iw', 'phy', phy, 'interface', 'add', interface, 'type', 'station'],
+        ('iw', 'phy', phy, 'interface', 'add', interface, 'type', 'station'),
         no_stdout=True)
 
     ap_mac_address = utils.get_mac_address_for_interface(
         find_interface_from_phy(phy, INTERFACE_TYPE.ap, suffix))
     mac_address = utils.increment_mac_address(ap_mac_address)
     subprocess.check_call(
-        ['ip', 'link', 'set', interface, 'address', mac_address])
+        ('ip', 'link', 'set', interface, 'address', mac_address))
   except subprocess.CalledProcessError as e:
     utils.log('Creating client interface failed: %s', e)

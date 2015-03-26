@@ -15,7 +15,7 @@ import utils
 # information needed to locate the "wider" channels.
 # (It might be nicer to use frequencies instead of channels here, but
 # unfortunately iw makes conversion back and forth complicated, and the
-# math is easier with channel numbers.  TODO(apenwarr): make iw less lame.)
+# math is easier with channel numbers.  TODO(apenwarr): Make iw less lame.)
 _HT_DIRECTIONS = """
     1+ 2+ 3+ 4+ 5- 6- 7+ 8- 9- 10- 11-
     36+ 40- 44+ 48-
@@ -219,14 +219,14 @@ def generate_hostapd_config(
 
   try:
     bssid = None
-    if subprocess.call(['is-network-box']) == 0:
+    if subprocess.call(('is-network-box')) == 0:
       mac_addr_hnvram = (
           'MAC_ADDR_WIFI' + ('' if interface.startswith('wlan0') else '2'))
       bssid = utils.subprocess_output_or_none(
-          ['hnvram', '-qr', mac_addr_hnvram])
+          ('hnvram', '-qr', mac_addr_hnvram))
 
     if bssid is None:
-      bssid = utils.subprocess_output_or_none(['hnvram', '-rq', 'MAC_ADDR'])
+      bssid = utils.subprocess_output_or_none(('hnvram', '-rq', 'MAC_ADDR'))
       if bssid is None:
         raise utils.BinWifiException(
             'Box has no MAC_ADDR_WIFI, MAC_ADDR_WIFI2, or MAC_ADDR.  You can '
@@ -268,6 +268,6 @@ def generate_wpa_supplicant_config(ssid, passphrase):
   return '\n'.join(
       ('ctrl_interface=/var/run/wpa_supplicant',
        'ap_scan=1',
-       subprocess.check_output(['wpa_passphrase',
+       subprocess.check_output(('wpa_passphrase',
                                 utils.sanitize_ssid(ssid),
-                                utils.validate_and_sanitize_psk(passphrase)])))
+                                utils.validate_and_sanitize_psk(passphrase)))))
