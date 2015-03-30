@@ -92,7 +92,11 @@ char* parse_and_consume_log_data(struct log_parse_params* params) {
         // the first time /dev/kmsg is opened.
         continue;
       } else if (errno == EINVAL) {
-        fprintf(stderr, "log message too long, skipping it\n");
+        // This should never happen because we use an 8192 size buf which is
+        // the same size as the kernel uses for the temp buf to copy the result
+        // to. So if this happens...that likely means there is kernel
+        // corruption.
+        perror("kernel memory possibly corrupted, devkmsg_read");
         continue;
       } else {
         fprintf(stderr, "failed reading from /dev/kmsg: %s\n", strerror(errno));
