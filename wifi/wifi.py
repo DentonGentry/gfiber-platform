@@ -221,15 +221,17 @@ def set_wifi(opt):
     # is SCANNING (and other values)?
     utils.log('Client running on same band; finding its width and channel')
     for _ in xrange(50):
+      client_band = _get_wpa_band(client_interface)
       client_width, client_channel = iw.find_width_and_channel(client_interface)
       sys.stderr.write('.')
-      if None not in (client_width, client_channel):
-        width, channel = client_width, client_channel
-        utils.log('Using channel=%s, width=%s MHz from client', channel, width)
+      if None not in (client_band, client_width, client_channel):
+        band, width, channel = client_band, client_width, client_channel
+        utils.log('Using band=%s, channel=%s, width=%s MHz from client',
+                  band, channel, width)
         break
       time.sleep(0.2)
     else:
-      utils.log('Couldn\'t find width and channel used by client '
+      utils.log('Couldn\'t find band, width, and channel used by client '
                 '(it may not be connected)')
 
   interface = iw.find_interface_from_phy(
@@ -501,6 +503,16 @@ def _get_wpa_state(interface):
     tokens = line.split('=')
     if tokens and tokens[0] == 'wpa_state':
       return tokens[1]
+
+
+def _get_wpa_band(interface):
+  for line in utils.subprocess_lines(['wpa_cli', '-i', interface, 'status']):
+    tokens = line.split('=')
+    if tokens and tokens[0] == 'freq':
+      try:
+        return {'5': '5', '2': '2.4'}[tokens[1][0]]
+      except KeyError:
+        return None
 
 
 def _start_wpa_supplicant(interface, config_filename):
