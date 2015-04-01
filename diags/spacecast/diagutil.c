@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DIAGS_VERSION "1.0.1"
+#define DIAGS_VERSION "1.0.2"
 
 /* External Functions */
 int i2cprobe(int argc, char **argv);
@@ -42,6 +42,8 @@ int fan_speed(int argc, char *argv[]);
 int fan_rpm(int argc, char *argv[]);
 int flash_test(int argc, char *argv[]);
 int tpm_startup(int argc, char *argv[]);
+int phy_read(int argc, char *argv[]);
+int phy_write(int argc, char *argv[]);
 
 /* Define the command structure */
 typedef struct {
@@ -78,6 +80,8 @@ tCOMMAND command_list[] = {
     {"gpiodisableout", gpiodisableout},
     {"board_info", board_info},
     {"", NULL},
+    {"phy_read", phy_read},
+    {"phy_write", phy_write},
     {"send_ip", send_ip},
     {"send_eth", send_eth},
     {"send_if_to_mac", send_if_to_mac},
