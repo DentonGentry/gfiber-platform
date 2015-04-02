@@ -84,8 +84,9 @@ Channel_FMT = '!HbII'
 # mac: the MAC address of the station.
 # rssi: a running average of the signal strength received from the station.
 # last_seen: the time of the last packet received from the station.
-Assoc = namedtuple('Assoc', 'mac,rssi,last_seen')
-Assoc_FMT = '!6sbI'
+# can5G: whether the station supports 5GHz.
+Assoc = namedtuple('Assoc', 'mac,rssi,last_seen,can5G')
+Assoc_FMT = '!6sbI?'
 
 # struct representing kernel ARP table entries.
 #
@@ -136,7 +137,8 @@ def EncodePacket(state):
     assoc_out += struct.pack(Assoc_FMT,
                              assoc.mac,
                              assoc.rssi,
-                             now - assoc.last_seen)
+                             now - assoc.last_seen,
+                             assoc.can5G)
   arp_out = ''
   for arp in state.arp:
     arp_out += struct.pack(ARP_FMT,
