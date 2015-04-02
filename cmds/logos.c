@@ -239,7 +239,7 @@ static void _flush_unlimited(uint8_t *header, ssize_t headerlen,
     fprintf(stderr, "WEIRD: logos: writev(%zd) returned %zd\n", total, wrote);
     // not fatal
   } else if (wrote < 0) {
-    perror("logos writev");
+    perror("logos: writev");
     // not fatal
   }
 }
@@ -249,7 +249,7 @@ static void _flush_unlimited(uint8_t *header, ssize_t headerlen,
 static long long mstime(void) {
   struct timespec ts;
   if (clock_gettime(CLOCK_MONOTONIC, &ts) < 0) {
-    perror("clock_gettime");
+    perror("logos: clock_gettime");
     exit(7); // really should never happen, so don't try to recover
   }
   return ts.tv_sec * 1000LL + ts.tv_nsec / 1000000;
@@ -415,7 +415,7 @@ static void rejuvinate_process(int sig) {
 static uint8_t *fix_buf(uint8_t *buf, ssize_t len) {
   uint8_t *outbuf = malloc(len * 8 + 1), *inp, *outp;
   if (!outbuf) {
-    perror("allocating memory");
+    perror("logos: allocating memory");
     return NULL;
   }
   for (inp = buf, outp = outbuf; inp < buf + len; inp++) {
@@ -593,7 +593,7 @@ int main(int argc, char **argv) {
   // remove underscores form the facility name
   strip_underscores(argv[1]);
   if (strlen(argv[1]) == 0) {
-    fprintf(stderr, "facility name was empty, or all underscores.\n");
+    fprintf(stderr, "logos: facility name was empty, or all underscores.\n");
     return 1;
   }
 
@@ -611,7 +611,7 @@ int main(int argc, char **argv) {
   headerlen = 3 + strlen(argv[1]) + 1 + 1; // <x>, fac, :, space
   header = malloc(headerlen + 1);
   if (!header) {
-    perror("allocating memory");
+    perror("logos: allocating memory");
     return 5;
   }
   snprintf((char *)header, headerlen + 1, "<x>%s: ", argv[1]);
@@ -651,28 +651,18 @@ int main(int argc, char **argv) {
   if (!debug) {
     int fd = open("/dev/kmsg", O_WRONLY);
     if (fd < 0) {
-      perror("/dev/kmsg");
+      perror("logos: /dev/kmsg");
       return 3;
     }
     dup2(fd, 1);  // make it stdout
-    close(fd);
-
-    // Dup stderr to /dev/null so that processes redirected to logos and
-    // backgrounded don't hold on to any descriptors that were controlled by the
-    // foreground.
-    fd = open("/dev/null", O_WRONLY);
-    if (fd < 0) {
-      perror("/dev/null");
-      return 3;
-    }
-    dup2(fd, 2); // stderr -> /dev/null
+    dup2(fd, 2);  // and stderr too
     close(fd);
 
     // Chdir to / so that we don't prevent filesystems from unmounting just
     // because we happened to be in that directory while starting a long-running
     // task.
     if (chdir("/") != 0) {
-      perror("chdir /");
+      perror("logos: chdir /");
       return 3;
     }
   }
