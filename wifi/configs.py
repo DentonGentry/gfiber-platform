@@ -50,10 +50,6 @@ interface={interface}
 bridge={bridge}
 ssid={ssid}
 auth_algs={auth_algs}
-wpa={wpa}
-wpa_passphrase={psk}
-wpa_key_mgmt=WPA-PSK
-wpa_pairwise={wpa_pairwise}
 hw_mode={hostapd_band}
 channel={channel}
 country_code=US
@@ -68,6 +64,12 @@ ieee80211h=1
 
 ht_capab={ht20}{ht40}{guard_interval}{ht_rxstbc}
 {vht_settings}
+"""
+
+_HOSTCONF_WPA_TPL = """wpa={wpa}
+wpa_passphrase={psk}
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise={wpa_pairwise}
 """
 
 _EXPERIMENT_80211K_TPL = """
@@ -236,13 +238,17 @@ def generate_hostapd_config(
   hidden = 'ignore_broadcast_ssid=1' if opt.hidden_mode else ''
   hostapd_conf_parts = [_HOSTCONF_TPL.format(
       interface=interface, band=band, channel=channel, width=width,
-      protocols=protocols, psk=psk, hostapd_band=hostapd_band,
+      protocols=protocols, hostapd_band=hostapd_band,
       enable_80211n=enable_80211n, enable_80211ac=enable_80211ac,
       require_ht=require_ht, require_vht=require_vht, ht20=ht20, ht40=ht40,
       ht_rxstbc=ht_rxstbc, vht_settings=vht_settings,
       guard_interval=guard_interval, enable_wmm=enable_wmm, hidden=hidden,
-      auth_algs=auth_algs, wpa=wpa, wpa_pairwise=wpa_pairwise,
+      auth_algs=auth_algs,
       bridge=opt.bridge, ssid=opt.ssid)]
+
+  if opt.encryption != 'NONE':
+    hostapd_conf_parts.append(_HOSTCONF_WPA_TPL.format(
+        psk=psk, wpa=wpa, wpa_pairwise=wpa_pairwise))
 
   if experiment.enabled('Wifi80211k'):
     hostapd_conf_parts.append(

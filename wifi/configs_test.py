@@ -257,10 +257,6 @@ interface=wlan0
 bridge=
 ssid=TEST_SSID
 auth_algs=1
-wpa=2
-wpa_passphrase=asdfqwer
-wpa_key_mgmt=WPA-PSK
-wpa_pairwise=CCMP
 hw_mode=g
 channel=1
 country_code=US
@@ -275,6 +271,12 @@ ieee80211n=1
 
 ht_capab=[HT20][RX-STBC1]
 
+"""
+
+_HOSTAPD_CONFIG_WPA = """wpa=2
+wpa_passphrase=asdfqwer
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=CCMP
 """
 
 
@@ -305,7 +307,15 @@ def generate_hostapd_config_test():
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', FakeOptDict)
+  wvtest.WVPASSEQ('\n'.join([_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA]), config)
+
+  # Test with no encryption.
+  default_encryption, FakeOptDict.encryption = FakeOptDict.encryption, 'NONE'
+  config = configs.generate_hostapd_config(
+      _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
+      'asdfqwer', FakeOptDict)
   wvtest.WVPASSEQ(_HOSTAPD_CONFIG, config)
+  FakeOptDict.encryption = default_encryption
 
   # Now enable extra short timeout intervals and the Wifi80211k experiment.
   experiment._EXPERIMENTS_TMP_DIR = '/tmp'
@@ -314,7 +324,7 @@ def generate_hostapd_config_test():
   open('/tmp/Wifi80211k.active', 'a').close()
   FakeOptDict.extra_short_timeout_intervals = True
   new_config = '\n'.join((
-      _HOSTAPD_CONFIG,
+      '\n'.join([_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA]),
       configs._EXPERIMENT_80211K_TPL.format(interface='wlan0'),
       configs._EXTRA_SHORT_TIMEOUT_INTERVALS_TPL))
   config = configs.generate_hostapd_config(
