@@ -25,6 +25,7 @@
 #include <signal.h>
 #include "gpio.h"
 #include "../common/util.h"
+#include "../common/io.h"
 #include "common.h"
 
 #if USE_WAN0
@@ -65,15 +66,122 @@
 #define GE_BUFFER_SIZE (GE_PKTS_SENT_BEFORE_WAIT * GE_PKTS_LEN_DEFAULT)
 #define GE_LOOPBACK_PASS_FACTOR 0.8  // 80%
 
-extern uint16_t phy_reg_read(int unit, uint32_t phy_addr, uint8_t reg);
-extern void phy_reg_write(int unit, uint32_t phy_addr, uint8_t reg,
-                          uint16_t data);
+/* Max MII register/address (we support) */
+#define MII_REGISTER_MAX 31
+#define MII_ADDRESS_MAX 31
+#define MDIO_TIMEOUT 5000
+#define PHY_MAN_BASE 0x9c200000
+#define EMAC_PHY_MANAGEMENT 0x34
+#define EMAC_NETWORK_STATUS 0x8
+#define PHY_MAN_READ_BASE 0x60020000
+#define PHY_MAN_WRITE_BASE 0x50020000
+#define PHY_ADDR_MASK 0x1f
+#define PHY_ADDR_POS 23
+#define PHY_REG_POS 18
+#define PHY_DATA_MASK 0xffff
+#define EMAC_PHY_IDLE (1 << 2)
+#define SPACECAST_PHY_ADDR 1
 
-static void send_ip_usage(void) {
-  printf("send_ip <address> <port> <num>\n");
-  printf("Example:\n");
-  printf("send_ip  192.168.1.1 10000 1\n");
-  printf("send 1 msg to ip address 192.168.1.1 port 10000\n");
+#define M88E1512_PHY_PAGE_REG 22
+#define M88E1512_PHY_DEFAULT_PAGE 0
+#define M88E1512_PHY_PAGE_6 6
+#define M88E1512_PHY_CHECKER_CTRL_REG 18
+#define M88E1512_PHY_ENABLE_STUB_TEST_BIT 3
+
+/********************************************************************
+ * gem_phy_man_rd :
+ *      Performs phy management read operation.
+ *******************************************************************/
+static void gem_phy_man_rd(unsigned int phy_addr, unsigned int phy_reg) {
+  unsigned int write_data;
+
+  write_data =
+      PHY_MAN_READ_BASE |
+      ((phy_addr & (unsigned int)PHY_ADDR_MASK) << PHY_ADDR_POS) |
+      ((phy_reg & (unsigned int)PHY_ADDR_MASK) << PHY_REG_POS);  // read_op
+  write_physical_addr(PHY_MAN_BASE + EMAC_PHY_MANAGEMENT, write_data);
+}
+
+static void gem_phy_man_wr(unsigned int phy_addr, unsigned int phy_reg,
+                          unsigned int val) {
+  unsigned int write_data;
+
+  write_data = PHY_MAN_WRITE_BASE |
+               ((phy_addr & (unsigned int)PHY_ADDR_MASK) << PHY_ADDR_POS) |
+               ((phy_reg & (unsigned int)PHY_ADDR_MASK) << PHY_REG_POS) |
+               (val & (unsigned int)PHY_DATA_MASK);  // write_op
+  write_physical_addr(PHY_MAN_BASE + EMAC_PHY_MANAGEMENT, write_data);
+}
+
+/** gem_phy_man_data
+ *    Read the data section of phy management register.
+ *    After a successful read opeeration the data will be stored in
+ *    in this register in lower 16bits.
+ */
+static unsigned int gem_phy_man_data() {
+  unsigned int value;
+
+  read_physical_addr(PHY_MAN_BASE + EMAC_PHY_MANAGEMENT, &value);
+  value &= PHY_DATA_MASK;
+  return value;
+}
+
+static int gem_phy_man_idle() {
+  unsigned int value;
+
+  read_physical_addr(PHY_MAN_BASE + EMAC_NETWORK_STATUS, &value);
+  return ((value & EMAC_PHY_IDLE) == EMAC_PHY_IDLE);
+}
+
+static int gem_phy_timeout(int timeout) {
+  while (!gem_phy_man_idle()) {
+    if (timeout-- <= 0) {
+      printf("Phy MDIO read/write timeout\n");
+      return -1;
+    }
+  }
+  return 0;
+}
+
+/** PHY read function
+ * Reads a 16bit value from a MII register
+ *
+ * @param[in] mdev        Pointer to MII device structure
+ * @param[in] phy_addr
+ * @param[in] phy_reg
+ *
+ * @return  16bit value on success, a negative value (-1) on error
+ */
+static int c2000_phy_read(int phy_addr, int phy_reg) {
+  int value;
+
+  if ((phy_addr > MII_ADDRESS_MAX) || (phy_reg > MII_REGISTER_MAX)) return -1;
+
+  gem_phy_man_rd(phy_addr, phy_reg);
+  if (gem_phy_timeout(MDIO_TIMEOUT)) return -1;
+
+  value = gem_phy_man_data();
+
+  return value;
+}
+
+/** PHY write function
+ * Writes a 16bit value to a MII register
+ *
+ * @param[in] mdev      Pointer to MII device structure
+ * @param[in] phy_addr
+ * @param[in] phy_reg
+ * @param[in] value     Value to be written to Phy
+ *
+ * @return              On success returns 0, a negative value (-1) on error
+ */
+static int c2000_phy_write(int phy_addr, int phy_reg, int value) {
+  if ((phy_addr > MII_ADDRESS_MAX) || (phy_reg > MII_REGISTER_MAX)) return -1;
+
+  gem_phy_man_wr(phy_addr, phy_reg, value);
+  if (gem_phy_timeout(MDIO_TIMEOUT)) return -1;
+
+  return 0;
 }
 
 void send_mac_pkt(char *if_name, char *out_name, unsigned int xfer_len,
@@ -204,6 +312,54 @@ void send_mac_pkt(char *if_name, char *out_name, unsigned int xfer_len,
     }
   }
   close(sockfd);
+}
+
+static void phy_read_usage(void) {
+  printf("phy_read <register>\n");
+  printf("Example:\n");
+  printf("phy_read 22\n");
+  printf("read PHY register 22\n");
+}
+
+int phy_read(int argc, char *argv[]) {
+  int reg, data;
+
+  if (argc != 2) {
+    phy_read_usage();
+    return -1;
+  }
+  reg = strtol(argv[1], NULL, 10);
+  data = c2000_phy_read(SPACECAST_PHY_ADDR, reg);
+  printf("Reg %d: 0x%x\n", reg, data);
+  return 0;
+}
+
+static void phy_write_usage(void) {
+  printf("phy_write <register> <data>\n");
+  printf("Example:\n");
+  printf("phy_write 22 2\n");
+  printf("write 2 to PHY register 22\n");
+}
+
+int phy_write(int argc, char *argv[]) {
+  int reg, data;
+
+  if (argc != 3) {
+    phy_write_usage();
+    return -1;
+  }
+  reg = strtol(argv[1], NULL, 10);
+  data = strtoul(argv[2], NULL, 16);
+  c2000_phy_write(SPACECAST_PHY_ADDR, reg, data);
+  printf("Write PHY Reg %d: 0x%x\n", reg, data);
+  return 0;
+}
+
+static void send_ip_usage(void) {
+  printf("send_ip <address> <port> <num>\n");
+  printf("Example:\n");
+  printf("send_ip  192.168.1.1 10000 1\n");
+  printf("send 1 msg to ip address 192.168.1.1 port 10000\n");
 }
 
 int send_ip(int argc, char *argv[]) {
@@ -813,7 +969,55 @@ static void lan_lpbk_usage(void) {
   printf("set all lan ports loop back to external\n");
 }
 
+/* This is for Marvell 88E1512 only */
 int lan_lpbk(int argc, char *argv[]) {
+  int reg, data;
+  bool loopback_on = false;
+
+  if (argc != 2) {
+    lan_lpbk_usage();
+    return -1;
+  }
+
+  if (strcmp(argv[1], "on") == 0) {
+    loopback_on = true;
+  } else if (strcmp(argv[1], "off") == 0) {
+    loopback_on = false;
+  } else {
+    lan_lpbk_usage();
+    return -1;
+  }
+  if (c2000_phy_write(SPACECAST_PHY_ADDR, M88E1512_PHY_PAGE_REG,
+                      M88E1512_PHY_PAGE_6) < 0) {
+    printf("PHY write to reg %d of data 0x%x failed\n", M88E1512_PHY_PAGE_REG,
+           M88E1512_PHY_PAGE_6);
+    return -1;
+  }
+  data = c2000_phy_read(SPACECAST_PHY_ADDR, M88E1512_PHY_CHECKER_CTRL_REG);
+  if (loopback_on) {
+    data |= (1 << M88E1512_PHY_ENABLE_STUB_TEST_BIT);
+    printf("Ethernet port external loopback enabled\n");
+  } else {
+    data &= ~(1 << M88E1512_PHY_ENABLE_STUB_TEST_BIT);
+    printf("Ethernet port external loopback disabled\n");
+  }
+  if (c2000_phy_write(SPACECAST_PHY_ADDR, M88E1512_PHY_CHECKER_CTRL_REG, data) <
+      0) {
+    printf("PHY write to reg %d of data 0x%x failed\n",
+           M88E1512_PHY_CHECKER_CTRL_REG, data);
+    return -1;
+  }
+  if (c2000_phy_write(SPACECAST_PHY_ADDR, M88E1512_PHY_PAGE_REG,
+                      M88E1512_PHY_DEFAULT_PAGE) < 0) {
+    printf("PHY write to reg %d of data 0x%x failed\n", M88E1512_PHY_PAGE_REG,
+           M88E1512_PHY_DEFAULT_PAGE);
+    return -1;
+  }
+  return 0;
+}
+
+/* This is for QCA switch */
+int qca_lan_lpbk(int argc, char *argv[]) {
   bool loopback_on = false;
 
   if (argc != 2) {
