@@ -874,9 +874,13 @@ def main():
       else:
         gpt = GetGptPartitionForName(MMCBLK, partition_name)
       if mtd:
-        Log('Installing raw rootfs image to ubi partition %r\n' % mtd)
-        VerbosePrint('Writing raw rootfs to %r\n', mtd)
-        InstallRawFileToUbi(rootfs, mtd)
+        if GetPlatform().startswith('GFMN'):
+          VerbosePrint('Writing rootfs to %r\n' % mtd)
+          InstallToMtd(rootfs, mtd)
+        else:
+          Log('Installing raw rootfs image to ubi partition %r\n' % mtd)
+          VerbosePrint('Writing raw rootfs to %r\n', mtd)
+          InstallRawFileToUbi(rootfs, mtd)
       elif gpt:
         VerbosePrint('Writing raw rootfs to %r\n', gpt)
         InstallToFile(rootfs, gpt)
