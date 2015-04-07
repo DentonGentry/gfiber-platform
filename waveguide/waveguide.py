@@ -653,9 +653,10 @@ class WlanManager(object):
     mac = None
     rssi = 0
     last_seen = now
+    can5G = None
     def AddEntry():
       if mac:
-        a = wgdata.Assoc(mac=mac, rssi=rssi, last_seen=last_seen)
+        a = wgdata.Assoc(mac=mac, rssi=rssi, last_seen=last_seen, can5G=can5G)
         if mac not in self.assoc_list:
           self.Debug('Added: %r', a)
         self.assoc_list[mac] = a
@@ -664,9 +665,11 @@ class WlanManager(object):
       g = re.match(r'Station (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
       if g:
         AddEntry()
-        mac = helpers.EncodeMAC(g.group(1))
+        unencoded_mac = g.group(1)
+        mac = helpers.EncodeMAC(unencoded_mac)
         rssi = 0
         last_seen = now
+        can5G = self._AssocCan5G(unencoded_mac)
       g = re.match(r'inactive time:\s+([-.\d]+) ms', line)
       if g:
         last_seen = now - float(g.group(1)) / 1000
@@ -674,6 +677,32 @@ class WlanManager(object):
       if g:
         rssi = float(g.group(1))
     AddEntry()
+
+  def _AssocCan5G(self, mac):
+    """Check whether a station supports 5GHz.
+
+    Args:
+      mac: The (unencoded) MAC address of the station.
+
+    Returns:
+      Whether the associated station supports 5GHz.
+    """
+    # If the station is associated with a 5GHz-only radio, then it supports
+    # 5Ghz.
+    if not self.flags & wgdata.ApFlags.Can2G:
+      return True
+
+    # If the station is associated with the 2.4GHz radio, check to see whether
+    # hostapd determined it was 5GHz-capable (i.e. bandsteering failed).  See
+    # hostap/src/ap/steering.h for details on the filename format, and /bin/wifi
+    # for the location of the file.
+    mac = ''.join(mac.split(':'))
+    if os.path.exists('/tmp/wifi/steering/2.4/%s.2' % mac):
+      return True
+
+    # If the station is associated with the 2.4GHz radio and bandsteering wasn't
+    # attempted, the station only supports 2.4GHz.
+    return False
 
 
 def CreateManagers(managers, high_power):
@@ -976,6 +1005,12 @@ def main():
                 ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
                          for i in sorted(p.assoc,
                                          key=lambda i: -i.rssi)))
+      # Print STA band capability information.
+      for m in managers:
+        for assoc in m.assoc_list.itervalues():
+          log.Log('Connected station %s supports %s GHz',
+                  m.AnonymizeMAC(assoc.mac), '5' if assoc.can5G else '2.4')
+
     wifiblaster_controller.Poll(now)
     if not r:
       log.WriteEventFile('ready')

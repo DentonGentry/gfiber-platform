@@ -98,7 +98,8 @@ def PollTest(expovariate_mock, run_proc_mock):
       channel_survey=None,
       assoc=[wgdata.Assoc(mac=helpers.EncodeMAC('11:11:11:11:11:11'),
                           rssi=None,
-                          last_seen=None)],
+                          last_seen=None,
+                          can5G=None)],
       arp=None)
 
   # Stub WifiblasterController._ReadFile to return fake parameter file data.
