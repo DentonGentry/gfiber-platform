@@ -86,6 +86,12 @@ freq_to_chan = {}     # a mapping from wifi frequencies (MHz) to channel no.
 chan_to_freq = {}     # a mapping from channel no. to wifi frequency (MHz)
 
 
+def TouchAliveFile():
+  alive_file = os.path.join(opt.status_dir, 'alive')
+  with open(alive_file, 'a'):
+    os.utime(alive_file, None)
+
+
 class MulticastSocket(object):
   """A simple class for wrapping multicast send/receive activities."""
 
@@ -892,6 +898,7 @@ def main():
 
   last_sent = last_autochan = last_print = 0
   while 1:
+    TouchAliveFile()
     if opt.watch_pid > 1:
       try:
         os.kill(opt.watch_pid, 0)
