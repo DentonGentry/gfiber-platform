@@ -30,7 +30,7 @@
 #define DEFAULT_TST_IF "eth0"
 #define LAN_PORT_NAME "eth0"
 #define WAN_PORT_NAME "eth1"
-#define BUF_SIZ 1500
+#define BUF_SIZ 1536
 #define ETH_TEST_MAX_CMD 4096
 #define ETH_TEST_MAX_RSP 4096
 #define ETH_TRAFFIC_PORT "eth1"
@@ -38,6 +38,9 @@
 #define ETH_TRAFFIC_REPORT_PERIOD 60
 #define ETH_TRAFFIC_MAX_REPORT_PERIOD 300
 #define ETH_TRAFFIC_TEST_PERIOD_SYMBOL "-p"
+// 100 Mb/s
+#define ETH_TRAFFIC_PER_PERIOD_MAX \
+  (((unsigned int)ETH_TRAFFIC_MAX_REPORT_PERIOD) * ((unsigned int)13107200))
 
 #define SERVER_PORT 8888
 #define MAX_CMD_SIZE 256
@@ -47,7 +50,7 @@
 #define ETH_MAX_LAN_PORTS 2
 #define ETH_WAIT_AFTER_LOOPBACK_SET 5
 #define ETH_PKTS_SENT_BEFORE_WAIT 0xFF
-#define ETH_PKTS_LEN_DEFAULT 32
+#define ETH_PKTS_LEN_DEFAULT 128
 #define ETH_BUFFER_SIZE (ETH_PKTS_SENT_BEFORE_WAIT * ETH_PKTS_LEN_DEFAULT)
 #define ETH_LOOPBACK_PASS_FACTOR 0.8  // 80%
 #define ETH_TEST_FLUSH_NUM 5
@@ -67,6 +70,10 @@
 #define ETH_LAN_IF_PORT 4
 #define ETH_WAN_IF_PORT 0
 #define ETH_DEBUG_CMD "ethreg -i %s -p %d 0x%x=0x%x > /dev/null"
+#define ETH_STAT_CLEAR_CMD "ifstat > /dev/null"
+#define ETH_STAT_CMD "ifstat %s | sed '1,3d;5d'"
+#define ETH_STAT_RX_POS 5
+#define ETH_STAT_TX_POS 7
 
 // WindCharger external loopback is set and cleared via Port Debug Registers.
 // Debug port address offset register is 0x1D and RW port is 0x1E. It needs to
@@ -78,7 +85,9 @@ void eth_set_debug_reg(char *if_name, unsigned short port, unsigned short addr,
   char cmd[MAX_CMD_SIZE];
 
   snprintf(cmd, MAX_CMD_SIZE, ETH_DEBUG_CMD, if_name, port, addr, data);
-  system_cmd(cmd);
+  // ethreg is not working with the latest kernel. Taking it out.
+  // External loopback still works for eth0 by default.
+  // system_cmd(cmd);
 }
 
 int eth_external_loopback(char *if_name, bool set_not_clear) {
@@ -279,39 +288,40 @@ int send_ip(int argc, char *argv[]) {
   return 0;
 }
 
-int get_ip_stat(int *rx_bytes, int *tx_bytes, int *rx_errs, int *tx_errs,
-                char *name) {
+int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   char command[4096], rsp[MAX_CMD_SIZE];
   FILE *fp;
-  int pkt_name_len = strlen(ETH_BYTES_NAME);
-  int error_name_len = strlen(ETH_ERRORS_NAME);
+  int pos = 0;
 
-  sprintf(command, "ifconfig %s", name);
+  *rx_bytes = 0;
+  *tx_bytes = 0;
+  sprintf(command, ETH_STAT_CMD, name);
   fp = popen(command, "r");
   while (fscanf(fp, "%s", rsp) != EOF) {
-    if (strcmp(rsp, ETH_RX_NAME) == 0) {
-      if (fscanf(fp, "%s", rsp) <= 0) return -1;
-      if (strncmp(rsp, ETH_BYTES_NAME, pkt_name_len) == 0) {
-        *rx_bytes = strtoul(&rsp[pkt_name_len], NULL, 0);
-        continue;
-      } else if (strncmp(rsp, ETH_PACKETS_NAME, pkt_name_len) == 0) {
-        if (fscanf(fp, "%s", rsp) <= 0) return -1;
-        if (strncmp(rsp, ETH_ERRORS_NAME, error_name_len) == 0) {
-          *rx_errs = strtoul(&rsp[error_name_len], NULL, 0);
+    if (pos == ETH_STAT_RX_POS) {
+      *rx_bytes = strtoul(rsp, NULL, 0);
+      if (rsp[strlen(rsp) - 1] == 'K') {
+        *rx_bytes *= 1000;
+      } else if (rsp[strlen(rsp) - 1] == 'M') {
+        if (*rx_bytes > (ETH_TRAFFIC_PER_PERIOD_MAX / 1000000)) {
+          *rx_bytes = 0xffffffff;
+        } else {
+          *rx_bytes *= 1000000;
         }
       }
-    } else if (strcmp(rsp, ETH_TX_NAME) == 0) {
-      if (fscanf(fp, "%s", rsp) <= 0) return -1;
-      if (strncmp(rsp, ETH_BYTES_NAME, pkt_name_len) == 0) {
-        *tx_bytes = strtoul(&rsp[pkt_name_len], NULL, 0);
-        continue;
-      } else if (strncmp(rsp, ETH_PACKETS_NAME, pkt_name_len) == 0) {
-        if (fscanf(fp, "%s", rsp) <= 0) return -1;
-        if (strncmp(rsp, ETH_ERRORS_NAME, error_name_len) == 0) {
-          *tx_errs = strtoul(&rsp[error_name_len], NULL, 0);
+    } else if (pos == ETH_STAT_TX_POS) {
+      *tx_bytes = strtoul(rsp, NULL, 0);
+      if (rsp[strlen(rsp) - 1] == 'K') {
+        *tx_bytes *= 1000;
+      } else if (rsp[strlen(rsp) - 1] == 'M') {
+        if (*tx_bytes > (ETH_TRAFFIC_PER_PERIOD_MAX / 1000000)) {
+          *tx_bytes = 0xffffffff;
+        } else {
+          *tx_bytes *= 1000000;
         }
       }
     }
+    ++pos;
   }
   pclose(fp);
 
@@ -403,12 +413,9 @@ static void send_if_to_if_usage(void) {
 
 int send_if_to_if(int argc, char *argv[]) {
   int n;
-  unsigned int xfer_len = 128, xfer_wait = 0;
+  unsigned int xfer_len = ETH_PKTS_LEN_DEFAULT, xfer_wait = 0;
   char if_name[IFNAMSIZ], dst_name[IFNAMSIZ];
-  int src_rx_pkts, src_tx_pkts, src_rx_errs, src_tx_errs;
-  int dst_rx_pkts, dst_tx_pkts, dst_rx_errs, dst_tx_errs;
-  int out_pkts, in_pkts, prev_out_pkts, prev_in_pkts;
-  int prev_in_errs, prev_out_errs;
+  unsigned int src_rx_bytes, src_tx_bytes, dst_rx_bytes, dst_tx_bytes;
   int pid;
 
   /* Get interface name */
@@ -460,14 +467,7 @@ int send_if_to_if(int argc, char *argv[]) {
 
   n = strtoul(argv[3], NULL, 10);
 
-  setup_eth_ports_for_traffic();
-
-  get_ip_stat(&src_rx_pkts, &src_tx_pkts, &src_rx_errs, &src_tx_errs, if_name);
-  get_ip_stat(&dst_rx_pkts, &dst_tx_pkts, &dst_rx_errs, &dst_tx_errs, dst_name);
-  prev_out_pkts = src_tx_pkts;
-  prev_in_pkts = dst_rx_pkts;
-  prev_out_errs = src_tx_errs;
-  prev_in_errs = dst_rx_errs;
+  system_cmd(ETH_STAT_CLEAR_CMD);
   pid = fork();
   if (pid < 0) {
     printf("Server fork error %d, errno %d\n", pid, errno);
@@ -481,19 +481,16 @@ int send_if_to_if(int argc, char *argv[]) {
   // Parent process
   sleep(n);
   kill(pid, SIGKILL);
-  get_ip_stat(&src_rx_pkts, &src_tx_pkts, &src_rx_errs, &src_tx_errs, if_name);
-  get_ip_stat(&dst_rx_pkts, &dst_tx_pkts, &dst_rx_errs, &dst_tx_errs, dst_name);
-  out_pkts = src_tx_pkts - prev_out_pkts;
-  in_pkts = dst_rx_pkts - prev_in_pkts;
+  get_ip_stat(&src_rx_bytes, &src_tx_bytes, if_name);
+  get_ip_stat(&dst_rx_bytes, &dst_tx_bytes, dst_name);
 
-  if (in_pkts >= out_pkts) {
-    printf("Sent %d seconds from %s(%d:%d) to %s(%d:%d) rate %3.3f Mb/s\n", n,
-           if_name, out_pkts, src_tx_errs - prev_out_errs, dst_name, in_pkts,
-           dst_rx_errs - prev_in_errs,
-           (((float)in_pkts) * 8.0) / ((float)(n * ONE_MEG)));
+  if (dst_rx_bytes >= src_tx_bytes) {
+    printf("Sent %d seconds from %s(%d) to %s(%d) rate %3.3f Mb/s\n", n,
+           if_name, src_tx_bytes, dst_name, dst_rx_bytes,
+           (((float)dst_rx_bytes) * 8.0) / ((float)(n * ONE_MEG)));
   } else {
     printf("%s Sent %d seconds from %s(%d) to %s(%d)\n", FAIL_TEXT, n, if_name,
-           out_pkts, dst_name, in_pkts);
+           src_tx_bytes, dst_name, dst_rx_bytes);
   }
 
   return 0;
@@ -518,7 +515,7 @@ int send_if_to_mac(int argc, char *argv[]) {
   unsigned int xfer_len = 16, xfer_wait = 0;
   char if_name[IFNAMSIZ];
   unsigned char dst_mac[6] = {0, 0, 0, 0, 0, 0};
-  // int rx_pkts, tx_pkts, rx_errs, tx_errs;
+  // int rx_bytes, tx_bytes, rx_errs, tx_errs;
 
   /* Get interface name */
   if ((argc != 4) && (argc != 6) && (argc != 8)) {
@@ -586,95 +583,6 @@ int send_if_to_mac(int argc, char *argv[]) {
   return 0;
 }
 
-static void traffic_usage(void) {
-  printf("traffic <test duration> [<%s print period>]\n",
-         ETH_TRAFFIC_TEST_PERIOD_SYMBOL);
-  printf("- duration >=1 or -1 (forever)\n");
-  printf("- traffic sent from eth0 to eth1\n");
-  printf("- print period > 0\n");
-}
-
-int traffic(int argc, char *argv[]) {
-  char cmd[MAX_CMD_SIZE];
-  int duration, num = -1;
-  int pid, pid1, pid2;
-  int print_period = ETH_TRAFFIC_REPORT_PERIOD;
-  static const unsigned char dst_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-
-  if ((argc != 2) && (argc != 4)) {
-    traffic_usage();
-    return -1;
-  }
-
-  duration = strtol(argv[1], NULL, 0);
-  if ((duration < -1) || (duration == 0)) {
-    traffic_usage();
-    return -1;
-  }
-
-  if (argc == 4) {
-    if (strcmp(argv[2], ETH_TRAFFIC_TEST_PERIOD_SYMBOL) != 0) {
-      traffic_usage();
-      return -1;
-    }
-
-    print_period = strtoul(argv[3], NULL, 0);
-    if (print_period == 0) {
-      traffic_usage();
-      return -1;
-    }
-  }
-
-  pid = fork();
-  if (pid < 0) {
-    printf("Server fork error %d, errno %d\n", pid, errno);
-    return -1;
-  }
-  if (pid == 0) {
-    // Child process
-    send_mac_pkt(ETH_TRAFFIC_PORT, NULL, BUF_SIZ, 0, num, dst_mac);
-    exit(0);
-  }
-  // Parent process
-  pid1 = pid;
-
-  pid = fork();
-  if (pid < 0) {
-    printf("Server fork error %d, errno %d\n", pid, errno);
-    return -1;
-  }
-  if (pid == 0) {
-    // Child process
-    send_mac_pkt(ETH_TRAFFIC_PORT, NULL, BUF_SIZ, 0, num, dst_mac);
-    exit(0);
-  }
-  // Parent process
-  pid2 = pid;
-
-  while (duration != 0) {
-    if (duration >= 0) {
-      if (duration <= print_period) {
-        sleep(duration);
-        duration = 0;
-        kill(pid1, SIGKILL);
-        kill(pid2, SIGKILL);
-        // printf("Killed processes %d and %d\n", pid1, pid2);
-      } else {
-        duration -= print_period;
-        sleep(print_period);
-      }
-    } else {
-      sleep(print_period);
-    }
-    sprintf(cmd, "ifconfig %s", ETH_TRAFFIC_PORT);
-    system_cmd(cmd);
-    sprintf(cmd, "ifconfig %s", ETH_TRAFFIC_DST_PORT);
-    system_cmd(cmd);
-  }
-
-  return 0;
-}
-
 static void test_both_ports_usage(void) {
   printf("test_both_ports <duration in secs> [<%s print-period in secs>]\n",
          ETH_TRAFFIC_TEST_PERIOD_SYMBOL);
@@ -686,18 +594,13 @@ static void test_both_ports_usage(void) {
 }
 
 int test_both_ports(int argc, char *argv[]) {
-  int duration, num = -1, collected_count = 0;
-  int pid, pid1, pid2;
+  int duration, num = -1, pid, pid1, pid2;
   int print_period = ETH_TRAFFIC_REPORT_PERIOD;
-  unsigned int pkt_len = 128;
-  int src_rx_pkts, src_tx_pkts, src_rx_errs, src_tx_errs;
-  int dst_rx_pkts, dst_tx_pkts, dst_rx_errs, dst_tx_errs;
-  int prev_src_rx, prev_dst_rx, src_diff, dst_diff;
-  int prev_src_tx_errs, prev_dst_tx_errs, prev_src_rx_errs, prev_dst_rx_errs;
+  unsigned int pkt_len = ETH_PKTS_LEN_DEFAULT, eth0_rx, eth0_tx;
+  unsigned int eth1_rx, eth1_tx;
   bool print_every_period = true;
-  float src_average_throughput = 0.0, dst_average_throughput = 0.0;
-  float src_throughput, dst_throughput;
-  int src_total_errs = 0, dst_total_errs = 0;
+  bool failed = false, overall_failed = false;
+  ;
 
   if ((argc != 2) && (argc != 4)) {
     test_both_ports_usage();
@@ -728,24 +631,7 @@ int test_both_ports(int argc, char *argv[]) {
     }
   }
 
-  setup_eth_ports_for_traffic();
-  // For some reason, there is always one error after deleted from the bridge.
-  // We need to send a few packets to flush the errors first.
-  send_mac_pkt(ETH_TRAFFIC_PORT, ETH_TRAFFIC_DST_PORT, pkt_len, 0,
-               ETH_TEST_FLUSH_NUM, NULL);
-  send_mac_pkt(ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT, pkt_len, 0,
-               ETH_TEST_FLUSH_NUM, NULL);
-
-  get_ip_stat(&src_rx_pkts, &src_tx_pkts, &src_rx_errs, &src_tx_errs,
-              ETH_TRAFFIC_PORT);
-  get_ip_stat(&dst_rx_pkts, &dst_tx_pkts, &dst_rx_errs, &dst_tx_errs,
-              ETH_TRAFFIC_DST_PORT);
-  prev_src_rx = src_rx_pkts;
-  prev_dst_rx = dst_rx_pkts;
-  prev_src_rx_errs = src_rx_errs;
-  prev_dst_rx_errs = dst_rx_errs;
-  prev_src_tx_errs = src_tx_errs;
-  prev_dst_tx_errs = dst_tx_errs;
+  system_cmd(ETH_STAT_CLEAR_CMD);
 
   pid = fork();
   if (pid < 0) {
@@ -789,65 +675,40 @@ int test_both_ports(int argc, char *argv[]) {
     } else {
       sleep(print_period);
     }
-#if 0
-    sprintf(cmd, "ifconfig %s", ETH_TRAFFIC_PORT);
-    system_cmd(cmd);
-    sprintf(cmd, "ifconfig %s", ETH_TRAFFIC_DST_PORT);
-    system_cmd(cmd);
-#endif
-    get_ip_stat(&src_rx_pkts, &src_tx_pkts, &src_rx_errs, &src_tx_errs,
-                ETH_TRAFFIC_PORT);
-    get_ip_stat(&dst_rx_pkts, &dst_tx_pkts, &dst_rx_errs, &dst_tx_errs,
-                ETH_TRAFFIC_DST_PORT);
-    if (src_rx_pkts >= prev_src_rx) {
-      src_diff = src_rx_pkts - prev_src_rx;
-    } else {
-      src_diff = (MAX_INT - prev_src_rx) + src_rx_pkts;
-    }
-    if (dst_rx_pkts >= prev_dst_rx) {
-      dst_diff = dst_rx_pkts - prev_dst_rx;
-    } else {
-      dst_diff = (MAX_INT - prev_dst_rx) + dst_rx_pkts;
-    }
-    src_throughput = (((float)src_diff) * 8) / (float)(print_period * ONE_MEG);
-    dst_throughput = (((float)dst_diff) * 8) / (float)(print_period * ONE_MEG);
-    src_average_throughput += src_throughput;
-    dst_average_throughput += dst_throughput;
-    prev_src_rx_errs = src_rx_errs - prev_src_rx_errs;
-    prev_dst_rx_errs = dst_rx_errs - prev_dst_rx_errs;
-    prev_src_tx_errs = src_tx_errs - prev_src_tx_errs;
-    prev_dst_tx_errs = dst_tx_errs - prev_dst_tx_errs;
-    src_total_errs += prev_src_rx_errs + prev_dst_tx_errs;
-    dst_total_errs += prev_dst_rx_errs + prev_src_tx_errs;
-    ++collected_count;
     if (print_every_period) {
-      printf("%s->%s: %3.3f Mb/s (%d:%d), %s->%s: %3.3f Mb/s (%d:%d)\n",
-             ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT, src_throughput, src_diff,
-             prev_src_rx_errs + prev_dst_tx_errs, ETH_TRAFFIC_PORT,
-             ETH_TRAFFIC_DST_PORT, dst_throughput, dst_diff,
-             prev_dst_rx_errs + prev_src_tx_errs);
+      if (duration > 0) {
+        kill(pid1, SIGSTOP);
+        kill(pid2, SIGSTOP);
+      }
+      get_ip_stat(&eth1_rx, &eth1_tx, ETH_TRAFFIC_PORT);
+      get_ip_stat(&eth0_rx, &eth0_tx, ETH_TRAFFIC_DST_PORT);
+      if ((eth0_rx == 0) || (eth1_rx == 0) || (eth0_tx == 0) || (eth1_tx == 0))
+        failed = true;
+      if ((eth0_rx < eth1_tx) || (eth1_rx < eth0_tx)) failed = true;
+      // When the cable is disconnected and connected again, got bogus data
+      if ((eth0_rx > ETH_TRAFFIC_PER_PERIOD_MAX) ||
+          (eth1_rx > ETH_TRAFFIC_PER_PERIOD_MAX))
+        failed = true;
+      if (failed) {
+        printf("Failed: %s (%d,%d) <-> %s (%d,%d)\n", ETH_TRAFFIC_PORT, eth1_tx,
+               eth1_rx, ETH_TRAFFIC_DST_PORT, eth0_tx, eth0_rx);
+      } else {
+        printf("Passed: %s %3.3f Mb/s (%d,%d) <-> %s %3.3f Mb/s (%d,%d)\n",
+               ETH_TRAFFIC_PORT,
+               (((float)eth1_tx) * 8) / (float)(print_period * ONE_MEG),
+               eth1_tx, eth1_rx, ETH_TRAFFIC_DST_PORT,
+               (((float)eth0_tx) * 8) / (float)(print_period * ONE_MEG),
+               eth0_tx, eth0_rx);
+      }
+      overall_failed |= failed;
+      failed = false;
+      if (duration > 0) {
+        kill(pid1, SIGCONT);
+        kill(pid2, SIGCONT);
+      }
     }
-    prev_src_rx = src_rx_pkts;
-    prev_dst_rx = dst_rx_pkts;
-    prev_src_rx_errs = src_rx_errs;
-    prev_dst_rx_errs = dst_rx_errs;
-    prev_src_tx_errs = src_tx_errs;
-    prev_dst_tx_errs = dst_tx_errs;
   }
-
-  src_average_throughput = src_average_throughput / ((float)collected_count);
-  dst_average_throughput = dst_average_throughput / ((float)collected_count);
-  if (src_total_errs > 0 || dst_total_errs > 0) {
-    printf("%s %s->%s: %3.3f Mb/s (%d), %s-%s: %3.3f Mb/s (%d)\n", FAIL_TEXT,
-           ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT, src_average_throughput,
-           src_total_errs, ETH_TRAFFIC_PORT, ETH_TRAFFIC_DST_PORT,
-           dst_average_throughput, dst_total_errs);
-  } else {
-    printf("%s %s->%s: %3.3f Mb/s (%d), %s-%s: %3.3f Mb/s (%d)\n", PASS_TEXT,
-           ETH_TRAFFIC_DST_PORT, ETH_TRAFFIC_PORT, src_average_throughput,
-           src_total_errs, ETH_TRAFFIC_PORT, ETH_TRAFFIC_DST_PORT,
-           dst_average_throughput, dst_total_errs);
-  }
+  if (overall_failed) printf("%s Ethernet port test\n", FAIL_TEXT);
 
   return 0;
 }
@@ -864,13 +725,10 @@ static void loopback_test_usage(void) {
 }
 
 int loopback_test(int argc, char *argv[]) {
-  int duration, num = -1, collected_count = 0, total_errs = 0, prev_errs = 0;
-  int pid, pid1, pid2, print_period = ETH_TRAFFIC_REPORT_PERIOD;
-  unsigned int pkt_len = 128;
-  int rx_pkts, tx_pkts, rx_errs, tx_errs, prev_rx, prev_tx, tx_diff, rx_diff;
-  int prev_rx_errs, prev_tx_errs;
+  int duration, num = -1, collected_count = 0;
+  int pid, pid1, print_period = ETH_TRAFFIC_REPORT_PERIOD;
+  unsigned int pkt_len = ETH_PKTS_LEN_DEFAULT, rx_bytes, tx_bytes;
   bool print_every_period = true, traffic_problem = false, problem = false;
-  ;
   float average_throughput = 0.0, throughput;
   unsigned char dst_mac[6] = {0, 0, 0, 0, 0, 0};
 
@@ -911,29 +769,11 @@ int loopback_test(int argc, char *argv[]) {
 
   eth_external_loopback(argv[1], true);
 
-  get_ip_stat(&rx_pkts, &tx_pkts, &rx_errs, &tx_errs, argv[1]);
-  prev_rx = rx_pkts;
-  prev_tx = tx_pkts;
-  prev_rx_errs = rx_errs;
-  prev_tx_errs = tx_errs;
+  system_cmd(ETH_STAT_CLEAR_CMD);
 
   pid = fork();
   if (pid < 0) {
     printf("Server fork error %d, errno %d\n", pid, errno);
-    return -1;
-  }
-  if (pid == 0) {
-    // Child process
-    send_mac_pkt(ETH_TRAFFIC_PORT, ETH_TRAFFIC_DST_PORT, pkt_len, 0, num, NULL);
-    exit(0);
-  }
-  // Parent process
-  pid1 = pid;
-
-  pid = fork();
-  if (pid < 0) {
-    printf("Server fork error %d, errno %d\n", pid, errno);
-    eth_external_loopback(argv[1], false);
     return -1;
   }
   if (pid == 0) {
@@ -942,7 +782,7 @@ int loopback_test(int argc, char *argv[]) {
     exit(0);
   }
   // Parent process
-  pid2 = pid;
+  pid1 = pid;
 
   while (duration != 0) {
     if (duration >= 0) {
@@ -951,7 +791,6 @@ int loopback_test(int argc, char *argv[]) {
         print_period = duration;
         duration = 0;
         kill(pid1, SIGKILL);
-        kill(pid2, SIGKILL);
         // printf("Killed processes %d and %d\n", pid1, pid2);
       } else {
         duration -= print_period;
@@ -961,45 +800,38 @@ int loopback_test(int argc, char *argv[]) {
       sleep(print_period);
     }
 
-    get_ip_stat(&rx_pkts, &tx_pkts, &rx_errs, &tx_errs, argv[1]);
-    if (rx_pkts >= prev_rx) {
-      rx_diff = rx_pkts - prev_rx;
-    } else {
-      rx_diff = (MAX_INT - prev_rx) + rx_pkts;
-    }
-    if (tx_pkts >= prev_tx) {
-      tx_diff = tx_pkts - prev_tx;
-    } else {
-      tx_diff = (MAX_INT - prev_tx) + tx_pkts;
-    }
-    throughput = (((float)rx_diff) * 8) / (float)(print_period * ONE_MEG);
-    average_throughput += throughput;
-    total_errs += rx_errs + tx_errs - prev_rx_errs - prev_tx_errs;
+    if (duration > 0) kill(pid1, SIGSTOP);
+    get_ip_stat(&rx_bytes, &tx_bytes, argv[1]);
+    if (duration > 0) kill(pid1, SIGCONT);
     ++collected_count;
-    if ((rx_diff == 0) || (tx_diff > rx_diff)) problem = true;
-    traffic_problem |= problem;
-    if (print_every_period) {
-      printf("%s %s: %3.3f Mb/s (%d:%d) errors: %d\n",
-             (problem) ? FAIL_TEXT : PASS_TEXT, argv[1], throughput, tx_diff,
-             rx_diff, total_errs - prev_errs);
+    if ((rx_bytes == 0) || (tx_bytes > rx_bytes)) problem = true;
+    if ((rx_bytes > ETH_TRAFFIC_PER_PERIOD_MAX) ||
+        (tx_bytes > ETH_TRAFFIC_PER_PERIOD_MAX)) {
+      problem = true;
     }
-    prev_rx = rx_pkts;
-    prev_tx = tx_pkts;
-    prev_rx_errs = rx_errs;
-    prev_tx_errs = tx_errs;
-    prev_errs = total_errs;
+    traffic_problem |= problem;
+    if (!problem) {
+      throughput = (((float)rx_bytes) * 8) / (float)(print_period * ONE_MEG);
+      average_throughput += throughput;
+    } else {
+      throughput = 0.0;
+    }
+    if (print_every_period) {
+      printf("%s %s: %3.3f Mb/s (%d:%d)\n", (problem) ? FAIL_TEXT : PASS_TEXT,
+             argv[1], throughput, tx_bytes, rx_bytes);
+    }
     problem = false;
   }
 
   eth_external_loopback(argv[1], false);
 
   average_throughput /= ((float)collected_count);
-  if ((total_errs > 0) || traffic_problem) {
-    printf("%s overall %s: %3.3f Mb/s errors: %d\n", FAIL_TEXT, argv[1],
-           average_throughput, total_errs);
+  if (traffic_problem) {
+    printf("%s overall %s: %3.3f Mb/s\n", FAIL_TEXT, argv[1],
+           average_throughput);
   } else {
-    printf("%s overall %s: %3.3f Mb/s errors: %d\n", PASS_TEXT, argv[1],
-           average_throughput, total_errs);
+    printf("%s overall %s: %3.3f Mb/s\n", PASS_TEXT, argv[1],
+           average_throughput);
   }
 
   return 0;
