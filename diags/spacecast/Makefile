@@ -52,8 +52,10 @@ all:	$(TARGETS)
 
 install:
 	$(INSTALL) -m 0755 diags $(BINDIR)/
+	$(INSTALL) -m 0755 signal_monitor $(BINDIR)/
 	$(INSTALL) -m 0755 tpmstartup $(BINDIR)/
 	$(INSTALL) -m 0755 tuner_test $(BINDIR)/
+	$(INSTALL) -m 0755 udp_send.py $(BINDIR)/udp_send
 	$(INSTALL) -m 0755 usb-diags $(BINDIR)/
 
 install-libs:

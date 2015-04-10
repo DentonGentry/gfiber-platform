@@ -1,0 +1,115 @@
+#/bin/sh
+
+################################################################################
+#   This daemon monitors the satellite signal info on the given frequency,
+# formats the expected output, and sends the status report via UDP to the
+# cloud management system.
+#
+# - Usage:
+#     signal_monitor --server_ip=<ip_address> --udp_port=<port>
+#                   [--freq=<freq>] [--rate=<rate>] [monitor_sec=<sec>]
+#
+################################################################################
+
+# TODO(hunguyen): remove this customized script when new toybox tool supports
+# UDP send for netcat command.
+UDP_SEND="/usr/bin/udp_send"
+
+usage() {
+  cat <<EOF
+usage: signal_monitor [options] ...
+options:
+  --server_ip                        Required server ip address to send report.
+  --udp_port                         Required UDP port to send report.
+  --freq=1400000                     Intermediate tuning frequency in kHz
+                                     (default = 1400 MHz)
+  --rate=30000                       Symbol rate in 1000s (default = 30000)
+  --monitor_sec=60                   Monitor interval in seconds.
+  --help                             Print this usage menu.
+EOF
+  return 0
+}
+
+failmsg() {
+  local rval=$?
+  echo "FAIL: $0: $* Abort signal monitoring!" 1>&2
+  [ ${rval} -ne 0 ] && return ${rval}
+  return 1
+}
+
+# Parses arguments and ensures required parameters are present.
+parse_args() {
+  local arg
+  opt_freq=1400000
+  opt_rate=30000
+  opt_interval=60
+  opt_server_ip=
+  opt_udp_port=
+
+  # Then parse options.
+  while [ $# -ge 1 ]; do
+    # Arg starting with dash is formally an option.
+    case "$1" in (-*);; (*) break;; esac
+    arg=$1
+    shift
+    case "${arg}" in
+      --) break;;
+      *help) usage && exit 0;;
+      --freq=*) opt_freq=${arg#*=};;
+      --rate=*) opt_rate=${arg#*=};;
+      --monitor_sec=*) opt_interval=${arg#*=};;
+      --server_ip=*) opt_server_ip=${arg#*=};;
+      --udp_port=*) opt_udp_port=${arg#*=};;
+      *) failmsg "Unknown option ${arg}; try --help." || return;;
+    esac
+  done
+
+  # Return failure if required parameters are empty.
+  [ -n "${opt_server_ip}" ] ||
+    failmsg "Missing required parameter --server_ip; try --help." || return
+  [ -n "${opt_udp_port}" ] ||
+    failmsg "Missing required parameter --udp_port; try --help." || return
+}
+
+main() {
+  parse_args "$@" || return
+
+  # Daemon job to monitor satellite signal and send the data to Google prod.
+  while [ 1 ]
+  do
+    # If dvbtune is not already running, start dvbtune for this frequency.
+    ps -ef | grep "dvbtune" | grep "${opt_freq}" >/dev/null
+    if [ $? -ne 0 ]
+    then
+      echo "No dvbtune found for this frequency. Starting new dvbtune..."
+      # Kill any other dvbtune.
+      pkill -9 dvbtune
+
+      # Start new dvbtune with this frequency and rate.
+      dvbtune -i ${opt_freq} -r ${opt_rate} &
+      ps -ef | grep " $! " | grep -v grep >/dev/null ||
+        failmsg "Failed to start tuner with frequency ${opt_freq}..." ||
+        continue
+    fi
+
+    # Reaching here means dvbtune is already in place. Start dvbsnoop to gather
+    # satellite signal info.
+    # Actual dvbsnoop signal output format is:
+    #   Sig: 100  SNR: 65517  BER: 0  UBLK: 0  Stat: 0x01
+    # Expected format to parse and monitor is:
+    #   Freq:1400 Sig:100 SNR:65517 BER:0 UBLK:0 Stat:0x01
+    # Manipulate the output signal here to the expected format.
+    # TODO(hunguyen): Any need to gather frontend info?
+    data="Ts:$(date +%s) Freq:$((${opt_freq}/1000)) $(dvbsnoop -s signal -pd 4 \
+         -n 1 -hideproginfo | sed '1,5d' | sed 's/: /:/g' | sed 's/ \+/ /g')"
+
+    # Now send the info to event_proxy
+    echo "Sending '${data}' to event_proxy..."
+    ${UDP_SEND} --hostname "${opt_server_ip}" --port ${opt_udp_port} \
+      --data "${data}"
+
+    sleep ${opt_interval}
+  done
+}
+
+main "$@"
