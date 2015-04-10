@@ -69,7 +69,7 @@
 #define ETH_EXT_LPBK_PORT_CLEAR_DATA 0xBC00
 #define ETH_LAN_IF_PORT 4
 #define ETH_WAN_IF_PORT 0
-#define ETH_DEBUG_CMD "ethreg -i %s -p %d 0x%x=0x%x > /dev/null"
+#define ETH_DEBUG_CMD "diags ethreg -i %s -p %d 0x%x=0x%x > /dev/null"
 #define ETH_STAT_CLEAR_CMD "ifstat > /dev/null"
 #define ETH_STAT_CMD "ifstat %s | sed '1,3d;5d'"
 #define ETH_STAT_RX_POS 5
@@ -85,9 +85,7 @@ void eth_set_debug_reg(char *if_name, unsigned short port, unsigned short addr,
   char cmd[MAX_CMD_SIZE];
 
   snprintf(cmd, MAX_CMD_SIZE, ETH_DEBUG_CMD, if_name, port, addr, data);
-  // ethreg is not working with the latest kernel. Taking it out.
-  // External loopback still works for eth0 by default.
-  // system_cmd(cmd);
+  system_cmd(cmd);
 }
 
 int eth_external_loopback(char *if_name, bool set_not_clear) {
@@ -292,34 +290,29 @@ int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   char command[4096], rsp[MAX_CMD_SIZE];
   FILE *fp;
   int pos = 0;
+  unsigned long long tmp;
+  const unsigned long long max = 0xffffffffffffffff;
 
   *rx_bytes = 0;
   *tx_bytes = 0;
   sprintf(command, ETH_STAT_CMD, name);
   fp = popen(command, "r");
   while (fscanf(fp, "%s", rsp) != EOF) {
-    if (pos == ETH_STAT_RX_POS) {
-      *rx_bytes = strtoul(rsp, NULL, 0);
+    if ((pos == ETH_STAT_RX_POS) || (pos == ETH_STAT_TX_POS)) {
+      tmp = strtoull(rsp, NULL, 0);
       if (rsp[strlen(rsp) - 1] == 'K') {
-        *rx_bytes *= 1000;
+        tmp *= 1000;
       } else if (rsp[strlen(rsp) - 1] == 'M') {
-        if (*rx_bytes > (ETH_TRAFFIC_PER_PERIOD_MAX / 1000000)) {
-          *rx_bytes = 0xffffffff;
-        } else {
-          *rx_bytes *= 1000000;
+        tmp *= 1000000;
+	if ((tmp & 0xffffffff00000000) == 0xffffffff00000000) {
+          // Overflow
+          tmp = max - tmp;
         }
       }
-    } else if (pos == ETH_STAT_TX_POS) {
-      *tx_bytes = strtoul(rsp, NULL, 0);
-      if (rsp[strlen(rsp) - 1] == 'K') {
-        *tx_bytes *= 1000;
-      } else if (rsp[strlen(rsp) - 1] == 'M') {
-        if (*tx_bytes > (ETH_TRAFFIC_PER_PERIOD_MAX / 1000000)) {
-          *tx_bytes = 0xffffffff;
-        } else {
-          *tx_bytes *= 1000000;
-        }
-      }
+      if (pos == ETH_STAT_RX_POS)
+        *rx_bytes = tmp & 0xffffffff;
+      else
+        *tx_bytes = tmp & 0xffffffff;
     }
     ++pos;
   }
@@ -392,10 +385,12 @@ int send_if(int argc, char *argv[]) {
   return 0;
 }
 
+#if 0 // Not needed for now
 static void setup_eth_ports_for_traffic() {
   system_cmd("brctl delif br0 eth0");
   system_cmd("brctl delif br0 eth1");
 }
+#endif
 
 static void send_if_to_if_usage(void) {
   printf(
