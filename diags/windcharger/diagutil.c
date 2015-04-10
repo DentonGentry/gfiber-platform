@@ -28,6 +28,7 @@ int send_if(int argc, char *argv[]);
 int send_if_to_mac(int argc, char *argv[]);
 int test_both_ports(int argc, char *argv[]);
 int loopback_test(int argc, char *argv[]);
+int ethreg_main(int argc, char *argv[]);
 
 /* Define the command structure */
 typedef struct {
@@ -62,6 +63,7 @@ tCOMMAND command_list[] = {
     {"set_blue_led", set_blue_led},
     {"set_poe", set_poe},
     {"", NULL},
+    {"ethreg", ethreg_main},
     {"send_if_to_if", send_if_to_if},
     {"send_if", send_if},
     {"send_if_to_mac", send_if_to_mac},
