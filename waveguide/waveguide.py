@@ -29,6 +29,7 @@ import subprocess
 import sys
 import time
 import autochannel
+import clientinfo
 import helpers
 import log
 import options
@@ -1016,14 +1017,18 @@ def main():
       can2G_count = can5G_count = 0
       for m in managers:
         for assoc in m.assoc_list.itervalues():
+          anon = m.AnonymizeMAC(assoc.mac)
           if assoc.can5G:
             can5G_count += 1
             capability = '5'
           else:
             can2G_count += 1
             capability = '2.4'
-          log.Log('Connected station %s supports %s GHz',
-                  m.AnonymizeMAC(assoc.mac), capability)
+          log.Log('Connected station %s supports %s GHz', anon, capability)
+          station = helpers.DecodeMAC(assoc.mac)
+          species = clientinfo.taxonomize(station)
+          if species:
+            log.Log('Connected station %s taxonomy: %s' % (anon, species))
       log.Log('Connected stations: total %d, 5 GHz %d, 2.4 GHz %d',
               can5G_count + can2G_count, can5G_count, can2G_count)
 
