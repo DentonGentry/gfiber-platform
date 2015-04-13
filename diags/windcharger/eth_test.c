@@ -290,8 +290,8 @@ int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   char command[4096], rsp[MAX_CMD_SIZE];
   FILE *fp;
   int pos = 0;
-  unsigned long long tmp;
-  const unsigned long long max = 0xffffffffffffffff;
+  unsigned long long long_long_tmp;
+  unsigned int uint_tmp;
 
   *rx_bytes = 0;
   *tx_bytes = 0;
@@ -299,20 +299,20 @@ int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   fp = popen(command, "r");
   while (fscanf(fp, "%s", rsp) != EOF) {
     if ((pos == ETH_STAT_RX_POS) || (pos == ETH_STAT_TX_POS)) {
-      tmp = strtoull(rsp, NULL, 0);
+      long_long_tmp = strtoull(rsp, NULL, 0);
       if (rsp[strlen(rsp) - 1] == 'K') {
-        tmp *= 1000;
+        long_long_tmp *= 1000;
       } else if (rsp[strlen(rsp) - 1] == 'M') {
-        tmp *= 1000000;
-	if ((tmp & 0xffffffff00000000) == 0xffffffff00000000) {
-          // Overflow
-          tmp = max - tmp;
-        }
+        long_long_tmp *= (1024*1024);
+      }
+      uint_tmp = long_long_tmp & 0xffffffff;
+      if (uint_tmp & 0x80000000) {
+        uint_tmp = 0xffffffff - uint_tmp;
       }
       if (pos == ETH_STAT_RX_POS)
-        *rx_bytes = tmp & 0xffffffff;
+        *rx_bytes = uint_tmp;
       else
-        *tx_bytes = tmp & 0xffffffff;
+        *tx_bytes = uint_tmp;
     }
     ++pos;
   }
