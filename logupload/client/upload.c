@@ -117,6 +117,8 @@ static int do_request_via_ipv(CURL *curl_handle, const char *server_url,
   SET_CURL_OPT(curl_handle, CURLOPT_FOLLOWLOCATION, 0L);
   SET_CURL_OPT(curl_handle, CURLOPT_SSL_VERIFYPEER, 1L);
   SET_CURL_OPT(curl_handle, CURLOPT_SSL_VERIFYHOST, 2L);
+  // Set NOSIGNAL so we don't get crashes when DNS resolution fails.
+  SET_CURL_OPT(curl_handle, CURLOPT_NOSIGNAL, 1L);
   if (path_exists(DEVICE_KEY_PATH))
     SET_CURL_OPT(curl_handle, CURLOPT_SSLKEY, DEVICE_KEY_PATH);
   if (path_exists(DEVICE_CERT_PATH))
