@@ -202,8 +202,6 @@ void send_mac_pkt(char *if_name, char *out_name, unsigned int xfer_len,
   socket_address.sll_addr[4] = dst_mac[4];
   socket_address.sll_addr[5] = dst_mac[5];
 
-  sleep(1);
-
   /* Send packet */
   if (n < 0) {
     while (1) {
@@ -287,7 +285,7 @@ int send_ip(int argc, char *argv[]) {
 }
 
 int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
-  char command[4096], rsp[MAX_CMD_SIZE];
+  char command[MAX_CMD_SIZE], rsp[MAX_CMD_SIZE];
   FILE *fp;
   int pos = 0;
   unsigned long long long_long_tmp;
@@ -319,6 +317,37 @@ int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   pclose(fp);
 
   return 0;
+}
+
+// Return 0 if lost carrier. Otherwise, 1
+int get_carrier_state(char *name) {
+  char command[MAX_CMD_SIZE], rsp[MAX_CMD_SIZE];
+  FILE *fp;
+
+  sprintf(command, "cat /sys/class/net/%s/carrier", name);
+  fp = popen(command, "r");
+  if (fp != NULL) {
+    if (fscanf(fp, "%s", rsp) != EOF) {
+      if (strcmp(rsp, "0") == 0) {
+        pclose(fp);
+        return 0;
+      }
+    }
+    pclose(fp);
+  }
+  return 1;
+}
+
+// This is the same as sleep but monitor the link carrier every second
+// Return true if the carrier is good every second. Otherwise false
+bool sleep_and_check_carrier(int duration, char *if_name) {
+  bool good_carrier = true;
+  int i;
+  for (i = 0; i < duration; ++i) {
+    if (get_carrier_state(if_name) == 0) good_carrier = false;
+    sleep(1);
+  }
+  return good_carrier;
 }
 
 int get_if_ip(char *name, unsigned int *ip) {
@@ -657,7 +686,7 @@ int test_both_ports(int argc, char *argv[]) {
   while (duration != 0) {
     if (duration >= 0) {
       if (duration <= print_period) {
-        sleep(duration);
+        failed = !sleep_and_check_carrier(duration, ETH_TRAFFIC_PORT);
         print_period = duration;
         duration = 0;
         kill(pid1, SIGKILL);
@@ -665,10 +694,10 @@ int test_both_ports(int argc, char *argv[]) {
         // printf("Killed processes %d and %d\n", pid1, pid2);
       } else {
         duration -= print_period;
-        sleep(print_period);
+        failed = !sleep_and_check_carrier(print_period, ETH_TRAFFIC_PORT);
       }
     } else {
-      sleep(print_period);
+      failed = !sleep_and_check_carrier(print_period, ETH_TRAFFIC_PORT);
     }
     if (print_every_period) {
       if (duration > 0) {
@@ -679,7 +708,10 @@ int test_both_ports(int argc, char *argv[]) {
       get_ip_stat(&eth0_rx, &eth0_tx, ETH_TRAFFIC_DST_PORT);
       if ((eth0_rx == 0) || (eth1_rx == 0) || (eth0_tx == 0) || (eth1_tx == 0))
         failed = true;
-      if ((eth0_rx < eth1_tx) || (eth1_rx < eth0_tx)) failed = true;
+      // Due to two processes are stopped one after another, need some
+      // margin to compare RX vs TX. Set it to 1% for now
+      if (eth0_rx < ((eth1_tx / 100) * 99)) failed = true;
+      if (eth1_rx < ((eth0_tx / 100) * 99)) failed = true;
       // When the cable is disconnected and connected again, got bogus data
       if ((eth0_rx > ETH_TRAFFIC_PER_PERIOD_MAX) ||
           (eth1_rx > ETH_TRAFFIC_PER_PERIOD_MAX))
@@ -782,17 +814,17 @@ int loopback_test(int argc, char *argv[]) {
   while (duration != 0) {
     if (duration >= 0) {
       if (duration <= print_period) {
-        sleep(duration);
+        problem = !sleep_and_check_carrier(duration, argv[1]);
         print_period = duration;
         duration = 0;
         kill(pid1, SIGKILL);
         // printf("Killed processes %d and %d\n", pid1, pid2);
       } else {
         duration -= print_period;
-        sleep(print_period);
+        problem = !sleep_and_check_carrier(print_period, argv[1]);
       }
     } else {
-      sleep(print_period);
+      problem = !sleep_and_check_carrier(print_period, argv[1]);
     }
 
     if (duration > 0) kill(pid1, SIGSTOP);
