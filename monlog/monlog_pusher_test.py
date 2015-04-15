@@ -33,7 +33,7 @@ from mock import patch
 
 import monlog_pusher
 from monlog_pusher import LogCollector
-from monlog_pusher import LogPusher
+from monlog_pusher import MonlogPusher
 
 
 class LogCollectorTest(unittest.TestCase):
@@ -136,8 +136,8 @@ class LogCollectorTest(unittest.TestCase):
       self.assertEqual(3, mock_json.load.call_count)
 
 
-class LogPusherTest(unittest.TestCase):
-  """Test LogPusher using mock connection to the cloud server."""
+class MonlogPusherTest(unittest.TestCase):
+  """Test MonlogPusher using mock connection to the cloud server."""
 
   def GenerateMonlogRegInfoTempFile(
       self, has_device_id=True, has_token_type=True, has_access_token=True):
@@ -161,7 +161,7 @@ class LogPusherTest(unittest.TestCase):
 
     self.GenerateMonlogRegInfoTempFile()
     # Call GetAccessToken and verify return value.
-    log_pusher = LogPusher('TestServer', self._monlog_reg_info.name)
+    log_pusher = MonlogPusher('TestServer', self._monlog_reg_info.name)
     self.assertEqual(('DeviceId', 'TokenType', 'AccessToken'),
                      (log_pusher._device_id, log_pusher._token_type,
                       log_pusher._access_token))
@@ -175,7 +175,7 @@ class LogPusherTest(unittest.TestCase):
     tmp_file.seek(0)
     self.assertRaisesRegexp(monlog_pusher.ExeException,
                             'Failed to load json .*',
-                            LogPusher, 'TestServer/', tmp_file.name)
+                            MonlogPusher, 'TestServer/', tmp_file.name)
 
     # 2. Failed to read monlog_reg_info.
     self.GenerateMonlogRegInfoTempFile()
@@ -183,7 +183,7 @@ class LogPusherTest(unittest.TestCase):
       mock_open.side_effect = IOError()
       self.assertRaisesRegexp(monlog_pusher.ExeException,
                               'Failed to open file .*$',
-                              LogPusher, 'TestServer/',
+                              MonlogPusher, 'TestServer/',
                               self._monlog_reg_info.name)
       self.assertEqual(1, mock_open.call_count)
 
@@ -191,92 +191,100 @@ class LogPusherTest(unittest.TestCase):
     self.GenerateMonlogRegInfoTempFile(has_device_id=False)
     self.assertRaisesRegexp(monlog_pusher.ExeException,
                             'Missing monlog registration info .*',
-                            LogPusher, 'TestServer/',
+                            MonlogPusher, 'TestServer/',
                             self._monlog_reg_info.name)
 
     # 4. monlog_reg_info lacks 'token_type' field.
     self.GenerateMonlogRegInfoTempFile(has_token_type=False)
     self.assertRaisesRegexp(monlog_pusher.ExeException,
                             'Missing monlog registration info .*',
-                            LogPusher, 'TestServer/',
+                            MonlogPusher, 'TestServer/',
                             self._monlog_reg_info.name)
 
     # 5. monlog_reg_info lacks 'access_token' field.
     self.GenerateMonlogRegInfoTempFile(has_access_token=False)
     self.assertRaisesRegexp(monlog_pusher.ExeException,
                             'Missing monlog registration info .*',
-                            LogPusher, 'TestServer/',
+                            MonlogPusher, 'TestServer/',
                             self._monlog_reg_info.name)
 
   @mock.patch('monlog_pusher.urllib2')
-  @mock.patch('monlog_pusher.LogPusher._GetAccessToken')
+  @mock.patch('monlog_pusher.MonlogPusher._GetAccessToken')
   def testPushLogOk(self, mock_access_token, mock_urllib2):
-    """Test successful flow of LogPusher mocking out GetAccessToken."""
+    """Test successful flow of MonlogPusher mocking out GetAccessToken."""
     # Return mock access token used to authorize the log server.
     mock_access_token.return_value = ('device_id', 'type', 'access_token')
 
     # Mock connection to the server.
     mock_urllib2.urlopen.return_value = Mock()
-    log_pusher = LogPusher('TestServer/')
+    log_pusher = MonlogPusher('TestServer/')
 
     # Verify PushLog good flow.
-    self.assertTrue(log_pusher.PushLog({'data': 'Example'}, 'metrics'))
+    self.assertTrue(log_pusher.PushLog(
+        {'id': {'type': 'Type', 'deviceId': ''}, 'data': 'Example'}, 'metrics'))
 
     # Verify expected request data built from the test environment.
-    expected_req_data = ('{"data":"Example","deviceId":"device_id"}')
+    expected_req_data = (
+        '{"data":"Example","id":{"type":"Type","deviceId":"device_id"}}')
     mock_urllib2.Request.assert_called_once_with(
         'TestServer/device_id/metrics:batchCreatePoints', expected_req_data)
     mock_access_token.assert_called_once_with()
     self.assertEqual(1, mock_urllib2.urlopen.call_count)
 
   @mock.patch('monlog_pusher.urllib2.urlopen')
-  @mock.patch('monlog_pusher.LogPusher._GetAccessToken')
+  @mock.patch('monlog_pusher.MonlogPusher._GetAccessToken')
   def testPushLogException(self, mock_access_token, mock_urlopen):
     """Test different bad push requests which raises exception."""
     # Return mock access token used to authorize log server.
     mock_access_token.return_value = ('device_id', 'type', 'access_token')
 
     # 1. Unsupported log_type raises ExeException.
-    log_pusher = LogPusher('TestServer/')
-    self.assertRaises(monlog_pusher.ExeException, log_pusher.PushLog,
-                      {'data': 'Example'}, 'structuredLogs')
+    log_pusher = MonlogPusher('TestServer/')
+    self.assertRaises(
+        monlog_pusher.ExeException, log_pusher.PushLog,
+        {'id': {'type': 'Type', 'deviceId': ''}, 'data': 'Example'},
+        'structuredLogs')
     self.assertEqual(1, mock_access_token.call_count)
 
     # 2. Bad data i.e. not a mapping object or valid non-string sequence.
-    log_pusher = LogPusher('TestServer/')
+    log_pusher = MonlogPusher('TestServer/')
     self.assertRaises(monlog_pusher.ExeException, log_pusher.PushLog,
                       'data', 'metrics')
     self.assertEqual(2, mock_access_token.call_count)
 
     # 3. Mock bad request raises HTTPError.
     mock_urlopen.side_effect = Mock(spec=urllib2.HTTPError)
-    log_pusher = LogPusher('TestServer/')
-    self.assertRaises(monlog_pusher.ExeException, log_pusher.PushLog,
-                      {'data': 'Example'}, 'metrics')
+    log_pusher = MonlogPusher('TestServer/')
+    self.assertRaises(
+        monlog_pusher.ExeException, log_pusher.PushLog,
+        {'id': {'type': 'Type', 'deviceId': ''}, 'data': 'Example'}, 'metrics')
     self.assertEqual(3, mock_access_token.call_count)
     self.assertEqual(1, mock_urlopen.call_count)
 
     # 4. Mock bad request raises URLError.
     mock_urlopen.side_effect = Mock(spec=urllib2.URLError)
-    log_pusher = LogPusher('TestServer/')
-    self.assertRaises(monlog_pusher.ExeException, log_pusher.PushLog,
-                      {'data': 'Example'}, 'metrics')
+    log_pusher = MonlogPusher('TestServer/')
+    self.assertRaises(
+        monlog_pusher.ExeException, log_pusher.PushLog,
+        {'id': {'type': 'Type', 'deviceId': ''}, 'data': 'Example'}, 'metrics')
     self.assertEqual(4, mock_access_token.call_count)
     self.assertEqual(2, mock_urlopen.call_count)
 
     # 5. Mock bad request raises HTTPException.
     mock_urlopen.side_effect = Mock(spec=httplib.HTTPException)
-    log_pusher = LogPusher('TestServer/')
-    self.assertRaises(monlog_pusher.ExeException, log_pusher.PushLog,
-                      {'data': 'Example'}, 'metrics')
+    log_pusher = MonlogPusher('TestServer/')
+    self.assertRaises(
+        monlog_pusher.ExeException, log_pusher.PushLog,
+        {'id': {'type': 'Type', 'deviceId': ''}, 'data': 'Example'}, 'metrics')
     self.assertEqual(5, mock_access_token.call_count)
     self.assertEqual(3, mock_urlopen.call_count)
 
     # 6. Mock bad request raises general Exception.
     mock_urlopen.side_effect = Mock(spec=Exception)
-    log_pusher = LogPusher('TestServer/')
-    self.assertRaises(monlog_pusher.ExeException, log_pusher.PushLog,
-                      {'data': 'Example'}, 'metrics')
+    log_pusher = MonlogPusher('TestServer/')
+    self.assertRaises(
+        monlog_pusher.ExeException, log_pusher.PushLog,
+        {'id': {'type': 'Type', 'deviceId': ''}, 'data': 'Example'}, 'metrics')
     self.assertEqual(6, mock_access_token.call_count)
     self.assertEqual(4, mock_urlopen.call_count)
 

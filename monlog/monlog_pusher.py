@@ -42,12 +42,14 @@ APP_FORM_URL_ENCODED = 'application/x-www-form-urlencoded'
 AUTHORIZATION = 'Authorization'
 CONTENT_TYPE = 'Content-Type'
 COMPLETE_SPACECAST_LOG_PATTERN = 'spacecast_log'
-MONLOG_REG_INFO = '/tmp/monlog_reg_info'
 LOG_DIR = '/tmp/applogs/'
-LOG_TYPE_METRICS = 'metrics'
-LOG_SERVER_PATH = 'https://www.googleapis.com/devicestats/v1/devices/'
 METRIC_BATCH_CREATE_POINTS = 'metrics:batchCreatePoints'
+MONLOG_TYPE_METRICS = 'metrics'
+MONLOG_SPACECAST_SERVER_PATH = ('https://www.googleapis.com/devicestats/'
+                                'v1alpha/types/SPACECAST_CACHE/devices/')
+MONLOG_REG_INFO = '/tmp/monlog_reg_info'
 POLL_SEC = 300
+SLASH = '/'
 
 
 class Error(Exception):
@@ -141,24 +143,24 @@ class LogCollector(object):
     # Pop will return and erase the first (log_file, log_data) tuple in the
     # collection.
     log_file, log_data = self._log_collection.pop(0)
-    return log_file, log_data, LOG_TYPE_METRICS
+    return log_file, log_data, MONLOG_TYPE_METRICS
 
 
-class LogPusher(object):
-  """LogPusher class.
+class MonlogPusher(object):
+  """MonlogPusher class.
 
-  LogPusher is responsible for establishing a secure connection and sending the
-  logs to the cloud server.
+  MonlogPusher is responsible for establishing a secure connection and sending
+  the logs to the cloud server.
   """
 
-  def __init__(self, log_server_path, monlog_reg_info=MONLOG_REG_INFO):
-    self._log_server_path = log_server_path
+  def __init__(self, monlog_server_path, monlog_reg_info=MONLOG_REG_INFO):
+    self._monlog_server_path = monlog_server_path
     self._monlog_reg_info = monlog_reg_info
     self._device_id, self._token_type, self._access_token = (
         self._GetAccessToken())
 
   def PushLog(self, log_data, log_type):
-    """Sends log data to the log server endpoint and remove the log file.
+    """Sends log data to the monlog server endpoint and remove the log file.
 
     Args:
       log_data: the log content to be sent.
@@ -170,20 +172,25 @@ class LogPusher(object):
     """
 
     # TODO(hunguyen): Only support log_type=metrics in phase 1.
-    if log_type != LOG_TYPE_METRICS:
+    if log_type != MONLOG_TYPE_METRICS:
       raise ExeException('Unsupported log_type=%s' % log_type)
 
-    # Prepare the connection to the log server.
+    # Prepare the connection to the monlog server.
     try:
-      # Log data should be in json format. Add deviceid field to the log data.
-      log_data['deviceId'] = self._device_id
+      # Add deviceId to the 'id' field of the log data.
+      # Example:
+      #   log_data = {"id":{"type":"spacecast","deviceId":""},"metricPoints"...}
+      log_data['id']['deviceId'] = self._device_id
       # TODO(hunguyen): Make sure there is no space in log_data added to URL.
       data = json.dumps(log_data, separators=(',', ':'))
     except TypeError as e:
       raise ExeException('Failed to encode data %r. Error: %r'
                          % (log_data, e))
 
-    req = urllib2.Request(self._log_server_path + self._device_id + '/' +
+    # Construct complete MonLog URL e.g.
+    #   https://www-googleapis-staging.sandbox.google.com/devicestats/v1alpha/
+    # types/SPACECAST_CACHE/devices/abc123/metrics:batchCreatePoints
+    req = urllib2.Request(self._monlog_server_path + self._device_id + SLASH +
                           METRIC_BATCH_CREATE_POINTS, data)
     req.add_header(CONTENT_TYPE, APP_JSON)
     req.add_header(AUTHORIZATION, self._token_type + ' ' + self._access_token)
@@ -223,8 +230,8 @@ class LogPusher(object):
                          % (self._monlog_reg_info, e))
 
     # Raise exception if missing registration info.
-    if not all (k in monlog_reg_info_json.keys()
-                for k in ('device_id', 'token_type', 'access_token')):
+    if not all(k in monlog_reg_info_json.keys()
+               for k in ('device_id', 'token_type', 'access_token')):
       raise ExeException('Missing monlog registration info in file %s'
                          % self._monlog_reg_info)
 
@@ -239,20 +246,21 @@ def GetArgs():
   parser = argparse.ArgumentParser(prog='logpush')
   parser.add_argument('--log_dir', nargs='?', help='Location to collect logs',
                       default=LOG_DIR)
-  parser.add_argument('--log_server_path', nargs='?',
+  parser.add_argument('--monlog_server_path', nargs='?',
                       help='URL path to the log server.',
-                      default=LOG_SERVER_PATH)
+                      default=MONLOG_SPACECAST_SERVER_PATH)
   parser.add_argument('--poll_interval', nargs='?',
                       help='Polling interval in seconds.', default=POLL_SEC)
+
   args = parser.parse_args()
   log_dir = args.log_dir
-  log_server_path = args.log_server_path
+  monlog_server_path = args.monlog_server_path
   poll_interval = float(args.poll_interval)
-  return log_dir, log_server_path, poll_interval
+  return log_dir, monlog_server_path, poll_interval
 
 
 def main():
-  log_dir, log_server_path, poll_interval = GetArgs()
+  log_dir, monlog_server_path, poll_interval = GetArgs()
 
   while True:
     time.sleep(poll_interval)
@@ -263,15 +271,15 @@ def main():
       print 'Error on collecting logs: ', e.errormsg
 
     try:
-      log_pusher = LogPusher(log_server_path)
+      monlog_pusher = MonlogPusher(monlog_server_path)
     except ExeException as e:
-      print 'Failed to get access token for log pusher: ', e.errormsg
+      print 'Failed to get access token for monlog pusher: ', e.errormsg
     else:
       # Loop through the log collection and send out logs.
       while not log_collector.IsEmpty():
         log_file, log_data, log_type = log_collector.GetAvailableLog()
         try:
-          log_pusher.PushLog(log_data, log_type)
+          monlog_pusher.PushLog(log_data, log_type)
         except ExeException as e:
           print 'Failed to push log file ', log_file, '. Error: ', e.errormsg
         else:
