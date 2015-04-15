@@ -30,6 +30,7 @@
 #define DEFAULT_TST_IF "eth0"
 #define LAN_PORT_NAME "eth0"
 #define WAN_PORT_NAME "eth1"
+#define MAX_NET_IF 2
 #define BUF_SIZ 1536
 #define ETH_TEST_MAX_CMD 4096
 #define ETH_TEST_MAX_RSP 4096
@@ -284,6 +285,63 @@ int send_ip(int argc, char *argv[]) {
   return 0;
 }
 
+int net_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
+  static const char *kIfName[MAX_NET_IF] = {LAN_PORT_NAME, WAN_PORT_NAME};
+  static unsigned int tx_stat[MAX_NET_IF] = {0, 0};
+  static unsigned int rx_stat[MAX_NET_IF] = {0, 0};
+  char command[MAX_CMD_SIZE], rsp[MAX_CMD_SIZE];
+  unsigned int index, tmp;
+  FILE *fp;
+
+  for (index = 0; index < MAX_NET_IF; ++index) {
+    if (strcmp(name, kIfName[index]) == 0) {
+      break;
+    }
+  }
+  if (index >= MAX_NET_IF) return -1;
+
+  sprintf(command, "cat /sys/class/net/%s/statistics/tx_bytes", name);
+  fp = popen(command, "r");
+  if (fp != NULL) {
+    if (fscanf(fp, "%s", rsp) != EOF) {
+      *tx_bytes = strtoul(rsp, NULL, 10);
+    }
+    pclose(fp);
+  }
+
+  sprintf(command, "cat /sys/class/net/%s/statistics/rx_bytes", name);
+  fp = popen(command, "r");
+  if (fp != NULL) {
+    if (fscanf(fp, "%s", rsp) != EOF) {
+      *rx_bytes = strtoul(rsp, NULL, 10);
+    }
+    pclose(fp);
+  }
+
+  if (*tx_bytes >= tx_stat[index]) {
+    *tx_bytes -= tx_stat[index];
+    tx_stat[index] += *tx_bytes;
+  } else {
+    tmp = *tx_bytes;
+    // tx_bytes is int, not uint.
+    *tx_bytes += (0x7fffffff - tx_stat[index]);
+    tx_stat[index] = tmp;
+  }
+
+  if (*rx_bytes >= rx_stat[index]) {
+    *rx_bytes -= rx_stat[index];
+    rx_stat[index] += *rx_bytes;
+  } else {
+    tmp = *rx_bytes;
+    // rx_bytes is int, not uint.
+    *rx_bytes += (0x7fffffff - rx_stat[index]);
+    rx_stat[index] = tmp;
+  }
+  return 0;
+}
+
+// Not needed for now
+#if 0
 int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   char command[MAX_CMD_SIZE], rsp[MAX_CMD_SIZE];
   FILE *fp;
@@ -301,7 +359,7 @@ int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
       if (rsp[strlen(rsp) - 1] == 'K') {
         long_long_tmp *= 1000;
       } else if (rsp[strlen(rsp) - 1] == 'M') {
-        long_long_tmp *= (1024*1024);
+        long_long_tmp *= (1024 * 1024);
       }
       uint_tmp = long_long_tmp & 0xffffffff;
       if (uint_tmp & 0x80000000) {
@@ -318,6 +376,7 @@ int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
 
   return 0;
 }
+#endif
 
 // Return 0 if lost carrier. Otherwise, 1
 int get_carrier_state(char *name) {
@@ -414,13 +473,6 @@ int send_if(int argc, char *argv[]) {
   return 0;
 }
 
-#if 0 // Not needed for now
-static void setup_eth_ports_for_traffic() {
-  system_cmd("brctl delif br0 eth0");
-  system_cmd("brctl delif br0 eth1");
-}
-#endif
-
 static void send_if_to_if_usage(void) {
   printf(
       "send_if_to_if <src if> <dest if> <secs> [-b <pkt byte size (max %d)>] "
@@ -491,7 +543,8 @@ int send_if_to_if(int argc, char *argv[]) {
 
   n = strtoul(argv[3], NULL, 10);
 
-  system_cmd(ETH_STAT_CLEAR_CMD);
+  net_stat(&src_rx_bytes, &src_tx_bytes, if_name);
+  net_stat(&dst_rx_bytes, &dst_tx_bytes, dst_name);
   pid = fork();
   if (pid < 0) {
     printf("Server fork error %d, errno %d\n", pid, errno);
@@ -505,8 +558,8 @@ int send_if_to_if(int argc, char *argv[]) {
   // Parent process
   sleep(n);
   kill(pid, SIGKILL);
-  get_ip_stat(&src_rx_bytes, &src_tx_bytes, if_name);
-  get_ip_stat(&dst_rx_bytes, &dst_tx_bytes, dst_name);
+  net_stat(&src_rx_bytes, &src_tx_bytes, if_name);
+  net_stat(&dst_rx_bytes, &dst_tx_bytes, dst_name);
 
   if (dst_rx_bytes >= src_tx_bytes) {
     printf("Sent %d seconds from %s(%d) to %s(%d) rate %3.3f Mb/s\n", n,
@@ -655,7 +708,8 @@ int test_both_ports(int argc, char *argv[]) {
     }
   }
 
-  system_cmd(ETH_STAT_CLEAR_CMD);
+  net_stat(&eth1_rx, &eth1_tx, ETH_TRAFFIC_PORT);
+  net_stat(&eth0_rx, &eth0_tx, ETH_TRAFFIC_DST_PORT);
 
   pid = fork();
   if (pid < 0) {
@@ -704,8 +758,8 @@ int test_both_ports(int argc, char *argv[]) {
         kill(pid1, SIGSTOP);
         kill(pid2, SIGSTOP);
       }
-      get_ip_stat(&eth1_rx, &eth1_tx, ETH_TRAFFIC_PORT);
-      get_ip_stat(&eth0_rx, &eth0_tx, ETH_TRAFFIC_DST_PORT);
+      net_stat(&eth1_rx, &eth1_tx, ETH_TRAFFIC_PORT);
+      net_stat(&eth0_rx, &eth0_tx, ETH_TRAFFIC_DST_PORT);
       if ((eth0_rx == 0) || (eth1_rx == 0) || (eth0_tx == 0) || (eth1_tx == 0))
         failed = true;
       // Due to two processes are stopped one after another, need some
@@ -796,7 +850,7 @@ int loopback_test(int argc, char *argv[]) {
 
   eth_external_loopback(argv[1], true);
 
-  system_cmd(ETH_STAT_CLEAR_CMD);
+  net_stat(&rx_bytes, &tx_bytes, argv[1]);
 
   pid = fork();
   if (pid < 0) {
@@ -828,10 +882,13 @@ int loopback_test(int argc, char *argv[]) {
     }
 
     if (duration > 0) kill(pid1, SIGSTOP);
-    get_ip_stat(&rx_bytes, &tx_bytes, argv[1]);
+    net_stat(&rx_bytes, &tx_bytes, argv[1]);
     if (duration > 0) kill(pid1, SIGCONT);
     ++collected_count;
-    if ((rx_bytes == 0) || (tx_bytes > rx_bytes)) problem = true;
+    // Give 1% margin
+    if ((rx_bytes == 0) || (((tx_bytes / 100) * 99) > rx_bytes)) {
+      problem = true;
+    }
     if ((rx_bytes > ETH_TRAFFIC_PER_PERIOD_MAX) ||
         (tx_bytes > ETH_TRAFFIC_PER_PERIOD_MAX)) {
       problem = true;
