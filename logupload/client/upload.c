@@ -193,7 +193,7 @@ int upload_file(const char *server_url, const char* target_name, char* data,
   CURL *curl_handle = NULL;
   int timeval;
   struct getdatamem getdata;
-  int i;
+  int i, rv = -1;
   int resolvers[2] = { CURL_IPRESOLVE_V6, CURL_IPRESOLVE_V4 };
   const char *resolvers_str[2] = { "IPv6", "IPv4" };
 
@@ -254,10 +254,12 @@ int upload_file(const char *server_url, const char* target_name, char* data,
     }
 
     http_code = 0;
-    if (do_request_via_ipv(
-            curl_handle, url, &getdata, NULL, resolvers[i], &http_code)) {
+    rv = do_request_via_ipv(curl_handle, url, &getdata, NULL, resolvers[i],
+        &http_code);
+    if (rv) {
       fprintf(stderr, "Curl failed in GET %s\n", resolvers_str[i]);
       curl_easy_cleanup(curl_handle);
+      curl_handle = NULL;
       continue;
     }
 
@@ -278,12 +280,13 @@ int upload_file(const char *server_url, const char* target_name, char* data,
     postdata.blob_length = len;
 
     http_code = 0;
-    if (do_request_via_ipv(
-            curl_handle, getdata.memory, NULL, &postdata,
-            resolvers[i], &http_code)) {
+    rv = do_request_via_ipv(curl_handle, getdata.memory, NULL, &postdata,
+        resolvers[i], &http_code);
+    if (rv) {
       curl_easy_cleanup(curl_handle);
       fprintf(stderr, "curl failed with %s http error: %ld\n",
               resolvers_str[i], http_code);
+      curl_handle = NULL;
       continue;
     }
 
@@ -291,7 +294,8 @@ int upload_file(const char *server_url, const char* target_name, char* data,
     break;
   }
 
-  curl_easy_cleanup(curl_handle);
+  if (curl_handle)
+    curl_easy_cleanup(curl_handle);
   curl_global_cleanup();
-  return 0;
+  return rv;
 }
