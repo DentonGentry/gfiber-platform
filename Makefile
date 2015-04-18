@@ -4,7 +4,7 @@ default: all
 # via buildroot/packages/google/google_platform/google_platform.mk
 DIRS=libstacktrace ginstall cmds \
 	antirollback tvstat gpio-mailbox spectralanalyzer wifi wifiblaster \
-	sysvar
+	sysvar py_mtd
 
 ifeq ($(BUILD_SYSMGR),y)
 DIRS+=sysmgr

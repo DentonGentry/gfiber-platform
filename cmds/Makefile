@@ -9,6 +9,7 @@ TARGETS=\
 	asus_hosts \
 	balloon \
 	bsa2bluez \
+	burnin-flash \
 	buttonmon \
 	isoping \
 	isostream \
