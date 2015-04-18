@@ -20,10 +20,20 @@ def save_options(program, band, argv, tmp=False):
     argv: The options to save.
     tmp: Whether to save options to /tmp or _CONFIG_DIR.
   """
-  argv_to_save = [arg for arg in argv if arg not in ['-P', '--persist']]
+  to_save = {
+      'argv': [arg for arg in argv if arg not in ['-P', '--persist']],
+      'env': {},
+  }
+
+  # Also save important environment variables.
+  if program == 'hostapd' and 'WIFI_PSK' in os.environ:
+    to_save['env']['WIFI_PSK'] = os.environ['WIFI_PSK']
+  if program == 'wpa_supplicant' and 'WIFI_CLIENT_PSK' in os.environ:
+    to_save['env']['WIFI_CLIENT_PSK'] = os.environ['WIFI_CLIENT_PSK']
+
   utils.atomic_write(
       utils.get_filename(program, utils.FILENAME_KIND.options, band, tmp=tmp),
-      json.dumps(argv_to_save))
+      json.dumps(to_save))
 
 
 def load_options(program, band, tmp):
@@ -43,7 +53,9 @@ def load_options(program, band, tmp):
                                 tmp=tmp)
   try:
     with open(filename, 'r') as options_file:
-      return json.load(options_file)
+      saved = json.load(options_file)
+      os.environ.update(saved['env'])
+      return saved['argv']
   except IOError:
     return None
 
