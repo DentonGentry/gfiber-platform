@@ -548,7 +548,7 @@ def _start_wpa_supplicant(interface, config_filename):
     return False
 
   utils.log('Waiting for wpa_supplicant to connect')
-  for _ in xrange(50):
+  for _ in xrange(100):
     if _get_wpa_state(interface) == 'COMPLETED':
       utils.log('ok')
       return True
