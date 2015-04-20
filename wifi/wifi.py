@@ -556,6 +556,11 @@ def _start_wpa_supplicant(interface, config_filename):
     time.sleep(0.1)
 
   utils.log('wpa_supplicant did not connect')
+  if not _stop_wpa_supplicant(interface):
+    raise utils.BinWifiException(
+        "Couldn't stop wpa_supplicant after it failed to connect. "
+        "Consider killing it manually.")
+
   return False
 
 
