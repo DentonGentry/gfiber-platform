@@ -96,24 +96,9 @@ int fan_speed(int argc, char *argv[]) {
 
   // system_cmd("pkill -9 -f gpio-mailbox");
   fan_speed_val = (255 * percent) / 100;
-  printf("Board temp before fan test in millicentigrade: ");
-  fflush(stdout);
-  system_cmd("cat " FAN_TEMP_CMD);
-  printf("HDD temp before fan test in centigrade: ");
-  fflush(stdout);
-  system_cmd(HDD_TEMP_CMD);
   sprintf(cmd, "echo %d > " FAN_SPEED_CMD, fan_speed_val);
   system_cmd(cmd);
-  sleep(FAN_TEST_PERIOD);
-  // system_cmd("reboot-if-fail gpio-mailbox 2>&1 | logos gpio-mailbox &");
-
   printf("Fan speed set to %d = %d%c\n", fan_speed_val, percent, kPer);
-  printf("Board temp after fan test in millicentigrade: ");
-  fflush(stdout);
-  system_cmd("cat " FAN_TEMP_CMD);
-  printf("HDD temp in centigrade: ");
-  fflush(stdout);
-  system_cmd(HDD_TEMP_CMD);
 
   return 0;
 }
