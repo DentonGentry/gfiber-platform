@@ -1,9 +1,4 @@
 #!/bin/bash
-
-# disable test for now
-echo "$0 disabled, skipping"
-exit 0
-
 . ./wvtest/wvtest.sh
 
 pid=$$
