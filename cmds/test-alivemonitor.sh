@@ -31,7 +31,12 @@ WVFAIL $AM $TICK 1 -1 1 true
 WVFAIL $AM $TICK 1 1 -1 true
 
 # make sure it kills after a timeout
-WVFAIL $AM $TICK 0.1 0.1 0.2 sleep 10
+YESLOG=killed.$pid.tmp
+WVFAIL $AM $TICK 0.1 0.1 0.2 sleep 10 2>&1 | tee $YESLOG
+# I don't usually like to look for specific output messages in tests,
+# but since we had an actual bug where the output was lying, we should
+# probably check that out.
+WVPASS fgrep -q 'Timeout!' $YESLOG
 
 # make sure it sleeps for less than incr_timeout if it would go past timeout.
 # We know it slept for a shorter interval if it kills the subtask.
@@ -50,8 +55,17 @@ do_ticks()
 }
 do_ticks 0.1 &
 dtpid=$!
-WVPASS $AM $TICK 0.05 0.05 10 sleep 0.5
+NOTLOG=notkilled.$pid.tmp
+WVPASS $AM $TICK 0.05 0.05 10 sleep 0.5 2>&1 | tee $NOTLOG
+WVFAIL fgrep -q 'Timeout!' $NOTLOG
 kill $dtpid
+
+# make sure log message doesn't talk about timeouts if the task
+# is killed.
+NOTLOG2=notkilled2.$pid.tmp
+$AM $TICK 0.05 0.05 100 sh -c 'kill 0' 2>&1 | tee $NOTLOG2
+WVFAIL fgrep -q 'Timeout!' $NOTLOG2
+WVPASS grep -q 'signal [0-9]* received' $NOTLOG2
 
 # test traplog.sh that we will use for testing prekill
 TMP=trap.$pid.tmp
