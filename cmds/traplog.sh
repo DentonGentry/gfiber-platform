@@ -1,4 +1,6 @@
 #!/bin/sh
+# Test program called from test-alivemonitor.sh.
+#
 FILE=$1
 if [ -z "$FILE" ]; then
   echo "usage: $0 <filename>" >&2

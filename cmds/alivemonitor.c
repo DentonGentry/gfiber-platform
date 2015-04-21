@@ -28,14 +28,14 @@
 #include <unistd.h>
 
 
-static volatile sig_atomic_t kill_parent = 0;
+static volatile sig_atomic_t got_signal = 0;
 const char *keepalive_file;
 pid_t p_pid;
 time_t old_time;
 
 
 void sighandler(int sig) {
-  kill_parent = 1;
+  got_signal = sig;
 }
 
 static void usage(char *name) {
@@ -81,7 +81,7 @@ enum Aliveness {
   EXITED = 2,
   NO_CHANGE = 1,
   ALIVE = 0,
-  KILL_IT = -1,
+  ERROR = -1,
 };
 
 // Sleep a given amount of time, while continuously checking on the parent.
@@ -89,7 +89,7 @@ enum Aliveness {
 //  EXITED: parent exited
 //  NO_CHANGE: no change in alive status
 //  ALIVE: alive!
-//  KILL_IT: system error, kill parent
+//  ERROR: system error, abort
 enum Aliveness sleep_check_alive(long long stime) {
   struct stat fst;
   long long n = now(), endtime = n + stime;
@@ -98,8 +98,8 @@ enum Aliveness sleep_check_alive(long long stime) {
     int s = endtime - n;
     usleep(s * 1000);
 
-    if (kill_parent)
-      return KILL_IT;
+    if (got_signal)
+      break;
 
     // check on the parent
     assert(p_pid > 0);
@@ -109,7 +109,7 @@ enum Aliveness sleep_check_alive(long long stime) {
         return EXITED;
       } else {
         perror("alivemonitor: kill(p_pid, 0) failed");
-        return KILL_IT;
+        return ERROR;
       }
     }
     n = now();
@@ -118,7 +118,7 @@ enum Aliveness sleep_check_alive(long long stime) {
   memset(&fst, 0, sizeof(fst));
   if (stat(keepalive_file, &fst) != 0) {
     perror("alivemonitor: stat failed");
-    return KILL_IT;
+    return ERROR;
   }
 
   if (fst.st_mtime == old_time) {
@@ -226,13 +226,13 @@ int main(int argc, char *const *argv) {
 
   // from here: child
 
-  while (!kill_parent) {
+  while (1) {
     start_time = now();
 
     // sleep until first check
     switch (sleep_check_alive(first_check)) {
     case EXITED: return 0;
-    case KILL_IT: goto kill_it;
+    case ERROR: goto kill_it;
     case ALIVE: goto not_dead;
     case NO_CHANGE: break;  // fall through and enter the inner loop
     }
@@ -240,14 +240,22 @@ int main(int argc, char *const *argv) {
     // no sign of life yet, run the increments
     long long time_passed = now() - start_time;
     int cnt = 1;
-    while (!kill_parent && time_passed < timeout) {
+    while (1) {
+      if (got_signal) {
+        fprintf(stderr, "alivemonitor(%s): signal %d received, killing.\n",
+                keepalive_name, got_signal);
+        goto kill_it;
+      } else if (time_passed >= timeout) {
+        fprintf(stderr, "alivemonitor(%s): Timeout!\n", keepalive_name);
+        goto kill_it;
+      }
       fprintf(stderr, "alivemonitor(%s): %d-No sign of life @ %lld/%lld ms\n",
               keepalive_name, cnt++, time_passed, timeout);
       next_check = timeout - time_passed;
       if (incr_check < next_check) next_check = incr_check;
       switch (sleep_check_alive(next_check)) {
       case EXITED: return 0;
-      case KILL_IT: goto kill_it;
+      case ERROR: goto kill_it;
       case NO_CHANGE: break;  // do nothing
       case ALIVE:
         fprintf(stderr, "alivemonitor(%s): it's alive after all!\n",
@@ -256,13 +264,12 @@ int main(int argc, char *const *argv) {
       }
       time_passed = now() - start_time;
     }
-    goto kill_it;
 not_dead:
     continue;
   }
 
 kill_it:
-  fprintf(stderr, "alivemonitor(%s): Timeout! kill parent process group %d\n",
+  fprintf(stderr, "alivemonitor(%s): kill parent process group %d\n",
           keepalive_name, p_pid);
   assert(p_pid > 0);
   if (prekill_signal) {
