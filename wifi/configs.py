@@ -49,6 +49,7 @@ _HOSTCONF_TPL = """ctrl_interface=/var/run/hostapd
 interface={interface}
 bridge={bridge}
 ssid={ssid}
+utf8_ssid=1
 auth_algs={auth_algs}
 hw_mode={hostapd_band}
 channel={channel}
@@ -244,11 +245,12 @@ def generate_hostapd_config(
       ht_rxstbc=ht_rxstbc, vht_settings=vht_settings,
       guard_interval=guard_interval, enable_wmm=enable_wmm, hidden=hidden,
       auth_algs=auth_algs,
-      bridge=opt.bridge, ssid=opt.ssid)]
+      bridge=opt.bridge, ssid=utils.sanitize_ssid(opt.ssid))]
 
   if opt.encryption != 'NONE':
     hostapd_conf_parts.append(_HOSTCONF_WPA_TPL.format(
-        psk=psk, wpa=wpa, wpa_pairwise=wpa_pairwise))
+        psk=utils.validate_and_sanitize_psk(psk), wpa=wpa,
+        wpa_pairwise=wpa_pairwise))
 
   if experiment.enabled('Wifi80211k'):
     hostapd_conf_parts.append(
@@ -266,4 +268,6 @@ def generate_wpa_supplicant_config(ssid, passphrase):
   return '\n'.join(
       ('ctrl_interface=/var/run/wpa_supplicant',
        'ap_scan=1',
-       subprocess.check_output(['wpa_passphrase', ssid, passphrase])))
+       subprocess.check_output(['wpa_passphrase',
+                                utils.sanitize_ssid(ssid),
+                                utils.validate_and_sanitize_psk(passphrase)])))

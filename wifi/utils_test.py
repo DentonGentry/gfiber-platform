@@ -85,5 +85,43 @@ def increment_mac_address_test():
                   utils.increment_mac_address('12:34:56:78:FF'))
 
 
+@wvtest.wvtest
+def sanitize_ssid_test():
+  """Tests utils.sanitize_ssid."""
+  wvtest.WVPASSEQ('foo', utils.sanitize_ssid('foo'))
+  wvtest.WVPASSEQ('foo', utils.sanitize_ssid('foo\n\0'))
+  hebrew = ('\xd7\xa0\xd6\xb0\xd7\xa7\xd6\xbb\xd7\x93\xd6\xbc\xd7\x95\xd6\xb9'
+            '\xd7\xaa')
+  unicode_control_char = u'\u200e'.encode('utf-8')
+  non_utf8 = '\x97'
+  wvtest.WVPASSEQ(hebrew,
+                  utils.sanitize_ssid(''.join([hebrew, unicode_control_char,
+                                               non_utf8])))
+
+
+@wvtest.wvtest
+def validate_and_sanitize_psk_test():
+  """Tests utils.validate_and_sanitize_psk."""
+  # Too short.
+  wvtest.WVEXCEPT(utils.BinWifiException,
+                  utils.validate_and_sanitize_psk, 'foo')
+  # Too long.
+  wvtest.WVEXCEPT(utils.BinWifiException,
+                  utils.validate_and_sanitize_psk, '0' * 65)
+  # Not ASCII.
+  wvtest.WVEXCEPT(utils.BinWifiException,
+                  utils.validate_and_sanitize_psk, 'abcdefgh\xd7\xa0')
+  # Not hex.
+  wvtest.WVEXCEPT(utils.BinWifiException,
+                  utils.validate_and_sanitize_psk, 'g' * 64)
+  # Too short after control characters removed.
+  wvtest.WVEXCEPT(utils.BinWifiException,
+                  utils.validate_and_sanitize_psk, 'foobar\n\0')
+
+  wvtest.WVPASSEQ('foobarba', utils.validate_and_sanitize_psk('foobarba\n\0'))
+  wvtest.WVPASSEQ('0' * 64, utils.validate_and_sanitize_psk('0' * 64))
+  wvtest.WVPASSEQ('g' * 63, utils.validate_and_sanitize_psk('g' * 63))
+
+
 if __name__ == '__main__':
   wvtest.wvtest_main()

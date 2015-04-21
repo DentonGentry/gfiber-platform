@@ -886,10 +886,6 @@ def _run(argv):
   if extra[0] == 'setclient' and opt.persist:
     persist.save_options('wpa_supplicant', opt.band, argv)
 
-  # Escape user input.
-  if opt.ssid:
-    opt.ssid = opt.ssid.encode('unicode-escape')
-
   try:
     return {
         'set': set_wifi,

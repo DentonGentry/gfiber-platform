@@ -256,6 +256,7 @@ _HOSTAPD_CONFIG = """ctrl_interface=/var/run/hostapd
 interface=wlan0
 bridge=
 ssid=TEST_SSID
+utf8_ssid=1
 auth_algs=1
 hw_mode=g
 channel=1

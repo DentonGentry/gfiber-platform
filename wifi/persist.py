@@ -2,7 +2,7 @@
 
 """Functions related to persisting command line options."""
 
-import json
+import ast
 import os
 
 import utils
@@ -27,13 +27,15 @@ def save_options(program, band, argv, tmp=False):
 
   # Also save important environment variables.
   if program == 'hostapd' and 'WIFI_PSK' in os.environ:
-    to_save['env']['WIFI_PSK'] = os.environ['WIFI_PSK']
+    to_save['env']['WIFI_PSK'] = utils.validate_and_sanitize_psk(
+        os.environ['WIFI_PSK'])
   if program == 'wpa_supplicant' and 'WIFI_CLIENT_PSK' in os.environ:
-    to_save['env']['WIFI_CLIENT_PSK'] = os.environ['WIFI_CLIENT_PSK']
+    to_save['env']['WIFI_CLIENT_PSK'] = utils.validate_and_sanitize_psk(
+        os.environ['WIFI_CLIENT_PSK'])
 
   utils.atomic_write(
       utils.get_filename(program, utils.FILENAME_KIND.options, band, tmp=tmp),
-      json.dumps(to_save))
+      repr(to_save))
 
 
 def load_options(program, band, tmp):
@@ -53,7 +55,7 @@ def load_options(program, band, tmp):
                                 tmp=tmp)
   try:
     with open(filename, 'r') as options_file:
-      saved = json.load(options_file)
+      saved = ast.literal_eval(options_file.read())
       os.environ.update(saved['env'])
       return saved['argv']
   except IOError:

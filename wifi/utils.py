@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import time
+import unicodedata
 
 
 _CONFIG_DIR = '/config/wifi'
@@ -233,3 +234,54 @@ def validate_set_wifi_options(band, width, autotype, protocols, encryption):
     if 'WIFI_PSK' not in os.environ:
       raise BinWifiException(
           'encryption enabled; use WIFI_PSK=whatever wifi set ...')
+
+
+def sanitize_ssid(ssid):
+  """Remove control and non-UTF8 characters from an SSID.
+
+  We use hostapd's utf8_ssid option to specify a UTF8 SSID.
+
+  Args:
+    ssid:  The SSID to sanitize, as a string.
+
+  Returns:
+    The sanitized SSID, as a UTF8-encoded string.
+  """
+  return ''.join(c for c in ssid.decode('utf-8', 'ignore')
+                 if unicodedata.category(c)[0] != 'C').encode('utf-8')
+
+
+def validate_and_sanitize_psk(psk):
+  """Validates a PSK and removes control characters.
+
+  Checks that requirement that PSKs must be either 8-63 ASCII characters or 64
+  hex characters.
+
+  Args:
+    psk:  The PSK to validate, as a string.
+
+  Returns:
+    The sanitized PSK, as a string.
+
+  Raises:
+    BinWifiException:  If the PSK is invalid.
+  """
+  if len(psk) == 64:
+    try:
+      psk.decode('hex')
+    except TypeError:
+      raise BinWifiException('64-character PSK is not hex: %s', psk)
+  elif 8 <= len(psk) <= 63:
+    try:
+      psk.decode('ascii')
+    except UnicodeDecodeError:
+      raise BinWifiException('8-63 character PSK is not ASCII: %s', psk)
+    psk = ''.join(c for c in psk if ord(c) >= 32)
+    if len(psk) < 8:
+      raise BinWifiException('PSK is not of a valid length: %d', len(psk))
+  else:
+    raise BinWifiException('PSK is not of a valid length: %d', len(psk))
+
+  return psk
+
+
