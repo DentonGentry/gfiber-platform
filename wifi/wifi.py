@@ -450,13 +450,14 @@ def _is_wpa_supplicant_running(interface):
       ['wpa_cli', '-i', interface, 'status'], no_stdout=True) == 0
 
 
-def _start_hostapd(interface, config_filename, band):
+def _start_hostapd(interface, config_filename, band, ssid):
   """Starts a babysat hostapd.
 
   Args:
     interface: The interface on which to start hostapd.
     config_filename: The filename of the hostapd configuration.
     band: The band on which hostapd is being started.
+    ssid: The SSID with which hostapd is being started.
 
   Returns:
     Whether hostapd was started successfully.
@@ -471,7 +472,7 @@ def _start_hostapd(interface, config_filename, band):
                  'hostapd',
                  '-A', alivemonitor_filename,
                  '-F', _FINGERPRINTS_DIRECTORY] +
-                bandsteering.hostapd_options(band) +
+                bandsteering.hostapd_options(band, ssid) +
                 [config_filename],
                 'hostapd-%s' % interface, 10, pid_filename)
 
@@ -629,7 +630,8 @@ def _maybe_restart_hostapd(interface, config, opt):
   if not forced:
     utils.atomic_write(tmp_config_filename, config)
 
-  if not _start_hostapd(interface, tmp_config_filename, str(opt.band)):
+  if not _start_hostapd(interface, tmp_config_filename, str(opt.band),
+                        str(opt.ssid)):
     utils.log('hostapd failed to start. Look at hostapd logs for details.')
     return False
 
