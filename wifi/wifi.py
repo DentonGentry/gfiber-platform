@@ -378,7 +378,10 @@ def restore_wifi(opt):
   Returns:
     True.
   """
-  for band in str(opt.band).split():
+  # If both bands are specified, restore 5 GHz first so that STAs are more
+  # likely to join it.
+  for band in sorted(str(opt.band).split(),
+                     reverse=not experiment.enabled('WifiReverseBandsteering')):
     _restore_wifi(band, 'wpa_supplicant')
     _restore_wifi(band, 'hostapd')
 
