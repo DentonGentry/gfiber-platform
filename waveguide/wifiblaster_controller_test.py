@@ -69,13 +69,12 @@ def LogWifiblasterResultsTest(log_mock):
   manager.AnonymizeMAC = lambda mac: log.AnonymizeMAC(16 * 'x', mac)
 
   # Result should be anonymized and not include "not connected" lines.
-  stdout = ('mac=11:11:11:11:11:11 tx_packets=2052 tx_retries=7 '
-            'tx_failed=0 throughput=10506134\n'
-            'mac=22:22:22:22:22:22 not connected\n'
+  stdout = ('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
+            'samples=5000000,15000000\n'
             'malformed 11:11:11:11:11:11 but has macs 11:11:11:11:11:11\n')
   wc._LogWifiblasterResults(0, stdout, '')
-  expected = ('wifiblaster: mac=CYAFVU tx_packets=2052 tx_retries=7 '
-              'tx_failed=0 throughput=10506134\n'
+  expected = ('wifiblaster: version=1 mac=CYAFVU throughput=10000000 '
+              'samples=5000000,15000000\n'
               'wifiblaster: malformed CYAFVU but has macs CYAFVU\n')
   result = '\n'.join([s for ((s,), _) in log_mock.call_args_list]) + '\n'
   wvtest.WVPASSEQ(result, expected)
@@ -105,6 +104,7 @@ def PollTest(expovariate_mock, run_proc_mock):
   # Stub WifiblasterController._ReadFile to return fake parameter file data.
   files = {'wifiblaster.duration': '.1',
            'wifiblaster.enable': 'False',
+           'wifiblaster.fraction': '10',
            'wifiblaster.interval': '10',
            'wifiblaster.size': '64'}
   wc._ReadFile = lambda filename: files[filename]

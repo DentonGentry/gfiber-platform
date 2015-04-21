@@ -17,11 +17,24 @@
 
 __author__ = 'mikemu@google.com (Mike Mu)'
 
-import collections
+import contextlib
+import multiprocessing
+import os
 import re
 import subprocess
 import sys
+import time
 import options
+
+
+try:
+  import monotime  # pylint: disable=unused-import,g-import-not-at-top
+except ImportError:
+  pass
+try:
+  _gettime = time.monotonic
+except AttributeError:
+  _gettime = time.time
 
 
 _OPTSPEC = """
@@ -29,57 +42,73 @@ wifiblaster [options...] [clients...]
 --
 i,interface=  Name of access point interface [wlan0]
 d,duration=   Packet blast duration in seconds [.1]
+f,fraction=   Number of samples per duration [10]
 s,size=       Packet size in bytes [64]
 """
-
-IwStat = collections.namedtuple('IwStat', ['tx_packets',
-                                           'tx_retries',
-                                           'tx_failed'])
 
 
 class Iw(object):
   """Interface to iw."""
   # TODO(mikemu): Use an nl80211 library instead.
 
+  class IwException(Exception):
+    pass
+
   def __init__(self, interface):
     """Initializes Iw on a given interface."""
     self._interface = interface
 
-  def _StationDump(self):
-    """Returns the output of 'iw dev interface station dump'."""
+  def _DevStationDump(self):
+    """Returns the output of 'iw dev <interface> station dump'."""
     return subprocess.check_output(
         ['iw', 'dev', self._interface, 'station', 'dump'])
 
+  def _DevInfo(self):
+    """Returns the output of 'iw dev <interface> info'."""
+    return subprocess.check_output(
+        ['iw', 'dev', self._interface, 'info'])
+
   def GetClients(self):
-    """Returns a dict mapping clients to IwStats at the time of the call."""
-    clients = {}
-    tx_packets = tx_retries = tx_failed = 0
-    for line in reversed(self._StationDump().splitlines()):
-      line = line.strip()
-      m = re.match(r'tx packets:\s+(\d+)', line)
+    """Returns the associated clients."""
+    clients = set()
+    for line in self._DevStationDump().splitlines():
+      m = re.search(r'Station (([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})', line)
       if m:
-        tx_packets = long(m.group(1))
-        continue
-      m = re.match(r'tx retries:\s+(\d+)', line)
-      if m:
-        tx_retries = long(m.group(1))
-        continue
-      m = re.match(r'tx failed:\s+(\d+)', line)
-      if m:
-        tx_failed = long(m.group(1))
-        continue
-      m = re.match(r'Station (([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})', line)
-      if m:
-        clients[m.group(1).lower()] = IwStat(tx_packets=tx_packets,
-                                             tx_retries=tx_retries,
-                                             tx_failed=tx_failed)
-        tx_packets = tx_retries = tx_failed = 0
-        continue
+        clients.add(m.group(1).lower())
     return clients
+
+  def GetPhy(self):
+    """Returns the PHY name."""
+    for line in self._DevInfo().splitlines():
+      m = re.search(r'wiphy (\d+)', line)
+      if m:
+        return 'phy%s' % m.group(1)
+    raise Iw.IwException('could not get PHY name')
+
+
+class Mac80211Stats(object):
+  """Interface to mac80211 statistics in debugfs."""
+
+  def __init__(self, phy):
+    """Initializes Mac80211Stats on a given PHY."""
+    self._basedir = os.path.join(
+        '/sys/kernel/debug/ieee80211', phy, 'statistics')
+
+  def _ReadCounter(self, counter):
+    """Returns a counter read from a file."""
+    with open(os.path.join(self._basedir, counter)) as f:
+      return int(f.read())
+
+  def GetTransmittedFrameCount(self):
+    """Returns the number of successfully transmitted MSDUs."""
+    return self._ReadCounter('transmitted_frame_count')
 
 
 class Pktgen(object):
   """Interface to pktgen."""
+
+  class PktgenException(Exception):
+    pass
 
   def __init__(self, interface):
     """Initializes Pktgen on a given interface."""
@@ -98,68 +127,96 @@ class Pktgen(object):
     with open(filename, 'w') as f:
       f.write(s + '\n')
 
-  def Initialize(self):
-    """Resets and initializes pktgen."""
+  @contextlib.contextmanager
+  def PacketBlast(self, client, count, duration, size):
+    """Runs a packet blast."""
+    # Reset pktgen.
     self._WriteFile(self._control_file, 'reset')
     self._WriteFile(self._thread_file, 'add_device %s' % self._interface)
+
     # Work around a bug on GFRG200 where transmits hang on queues other than BE.
     self._WriteFile(self._device_file, 'queue_map_min 2')
     self._WriteFile(self._device_file, 'queue_map_max 2')
 
-  def PacketBlast(self, client, count, duration, size):
-    """Starts a blocking packet blast."""
+    # Set parameters.
     self._WriteFile(self._device_file, 'dst_mac %s' % client)
     self._WriteFile(self._device_file, 'count %d' % count)
     self._WriteFile(self._device_file, 'duration %d' % (1000000 * duration))
     self._WriteFile(self._device_file, 'pkt_size %d' % size)
-    self._WriteFile(self._control_file, 'start')
-    result = self._ReadFile(self._device_file)
-    if re.search(r'Result: OK', result):
-      m = re.search(r'(\d+)\(c\d+\+d\d+\) usec', result)
-      return float(m.group(1)) / 1000000
-    raise Exception('Packet blast failed')
 
-
-def _PacketBlast(iw, pktgen, client, duration, size):
-  """Blasts packets at a client and returns a string representing the result."""
-  try:
-    # Attempt to start an aggregation session.
-    pktgen.PacketBlast(client, 1, 0, size)
-    # Get statistics before packet blast.
-    before = iw.GetClients()[client]
     # Start packet blast.
-    elapsed = pktgen.PacketBlast(client, 0, duration, size)
-    # Get statistics after packet blast.
-    after = iw.GetClients()[client]
-  except KeyError:
-    return 'mac=%s not connected' % client
+    p = multiprocessing.Process(target=self._WriteFile,
+                                args=[self._control_file, 'start'])
+    p.start()
 
-  # Compute throughput.
-  throughput = 8 * size * (after.tx_packets - before.tx_packets) / elapsed
+    # Wait for pktgen startup delay. pktgen prints 'Starting' after the packet
+    # blast has started.
+    while (p.is_alive() and not
+           re.search(r'Result: Starting', self._ReadFile(self._device_file))):
+      pass
+
+    # Run with-statement body.
+    try:
+      yield
+
+    # Stop packet blast.
+    finally:
+      p.terminate()
+      p.join()
+      if not re.search(r'Result: OK', self._ReadFile(self._device_file)):
+        raise Pktgen.PktgenException('packet blast failed')
+
+
+def _PacketBlast(mac80211stats, pktgen, client, duration, fraction, size):
+  """Blasts packets at a client and returns a string representing the result."""
+  # Attempt to start an aggregation session.
+  with pktgen.PacketBlast(client, 1, 0, size):
+    pass
+
+  # Start packet blast and sample transmitted frame count.
+  with pktgen.PacketBlast(client, 0, duration, size):
+    samples = [mac80211stats.GetTransmittedFrameCount()]
+    start = _gettime()
+    dt = duration / fraction
+    for t in [start + dt * (i + 1) for i in xrange(fraction)]:
+      time.sleep(t - _gettime())
+      samples.append(mac80211stats.GetTransmittedFrameCount())
+
+  # Compute throughputs from samples.
+  samples = [8 * size * (after - before) / dt
+             for (after, before) in zip(samples[1:], samples[:-1])]
 
   # Format result.
-  return 'mac=%s tx_packets=%d tx_retries=%d tx_failed=%d throughput=%d' % (
+  return 'version=1 mac=%s throughput=%d samples=%s' % (
       client,
-      after.tx_packets - before.tx_packets,
-      after.tx_retries - before.tx_retries,
-      after.tx_failed - before.tx_failed,
-      throughput)
+      sum(samples) / len(samples),
+      ','.join(['%d' % sample for sample in samples]))
+
+
+class Status(object):
+  SUCCESS = 0
+  UNKNOWN = -1
+  NOT_SUPPORTED = -2
 
 
 def main():
   # Parse and validate arguments.
-  (opt, _, clients) = options.Options(_OPTSPEC).parse(sys.argv[1:])
+  o = options.Options(_OPTSPEC)
+  (opt, _, clients) = o.parse(sys.argv[1:])
   opt.duration = float(opt.duration)
+  opt.fraction = int(opt.fraction)
   opt.size = int(opt.size)
   if opt.duration <= 0:
-    raise Exception('duration must be positive')
+    o.fatal('duration must be positive')
+  if opt.fraction <= 0:
+    o.fatal('fraction must be a positive integer')
   if opt.size <= 0:
-    raise Exception('size must be a positive integer')
+    o.fatal('size must be a positive integer')
 
-  # Initialize iw and pktgen.
+  # Initialize iw, mac80211stats, and pktgen.
   iw = Iw(opt.interface)
+  mac80211stats = Mac80211Stats(iw.GetPhy())
   pktgen = Pktgen(opt.interface)
-  pktgen.Initialize()
 
   # Get connected clients.
   connected_clients = iw.GetClients()
@@ -167,16 +224,23 @@ def main():
   # If no clients are specified, test all connected clients. Otherwise,
   # normalize and validate clients.
   if not clients:
-    clients = sorted(connected_clients.keys())
+    clients = sorted(connected_clients)
   else:
     clients = [client.lower() for client in clients]
     for client in clients:
       if client not in connected_clients:
-        raise Exception('Invalid client: %s' % client)
+        raise ValueError('invalid client: %s' % client)
 
   # Blast packets at each client.
   for client in clients:
-    print _PacketBlast(iw, pktgen, client, opt.duration, opt.size)
+    try:
+      print _PacketBlast(mac80211stats, pktgen, client, opt.duration,
+                         opt.fraction, opt.size)
+    except IOError:
+      print 'version=1 mac=%s throughput=%d' % (client, Status.NOT_SUPPORTED)
+    except:
+      print 'version=1 mac=%s throughput=%d' % (client, Status.UNKNOWN)
+      raise
 
 
 if __name__ == '__main__':

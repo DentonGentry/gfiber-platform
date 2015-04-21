@@ -771,6 +771,7 @@ class WifiblasterController(object):
 
     wifiblaster.duration  Packet blast duration in seconds.
     wifiblaster.enable    Enable packet blast testing.
+    wifiblaster.fraction  Number of samples per duration.
     wifiblaster.interval  Average time between packet blasts.
     wifiblaster.size      Packet size in bytes.
 
@@ -819,8 +820,6 @@ class WifiblasterController(object):
       return self._managers[0].AnonymizeMAC(helpers.EncodeMAC(match.group()))
 
     for line in stdout.splitlines():
-      if re.search(r'not connected', line):
-        continue
       log.Log('wifiblaster: %s' %
               re.sub(r'([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', Repl, line))
 
@@ -849,11 +848,13 @@ class WifiblasterController(object):
     # Read parameters.
     duration = self._ReadParameter('duration', float)
     enable = self._ReadParameter('enable', self._StrToBool)
+    fraction = self._ReadParameter('fraction', int)
     interval = self._ReadParameter('interval', float)
     size = self._ReadParameter('size', int)
 
     # Disable.
-    if not enable or duration <= 0 or interval <= 0 or size <= 0:
+    if (not enable or duration <= 0 or fraction <= 0 or interval <= 0 or
+        size <= 0):
       Disable()
 
     # Enable or change interval.
@@ -872,6 +873,7 @@ class WifiblasterController(object):
                 args=['wifiblaster',
                       '-i', interface,
                       '-d', str(duration),
+                      '-f', str(fraction),
                       '-s', str(size),
                       helpers.DecodeMAC(client)])
 
