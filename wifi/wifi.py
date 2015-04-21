@@ -522,6 +522,10 @@ def _start_wpa_supplicant(interface, config_filename):
     interface: The interface on which to start wpa_supplicant.
     config_filename: The filename of the wpa_supplicant configuration.
 
+  Raises:
+    BinWifiException: if wpa_supplicant fails to connect and
+    also cannot be stopped to cleanup after the failure.
+
   Returns:
     Whether wpa_supplicant was started successfully.
   """
