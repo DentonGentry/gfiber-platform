@@ -27,15 +27,15 @@
 #include "../common/util.h"
 #include "common.h"
 
-#define DEFAULT_TST_IF "eth0"
-#define LAN_PORT_NAME "eth0"
-#define WAN_PORT_NAME "eth1"
+#define DEFAULT_TST_IF "lan0"
+#define LAN_PORT_NAME "lan0"
+#define WAN_PORT_NAME "wan0"
 #define MAX_NET_IF 2
 #define BUF_SIZ 1536
 #define ETH_TEST_MAX_CMD 4096
 #define ETH_TEST_MAX_RSP 4096
-#define ETH_TRAFFIC_PORT "eth1"
-#define ETH_TRAFFIC_DST_PORT "eth0"
+#define ETH_TRAFFIC_PORT "wan0"
+#define ETH_TRAFFIC_DST_PORT "lan0"
 #define ETH_TRAFFIC_REPORT_PERIOD 60
 #define ETH_TRAFFIC_MAX_REPORT_PERIOD 300
 #define ETH_TRAFFIC_TEST_PERIOD_SYMBOL "-p"
@@ -68,8 +68,8 @@
 #define ETH_EXT_LPBK_PORT_ADDR_OFFSET 0xB
 #define ETH_EXT_LPBK_PORT_SET_DATA 0x3C40
 #define ETH_EXT_LPBK_PORT_CLEAR_DATA 0xBC00
-#define ETH_LAN_IF_PORT 4
-#define ETH_WAN_IF_PORT 0
+#define ETH_LAN_IF_PORT 0
+#define ETH_WAN_IF_PORT 4
 #define ETH_DEBUG_CMD "diags ethreg -i %s -p %d 0x%x=0x%x > /dev/null"
 #define ETH_STAT_CLEAR_CMD "ifstat > /dev/null"
 #define ETH_STAT_CMD "ifstat %s | sed '1,3d;5d'"
@@ -439,8 +439,8 @@ int get_if_ip(char *name, unsigned int *ip) {
 static void send_if_usage(void) {
   printf("send_if <source if> <num> [-t <delay between pkts send>]\n");
   printf("Example:\n");
-  printf("send_if eth0 100\n");
-  printf("send 100 msg out of eth0\n");
+  printf("send_if lan0 100\n");
+  printf("send 100 msg out of lan0\n");
 }
 
 int send_if(int argc, char *argv[]) {
@@ -479,11 +479,11 @@ static void send_if_to_if_usage(void) {
       "[-t <time delay in micro-second between pkt send>]\n",
       BUF_SIZ);
   printf("Example:\n");
-  printf("send_if_to_if eth1 eth0 10\n");
-  printf("send 10 seconds from interface eth1 to eth0\n");
-  printf("send_if_to_if eth1 eth0 10 -b 256 -t 250\n");
+  printf("send_if_to_if wan0 lan0 10\n");
+  printf("send 10 seconds from interface wan0 to lan0\n");
+  printf("send_if_to_if wan0 lan0 10 -b 256 -t 250\n");
   printf(
-      "send from interface eth1 to eth0 for 10 seconds of size 256 bytes and"
+      "send from interface wan0 to lan0 for 10 seconds of size 256 bytes and"
       " 250 us delay\n");
 }
 
@@ -579,11 +579,11 @@ static void send_if_to_mac_usage(void) {
       "[-t <time delay in micro-second between pkt send>]\n",
       BUF_SIZ);
   printf("Example:\n");
-  printf("send_if_to_mac eth0 f8:8f:ca:00:16:04 100\n");
-  printf("send 100 msg from interface eth0 to f8:8f:ca:00:16:04\n");
-  printf("send_if_to_mac eth0 f8:8f:ca:00:16:04 100 -b 256 -t 250\n");
+  printf("send_if_to_mac lan0 f8:8f:ca:00:16:04 100\n");
+  printf("send 100 msg from interface lan0 to f8:8f:ca:00:16:04\n");
+  printf("send_if_to_mac lan0 f8:8f:ca:00:16:04 100 -b 256 -t 250\n");
   printf(
-      "send to interface eth0 with 100 msgs of size 256 bytes and 250 us "
+      "send to interface lan0 with 100 msgs of size 256 bytes and 250 us "
       "delay\n");
 }
 
@@ -665,7 +665,7 @@ static void test_both_ports_usage(void) {
          ETH_TRAFFIC_TEST_PERIOD_SYMBOL);
   printf("- duration >=1 or -1 (forever)\n");
   printf("- print-period >= 0 and <= %d\n", ETH_TRAFFIC_MAX_REPORT_PERIOD);
-  printf("- traffic sent between eth0 and eth1\n");
+  printf("- traffic sent between lan0 and wan0\n");
   printf("- print-period > 0 if duration > 0\n");
   printf("- print-period = 0 prints only the summary\n");
 }
@@ -673,8 +673,8 @@ static void test_both_ports_usage(void) {
 int test_both_ports(int argc, char *argv[]) {
   int duration, num = -1, pid, pid1, pid2;
   int print_period = ETH_TRAFFIC_REPORT_PERIOD;
-  unsigned int pkt_len = ETH_PKTS_LEN_DEFAULT, eth0_rx, eth0_tx;
-  unsigned int eth1_rx, eth1_tx;
+  unsigned int pkt_len = ETH_PKTS_LEN_DEFAULT, lan0_rx, lan0_tx;
+  unsigned int wan0_rx, wan0_tx;
   bool print_every_period = true;
   bool failed = false, overall_failed = false;
   ;
@@ -708,8 +708,8 @@ int test_both_ports(int argc, char *argv[]) {
     }
   }
 
-  net_stat(&eth1_rx, &eth1_tx, ETH_TRAFFIC_PORT);
-  net_stat(&eth0_rx, &eth0_tx, ETH_TRAFFIC_DST_PORT);
+  net_stat(&wan0_rx, &wan0_tx, ETH_TRAFFIC_PORT);
+  net_stat(&lan0_rx, &lan0_tx, ETH_TRAFFIC_DST_PORT);
 
   pid = fork();
   if (pid < 0) {
@@ -758,28 +758,28 @@ int test_both_ports(int argc, char *argv[]) {
         kill(pid1, SIGSTOP);
         kill(pid2, SIGSTOP);
       }
-      net_stat(&eth1_rx, &eth1_tx, ETH_TRAFFIC_PORT);
-      net_stat(&eth0_rx, &eth0_tx, ETH_TRAFFIC_DST_PORT);
-      if ((eth0_rx == 0) || (eth1_rx == 0) || (eth0_tx == 0) || (eth1_tx == 0))
+      net_stat(&wan0_rx, &wan0_tx, ETH_TRAFFIC_PORT);
+      net_stat(&lan0_rx, &lan0_tx, ETH_TRAFFIC_DST_PORT);
+      if ((lan0_rx == 0) || (wan0_rx == 0) || (lan0_tx == 0) || (wan0_tx == 0))
         failed = true;
       // Due to two processes are stopped one after another, need some
       // margin to compare RX vs TX. Set it to 1% for now
-      if (eth0_rx < ((eth1_tx / 100) * 99)) failed = true;
-      if (eth1_rx < ((eth0_tx / 100) * 99)) failed = true;
+      if (lan0_rx < ((wan0_tx / 100) * 99)) failed = true;
+      if (wan0_rx < ((lan0_tx / 100) * 99)) failed = true;
       // When the cable is disconnected and connected again, got bogus data
-      if ((eth0_rx > ETH_TRAFFIC_PER_PERIOD_MAX) ||
-          (eth1_rx > ETH_TRAFFIC_PER_PERIOD_MAX))
+      if ((lan0_rx > ETH_TRAFFIC_PER_PERIOD_MAX) ||
+          (wan0_rx > ETH_TRAFFIC_PER_PERIOD_MAX))
         failed = true;
       if (failed) {
-        printf("Failed: %s (%d,%d) <-> %s (%d,%d)\n", ETH_TRAFFIC_PORT, eth1_tx,
-               eth1_rx, ETH_TRAFFIC_DST_PORT, eth0_tx, eth0_rx);
+        printf("Failed: %s (%d,%d) <-> %s (%d,%d)\n", ETH_TRAFFIC_PORT, wan0_tx,
+               wan0_rx, ETH_TRAFFIC_DST_PORT, lan0_tx, lan0_rx);
       } else {
         printf("Passed: %s %3.3f Mb/s (%d,%d) <-> %s %3.3f Mb/s (%d,%d)\n",
                ETH_TRAFFIC_PORT,
-               (((float)eth1_tx) * 8) / (float)(print_period * ONE_MEG),
-               eth1_tx, eth1_rx, ETH_TRAFFIC_DST_PORT,
-               (((float)eth0_tx) * 8) / (float)(print_period * ONE_MEG),
-               eth0_tx, eth0_rx);
+               (((float)wan0_tx) * 8) / (float)(print_period * ONE_MEG),
+               wan0_tx, wan0_rx, ETH_TRAFFIC_DST_PORT,
+               (((float)lan0_tx) * 8) / (float)(print_period * ONE_MEG),
+               lan0_tx, lan0_rx);
       }
       overall_failed |= failed;
       failed = false;
