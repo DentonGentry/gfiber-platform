@@ -21,6 +21,33 @@ import persist
 import utils
 
 
+_OPTSPEC = """
+{bin} set           Enable or modify access points.  Takes all options unless otherwise specified.
+{bin} setclient     Enable or modify wifi clients.  Takes -b, -P, -s, -S.
+{bin} stop|off      Disable access points and clients.  Takes -b, -P, -S.
+{bin} stopap        Disable access points.  Takes -b, -P, -S.
+{bin} stopclient    Disable wifi clients.  Takes -b, -P, -S.
+{bin} restore       Restore saved client and access point options.  Takes -b, -S.
+{bin} show          Print all known parameters.  Takes -b, -S.
+--
+b,band=                           Wifi band(s) to use (5 GHz and/or 2.4 GHz). set commands have a default of 2.4 and cannot take multiple-band values. [2.4 5]
+c,channel=                        Channel to use [auto]
+a,autotype=                       Autochannel method to use (LOW, HIGH, DFS, NONDFS, ANY,OVERLAP) [NONDFS]
+s,ssid=                           SSID to use [{ssid}]
+e,encryption=                     Encryption type to use (WPA_PSK_AES, WPA2_PSK_AES, WPA12_PSK_AES, WPA_PSK_TKIP, WPA2_PSK_TKIP, WPA12_PSK_TKIP, WEP, or NONE) [WPA2_PSK_AES]
+f,force-restart                   Force restart even if already running with these options
+H,hidden-mode                     Enable hidden mode (disable SSID advertisements)
+M,enable-wmm                      Enable wmm extensions (needed for block acks)
+G,short-guard-interval            Enable short guard interval
+p,protocols=                      802.11 levels to allow, slash-delimited [a/b/g/n/ac]
+w,width=                          Channel width to use, in MHz (20, 40, or 80) [20]
+B,bridge=                         Bridge device to use []
+X,extra-short-timeout-intervals   Use extra short timeout intervals for stress testing
+P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
+S,interface-suffix=               Interface suffix []
+""".format(bin=__file__.split('/')[-1],
+           ssid='%s_TestWifi' % subprocess.check_output(['serial']).strip())
+
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
 
 experiment.register('NoSwapWifiPrimaryChannel')  # checked by hostapd itself
@@ -117,7 +144,7 @@ def _set_wifi_broadcom(opt):
   wl('radio', 'on')
   wl('down')
   wl('ssid', '')
-  band = str(opt.band)
+  band = opt.band
   if opt.channel != 'auto':
     band = 'auto'
   try:
@@ -185,9 +212,9 @@ def set_wifi(opt):
   Raises:
     BinWifiException: On various errors.
   """
-  band = str(opt.band)
-  width = str(opt.width)
-  channel = str(opt.channel)
+  band = opt.band
+  width = opt.width
+  channel = opt.channel
   autotype = opt.autotype
   protocols = set(opt.protocols.split('/'))
 
@@ -326,7 +353,7 @@ def stop_ap_wifi(opt):
     BinWifiException: If an expected interface is not found.
   """
   success = True
-  for band in str(opt.band).split():
+  for band in opt.band.split():
     utils.log('stopping AP for %s GHz...', band)
 
     interface = iw.find_interface_from_band(
@@ -382,7 +409,7 @@ def restore_wifi(opt):
   """
   # If both bands are specified, restore 5 GHz first so that STAs are more
   # likely to join it.
-  for band in sorted(str(opt.band).split(),
+  for band in sorted(opt.band.split(),
                      reverse=not experiment.enabled('WifiReverseBandsteering')):
     _restore_wifi(band, 'wpa_supplicant')
     _restore_wifi(band, 'hostapd')
@@ -403,7 +430,7 @@ def show_wifi(opt):
   Returns:
     True.
   """
-  for band in str(opt.band).split():
+  for band in opt.band.split():
     interface = iw.find_interface_from_band(
         band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
     if interface is None:
@@ -628,8 +655,7 @@ def _maybe_restart_hostapd(interface, config, opt):
   if not forced:
     utils.atomic_write(tmp_config_filename, config)
 
-  if not _start_hostapd(interface, tmp_config_filename, str(opt.band),
-                        str(opt.ssid)):
+  if not _start_hostapd(interface, tmp_config_filename, opt.band, opt.ssid):
     utils.log('hostapd failed to start. Look at hostapd logs for details.')
     return False
 
@@ -680,7 +706,7 @@ def _maybe_restart_wpa_supplicant(interface, config, opt):
       'wpa_supplicant', utils.FILENAME_KIND.config, interface, tmp=True)
   forced = False
   current_config = None
-  band = str(opt.band)
+  band = opt.band
 
   try:
     with open(tmp_config_filename, 'r') as tmp_config_file:
@@ -747,7 +773,7 @@ def set_client_wifi(opt):
   if not opt.ssid:
     raise utils.BinWifiException('You must specify an ssid with --ssid')
 
-  band = str(opt.band)
+  band = opt.band
   if band not in ('2.4', '5'):
     raise utils.BinWifiException('You must specify band with -b2.4 or -b5')
 
@@ -801,7 +827,7 @@ def stop_client_wifi(opt):
     opt.band.
   """
   success = True
-  for band in str(opt.band).split():
+  for band in opt.band.split():
     utils.log('stopping client for %s GHz...', band)
 
     interface = iw.find_interface_from_band(
@@ -819,32 +845,9 @@ def stop_client_wifi(opt):
   return success
 
 
-_OPTSPEC = """
-{bin} set           Enable or modify access points.  Takes all options unless otherwise specified.
-{bin} setclient     Enable or modify wifi clients.  Takes -b, -P, -s, -S.
-{bin} stop|off      Disable access points and clients.  Takes -b, -P, -S.
-{bin} stopap        Disable access points.  Takes -b, -P, -S.
-{bin} stopclient    Disable wifi clients.  Takes -b, -P, -S.
-{bin} restore       Restore saved client and access point options.  Takes -b, -S.
-{bin} show          Print all known parameters.  Takes -b, -S.
---
-b,band=                           Wifi band(s) to use (5 GHz and/or 2.4 GHz). set commands have a default of 2.4 and cannot take multiple-band values. [2.4 5]
-c,channel=                        Channel to use [auto]
-a,autotype=                       Autochannel method to use (LOW, HIGH, DFS, NONDFS, ANY,OVERLAP) [NONDFS]
-s,ssid=                           SSID to use [{ssid}]
-e,encryption=                     Encryption type to use (WPA_PSK_AES, WPA2_PSK_AES, WPA12_PSK_AES, WPA_PSK_TKIP, WPA2_PSK_TKIP, WPA12_PSK_TKIP, WEP, or NONE) [WPA2_PSK_AES]
-f,force-restart                   Force restart even if already running with these options
-H,hidden-mode                     Enable hidden mode (disable SSID advertisements)
-M,enable-wmm                      Enable wmm extensions (needed for block acks)
-G,short-guard-interval            Enable short guard interval
-p,protocols=                      802.11 levels to allow, slash-delimited [a/b/g/n/ac]
-w,width=                          Channel width to use, in MHz (20, 40, or 80) [20]
-B,bridge=                         Bridge device to use []
-X,extra-short-timeout-intervals   Use extra short timeout intervals for stress testing
-P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
-S,interface-suffix=               Interface suffix []
-""".format(bin=__file__.split('/')[-1],
-           ssid='%s_TestWifi' % subprocess.check_output(['serial']).strip())
+def stringify_options(optdict):
+  for option in ['channel', 'width', 'band', 'ssid']:
+    optdict.__setitem__(option, str(optdict.__getitem__(option)))
 
 
 def _run(argv):
@@ -865,13 +868,14 @@ def _run(argv):
   """
   parser = options.Options(_OPTSPEC)
   opt, _, extra = parser.parse(argv)
+  stringify_options(opt)
 
   if not extra:
     parser.fatal('Must specify a command (see usage for details).')
     return 1
 
   # set and setclient have a different default for -b.
-  if extra[0].startswith('set') and ' ' in str(opt.band):
+  if extra[0].startswith('set') and ' ' in opt.band:
     opt.band = '2.4'
 
   if extra[0] == 'set':
