@@ -415,15 +415,13 @@ def show_wifi(opt):
         print('RegDomain: %s' % tokens[1].strip(':'))
         break
 
-    for tokens in utils.subprocess_line_tokens(
-        ['iw', 'dev', interface, 'info']):
-      if len(tokens) >= 2:
-        if tokens[0] == 'channel':
-          print('Channel: %s' % tokens[1])
-        elif tokens[0] == 'ssid':
-          print('SSID: %s' % tokens[1])
-        elif tokens[0] == 'addr':
-          print('BSSID: %s' % tokens[1])
+    info_parsed = iw.info_parsed(interface)
+    for k, label in (('channel', 'Channel'),
+                     ('ssid', 'SSID'),
+                     ('addr', 'BSSID')):
+      v = info_parsed.get(k, None)
+      if v is not None:
+        print('%s: %s' % (label, v))
 
     print('AutoChannel: %r' % os.path.exists('/tmp/autochan.%s' % interface))
     try:

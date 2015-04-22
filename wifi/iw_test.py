@@ -529,6 +529,19 @@ def find_interface_from_band_test():
 
 
 @wvtest.wvtest
+def info_parsed_test():
+  wvtest.WVPASSEQ({
+      'wdev': '0x3',
+      'wiphy': '0',
+      'addr': '88:dc:96:08:60:2d',
+      'width': '20',
+      'ifindex': '20',
+      'type': 'managed',
+      'channel': '6'
+  }, iw.info_parsed('wcli0'))
+
+
+@wvtest.wvtest
 def find_width_and_channel_test():
   wvtest.WVPASSEQ(('20', '6'), iw.find_width_and_channel('wcli0'))
 

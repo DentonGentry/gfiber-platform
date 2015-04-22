@@ -112,7 +112,8 @@ def info_parsed(interface, **kwargs):
     **kwargs:  Passed to the underlying subprocess call.
 
   Returns:
-    A dict of the the form: {'width': W, 'channel': C}
+    A dict of the the form: {'width': W, 'channel': C, ...}; the additional keys
+    may include ['ifindex', 'wdev', 'addr', 'ssid', 'type', 'wiphy'].
   """
   result = {'width': None, 'channel': None}
 
@@ -122,6 +123,10 @@ def info_parsed(interface, **kwargs):
       result['width'] = match.group('width')
       result['channel'] = match.group('channel')
       break
+    else:
+      tokens = line.strip().split(' ', 1)
+      if len(tokens) >= 2 and tokens[0] != 'Interface':
+        result[tokens[0]] = tokens[1]
 
   return result
 
