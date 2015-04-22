@@ -35,7 +35,7 @@
 
 struct eth_cfg_params {
      int  cmd;
-     char    ad_name[IFNAMSIZ];      /* if name, e.g. "eth0" */
+     char    ad_name[IFNAMSIZ];      /* if name, e.g. "lan0" */
      uint16_t vlanid;
      uint16_t portnum;
      uint32_t phy_reg;
@@ -448,7 +448,7 @@ static void usage(void)
 int
 ethreg_main(int argc, char *argv[])
 {
-	const char *ifname = "eth0";
+	const char *ifname = "lan0";
 	int c,portnum = 0x3f,cmd = 0,value = -1;
         int optionindex = 0;
         int vlanid = 0;
