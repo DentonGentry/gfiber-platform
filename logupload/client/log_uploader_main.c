@@ -268,14 +268,10 @@ int main(int argc, char* const argv[]) {
       if (comp_result != Z_OK) {
         return 1;
       }
-      // Set an alarm in case the upload hangs
-      alarm(60);
 
       int upload_res = upload_file(config.server, config.upload_target,
             log_data_to_use, compressed_size, kvpairs);
       free_kv_pairs(kvpairs);
-      // Clear the alarm we set
-      alarm(0);
       if (upload_res) {
         return 1;
       }
