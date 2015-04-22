@@ -955,8 +955,7 @@ def main():
           WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
 
   if partition is not None:
-    SetBootPartition(partition)
-
+    return SetBootPartition(partition)
   return 0
 
 
