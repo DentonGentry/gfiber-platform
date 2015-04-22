@@ -1013,10 +1013,19 @@ def main():
                          for i in sorted(p.assoc,
                                          key=lambda i: -i.rssi)))
       # Print STA band capability information.
+      can2G_count = can5G_count = 0
       for m in managers:
         for assoc in m.assoc_list.itervalues():
+          if assoc.can5G:
+            can5G_count += 1
+            capability = '5'
+          else:
+            can2G_count += 1
+            capability = '2.4'
           log.Log('Connected station %s supports %s GHz',
-                  m.AnonymizeMAC(assoc.mac), '5' if assoc.can5G else '2.4')
+                  m.AnonymizeMAC(assoc.mac), capability)
+      log.Log('Connected stations: total %d, 5 GHz %d, 2.4 GHz %d',
+              can5G_count + can2G_count, can5G_count, can2G_count)
 
     wifiblaster_controller.Poll(now)
     if not r:
