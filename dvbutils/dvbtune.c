@@ -30,23 +30,7 @@
 #include <linux/dvb/dmx.h>
 #include <linux/dvb/frontend.h>
 
-#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
-
-static int dvb_open(int adapter, int device, const char* type) {
-  int fd;
-  char s[100];
-  if (snprintf(s, sizeof(s), "/dev/dvb/adapter%d/%s%d",
-               adapter, type, device) < 0) {
-    errno = EINVAL;
-    return -1;
-  }
-  fd = open(s, O_RDWR);
-  if (fd < 0) {
-    fprintf(stderr, "dvb_open: %s: %s\n", strerror(errno), s);
-    return -1;
-  }
-  return fd;
-}
+#include "common.h"
 
 static int dvb_fe_set_properties(int fefd, int sys, int mod, int ifreq, int sr,
                                  int fec, int voltage, int tone) {
@@ -201,14 +185,6 @@ static fe_modulation_t str2modulation(const char* s) {
   return QPSK;
 }
 
-static int64_t time_ms() {
-  struct timespec tv = {0};
-  if (clock_gettime(CLOCK_MONOTONIC, &tv) < 0) {
-    return -1;
-  }
-  return tv.tv_sec * 1000LL + tv.tv_nsec / 1000000;
-}
-
 // Return 1 if locked and 0 otherwise.
 static int wait_for_lock(int fefd, int timeout) {
   int locked = 0;
@@ -335,7 +311,7 @@ int main(int argc, char** argv) {
     usage(argv[0]);
   }
 
-  fefd = dvb_open(adapter, dev, "frontend");
+  fefd = dvb_open(adapter, dev, "frontend", 0);
   if (fefd < 0) {
     return 1;
   }

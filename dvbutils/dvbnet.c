@@ -26,23 +26,9 @@
 #include <linux/dvb/dmx.h>
 #include <linux/dvb/net.h>
 
-#define MAX_INTERFACES 10
+#include "common.h"
 
-static int dvb_open(int adapter, int device, const char* type) {
-  int fd;
-  char s[100];
-  if (snprintf(s, sizeof(s), "/dev/dvb/adapter%d/%s%d",
-               adapter, type, device) < 0) {
-    errno = EINVAL;
-    return -1;
-  }
-  fd = open(s, O_RDWR);
-  if (fd < 0) {
-    fprintf(stderr, "dvb_open: %s: %s\n", strerror(errno), s);
-    return -1;
-  }
-  return fd;
-}
+#define MAX_INTERFACES 10
 
 static int dvb_add_netif(int netfd, int pid, int ule) {
   struct dvb_net_if p = {0};
@@ -133,7 +119,7 @@ int main(int argc, char** argv) {
     usage(argv[0]);
   }
 
-  netfd = dvb_open(adapter, net, "net");
+  netfd = dvb_open(adapter, net, "net", 0);
   if (netfd < 0) {
     return 1;
   }
