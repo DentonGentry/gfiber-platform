@@ -94,7 +94,7 @@ def scan(interface, band, autotype, width):
   #  scan already in progress started somewhere else (eg. from waveguide).
   for _ in range(9):
     if utils.subprocess_quiet(['iw', 'dev', interface, 'scan', 'passive'],
-                              no_stdout=True):
+                              no_stdout=True) == 0:
       break
     time.sleep(0.5)
 
