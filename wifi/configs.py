@@ -234,7 +234,7 @@ def generate_hostapd_config(
   except OSError:
     pass
 
-  enable_wmm = 'enable_wmm=1' if opt.enable_wmm else ''
+  enable_wmm = 'wmm_enabled=1' if opt.enable_wmm else ''
   hidden = 'ignore_broadcast_ssid=1' if opt.hidden_mode else ''
   hostapd_conf_parts = [_HOSTCONF_TPL.format(
       interface=interface, band=band, channel=channel, width=width,
