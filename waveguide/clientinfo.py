@@ -21,7 +21,7 @@ import os.path
 
 try:
   import taxonomy  # pylint: disable=unused-import,g-import-not-at-top
-  IDENTIFY_CHIPSET = taxonomy.identify_wifi_chipset
+  IDENTIFY_CHIPSET = taxonomy.identify_wifi_device
 except ImportError:
   IDENTIFY_CHIPSET = ''
 
