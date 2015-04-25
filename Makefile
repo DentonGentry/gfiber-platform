@@ -12,6 +12,7 @@ endif
 
 ifeq ($(BUILD_WAVEGUIDE),y)
 DIRS+=waveguide
+DIRS+=taxonomy
 endif
 
 ifeq ($(BUILD_HNVRAM),y)
