@@ -7,15 +7,17 @@ CXX=$(CROSS_COMPILE)g++
 CFLAGS := -Wall -O2
 CXXFLAGS := $(CFLAGS)
 
-APPS := dvbnet dvbtune
+APPS := dvbnet dvbtune tssequencer
 
 all: $(APPS)
 
-$(APPS) : % : %.o
-	$(CC) -o $@ $< $(LDFLAGS)
+$(APPS) : % : %.o common.o
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-$(addsuffix .o,$(APPS)): %.o : %.c
+%.o : %.c common.h
 	$(CC) -c $(CFLAGS) $< -o $@
+
+tssequencer: crc32.o
 
 install: all
 	echo 'target-install=$(INSTALL)'
