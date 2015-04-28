@@ -17,7 +17,8 @@
 #define FAN_SPEED_CMD "/sys/bus/i2c/devices/0-004c/pwm1"
 #define FAN_RPM_CMD "/sys/bus/i2c/devices/0-004c/fan1_input"
 #define FAN_TEMP_CMD "/sys/bus/i2c/devices/0-004c/temp2_input"
-#define HDD_TEMP_CMD "smartctl -a /dev/sda | grep Temperature_Celsius"
+#define HDD_TEMP_CMD "smartctl -a /dev/sda | grep Temperature_Celsius || " \
+                     "smartctl -a /dev/sdb | grep Temperature_Celsius"
 
 static int fan_mon_usage() {
   printf("fan_mon <start|stop>\n");
