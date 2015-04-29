@@ -55,6 +55,7 @@ experiment.register('NoAutoNarrowWifiChannel')  # checked by hostapd itself
 experiment.register('Wifi80211k')
 experiment.register('WifiBandsteering')
 experiment.register('WifiReverseBandsteering')
+experiment.register('WifiHostapdLogging')
 
 
 # pylint: disable=protected-access
