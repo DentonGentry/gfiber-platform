@@ -20,12 +20,17 @@
 #include <unistd.h>
 #include <stacktrace.h>
 
+#include "fileops.h"
 #include "pin.h"
 
 #define DEVMEM                "/dev/mem"
 #define GPIO_OUT_FUNCTION0    0xB
 #define GPIO_OUT_ENABLE       0x0
 #define GPIO_CNTL_PER_REG     4
+
+/* CPU Temperature Monitoring. */
+#define SYS_TEMP_DIR    "/sys/devices/virtual/hwmon/hwmon0/"
+#define SYS_TEMP1       SYS_TEMP_DIR "temp1_input"
 
 struct PinHandle_s {
   int   unused;
@@ -124,6 +129,10 @@ static int get_gpio(int pin) {
   reg += platform->in_offset;
   value = *reg;
   return (value >> pin) & 0x1;
+}
+
+static int get_temp1(PinHandle handle) {
+  return read_file_long(SYS_TEMP1);
 }
 
 // initialize GPIO to input or output
@@ -237,6 +246,10 @@ static char *read_file(const char *filename) {
 
 /* API follows */
 
+int has_cpu_temp(void) {
+  return 1;
+}
+
 int has_red_led(void) {
   return (platform->led_red.is_present);
 }
@@ -321,6 +334,8 @@ int PinIsPresent(PinHandle handle, PinId id) {
       return has_reset_button();
 
     case PIN_TEMP_CPU:
+      return has_cpu_temp();
+
     case PIN_MVOLTS_CPU:
     case PIN_FAN_CHASSIS:
     case PIN_TEMP_EXTERNAL:
@@ -348,6 +363,8 @@ PinStatus PinValue(PinHandle handle, PinId id, int* valueP) {
       break;
 
     case PIN_TEMP_CPU:
+      *valueP = get_temp1(handle);
+      break;
     case PIN_MVOLTS_CPU:
     case PIN_TEMP_EXTERNAL:
     case PIN_NONE:
