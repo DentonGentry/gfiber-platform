@@ -38,6 +38,8 @@ def hostapd_options(band, ssid):
     target = '5'
   elif experiment.enabled('WifiReverseBandsteering'):
     target = '2.4'
+  elif experiment.enabled('WifiHostapdLogging'):
+    target = ''
   else:
     return []
 
@@ -65,7 +67,7 @@ def hostapd_options(band, ssid):
             "Couldn't create bandsteering directory %s", band_dir)
 
   result = ['-L', band_dir]
-  if band != target:
+  if target and band != target:
     result += ['-S', target_dir]
 
   return result

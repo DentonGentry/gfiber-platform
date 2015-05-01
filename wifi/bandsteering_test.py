@@ -106,5 +106,20 @@ def hostapd_options_preexisting_dir_test(experiments_dir, bandsteering_dir):
       os.path.join(bandsteering_dir, '2.4_xxxxxxxxxx')))
 
 
+@wvtest.wvtest
+@bandsteering_test
+def hostapd_options_logging_test(experiments_dir, bandsteering_dir):
+  """Test bandsteering.hostapd_options when when logging only."""
+  open(os.path.join(experiments_dir,
+                    'WifiHostapdLogging.available'), 'a').close()
+  open(os.path.join(experiments_dir, 'WifiHostapdLogging.active'), 'a').close()
+
+  wvtest.WVPASS(experiment.enabled('WifiHostapdLogging'))
+  wvtest.WVPASSEQ(['-L', os.path.join(bandsteering_dir, '2.4_30abcc9ec8')],
+                  bandsteering.hostapd_options('2.4', 'my_ssid'))
+  wvtest.WVPASSEQ(['-L', os.path.join(bandsteering_dir, '5_30abcc9ec8')],
+                  bandsteering.hostapd_options('5', 'my_ssid'))
+
+
 if __name__ == '__main__':
   wvtest.wvtest_main()
