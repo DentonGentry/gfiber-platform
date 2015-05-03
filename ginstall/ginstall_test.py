@@ -269,22 +269,6 @@ class GinstallTest(unittest.TestCase):
     self.assertEqual(tarimg.GetUloader().filelike.read(), 'uloader.img')
     self.assertEqual(tarimg.GetVersion(), 'image_version')
 
-  def testFileImage(self):
-    fileimg = ginstall.FileImage('testdata/img/vmlinux',
-                                 'testdata/img/rootfs.ubi',
-                                 'testdata/img/loader.bin',
-                                 'testdata/img/loader.sig',
-                                 'testdata/img/manifest',
-                                 'testdata/img/uloader.bin')
-    self.assertEqual(fileimg.GetKernel().filelike.read(), 'vmlinux')
-    self.assertEqual(fileimg.GetRootFs().filelike.read(), 'rootfs.ubi')
-    self.assertEqual(fileimg.GetLoader().filelike.read(), 'loader.bin')
-    self.assertEqual(fileimg.GetUloader().filelike.read(), 'uloader.bin')
-    try:
-      ginstall.CheckManifestVersion(fileimg)
-    except ginstall.Fatal:
-      self.fail('CheckManifestVersion should have succeeded')
-
   def testGetFileSize(self):
     self.assertEqual(ginstall.GetFileSize(open('testdata/img/vmlinux')), 7)
     self.assertEqual(ginstall.GetFileSize(open('testdata/random')), 4096)

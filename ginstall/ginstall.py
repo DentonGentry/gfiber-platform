@@ -36,11 +36,8 @@ import options
 optspec = """
 ginstall -p <partition>
 ginstall -p <partition> -t <tarfile> [options...]
-ginstall -p <partition> -k <kernel> -r <rootfs> [options...]
 --
-t,tar=        tar archive containing kernel and rootfs
-k,kernel=     kernel image filename to install
-r,rootfs=     rootfs UBI image filename to install
+t,tar=        *.gi file (a tar archive) containing kernel and rootfs
 skiploader    skip installing bootloader (dev-only)
 loader=       bootloader file to install
 loadersig=    bootloader signature filename
@@ -574,7 +571,7 @@ def CheckMisc(img):
   """Miscellaneous sanity checks.
 
   Args:
-    img: FileImage or TarImage
+    img: a TarImage
   Raises:
     Fatal: when image should not be installed
   Returns:
@@ -613,73 +610,6 @@ class FileWithSecureHash(object):
   def __init__(self, filelike, secure_hash):
     self.filelike = filelike
     self.secure_hash = secure_hash
-
-
-class FileImage(object):
-  """A system image packaged as separate kernel, rootfs and loader files."""
-
-  def __init__(self, kernelfile, rootfs, loader, loadersig, manifest, uloader):
-    self.kernelfile = kernelfile
-    self.rootfs = rootfs
-    self.loader = loader
-    self.loadersig = loadersig
-    self.uloader = uloader
-    if manifest:
-      self.manifest = ParseManifest(open(manifest))
-    else:
-      self.manifest = default_manifest_files.copy()
-      self.manifest['platforms'] = [GetPlatform()]
-
-  def ManifestVersion(self):
-    return int(self.manifest['installer_version'])
-
-  def GetVersion(self):
-    return None
-
-  def GetLoader(self):
-    if self.loader:
-      try:
-        return FileWithSecureHash(open(self.loader, 'rb'), None)
-      except IOError, e:
-        raise Fatal(e)
-    else:
-      return None
-
-  def GetUloader(self):
-    if self.uloader:
-      try:
-        return FileWithSecureHash(open(self.uloader, 'rb'), None)
-      except IOError, e:
-        raise Fatal(e)
-    else:
-      return None
-
-  def GetKernel(self):
-    if self.kernelfile:
-      try:
-        return FileWithSecureHash(open(self.kernelfile, 'rb'), None)
-      except IOError, e:
-        raise Fatal(e)
-    else:
-      return None
-
-  def GetRootFs(self):
-    if self.rootfs:
-      try:
-        return FileWithSecureHash(open(self.rootfs, 'rb'), None)
-      except IOError, e:
-        raise Fatal(e)
-    else:
-      return None
-
-  def GetLoaderSig(self):
-    if self.loadersig:
-      try:
-        return open(self.loadersig, 'rb')
-      except IOError, e:
-        raise Fatal(e)
-    else:
-      return None
 
 
 class TarImage(object):
@@ -802,16 +732,15 @@ def main():
   o = options.Options(optspec)
   opt, unused_flags, unused_extra = o.parse(sys.argv[1:])
 
-  if not (opt.drm or opt.kernel or opt.rootfs or opt.loader or opt.tar or
-          opt.partition):
-    o.fatal('Expected at least one of -p, -k, -r, -t, --loader, or --drm')
+  if not (opt.drm or opt.loader or opt.tar or opt.partition):
+    o.fatal('Expected at least one of -p, -t, --loader, or --drm')
 
   quiet = opt.quiet
 
   if opt.drm:
     WriteDrm(opt)
 
-  if (opt.kernel or opt.rootfs or opt.tar) and not opt.partition:
+  if opt.tar and not opt.partition:
     # default to the safe option if not given
     opt.partition = 'other'
 
@@ -834,16 +763,12 @@ def main():
   else:
     partition = None
 
-  if opt.tar or opt.kernel or opt.rootfs or opt.loader:
+  if opt.tar or opt.loader:
     key = GetKey()
+    if opt.tar and (opt.loader or opt.loadersig):
+      o.fatal('--tar option is incompatible with --loader and --loadersig')
     if opt.tar:
       img = TarImage(opt.tar)
-      if opt.kernel or opt.rootfs or opt.loader or opt.loadersig:
-        o.fatal('--tar option is incompatible with -k, -r, '
-                '--loader and --loadersig')
-    else:
-      img = FileImage(opt.kernel, opt.rootfs, opt.loader, opt.loadersig,
-                      opt.manifest, opt.uloader)
 
     # old software versions are incompatible with this version of ginstall.
     # In particular, we want to leave out versions that:
