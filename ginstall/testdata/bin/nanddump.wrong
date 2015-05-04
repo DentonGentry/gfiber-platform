@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo -n $* > "$GINSTALL_OUT_FILE"
+
+echo 'abc '
+
+exit 0

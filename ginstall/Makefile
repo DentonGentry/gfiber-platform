@@ -19,6 +19,7 @@ test:
 	for d in $(wildcard *_test.py); do \
 		$(PYTHON) $$d; \
 	done
+	./wvtest/wvtestrun ./install_test.sh
 
 clean:
 	rm -f *~ testdata/dev/* testdata/bin.tmp/*

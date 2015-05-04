@@ -1,0 +1,12 @@
+#!/bin/bash
+
+exe=$(basename "$0")
+echo "$exe" $* >> "$GINSTALL_OUT_FILE"
+
+cat "$BASH_ARGV"
+
+if [ ! -z "$GINSTALL_TEST_FAIL" ]; then
+  exit 1
+fi
+
+exit 0

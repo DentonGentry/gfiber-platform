@@ -1,0 +1,17 @@
+#!/bin/sh
+
+echo "Disk /dev/mmcblk0: 7634944 sectors, 3.6 GiB
+Logical sector size: 512 bytes
+Disk identifier (GUID): FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF
+Partition table holds up to 128 entries
+First usable sector is 64, last usable sector is 7634880
+Partitions will be aligned on 2048-sector boundaries
+Total free space is 556929 sectors (271.9 MiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+  16           36864          102399   32.0 MiB    FFFF  kernel0
+  17          102400          888831   384.0 MiB   FFFF  rootfs0
+  18          888832          954367   32.0 MiB    FFFF  kernel1
+  19          954368         1740799   384.0 MiB   FFFF  rootfs1
+  20         1740800         1871871   64.0 MiB    FFFF  emergency
+  21         1871872         7114751   2.5 GiB     8300  data+ext4"

@@ -39,32 +39,36 @@ ginstall -p <partition> -t <tarfile> [options...]
 --
 t,tar=        *.gi file (a tar archive) containing kernel and rootfs
 skiploader    skip installing bootloader (dev-only)
-loader=       bootloader file to install
-loadersig=    bootloader signature filename
 manifest=     manifest file
 drm=          drm blob filename to install
 p,partition=  partition to install to (primary, secondary, or other)
 q,quiet       suppress unnecessary output
 skiploadersig suppress checking the loader signature
-uloader=      microloader file to install
+b,basepath=   for tests, prepend a path to all files accessed.
 """
 
 
 # unit tests can override these with fake versions
 BUFSIZE = 4 * 1024            # 64k causes b/14299411
-ETCPLATFORM = '/etc/platform'
-ETCVERSION = '/etc/version'
-SECUREBOOT = '/tmp/gpio/ledcontrol/secure_boot'
-HNVRAM = 'hnvram'
-MTD_PREFIX = '/dev/mtd'
-SYSCLASSMTD = '/sys/class/mtd'
-SYSBLOCK = '/sys/block'
-MMCBLK = '/dev/mmcblk0'
-PROC_CMDLINE = '/proc/cmdline'
-PROC_MTD = '/proc/mtd'
-SGDISK = 'sgdisk'
-SIGNINGKEY = '/etc/gfiber_public.der'
 GZIP_HEADER = '\x1f\x8b\x08'  # encoded as string to ignore endianness
+HNVRAM = 'hnvram'
+NANDDUMP = ['nanddump']
+SGDISK = 'sgdisk'
+
+
+F = {
+  'ETCPLATFORM': '/etc/platform',
+  'ETCVERSION': '/etc/version',
+  'DEV': '/dev',
+  'MMCBLK0': '/dev/mmcblk0',
+  'MTD_PREFIX': '/dev/mtd',
+  'PROC_CMDLINE': '/proc/cmdline',
+  'PROC_MTD': '/proc/mtd',
+  'SECUREBOOT': '/tmp/gpio/ledcontrol/secure_boot',
+  'SIGNINGKEY': '/etc/gfiber_public.der',
+  'SYSCLASSMTD': '/sys/class/mtd',
+  'SYSBLOCK': '/sys/block',
+}
 
 
 # Verbosity of output
@@ -108,18 +112,18 @@ def VerbosePrint(s, *args):
 
 
 def GetPlatform():
-  return open(ETCPLATFORM).read().strip()
+  return open(F['ETCPLATFORM']).read().strip()
 
 
 def GetVersion():
-  return open(ETCVERSION).read().strip()
+  return open(F['ETCVERSION']).read().strip()
 
 
 def GetInternalHarddisk():
-  for blkdev in sorted(glob.glob(SYSBLOCK + '/sd?')):
+  for blkdev in sorted(glob.glob(F['SYSBLOCK'] + '/sd?')):
     dev_path = os.path.realpath(blkdev + '/device')
     if dev_path.find('usb') == -1:
-        return os.path.join('/dev', os.path.basename(blkdev))
+      return os.path.join(F['DEV'], os.path.basename(blkdev))
 
   return None
 
@@ -137,7 +141,7 @@ def GetBootedPartition():
     0 or 1 for rootfs0 and rootfs1, or None if not booted from flash.
   """
   try:
-    with open(PROC_CMDLINE) as f:
+    with open(F['PROC_CMDLINE']) as f:
       cmdline = f.read().strip()
   except IOError:
     return None
@@ -177,19 +181,19 @@ def GetMtdDevForNameOrNone(partname):
   """
   quotedname = '"%s"' % partname
   # read the whole file at once to avoid race conditions in case it changes
-  data = open(PROC_MTD).read().split('\n')
+  data = open(F['PROC_MTD']).read().split('\n')
   for line in data:
     fields = line.strip().split()
     if len(fields) >= 4 and fields[3] == quotedname:
       assert fields[0].startswith('mtd')
       assert fields[0].endswith(':')
-      return '%s%d' % (MTD_PREFIX, int(fields[0][3:-1]))
+      return '%s%d' % (F['MTD_PREFIX'], int(fields[0][3:-1]))
   return None  # no match
 
 
 def IsMtdNand(mtddevname):
-  mtddevname = re.sub(r'^' + MTD_PREFIX, 'mtd', mtddevname)
-  path = SYSCLASSMTD + '/{0}/type'.format(mtddevname)
+  mtddevname = re.sub(r'^' + F['MTD_PREFIX'], 'mtd', mtddevname)
+  path = F['SYSCLASSMTD'] + '/{0}/type'.format(mtddevname)
   data = open(path).read()
   return 'nand' in data
 
@@ -245,7 +249,7 @@ def GetGptPartitionForName(blk_dev, name):
   except OSError:
     return None  # no sgdisk, must not be a platform that supports it
   infix = ''
-  if blk_dev.startswith("/dev/mmcblk"):
+  if 'mmcblk' in blk_dev:
     infix = 'p'
   part = None
   for line in p.stdout:
@@ -384,8 +388,8 @@ def _CopyAndVerifyNand(inf, mtddevname):
   start = inf.filelike.tell()
   VerbosePrint('Writing to NAND partition %r\n', mtddevname)
   written = Nandwrite(inf.filelike, mtddevname)
-  cmd = ['nanddump', '--bb=skipbad', '--length=%d' % written, '--quiet',
-         mtddevname]
+  length = '--length=%d' % written
+  cmd = NANDDUMP + ['--bb=skipbad', length, '--quiet', mtddevname]
   VerbosePrint('%s\n' % cmd)
   p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
   if inf.secure_hash:
@@ -474,7 +478,7 @@ def WriteDrm(opt):
 def GetKey():
   """Return the key to check file signatures."""
   try:
-    return open(SIGNINGKEY).read()
+    return open(F['SIGNINGKEY']).read()
   except IOError, e:
     raise Fatal(e)
 
@@ -567,28 +571,24 @@ def CheckVersion(manifest):
               % (minimum_version, our_version))
 
 
-def CheckMisc(img):
+def CheckMisc(version):
   """Miscellaneous sanity checks.
 
   Args:
-    img: a TarImage
+    version: the version string
   Raises:
     Fatal: when image should not be installed
-  Returns:
-    True if all checks succeeded.
-
   """
   if (GetPlatform() == 'GFHD200' and BroadcomDeviceIsSecure() and
-      (ParseVersionString(img.GetVersion()) < (38, 11) or
-       img.GetVersion().startswith('gftv200-39-pre0') or
-       img.GetVersion().startswith('gftv200-39-pre1'))):
+      (ParseVersionString(version) < (38, 11) or
+       version.startswith('gftv200-39-pre0') or
+       version.startswith('gftv200-39-pre1'))):
     raise Fatal('Refusing to install gftv200-38.10 and before, and '
                 'gftv200-39-pre1 and before.')
-  return True
 
 
 class ProgressBar(object):
-  """Poor man's progress bar that prints one dot per 1MB."""
+  """Progress bar that prints one dot per 1MB."""
 
   def __init__(self):
     self.bytes = 0
@@ -717,8 +717,8 @@ def WriteLoaderToMtd(loader, loader_start, mtd, description):
     InstallToMtd(loader, mtd)
 
 
-def main():
-  global quiet  # gpylint: disable-msg=global-statement
+def LogCallerInfo():
+  """Log the call sequence leading to ginstall."""
   try:
     p = subprocess.Popen(['psback'], stdout=subprocess.PIPE)
     psback = p.stdout.readline().strip()
@@ -729,11 +729,161 @@ def main():
     p.wait()
   except OSError:
     Log('W: psback/logos unavailable for tracing.\n')
+
+
+def GetPartition(opt):
+  """Return the partiton to install to, given the command line options."""
+  if opt.partition == 'other':
+    boot = GetBootedPartition()
+    assert boot in [None, 0, 1]
+    if boot is None:
+      # Policy decision: if we're booted from NFS, install to secondary
+      return 1
+    else:
+      return boot ^ 1
+  elif opt.partition in ['primary', 0]:
+    return 0
+  elif opt.partition in ['secondary', 1]:
+    return 1
+  elif opt.partition:
+    o.fatal('--partition must be one of: primary, secondary, other')
+  elif opt.tar:
+    o.fatal('A --partition option must be provided with --tar')
+  else:
+    return None
+
+
+def InstallImage(img, partition, skiploader=False, skiploadersig=False):
+  """Install an image.
+  Args:
+    img: a TarFile
+    partition: integer 0 or 1 of the partition to install into
+    skiploader: skip installation of a bootloader
+    skiploadersig: skip checking of bootloader signature
+  """
+  # old software versions are incompatible with this version of ginstall.
+  # In particular, we want to leave out versions that:
+  #  - don't support 1GB NAND layout.
+  #  - use pre-ubinized files instead of raw rootfs images.
+  ver = img.GetVersion()
+  if ver and (
+      ver.startswith('bruno-') or
+      (ver.startswith('gfibertv-') and ver < 'gfibertv-24')):
+    raise Fatal('%r is too old: aborting.\n' % ver)
+
+  manifest = img.manifest
+  CheckPlatform(manifest)
+  CheckManifestVersion(img)
+  CheckVersion(manifest)
+  CheckMisc(img.GetVersion())
+
+  rootfs = img.GetRootFs()
+  if rootfs:
+    partition_name = 'rootfs%d' % partition
+    mtd = GetMtdDevForNameOrNone(partition_name)
+    if GetPlatform().startswith('GFSC'):
+      hdd = GetInternalHarddisk()
+      if hdd:
+        gpt = GetGptPartitionForName(hdd, partition_name)
+        if gpt:
+          mtd = None
+    else:
+      gpt = GetGptPartitionForName(F['MMCBLK0'], partition_name)
+    if mtd:
+      if GetPlatform().startswith('GFMN'):
+        VerbosePrint('Writing rootfs to %r\n' % mtd)
+        InstallToMtd(rootfs, mtd)
+      else:
+        Log('Installing raw rootfs image to ubi partition %r\n' % mtd)
+        VerbosePrint('Writing raw rootfs to %r\n', mtd)
+        InstallRawFileToUbi(rootfs, mtd)
+    elif gpt:
+      VerbosePrint('Writing raw rootfs to %r\n', gpt)
+      InstallToFile(rootfs, gpt)
+    else:
+      raise Fatal('no partition named %r is available' % partition_name)
+
+  kern = img.GetKernel()
+  if kern:
+    if IsDeviceNoSigning():
+      buf = kern.read(4100)
+      if buf[0:3] != GZIP_HEADER and buf[4096:4099] == GZIP_HEADER:
+        VerbosePrint('Incompatible device: removing kernel signing.\n')
+        kern.seek(4096)
+      elif buf[0:3] == GZIP_HEADER:
+        kern.seek(0)
+      else:
+        raise Fatal('Incompatible device: unrecognized kernel format')
+    partition_name = 'kernel%d' % partition
+    mtd = GetMtdDevForNameOrNone(partition_name)
+    gpt = GetGptPartitionForName(F['MMCBLK0'], partition_name)
+    if mtd:
+      VerbosePrint('Writing kernel to %r\n' % mtd)
+      InstallToMtd(kern, mtd)
+    elif gpt:
+      VerbosePrint('Writing kernel to %r\n' % gpt)
+      InstallToFile(kern, gpt)
+    else:
+      raise Fatal('no partition named %r is available' % partition_name)
+
+  loader = img.GetLoader()
+  if loader:
+    key = GetKey()
+    loader_start = loader.filelike.tell()
+    if skiploader:
+      VerbosePrint('Skipping loader installation.\n')
+    else:
+      # TODO(jnewlin): Temporary hackage.  v3 of ginstall will have a
+      # signature over the entire file as opposed to just on the loader and
+      # we can drop this loader signature.  For now allow a command line
+      # opt to disable signature checking.
+      if not skiploadersig:
+        loadersig = img.GetLoaderSig()
+        if not loadersig:
+          raise Fatal('Loader signature file is missing; try --loadersig')
+        if not Verify(loader.filelike, loadersig, key):
+          raise Fatal('Loader signing check failed.')
+      installed = False
+      for i in ['cfe', 'loader', 'loader0', 'loader1']:
+        mtd = GetMtdDevForNameOrNone(i)
+        if mtd:
+          WriteLoaderToMtd(loader, loader_start, mtd, 'loader')
+          installed = True
+      if not installed:
+        raise Fatal('no loader partition is available')
+
+  uloader = img.GetUloader()
+  if uloader:
+    uloader_start = uloader.filelike.tell()
+    if skiploader:
+      VerbosePrint('Skipping uloader installation.\n')
+    else:
+      mtd = GetMtdDevForNameOrNone('uloader')
+      if mtd:
+        uloader_signed = UloaderSigned(uloader.filelike)
+        device_secure = C2kDeviceIsSecure(mtd)
+        if uloader_signed and not device_secure:
+          VerbosePrint('Signed uloader but unsecure box; stripping sig.\n')
+          uloader, uloader_start = StripUloader(uloader.filelike,
+                                                uloader_start)
+          uloader = FileWithSecureHash(uloader, None)
+        elif not uloader_signed and device_secure:
+          raise Fatal('Unable to install unsigned uloader on secure device.')
+        WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
+
+
+def main():
+  global quiet  # gpylint: disable-msg=global-statement
+  LogCallerInfo()
   o = options.Options(optspec)
   opt, unused_flags, unused_extra = o.parse(sys.argv[1:])
 
-  if not (opt.drm or opt.loader or opt.tar or opt.partition):
-    o.fatal('Expected at least one of -p, -t, --loader, or --drm')
+  if opt.basepath:
+    # Standalone test harness can pass in a fake root path.
+    AddBasePath(opt.basepath)
+
+  if not (opt.drm or opt.tar or opt.partition):
+    o.fatal('Expected at least one of -p, -t, or --drm')
 
   quiet = opt.quiet
 
@@ -744,149 +894,22 @@ def main():
     # default to the safe option if not given
     opt.partition = 'other'
 
-  if opt.partition == 'other':
-    boot = GetBootedPartition()
-    assert boot in [None, 0, 1]
-    if boot is None:
-      # Policy decision: if we're booted from NFS, install to secondary
-      partition = 1
-    else:
-      partition = boot ^ 1
-  elif opt.partition in ['primary', 0]:
-    partition = 0
-  elif opt.partition in ['secondary', 1]:
-    partition = 1
-  elif opt.partition:
-    o.fatal('--partition must be one of: primary, secondary, other')
-  elif opt.tar or opt.kernel or opt.rootfs:
-    o.fatal('A --partition option must be provided with -k, -r, or -t')
-  else:
-    partition = None
+  partition = GetPartition(opt)
 
-  if opt.tar or opt.loader:
-    key = GetKey()
-    if opt.tar and (opt.loader or opt.loadersig):
-      o.fatal('--tar option is incompatible with --loader and --loadersig')
-    if opt.tar:
-      img = TarImage(opt.tar)
-
-    # old software versions are incompatible with this version of ginstall.
-    # In particular, we want to leave out versions that:
-    #  - don't support 1GB NAND layout.
-    #  - use pre-ubinized files instead of raw rootfs images.
-    ver = img.GetVersion()
-    if ver and (
-        ver.startswith('bruno-') or
-        (ver.startswith('gfibertv-') and ver < 'gfibertv-24')):
-      raise Fatal('%r is too old: aborting.\n' % ver)
-
-    manifest = img.manifest
-    CheckPlatform(manifest)
-    CheckManifestVersion(img)
-    CheckVersion(manifest)
-    CheckMisc(img)
-
-    rootfs = img.GetRootFs()
-    if rootfs:
-      partition_name = 'rootfs%d' % partition
-      mtd = GetMtdDevForNameOrNone(partition_name)
-      if GetPlatform().startswith('GFSC'):
-        hdd = GetInternalHarddisk()
-        if hdd:
-          gpt = GetGptPartitionForName(hdd, partition_name)
-          if gpt:
-            mtd = None
-      else:
-        gpt = GetGptPartitionForName(MMCBLK, partition_name)
-      if mtd:
-        if GetPlatform().startswith('GFMN'):
-          VerbosePrint('Writing rootfs to %r\n' % mtd)
-          InstallToMtd(rootfs, mtd)
-        else:
-          Log('Installing raw rootfs image to ubi partition %r\n' % mtd)
-          VerbosePrint('Writing raw rootfs to %r\n', mtd)
-          InstallRawFileToUbi(rootfs, mtd)
-      elif gpt:
-        VerbosePrint('Writing raw rootfs to %r\n', gpt)
-        InstallToFile(rootfs, gpt)
-      else:
-        raise Fatal('no partition named %r is available' % partition_name)
-
-    kern = img.GetKernel()
-    if kern:
-      if IsDeviceNoSigning():
-        buf = kern.read(4100)
-        if buf[0:3] != GZIP_HEADER and buf[4096:4099] == GZIP_HEADER:
-          VerbosePrint('Incompatible device: removing kernel signing.\n')
-          kern.seek(4096)
-        elif buf[0:3] == GZIP_HEADER:
-          kern.seek(0)
-        else:
-          raise Fatal('Incompatible device: unrecognized kernel format')
-      partition_name = 'kernel%d' % partition
-      mtd = GetMtdDevForNameOrNone(partition_name)
-      gpt = GetGptPartitionForName(MMCBLK, partition_name)
-      if mtd:
-        VerbosePrint('Writing kernel to %r\n' % mtd)
-        InstallToMtd(kern, mtd)
-      elif gpt:
-        VerbosePrint('Writing kernel to %r\n' % gpt)
-        InstallToFile(kern, gpt)
-      else:
-        raise Fatal('no partition named %r is available' % partition_name)
-
-    loader = img.GetLoader()
-    if loader:
-      loader_start = loader.filelike.tell()
-      if opt.skiploader:
-        VerbosePrint('Skipping loader installation.\n')
-      else:
-        # TODO(jnewlin): Temporary hackage.  v3 of ginstall will have a
-        # signature over the entire file as opposed to just on the loader and
-        # we can drop this loader signature.  For now allow a command line
-        # opt to disable signature checking.
-        if not opt.skiploadersig:
-          loadersig = img.GetLoaderSig()
-          if not loadersig:
-            raise Fatal('Loader signature file is missing; try --loadersig')
-          if not Verify(loader.filelike, loadersig, key):
-            raise Fatal('Loader signing check failed.')
-        installed = False
-        for i in ['cfe', 'loader', 'loader0', 'loader1']:
-          mtd = GetMtdDevForNameOrNone(i)
-          if mtd:
-            WriteLoaderToMtd(loader, loader_start, mtd, 'loader')
-            installed = True
-        if not installed:
-          raise Fatal('no loader partition is available')
-
-    uloader = img.GetUloader()
-    if uloader:
-      uloader_start = uloader.filelike.tell()
-      if opt.skiploader:
-        VerbosePrint('Skipping uloader installation.\n')
-      else:
-        mtd = GetMtdDevForNameOrNone('uloader')
-        if mtd:
-          uloader_signed = UloaderSigned(uloader.filelike)
-          device_secure = C2kDeviceIsSecure(mtd)
-          if uloader_signed and not device_secure:
-            VerbosePrint('Signed uloader but unsecure box; stripping sig.\n')
-            uloader, uloader_start = StripUloader(uloader.filelike,
-                                                  uloader_start)
-            uloader = FileWithSecureHash(uloader, None)
-          elif not uloader_signed and device_secure:
-            raise Fatal('Unable to install unsigned uloader on secure device.')
-          WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
+  if opt.tar:
+    img = TarImage(opt.tar)
+    InstallImage(img, partition, skiploader=opt.skiploader,
+                 skiploadersig=opt.skiploadersig)
 
   if partition is not None:
     return SetBootPartition(partition)
+
   return 0
 
 
 def BroadcomDeviceIsSecure():
   """Determines whether a Broadcom device is secure."""
-  return os.path.isfile(SECUREBOOT)
+  return os.path.isfile(F['SECUREBOOT'])
 
 
 def C2kDeviceIsSecure(uloader_mtddevname):
@@ -978,9 +1001,16 @@ def StripUloader(uloader, uloader_start):
   return new_uloader, new_uloader.tell()
 
 
+def AddBasePath(path):
+  """For tests, prepend a path to all files."""
+  for (k, v) in F.iteritems():
+    F[k] = path + v
+
+
 if __name__ == '__main__':
   try:
     sys.exit(main())
   except Fatal, e:
+    raise
     Log('%s\n', e)
     sys.exit(1)
