@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/sh
 # command to test USB storage device
 #
 
@@ -25,8 +25,8 @@ done < /proc/mtd
 if [ -n "$result" ]; then
   total_size=$(echo $((0x$total_size)))
   erase_size=$(echo $((0x$erase_size)))
-  file_len_in_k=$(expr $total_size / $ONE_K)
-  num_blocks=$(expr $total_size / $erase_size)
+  file_len_in_k=$((total_size / ONE_K))
+  num_blocks=$((total_size / erase_size))
   echo -n "test flash /dev/mtd$result size $total_size ($file_len_in_k K) "
   echo "erasesize $erase_size block count $num_blocks"
 else
@@ -34,18 +34,19 @@ else
   exit 1
 fi
 
-for pattern in '\x5A' '\xA5' '\x55' '\xAA' '\x00' '\x0F' '\xF0' '\xFF'
+# pattern in '\x5A' '\xA5' '\x55' '\xAA' '\x01' '\xF0' '\x0F' '\xFF'
+# \x00 doesn't work. So I used \x01 instead
+for pattern in '90' '165' '85' '170' '1' '240' '15' '255'
 do
   echo "test with pattern" $pattern
-  s=$pattern
-  # in WindCharger shell "for i in {1..n}" does not work. So use "seq"
+  s=$(printf "\\$(printf '%03o' $pattern)")
   # setup 1K test pattern
   for i in $(seq 1 $ONE_K_LEN); do
     s=$s$s;
   done
   rm -f $TMP_FILE
   for i in $(seq 1 $file_len_in_k); do
-    echo -n -e $s >> $TMP_FILE;
+    echo -n $s >> $TMP_FILE;
   done
   flash_erase /dev/mtd$result 0 $num_blocks
   cp $TMP_FILE /dev/mtd$result && cmp $TMP_FILE /dev/mtd$result || test_failed=1
