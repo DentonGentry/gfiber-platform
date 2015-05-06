@@ -31,8 +31,6 @@ TARGETS=\
 	udpburst \
 	usleep \
 	wait-until-created \
-	statpitcher \
-	statcatcher \
 	watch-dir \
 
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
@@ -56,6 +54,10 @@ endif
 
 ifeq ($(BUILD_IBEACON),y)
 ARCH_TARGETS += ibeacon
+endif
+
+ifeq ($(BUILD_STATUTILS),y)
+TARGETS += statpitcher statcatcher
 endif
 
 AS=$(CROSS_COMPILE)as
