@@ -13,6 +13,7 @@ TARGETS=\
 	isoping \
 	isostream \
 	chg_mod_own \
+	cpulog \
 	dir-monitor \
 	diskbench \
 	freemegs \
