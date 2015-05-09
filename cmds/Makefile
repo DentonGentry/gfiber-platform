@@ -63,8 +63,10 @@ endif
 AS=$(CROSS_COMPILE)as
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
+LD=$(CROSS_COMPILE)gcc
 HOST_CC ?= cc
 HOST_CXX ?= g++
+HOST_LD ?= cc
 HOST_PROTOC ?= $(HOSTDIR)/usr/bin/protoc
 CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=c99 -D_GNU_SOURCE
@@ -108,10 +110,10 @@ host-%.o: %.cc
 	$(HOST_CXX) $(CXXFLAGS) $(INCS) $(HOST_PROTO_INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 %: %.o
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) -lc
 
 host-%: host-%.o
-	$(HOST_CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(HOST_CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) -lc
 
 %: %.py
 	ln -s $< $@
@@ -130,7 +132,7 @@ host-%.pb.cc: %.proto
 	echo "Building .pb.cc"
 	$(HOST_PROTOC) --cpp_out=. $<
 
-host-isoping isoping: LIBS+=-lrt
+host-isoping isoping: LIBS+=-lrt -lm
 host-isostream isostream: LIBS+=-lrt
 host-diskbench diskbench: LIBS+=-lpthread -lrt
 dnssd_hosts: LIBS+=-lavahi-client -lavahi-common
@@ -154,18 +156,19 @@ buttonmon: buttonmon.o
 host-utils_test: host-utils_test.o host-utils.o
 ssdp_poll: ssdp_poll.o
 statpitcher.o: device_stats.pb.o
-statpitcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
+statpitcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread -lstdc++
 statpitcher: device_stats.pb.o statpitcher.o
-host-statpitcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread
+host-statpitcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread -lstdc++
 host-statpitcher: host-device_stats.pb.o host-statpitcher.o
 statcatcher.o: device_stats.pb.o
-statcatcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread
+statcatcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread -lstdc++
 statcatcher: device_stats.pb.o statcatcher.o
-host-statcatcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread
+host-statcatcher: LIBS+=-L$(HOSTDIR)/usr/lib -lprotobuf-lite -lpthread -lstdc++
 host-statcatcher: host-device_stats.pb.o host-statcatcher.o
 ibeacon: LIBS += -lbluetooth -luuid
 ibeacon: CFLAGS += -std=gnu99
 ibeacon: ibeacon.o
+host-dir-monitor dir-monitor: LIBS+=-lstdc++
 
 TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
 runtests: all $(TESTS)
