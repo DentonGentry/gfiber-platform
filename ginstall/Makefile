@@ -20,6 +20,7 @@ test:
 		$(PYTHON) $$d; \
 	done
 	./wvtest/wvtestrun ./install_test.sh
+	gpylint ginstall.py ginstall_test.py
 
 clean:
 	rm -f *~ testdata/dev/* testdata/bin.tmp/*

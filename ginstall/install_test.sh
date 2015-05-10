@@ -9,6 +9,7 @@ lsiz=$(stat --format=%s testdata/img/loader.img)
 ksiz=$(stat --format=%s testdata/img/kernel.img)
 rsiz=$(stat --format=%s testdata/img/rootfs.img)
 usiz=$(stat --format=%s testdata/img/uloader.img)
+testdata/bin/http_server "$tmpdir/http_ctrl" &
 
 setup_fakeroot() {
   platform="$1"
@@ -247,4 +248,32 @@ WVPASS cmp --bytes="$ksiz" "${tmpdir}/dev/mtd11" testdata/img/kernel.img
 WVPASS cmp --bytes="$rsiz" "${tmpdir}/dev/mtd19" testdata/img/rootfs.img
 
 
+
+http_port=$(cat "$tmpdir/http_ctrl")
+echo; echo; echo GFHD100 via HTTP
+setup_fakeroot GFHD100
+expected="\
+psback
+logos ginstall
+ubidetach -p ${tmpdir}/dev/mtd13
+ubiformat -y -q ${tmpdir}/dev/mtd13
+ubiattach -p ${tmpdir}/dev/mtd13 -d 0
+ubimkvol -N rootfs-prep -m /dev/ubi0
+flash_erase --quiet ${tmpdir}/dev/mtd19 0 0
+ubirename /dev/ubi0 rootfs-prep rootfs
+ubidetach -d 0
+flash_erase --quiet ${tmpdir}/dev/mtd11 0 0
+flash_erase --quiet ${tmpdir}/dev/mtd0 0 0
+hnvram -q -w ACTIVATED_KERNEL_NAME=kernel1"
+
+url="http://127.0.0.1:${http_port}/testdata/img/image_v4.gi"
+WVPASS ./ginstall.py --basepath="$tmpdir" --tar="$url" --partition=secondary --skiploadersig
+WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
+WVPASS cmp --bytes="$lsiz" "${tmpdir}/dev/mtd0" testdata/img/loader.img
+WVPASS cmp --bytes="$ksiz" "${tmpdir}/dev/mtd11" testdata/img/kernel.img
+WVPASS cmp --bytes="$rsiz" "${tmpdir}/dev/mtd19" testdata/img/rootfs.img
+
+
+echo 'quitquitquit' >"$tmpdir/http_ctrl"
+wait
 rm -rf "$tmpdir"

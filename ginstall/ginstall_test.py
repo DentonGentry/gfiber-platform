@@ -17,10 +17,8 @@
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
-import glob
 import os
 import shutil
-import stat
 import StringIO
 import struct
 import tempfile
@@ -44,7 +42,7 @@ class GinstallTest(unittest.TestCase):
     self.script_out = self.tmpdir + '/out'
     self.old_path = os.environ['PATH']
     self.old_bufsize = ginstall.BUFSIZE
-    self.old_F = ginstall.F
+    self.old_files = ginstall.F
     os.environ['GINSTALL_OUT_FILE'] = self.script_out
     os.environ['GINSTALL_TEST_FAIL'] = ''
     os.environ['PATH'] = 'testdata/bin:' + self.old_path
@@ -66,7 +64,7 @@ class GinstallTest(unittest.TestCase):
   def tearDown(self):
     os.environ['PATH'] = self.old_path
     shutil.rmtree(self.tmpdir, ignore_errors=True)
-    ginstall.F = self.old_F
+    ginstall.F = self.old_files
 
   def WriteVersionFile(self, version):
     """Create a fake /etc/version file in /tmp."""
@@ -119,10 +117,6 @@ class GinstallTest(unittest.TestCase):
     mtdfile = self.tmpdir + '/mtd'
     self.assertRaises(IOError, ginstall.InstallToMtd, in_f, mtdfile)
 
-  def testGetFileSize(self):
-    self.assertEqual(ginstall.GetFileSize(open('testdata/img/vmlinux')), 7)
-    self.assertEqual(ginstall.GetFileSize(open('testdata/random')), 4096)
-
   def testWriteMtd(self):
     origfile = open('testdata/random', 'r')
     origsize = os.fstat(origfile.fileno())[6]
@@ -135,7 +129,6 @@ class GinstallTest(unittest.TestCase):
     self.assertEqual(writesize, origsize)
 
     # check that data was written to MTDBLOCK
-    self.assertEqual(ginstall.GetFileSize(open(mtd + '4')), origsize)
     origfile.seek(0, os.SEEK_SET)
     self.assertEqual(origfile.read(), open(mtd + '4').read())
 
@@ -209,31 +202,29 @@ class GinstallTest(unittest.TestCase):
     return FakeImgWManifest(in_f)
 
   def testCheckManifestVersion(self):
+    manifest = {}
     for v in ['2', '3', '4']:
-      img = self.MakeImgWManifestVersion(v)
-      self.assertTrue(ginstall.CheckManifestVersion(img))
-      ginstall.CheckManifestVersion(img)
+      manifest['installer_version'] = v
+      self.assertTrue(ginstall.CheckManifestVersion(manifest))
     for v in ['1', '5']:
-      img = self.MakeImgWManifestVersion(v)
-      self.assertRaises(ginstall.Fatal, ginstall.CheckManifestVersion,
-                        img)
+      manifest['installer_version'] = v
+      self.assertRaises(ginstall.Fatal, ginstall.CheckManifestVersion, manifest)
     for v in ['3junk']:
-      img = self.MakeImgWManifestVersion(v)
-      self.assertRaises(ValueError, ginstall.CheckManifestVersion,
-                        img)
+      manifest['installer_version'] = v
+      self.assertRaises(ValueError, ginstall.CheckManifestVersion, manifest)
 
   def MakeManifestWMinimumVersion(self, version):
     in_f = StringIO.StringIO('minimum_version: %s\n' % version)
     return ginstall.ParseManifest(in_f)
 
-  def testCheckVersion(self):
+  def testCheckMinimumVersion(self):
     self.WriteVersionFile('gftv200-38.10')
     for v in [
         'gftv200-38.5',
         'gftv200-38-pre2-58-g72b3037-da',
         'gftv200-38-pre2']:
       manifest = self.MakeManifestWMinimumVersion(v)
-      self.assertTrue(ginstall.CheckVersion(manifest))
+      self.assertTrue(ginstall.CheckMinimumVersion(manifest))
     for v in [
         'gftv200-39-pre0-58-g72b3037-da',
         'gftv200-39-pre0',
@@ -242,10 +233,10 @@ class GinstallTest(unittest.TestCase):
         'gftv200-38.11',
         ]:
       manifest = self.MakeManifestWMinimumVersion(v)
-      self.assertRaises(ginstall.Fatal, ginstall.CheckVersion,
+      self.assertRaises(ginstall.Fatal, ginstall.CheckMinimumVersion,
                         manifest)
     manifest = self.MakeManifestWMinimumVersion('junk')
-    self.assertRaises(ginstall.Fatal, ginstall.CheckVersion,
+    self.assertRaises(ginstall.Fatal, ginstall.CheckMinimumVersion,
                       manifest)
 
   def testCheckMisc(self):
@@ -255,7 +246,8 @@ class GinstallTest(unittest.TestCase):
         'gftv200-38.11',
         'gftv200-39-pre2-58-g72b3037-da',
         'gftv200-39-pre2']:
-      ginstall.CheckMisc(v)  # checking that it does not raise exception
+      manifest = {'version': v}
+      ginstall.CheckMisc(manifest)  # checking that it does not raise exception
 
     for v in [
         'gftv200-39-pre0-58-g72b3037-da',
@@ -265,7 +257,8 @@ class GinstallTest(unittest.TestCase):
         'gftv200-38.9',
         'gftv200-38.10'
         ]:
-      self.assertRaises(ginstall.Fatal, ginstall.CheckMisc, v)
+      manifest = {'version': v}
+      self.assertRaises(ginstall.Fatal, ginstall.CheckMisc, manifest)
 
   def testGetBootedFromCmdLine(self):
     ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline1'

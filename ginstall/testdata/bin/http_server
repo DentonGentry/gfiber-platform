@@ -1,0 +1,29 @@
+#!/usr/bin/python
+
+import SimpleHTTPServer
+import SocketServer
+import sys
+
+
+class MyHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+  def do_GET(self):
+    if 'quitquitquit' in self.path:
+      sys.exit(0)
+      return
+    SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
+
+server = SocketServer.TCPServer(('127.0.0.1', 0), MyHandler)
+server.timeout = 0.5
+ip, port = server.server_address
+
+if len(sys.argv) <= 1:
+  print 'Usage: http_server /path/to/control/file'
+  sys.exit(1)
+
+filename = sys.argv[1]
+open(filename, 'w').write(str(port))
+
+while True:
+  server.handle_request()
+  if 'quitquitquit' in open(filename).read():
+    sys.exit(0)
