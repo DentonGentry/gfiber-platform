@@ -806,14 +806,6 @@ def main():
           opt.partition):
     o.fatal('Expected at least one of -p, -k, -r, -t, --loader, or --drm')
 
-  # TODO(abf): To save memory windcharger kills catawampus during ginstall.
-  # Eventually we will stream the upgrade image directly to flash and this
-  # won't be necessary.
-  if GetPlatform().startswith('GFMN'):
-    Log('killing cwmpd\n')
-    subprocess.call(['/etc/init.d/S85catawampus', 'stop'])
-    opt.skiploadersig = True
-
   quiet = opt.quiet
 
   if opt.drm:
@@ -963,20 +955,7 @@ def main():
           WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
 
   if partition is not None:
-    res = SetBootPartition(partition)
-    if res:
-      Log('failed to set boot partition\n')
-      # TODO(abf): windcharger kills catawampus during ginstall, so restart it
-      if GetPlatform().startswith('GFMN'):
-        subprocess.call(['/etc/init.d/S85catawampus', 'start'])
-      return res
-
-  # TODO(abf): To save memory windcharger kills catawampus during ginstall,
-  # so ginstall must trigger the reboot. Eventually we will stream the upgrade
-  # image directly to flash and this won't be necessary.
-  if GetPlatform().startswith('GFMN'):
-    subprocess.call(['reboot'])
-
+    return SetBootPartition(partition)
   return 0
 
 
