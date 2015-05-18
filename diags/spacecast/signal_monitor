@@ -97,7 +97,7 @@ main() {
     # Actual dvbsnoop signal output format is:
     #   Sig: 100  SNR: 65517  BER: 0  UBLK: 0  Stat: 0x01
     # Expected format to parse and monitor is:
-    #   Freq:1400 Sig:100 SNR:65517 BER:0 UBLK:0 Stat:0x01
+    #   Ts:123456789 Freq:1400 Sig:100 SNR:65517 BER:0 UBLK:0 Stat:0x01
     # Manipulate the output signal here to the expected format.
     # TODO(hunguyen): Any need to gather frontend info?
     data="Ts:$(date +%s) Freq:$((${opt_freq}/1000)) $(dvbsnoop -s signal -pd 4 \
