@@ -156,6 +156,7 @@ class WlanManager(object):
     self.phyname = phyname
     self.vdevname = vdevname
     self.mac = '\0\0\0\0\0\0'
+    self.ssid = ''
     self.flags = 0
     self.allowed_freqs = set()
     if high_power:
@@ -516,7 +517,10 @@ class WlanManager(object):
       g = re.match(r'addr (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
       if g:
         self.mac = helpers.EncodeMAC(g.group(1))
-        break
+        continue
+      g = re.match(r'ssid (.*)', line)
+      if g:
+        self.ssid = g.group(1)
 
   def _ScanResults(self, errcode, stdout, stderr):
     """Callback for 'iw scan' results."""
@@ -713,7 +717,7 @@ class WlanManager(object):
 
 
 def CreateManagers(managers, high_power):
-  """Create WlanManager() objects, one per wifi PHY."""
+  """Create WlanManager() objects, one per wifi interface."""
 
   def ParseDevList(errcode, stdout, stderr):
     """Callback for 'iw dev' results."""
@@ -883,6 +887,28 @@ class WifiblasterController(object):
     self._next_timeout = min(now + 1, self._next_packet_blast_time)
 
 
+def do_ssids_match(managers):
+  """Check whether the same primary interface name is used on both PHYs.
+
+  Assumes the primary interface is the shortest one, since secondary interface
+  names probably use the primary as a prefix.
+
+  Args:
+    managers: A list of WlanManagers.
+
+  Returns:
+    Returns true iff the same primary interface name is used on both PHYs.
+  """
+  phy_ssids = {}
+  for m in managers:
+    if (m.ssid and (m.phyname not in phy_ssids or
+                    len(m.ssid) < len(phy_ssids[m.phyname]))):
+      phy_ssids[m.phyname] = m.ssid
+
+  ssids = phy_ssids.values()
+  return len(ssids) == 2 and ssids[0] == ssids[1]
+
+
 def main():
   global opt
   o = options.Options(optspec)
@@ -1015,24 +1041,28 @@ def main():
                 ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
                          for i in sorted(p.assoc,
                                          key=lambda i: -i.rssi)))
-      # Print STA band capability information.
+      # Log STA information. Only log station band capabilities if there we can
+      # determine it, i.e. if there are APs on both bands with the same SSID.
+      log_sta_band_capabilities = do_ssids_match(managers)
       can2G_count = can5G_count = 0
       for m in managers:
         for assoc in m.assoc_list.itervalues():
           anon = m.AnonymizeMAC(assoc.mac)
-          if assoc.can5G:
-            can5G_count += 1
-            capability = '5'
-          else:
-            can2G_count += 1
-            capability = '2.4'
-          log.Log('Connected station %s supports %s GHz', anon, capability)
+          if log_sta_band_capabilities:
+            if assoc.can5G:
+              can5G_count += 1
+              capability = '5'
+            else:
+              can2G_count += 1
+              capability = '2.4'
+            log.Log('Connected station %s supports %s GHz', anon, capability)
           station = helpers.DecodeMAC(assoc.mac)
           species = clientinfo.taxonomize(station)
           if species:
             log.Log('Connected station %s taxonomy: %s' % (anon, species))
-      log.Log('Connected stations: total %d, 5 GHz %d, 2.4 GHz %d',
-              can5G_count + can2G_count, can5G_count, can2G_count)
+      if log_sta_band_capabilities:
+        log.Log('Connected stations: total %d, 5 GHz %d, 2.4 GHz %d',
+                can5G_count + can2G_count, can5G_count, can2G_count)
 
     wifiblaster_controller.Poll(now)
     if not r:
