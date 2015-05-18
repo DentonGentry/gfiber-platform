@@ -45,8 +45,9 @@ COMPLETE_SPACECAST_LOG_PATTERN = 'spacecast_log'
 LOG_DIR = '/tmp/applogs/'
 METRIC_BATCH_CREATE_POINTS = 'metrics:batchCreatePoints'
 MONLOG_TYPE_METRICS = 'metrics'
-MONLOG_SPACECAST_SERVER_PATH = ('https://www.googleapis.com/devicestats/'
-                                'v1alpha/types/SPACECAST_CACHE/devices/')
+MONLOG_SPACECAST_SERVER_PATH = (
+    'https://staging-wirelessdevicestats.sandbox.googleapis.com/'
+    'v2/types/SPACECAST_CACHE/devices/')
 MONLOG_REG_INFO = '/tmp/monlog_reg_info'
 POLL_SEC = 300
 SLASH = '/'
