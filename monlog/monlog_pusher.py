@@ -21,7 +21,7 @@ is also responsible for establishing a secure connection to the server and clean
 up the logs after use.
 
 Usage:
-  monlog_pusher [--log_dir <log_dir>] [--log_server_path <server_url>]
+  monlog_pusher [--log_dir <log_dir>] [--monlog_server_path <server_url>]
                 [--poll_interval <seconds>]
 """
 
