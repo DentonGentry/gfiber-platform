@@ -23,6 +23,27 @@ import wifiblaster
 
 class IwTest(unittest.TestCase):
 
+  def DevStationGet(self, client):
+    if client == '11:11:11:11:11:11':
+      return ('Station 11:11:11:11:11:11 (on wlan0)\n'
+              '\tinactive time:\tx\n'
+              '\trx bytes:\tx\n'
+              '\trx packets:\tx\n'
+              '\ttx bytes:\tx\n'
+              '\ttx packets:\tx\n'
+              '\ttx retries:\tx\n'
+              '\ttx failed:\tx\n'
+              '\tsignal:\t-38 [-48, -56, -39] dBm\n'
+              '\tsignal avg:\tx\n'
+              '\ttx bitrate:\tx\n'
+              '\tauthorized:\tx\n'
+              '\tauthenticated:\tx\n'
+              '\tpreamble:\tx\n'
+              '\tWMM/WME:\tx\n'
+              '\tMFP:\tx\n'
+              '\tTDLS peer:\tx\n')
+    raise wifiblaster.NotAssociatedError
+
   def setUp(self):
     self.iw = wifiblaster.Iw('wlan0')
     self.iw._DevStationDump = lambda: (  # pylint: disable=g-long-lambda
@@ -34,7 +55,7 @@ class IwTest(unittest.TestCase):
         '\ttx packets:\tx\n'
         '\ttx retries:\tx\n'
         '\ttx failed:\tx\n'
-        '\tsignal:\tx\n'
+        '\tsignal:\t-38 [-48, -56, -39] dBm\n'
         '\tsignal avg:\tx\n'
         '\ttx bitrate:\tx\n'
         '\tauthorized:\tx\n'
@@ -60,6 +81,7 @@ class IwTest(unittest.TestCase):
         '\tWMM/WME:\tx\n'
         '\tMFP:\tx\n'
         '\tTDLS peer:\tx\n')
+    self.iw._DevStationGet = self.DevStationGet
     self.iw._DevInfo = lambda: (  # pylint: disable=g-long-lambda
         'Interface wlan0\n'
         '\tifindex 5\n'
@@ -73,6 +95,13 @@ class IwTest(unittest.TestCase):
   def testGetClients(self):
     self.assertEquals(self.iw.GetClients(),
                       {'11:11:11:11:11:11', '22:22:22:22:22:22'})
+
+  def testGetRssi(self):
+    self.assertEquals(self.iw.GetRssi('11:11:11:11:11:11'), -38)
+
+  def testGetRssiNotAssociated(self):
+    self.assertRaises(wifiblaster.NotAssociatedError,
+                      self.iw.GetRssi, '33:33:33:33:33:33')
 
   def testGetPhy(self):
     self.assertEquals(self.iw.GetPhy(), 'phy0')

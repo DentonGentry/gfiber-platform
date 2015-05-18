@@ -18,12 +18,14 @@
 __author__ = 'mikemu@google.com (Mike Mu)'
 
 import contextlib
+import errno
 import multiprocessing
 import os
 import re
 import subprocess
 import sys
 import time
+import traceback
 import options
 
 
@@ -47,12 +49,29 @@ s,size=       Packet size in bytes [64]
 """
 
 
+class Error(Exception):
+  """Exception superclass representing a nominal test failure."""
+  pass
+
+
+class NotSupportedError(Error):
+  """Packet blasts are not supported."""
+  pass
+
+
+class NotAssociatedError(Error):
+  """Client is not associated."""
+  pass
+
+
+class PktgenError(Error):
+  """Pktgen failure."""
+  pass
+
+
 class Iw(object):
   """Interface to iw."""
   # TODO(mikemu): Use an nl80211 library instead.
-
-  class IwException(Exception):
-    pass
 
   def __init__(self, interface):
     """Initializes Iw on a given interface."""
@@ -63,6 +82,16 @@ class Iw(object):
     return subprocess.check_output(
         ['iw', 'dev', self._interface, 'station', 'dump'])
 
+  def _DevStationGet(self, client):
+    """Returns the output of 'iw dev <interface> station get <client>'."""
+    try:
+      return subprocess.check_output(
+          ['iw', 'dev', self._interface, 'station', 'get', client])
+    except subprocess.CalledProcessError as e:
+      if e.returncode == 254:
+        raise NotAssociatedError
+      raise
+
   def _DevInfo(self):
     """Returns the output of 'iw dev <interface> info'."""
     return subprocess.check_output(
@@ -70,20 +99,18 @@ class Iw(object):
 
   def GetClients(self):
     """Returns the associated clients."""
-    clients = set()
-    for line in self._DevStationDump().splitlines():
-      m = re.search(r'Station (([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})', line)
-      if m:
-        clients.add(m.group(1).lower())
-    return clients
+    return set([client.lower() for client in re.findall(
+        r'Station ((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})',
+        self._DevStationDump())])
+
+  def GetRssi(self, client):
+    """Returns the RSSI of a client."""
+    return float(re.search(r'signal:\s+([-.\d]+)',
+                           self._DevStationGet(client)).group(1))
 
   def GetPhy(self):
     """Returns the PHY name."""
-    for line in self._DevInfo().splitlines():
-      m = re.search(r'wiphy (\d+)', line)
-      if m:
-        return 'phy%s' % m.group(1)
-    raise Iw.IwException('could not get PHY name')
+    return 'phy%d' % int(re.search(r'wiphy (\d+)', self._DevInfo()).group(1))
 
 
 class Mac80211Stats(object):
@@ -96,8 +123,13 @@ class Mac80211Stats(object):
 
   def _ReadCounter(self, counter):
     """Returns a counter read from a file."""
-    with open(os.path.join(self._basedir, counter)) as f:
-      return int(f.read())
+    try:
+      with open(os.path.join(self._basedir, counter)) as f:
+        return int(f.read())
+    except IOError as e:
+      if e.errno == errno.ENOENT:
+        raise NotSupportedError
+      raise
 
   def GetTransmittedFrameCount(self):
     """Returns the number of successfully transmitted MSDUs."""
@@ -106,9 +138,6 @@ class Mac80211Stats(object):
 
 class Pktgen(object):
   """Interface to pktgen."""
-
-  class PktgenException(Exception):
-    pass
 
   def __init__(self, interface):
     """Initializes Pktgen on a given interface."""
@@ -119,13 +148,23 @@ class Pktgen(object):
 
   def _ReadFile(self, filename):
     """Returns the contents of a file."""
-    with open(filename) as f:
-      return f.read()
+    try:
+      with open(filename) as f:
+        return f.read()
+    except IOError as e:
+      if e.errno == errno.ENOENT:
+        raise NotSupportedError
+      raise
 
   def _WriteFile(self, filename, s):
     """Writes a string and a newline to a file."""
-    with open(filename, 'w') as f:
-      f.write(s + '\n')
+    try:
+      with open(filename, 'w') as f:
+        f.write(s + '\n')
+    except IOError as e:
+      if e.errno == errno.ENOENT:
+        raise NotSupportedError
+      raise
 
   @contextlib.contextmanager
   def PacketBlast(self, client, count, duration, size):
@@ -164,39 +203,49 @@ class Pktgen(object):
       p.terminate()
       p.join()
       if not re.search(r'Result: OK', self._ReadFile(self._device_file)):
-        raise Pktgen.PktgenException('packet blast failed')
+        raise PktgenError
 
 
-def _PacketBlast(mac80211stats, pktgen, client, duration, fraction, size):
+def _PacketBlast(iw, mac80211stats, pktgen, client, duration, fraction, size):
   """Blasts packets at a client and returns a string representing the result."""
-  # Attempt to start an aggregation session.
-  with pktgen.PacketBlast(client, 1, 0, size):
-    pass
+  try:
+    # Validate client.
+    if client not in iw.GetClients():
+      raise NotAssociatedError
 
-  # Start packet blast and sample transmitted frame count.
-  with pktgen.PacketBlast(client, 0, duration, size):
-    samples = [mac80211stats.GetTransmittedFrameCount()]
-    start = _gettime()
-    dt = duration / fraction
-    for t in [start + dt * (i + 1) for i in xrange(fraction)]:
-      time.sleep(t - _gettime())
-      samples.append(mac80211stats.GetTransmittedFrameCount())
+    # Attempt to start an aggregation session.
+    with pktgen.PacketBlast(client, 1, 0, size):
+      pass
 
-  # Compute throughputs from samples.
-  samples = [8 * size * (after - before) / dt
-             for (after, before) in zip(samples[1:], samples[:-1])]
+    # Start packet blast and sample transmitted frame count.
+    with pktgen.PacketBlast(client, 0, duration, size):
+      samples = [mac80211stats.GetTransmittedFrameCount()]
+      start = _gettime()
+      dt = duration / fraction
+      for t in [start + dt * (i + 1) for i in xrange(fraction)]:
+        time.sleep(t - _gettime())
+        samples.append(mac80211stats.GetTransmittedFrameCount())
 
-  # Format result.
-  return 'version=1 mac=%s throughput=%d samples=%s' % (
-      client,
-      sum(samples) / len(samples),
-      ','.join(['%d' % sample for sample in samples]))
+    # Compute throughputs from samples.
+    samples = [8 * size * (after - before) / dt
+               for (after, before) in zip(samples[1:], samples[:-1])]
 
+    # Get RSSI.
+    rssi = iw.GetRssi(client)
 
-class Status(object):
-  SUCCESS = 0
-  UNKNOWN = -1
-  NOT_SUPPORTED = -2
+    # Print result.
+    print 'version=2 mac=%s throughput=%d rssi=%g samples=%s' % (
+        client,
+        sum(samples) / len(samples),
+        rssi,
+        ','.join(['%d' % sample for sample in samples]))
+
+  except Error as e:
+    print 'version=2 mac=%s error=%s' % (client, e.__class__.__name__)
+    traceback.print_exc()
+  except Exception as e:
+    print 'version=2 mac=%s error=%s' % (client, e.__class__.__name__)
+    raise
 
 
 def main():
@@ -218,29 +267,17 @@ def main():
   mac80211stats = Mac80211Stats(iw.GetPhy())
   pktgen = Pktgen(opt.interface)
 
-  # Get connected clients.
-  connected_clients = iw.GetClients()
-
-  # If no clients are specified, test all connected clients. Otherwise,
-  # normalize and validate clients.
+  # If no clients are specified, test all associated clients.
   if not clients:
-    clients = sorted(connected_clients)
-  else:
-    clients = [client.lower() for client in clients]
-    for client in clients:
-      if client not in connected_clients:
-        raise ValueError('invalid client: %s' % client)
+    clients = sorted(iw.GetClients())
+
+  # Normalize clients.
+  clients = [client.lower() for client in clients]
 
   # Blast packets at each client.
   for client in clients:
-    try:
-      print _PacketBlast(mac80211stats, pktgen, client, opt.duration,
-                         opt.fraction, opt.size)
-    except IOError:
-      print 'version=1 mac=%s throughput=%d' % (client, Status.NOT_SUPPORTED)
-    except:
-      print 'version=1 mac=%s throughput=%d' % (client, Status.UNKNOWN)
-      raise
+    _PacketBlast(iw, mac80211stats, pktgen, client,
+                 opt.duration, opt.fraction, opt.size)
 
 
 if __name__ == '__main__':
