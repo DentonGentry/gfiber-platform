@@ -22,20 +22,24 @@ import os.path
 try:
   import taxonomy  # pylint: disable=unused-import,g-import-not-at-top
   IDENTIFY_CHIPSET = taxonomy.identify_wifi_device
+  LOOKUP_HOSTNAME = taxonomy.LookupHostname
 except ImportError:
   IDENTIFY_CHIPSET = ''
+  LOOKUP_HOSTNAME = ''
 
 
 # unit tests can override these.
 FINGERPRINTS_DIR = '/tmp/wifi/fingerprints'
+DHCP_LEASES_FILE = '/config/dhcp.leases'
 
 
 def taxonomize(mac):
   """Try to identify the type of client device."""
   mac = mac.lower().strip()
+  name = LOOKUP_HOSTNAME(mac)
   try:
     with open(os.path.join(FINGERPRINTS_DIR, mac)) as f:
       signature = f.read()
-      return IDENTIFY_CHIPSET(signature)
+      return IDENTIFY_CHIPSET(signature, name=name)
   except IOError:
     return None
