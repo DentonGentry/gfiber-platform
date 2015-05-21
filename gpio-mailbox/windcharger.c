@@ -29,7 +29,7 @@
 #define GPIO_CNTL_PER_REG     4
 
 /* CPU Temperature Monitoring. */
-#define SYS_TEMP_DIR    "/sys/devices/virtual/hwmon/hwmon0/"
+#define SYS_TEMP_DIR    "/sys/class/hwmon/hwmon0/device/"
 #define SYS_TEMP1       SYS_TEMP_DIR "temp1_input"
 
 struct PinHandle_s {
