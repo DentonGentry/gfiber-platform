@@ -19,19 +19,29 @@ import clientinfo  # pylint: g-import-not-at-top
 from wvtest import wvtest
 
 
-def identify(signature):
-  if signature.strip() == 'wifi|probe:1,2,3,4|assoc:5,6,7,8':
+def identify(signature, name=None):
+  if name == 'Baz':
+    return 'Foobaz-3000'
+  elif signature.strip() == 'wifi|probe:1,2,3,4|assoc:5,6,7,8':
     return 'Foobar-2000'
   else:
     return 'Incorrect signature'
+
+
+def LookupName(mac):
+  if mac == '00:00:01:00:00:02':
+    return 'Baz'
+  return None
 
 
 @wvtest.wvtest
 def TaxonomyTest():
   clientinfo.FINGERPRINTS_DIR = 'fake/taxonomy'
   clientinfo.IDENTIFY_CHIPSET = identify
+  clientinfo.LOOKUP_HOSTNAME = LookupName
   wvtest.WVPASSEQ(clientinfo.taxonomize('00:00:01:00:00:01'), 'Foobar-2000')
   wvtest.WVPASSEQ(clientinfo.taxonomize('00:00:01:00:00:01\n'), 'Foobar-2000')
+  wvtest.WVPASSEQ(clientinfo.taxonomize('00:00:01:00:00:02'), 'Foobaz-3000')
   wvtest.WVPASSEQ(clientinfo.taxonomize('00:00:22:00:00:22'), None)
 
 
