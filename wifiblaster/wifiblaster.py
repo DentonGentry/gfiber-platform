@@ -45,7 +45,7 @@ wifiblaster [options...] [clients...]
 i,interface=  Name of access point interface [wlan0]
 d,duration=   Packet blast duration in seconds [.1]
 f,fraction=   Number of samples per duration [10]
-s,size=       Packet size in bytes [64]
+s,size=       Packet size in bytes [1470]
 """
 
 
@@ -54,13 +54,13 @@ class Error(Exception):
   pass
 
 
-class NotSupportedError(Error):
-  """Packet blasts are not supported."""
+class NotAssociatedError(Error):
+  """Client is not associated."""
   pass
 
 
-class NotAssociatedError(Error):
-  """Client is not associated."""
+class NotSupportedError(Error):
+  """Packet blasts are not supported."""
   pass
 
 
