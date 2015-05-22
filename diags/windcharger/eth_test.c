@@ -323,8 +323,8 @@ int net_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
     tx_stat[index] += *tx_bytes;
   } else {
     tmp = *tx_bytes;
-    // tx_bytes is int, not uint.
-    *tx_bytes += (0x7fffffff - tx_stat[index]);
+    // tx_bytes is uint.
+    *tx_bytes += (0xffffffff - tx_stat[index]);
     tx_stat[index] = tmp;
   }
 
@@ -333,8 +333,8 @@ int net_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
     rx_stat[index] += *rx_bytes;
   } else {
     tmp = *rx_bytes;
-    // rx_bytes is int, not uint.
-    *rx_bytes += (0x7fffffff - rx_stat[index]);
+    // rx_bytes is uint.
+    *rx_bytes += (0xffffffff - rx_stat[index]);
     rx_stat[index] = tmp;
   }
   return 0;
