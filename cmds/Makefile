@@ -4,35 +4,38 @@ PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
 
+PORTABLE_TARGETS=\
+	balloon \
+	gsetsid \
+	isoping \
+	isostream \
+	mcastreceive \
+	randomdata \
+	setuid \
+	udpburst \
+	usleep
+
 TARGETS=\
+	$(PORTABLE_TARGETS) \
 	alivemonitor \
 	asus_hosts \
-	balloon \
 	bsa2bluez \
 	burnin-flash \
 	buttonmon \
-	isoping \
-	isostream \
 	chg_mod_own \
 	dir-monitor \
 	diskbench \
 	freemegs \
-	gsetsid \
 	ionice \
-	mcastreceive \
 	memwatcher \
 	logos \
-	randomdata \
 	readubootver \
 	realtime \
 	rtwatcher \
-	setuid \
 	soft_rc \
 	stun \
-	udpburst \
-	usleep \
 	wait-until-created \
-	watch-dir \
+	watch-dir
 
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
@@ -78,7 +81,14 @@ INCS=-I../libstacktrace
 
 .PRECIOUS: %.o host-%.o
 
+# add minimal MacOS build to support checking out dir and building test commands
+UNAME := $(shell uname -s)
+ifeq ($(UNAME),Darwin)
+all: $(PORTABLE_TARGETS)
+else
 all: $(TARGETS) $(HOST_TARGETS) $(LIB_TARGETS) $(ARCH_TARGETS) $(TEST_TARGETS)
+RT = -lrt
+endif
 
 install:
 	mkdir -p $(BINDIR) $(LIBDIR)
@@ -133,17 +143,18 @@ host-%.pb.cc: %.proto
 	echo "Building .pb.cc"
 	$(HOST_PROTOC) --cpp_out=. $<
 
-host-isoping isoping: LIBS+=-lrt -lm
-host-isostream isostream: LIBS+=-lrt
-host-diskbench diskbench: LIBS+=-lpthread -lrt
+
+host-isoping isoping: LIBS+=$(RT) -lm
+host-isostream isostream: LIBS+=$(RT)
+host-diskbench diskbench: LIBS+=-lpthread $(RT)
 dnssd_hosts: LIBS+=-lavahi-client -lavahi-common
 host-dnssd_hosts: LIBS+=-lavahi-client
 host-logos logos: LIBS+=-lrt
 logos: LIBS+=-L../libstacktrace -lstacktrace
-host-rtwatcher rtwatcher: LIBS+=-lpthread -lrt
+host-rtwatcher rtwatcher: LIBS+=-lpthread $(RT)
 host-realtime realtime: LIBS+=-lpthread
-host-alivemonitor alivemonitor: LIBS+=-lrt
-host-buttonmon buttonmon: LIBS+=-lrt
+host-alivemonitor alivemonitor: LIBS+=$(RT)
+host-buttonmon buttonmon: LIBS+=$(RT)
 alivemonitor: alivemonitor.o
 isoping: isoping.o
 isostream: isostream.o
