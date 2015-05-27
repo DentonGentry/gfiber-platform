@@ -77,6 +77,11 @@ class Iw(object):
     """Initializes Iw on a given interface."""
     self._interface = interface
 
+  def _DevInfo(self):
+    """Returns the output of 'iw dev <interface> info'."""
+    return subprocess.check_output(
+        ['iw', 'dev', self._interface, 'info'])
+
   def _DevStationDump(self):
     """Returns the output of 'iw dev <interface> station dump'."""
     return subprocess.check_output(
@@ -92,10 +97,13 @@ class Iw(object):
         raise NotAssociatedError
       raise
 
-  def _DevInfo(self):
-    """Returns the output of 'iw dev <interface> info'."""
-    return subprocess.check_output(
-        ['iw', 'dev', self._interface, 'info'])
+  def GetFrequency(self):
+    """Returns the frequency."""
+    return int(re.search(r'channel.*\((\d+) MHz\)', self._DevInfo()).group(1))
+
+  def GetPhy(self):
+    """Returns the PHY name."""
+    return 'phy%d' % int(re.search(r'wiphy (\d+)', self._DevInfo()).group(1))
 
   def GetClients(self):
     """Returns the associated clients."""
@@ -107,10 +115,6 @@ class Iw(object):
     """Returns the RSSI of a client."""
     return float(re.search(r'signal:\s+([-.\d]+)',
                            self._DevStationGet(client)).group(1))
-
-  def GetPhy(self):
-    """Returns the PHY name."""
-    return 'phy%d' % int(re.search(r'wiphy (\d+)', self._DevInfo()).group(1))
 
 
 class Mac80211Stats(object):
@@ -230,14 +234,12 @@ def _PacketBlast(iw, mac80211stats, pktgen, client, duration, fraction, size):
     samples = [8 * size * (after - before) / dt
                for (after, before) in zip(samples[1:], samples[:-1])]
 
-    # Get RSSI.
-    rssi = iw.GetRssi(client)
-
     # Print result.
-    print 'version=2 mac=%s throughput=%d rssi=%g samples=%s' % (
+    print 'version=2 mac=%s throughput=%d rssi=%g frequency=%d samples=%s' % (
         client,
         sum(samples) / len(samples),
-        rssi,
+        iw.GetRssi(client),
+        iw.GetFrequency(),
         ','.join(['%d' % sample for sample in samples]))
 
   except Error as e:
