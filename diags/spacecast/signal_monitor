@@ -7,6 +7,7 @@
 #
 # - Usage:
 #     signal_monitor --server_ip=<ip_address> --udp_port=<port>
+#                    --dvb_type=<dvbs2|dvbs>
 #                   [--freq=<freq>] [--rate=<rate>] [monitor_sec=<sec>]
 #
 ################################################################################
@@ -25,6 +26,7 @@ options:
                                      (default = 1400 MHz)
   --rate=30000                       Symbol rate in 1000s (default = 30000)
   --monitor_sec=60                   Monitor interval in seconds.
+  --dvb_type=dvbs2                   DVB type (default = dvbs2)
   --help                             Print this usage menu.
 EOF
   return 0
@@ -45,6 +47,7 @@ parse_args() {
   opt_interval=60
   opt_server_ip=
   opt_udp_port=
+  opt_dvb_type=dvbs2
 
   # Then parse options.
   while [ $# -ge 1 ]; do
@@ -60,6 +63,7 @@ parse_args() {
       --monitor_sec=*) opt_interval=${arg#*=};;
       --server_ip=*) opt_server_ip=${arg#*=};;
       --udp_port=*) opt_udp_port=${arg#*=};;
+      --dvb_type=*) opt_dvb_type=${arg#*=};;
       *) failmsg "Unknown option ${arg}; try --help." || return;;
     esac
   done
@@ -86,7 +90,7 @@ main() {
       pkill -9 dvbtune
 
       # Start new dvbtune with this frequency and rate.
-      dvbtune -i ${opt_freq} -r ${opt_rate} &
+      dvbtune -i ${opt_freq} -r ${opt_rate} -s ${opt_dvb_type} &
       ps -ef | grep " $! " | grep -v grep >/dev/null ||
         failmsg "Failed to start tuner with frequency ${opt_freq}..." ||
         continue
