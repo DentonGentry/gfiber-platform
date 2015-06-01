@@ -46,6 +46,15 @@ class IwTest(unittest.TestCase):
 
   def setUp(self):
     self.iw = wifiblaster.Iw('wlan0')
+    self.iw._DevInfo = lambda: (  # pylint: disable=g-long-lambda
+        'Interface wlan0\n'
+        '\tifindex 5\n'
+        '\twdev 0x1\n'
+        '\taddr 11:11:11:11:11:11\n'
+        '\tssid TestWifi\n'
+        '\ttype AP\n'
+        '\twiphy 0\n'
+        '\tchannel 1 (2412 MHz), width: 20 MHz, center1: 2412 MHz\n')
     self.iw._DevStationDump = lambda: (  # pylint: disable=g-long-lambda
         'Station 11:11:11:11:11:11 (on wlan0)\n'
         '\tinactive time:\tx\n'
@@ -82,15 +91,12 @@ class IwTest(unittest.TestCase):
         '\tMFP:\tx\n'
         '\tTDLS peer:\tx\n')
     self.iw._DevStationGet = self.DevStationGet
-    self.iw._DevInfo = lambda: (  # pylint: disable=g-long-lambda
-        'Interface wlan0\n'
-        '\tifindex 5\n'
-        '\twdev 0x1\n'
-        '\taddr 11:11:11:11:11:11\n'
-        '\tssid TestWifi\n'
-        '\ttype AP\n'
-        '\twiphy 0\n'
-        '\tchannel 1 (2412 MHz), width: 20 MHz, center1: 2412 MHz\n')
+
+  def testGetFrequency(self):
+    self.assertEquals(self.iw.GetFrequency(), 2412)
+
+  def testGetPhy(self):
+    self.assertEquals(self.iw.GetPhy(), 'phy0')
 
   def testGetClients(self):
     self.assertEquals(self.iw.GetClients(),
@@ -102,9 +108,6 @@ class IwTest(unittest.TestCase):
   def testGetRssiNotAssociated(self):
     self.assertRaises(wifiblaster.NotAssociatedError,
                       self.iw.GetRssi, '33:33:33:33:33:33')
-
-  def testGetPhy(self):
-    self.assertEquals(self.iw.GetPhy(), 'phy0')
 
 
 class Mac80211StatsTest(unittest.TestCase):
