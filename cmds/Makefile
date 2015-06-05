@@ -23,6 +23,7 @@ TARGETS=\
 	burnin-flash \
 	buttonmon \
 	chg_mod_own \
+	cpulog \
 	dir-monitor \
 	diskbench \
 	freemegs \
