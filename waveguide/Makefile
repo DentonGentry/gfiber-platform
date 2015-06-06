@@ -26,7 +26,7 @@ lint: $(filter-out options.py,$(wildcard *.py))
 	$(GPYLINT) $^
 
 test_only: all
-	PYTHONPATH=../taxonomy:$(PYTHONPATH) ./wvtest/wvtestrun $(MAKE) runtests
+	PYTHONPATH=..:$(PYTHONPATH) ./wvtest/wvtestrun $(MAKE) runtests
 
 # Use a submake here, only because otherwise GNU make (3.81) will not print
 # an error about 'test' itself failing if one of the two sub-targets fails.

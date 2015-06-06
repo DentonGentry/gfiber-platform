@@ -1,1 +1,1 @@
-wifi|probe:9|assoc:10|name:Baz
+wifi|probe:0,1,45,221(0050f2,8),191,htcap:016e,vhtcap:31800120|assoc:0,1,33,36,48,45,221(0050f2,2),191,127,htcap:016e,vhtcap:31800120
