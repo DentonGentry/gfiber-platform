@@ -137,7 +137,7 @@ class Mac80211Stats(object):
 
   def GetTransmittedFrameCount(self):
     """Returns the number of successfully transmitted MSDUs."""
-    return self._ReadCounter('transmitted_frame_count')
+    return self._ReadCounter('dot11TransmittedFrameCount')
 
 
 class Pktgen(object):

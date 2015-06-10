@@ -118,7 +118,7 @@ class Mac80211StatsTest(unittest.TestCase):
     self.mac80211stats._ReadCounter = lambda counter: self.counters[counter]
 
   def testGetTransmittedFrameCount(self):
-    self.counters['transmitted_frame_count'] = 123
+    self.counters['dot11TransmittedFrameCount'] = 123
     self.assertEquals(self.mac80211stats.GetTransmittedFrameCount(), 123)
 
 
