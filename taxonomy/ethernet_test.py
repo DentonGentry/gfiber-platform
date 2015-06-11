@@ -12,24 +12,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# pylint:disable=invalid-name
 
-import taxonomy
-import clientinfo  # pylint: g-import-not-at-top
-from wvtest import wvtest
+"""Tests for taxonomy/ethernet.py."""
+
+__author__ = 'dgentry@google.com (Denton Gentry)'
 
 
-@wvtest.wvtest
-def TaxonomyTest():
-  taxonomy.dhcp.DHCP_LEASES_FILE = 'fake/dhcp.leases'
-  clientinfo.FINGERPRINTS_DIR = 'fake/taxonomy'
-  wvtest.WVPASS(';Nexus 6;' in clientinfo.taxonomize('00:00:01:00:00:01'))
-  wvtest.WVPASS(';Nexus 6;' in clientinfo.taxonomize('00:00:01:00:00:01\n'))
-  v = ';MOTO-X 2013 version;'
-  wvtest.WVPASS(v in clientinfo.taxonomize('00:00:01:00:00:02'))
-  wvtest.WVPASSEQ(clientinfo.taxonomize('00:00:22:00:00:22'), None)
+import unittest
+import ethernet
+
+
+class EthernetTaxonomyTest(unittest.TestCase):
+  def testLookupOS(self):
+    self.assertEqual(ethernet.LookupOUI('f8:a9:d0'), 'lg')
+    self.assertEqual(ethernet.LookupOUI('ff:ff:ff'), None)
 
 
 if __name__ == '__main__':
-  wvtest.wvtest_main()
+  unittest.main()
