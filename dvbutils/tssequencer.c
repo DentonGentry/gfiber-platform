@@ -296,9 +296,9 @@ int main(int argc, char** argv) {
         continue;
       }
 
-      if ((pkt[3]&0x0f) != (seq_num%16)) {
-        fprintf(stderr, "seq_num %d cc %d\n", seq_num, pkt[3]&0x0f);
-      }
+      //if ((pkt[3]&0x0f) != (seq_num%16)) {
+      //  fprintf(stderr, "seq_num %d cc %d\n", seq_num, pkt[3]&0x0f);
+      //}
 
       expected = (seq_table[pkt_pid] + 1) % max_seq_num;
       if (seq_num != expected) {
@@ -311,7 +311,7 @@ int main(int argc, char** argv) {
             lost_packets += delta;
           } else {
             lost_packets++;
-            fprintf(stderr, "stale packet seq %d expected %d\n", seq_num, expected);
+            //fprintf(stderr, "stale packet seq %d expected %d\n", seq_num, expected);
           }
         }
         if (lost_packets < bad_seq_num_count) {
