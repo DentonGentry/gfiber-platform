@@ -917,4 +917,6 @@ def main():
 
 
 if __name__ == '__main__':
+  sys.stdout = os.fdopen(1, 'w', 1)  # force line buffering even if redirected
+  sys.stderr = os.fdopen(2, 'w', 1)  # force line buffering even if redirected
   sys.exit(main())
