@@ -26,7 +26,7 @@ class IwTest(unittest.TestCase):
   def DevStationGet(self, client):
     if client == '11:11:11:11:11:11':
       return ('Station 11:11:11:11:11:11 (on wlan0)\n'
-              '\tinactive time:\tx\n'
+              '\tinactive time:\t100 ms\n'
               '\trx bytes:\tx\n'
               '\trx packets:\tx\n'
               '\ttx bytes:\tx\n'
@@ -57,7 +57,7 @@ class IwTest(unittest.TestCase):
         '\tchannel 1 (2412 MHz), width: 20 MHz, center1: 2412 MHz\n')
     self.iw._DevStationDump = lambda: (  # pylint: disable=g-long-lambda
         'Station 11:11:11:11:11:11 (on wlan0)\n'
-        '\tinactive time:\tx\n'
+        '\tinactive time:\t100 ms\n'
         '\trx bytes:\tx\n'
         '\trx packets:\tx\n'
         '\ttx bytes:\tx\n'
@@ -101,6 +101,9 @@ class IwTest(unittest.TestCase):
   def testGetClients(self):
     self.assertEquals(self.iw.GetClients(),
                       {'11:11:11:11:11:11', '22:22:22:22:22:22'})
+
+  def testGetInactiveTime(self):
+    self.assertEquals(self.iw.GetInactiveTime('11:11:11:11:11:11'), .1)
 
   def testGetRssi(self):
     self.assertEquals(self.iw.GetRssi('11:11:11:11:11:11'), -38)

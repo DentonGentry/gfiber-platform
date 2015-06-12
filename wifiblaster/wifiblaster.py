@@ -54,6 +54,11 @@ class Error(Exception):
   pass
 
 
+class NotActiveError(Error):
+  """Client is not active."""
+  pass
+
+
 class NotAssociatedError(Error):
   """Client is not associated."""
   pass
@@ -98,18 +103,23 @@ class Iw(object):
       raise
 
   def GetFrequency(self):
-    """Returns the frequency."""
+    """Returns the frequency of an interface."""
     return int(re.search(r'channel.*\((\d+) MHz\)', self._DevInfo()).group(1))
 
   def GetPhy(self):
-    """Returns the PHY name."""
+    """Returns the PHY name of an interface."""
     return 'phy%d' % int(re.search(r'wiphy (\d+)', self._DevInfo()).group(1))
 
   def GetClients(self):
-    """Returns the associated clients."""
+    """Returns the associated clients of an interface."""
     return set([client.lower() for client in re.findall(
         r'Station ((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})',
         self._DevStationDump())])
+
+  def GetInactiveTime(self, client):
+    """Returns the inactive time of a client."""
+    return float(re.search(r'inactive time:\s+(\d+) ms',
+                           self._DevStationGet(client)).group(1)) / 1000
 
   def GetRssi(self, client):
     """Returns the RSSI of a client."""
@@ -229,6 +239,10 @@ def _PacketBlast(iw, mac80211stats, pktgen, client, duration, fraction, size):
       for t in [start + dt * (i + 1) for i in xrange(fraction)]:
         time.sleep(t - _gettime())
         samples.append(mac80211stats.GetTransmittedFrameCount())
+
+    # Check for client activity during packet blast.
+    if iw.GetInactiveTime(client) > duration:
+      raise NotActiveError
 
     # Compute throughputs from samples.
     samples = [8 * size * (after - before) / dt
