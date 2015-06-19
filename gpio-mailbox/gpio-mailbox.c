@@ -61,6 +61,10 @@ static PinHandle handle;
 //   4: activity (blue)
 //   8: standby (bright white)
 static void set_leds_from_bitfields(int fields, int brightness) {
+  // allow a way to disable led control
+  if (access("disable", R_OK) == 0) {
+    return;
+  }
   if (is_limited_leds) {
     // GFMS100 only has red and activity lights.  Substitute activity for blue
     // (they're both blue anyhow) and red+activity (purple) for standby.

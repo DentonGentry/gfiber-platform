@@ -17,7 +17,6 @@ struct PinHandle_s {
 struct Gpio {
   int is_present;
   const char* file_path;
-  long long old_val;
 };
 
 
@@ -33,15 +32,12 @@ struct platform_info platforms[] = {
     .name = "GFLT200",
     .led_red = {
       .file_path = "/sys/devices/platform/board/leds:sys-red/brightness",
-      .old_val = -1,
     },
     .led_blue = {
       .file_path = "/sys/devices/platform/board/leds:sys-blue/brightness",
-      .old_val = -1,
     },
     .temp_cpu = {
       .file_path = "/sys/devices/platform/KW2Thermal.0/temp1_input",
-      .old_val = -1,
     },
   }
 };
@@ -50,7 +46,7 @@ struct platform_info *platform = &platforms[0];
 
 // Write the given GPIO pin.
 static void set_gpio(struct Gpio *g, int level) {
-  write_file_int(g->file_path, &g->old_val, level);
+  write_file_int(g->file_path, NULL, level);
 }
 
 // Read the given GPIO pin

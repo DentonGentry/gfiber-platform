@@ -30,6 +30,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -77,18 +78,6 @@ int64_t GetTick() {
 }
 
 
-void HandleButtonClick(uint64_t ms_down) {
-  if (ms_down > 50 && ms_down < 2000) {
-    // Short click will reset the box.
-    printf("click0\n");
-  } else if (ms_down > 2000 && ms_down < 10000) {
-    printf("click2\n");
-  } else {
-    printf("click10\n");
-  }
-}
-
-
 void MonitorReset() {
   uint32_t page_size = sysconf(_SC_PAGESIZE);
   uint32_t page_mask = page_size - 1;
@@ -108,7 +97,7 @@ void MonitorReset() {
 
   volatile uint32_t* reg_addr = base + ((GPIO_INPUT_REG_ADDR & page_mask) / sizeof(*base));
   int button_down = FALSE;
-  int button_down_sent = FALSE;
+  int button_down_sent = -1;
   uint64_t button_down_start_tick = 0;
   for(;;) {
     int button_down_now = (*reg_addr & RESET_BIT_MASK) == 0;
@@ -116,24 +105,24 @@ void MonitorReset() {
       // Handle button down toggle.
       button_down_start_tick = GetTick();
       button_down = TRUE;
-      button_down_sent = FALSE;
-    }
+      button_down_sent = -1;
+    } else if (button_down) {
+      uint64_t dt = GetTick() - button_down_start_tick;
+      int sec = dt / 1000;
 
-    // Debounces the button, if it's down for more than 50ms
-    // send a message that can be used to do something like flicker
-    // the led.
-    if (button_down && button_down_now && !button_down_sent) {
-      if ((GetTick() - button_down_start_tick) > 50) {
-        printf("buttondown\n");
-        button_down_sent = TRUE;
+      // send a message that can be used to do something like flicker
+      // the led.
+      if (sec > button_down_sent) {
+        printf("buttondown %d\n", sec);
+        button_down_sent = sec;
       }
-    }
 
-    if (button_down && !button_down_now) {
-      // Handle button up toggle.
-      HandleButtonClick(GetTick() - button_down_start_tick);
-      button_down_start_tick = 0;
-      button_down = FALSE;
+      // send click on release
+      if (!button_down_now) {
+        printf("click %d\n", sec);
+        button_down_start_tick = 0;
+        button_down = FALSE;
+      }
     }
     button_down = button_down_now;
     usleep(1000*100);  // sleep 100ms
