@@ -29,6 +29,7 @@ TARGETS=\
 	freemegs \
 	ionice \
 	memwatcher \
+	netusage \
 	logos \
 	readubootver \
 	realtime \
@@ -182,6 +183,7 @@ ibeacon: LIBS += -lbluetooth -luuid
 ibeacon: CFLAGS += -std=gnu99
 ibeacon: ibeacon.o
 host-dir-monitor dir-monitor: LIBS+=-lstdc++
+netusage: CFLAGS += -Wno-sign-compare
 
 TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
 runtests: all $(TESTS)
