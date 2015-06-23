@@ -459,9 +459,9 @@ def show_wifi(opt):
       pass
 
     print('Station List for band: %s' % band)
-    subprocess.call(('iw', 'dev', interface, 'station', 'dump'))
-
-    print('\n')
+    station_dump = iw.station_dump(interface)
+    if station_dump:
+      print(station_dump)
 
   return True
 
