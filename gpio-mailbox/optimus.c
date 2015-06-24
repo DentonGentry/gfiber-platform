@@ -51,17 +51,23 @@
 struct PinHandle_s {
   int                           fd;
   volatile unsigned char*       addr;
+  const char*                   sys_fan_dir;
+  char                          sys_temp1_path[128];
+  char                          sys_temp2_path[128];
+  char                          sys_fan_path[128];
+  char                          sys_rpm_path[128];
 };
 
 #define BIT_IS_SET(data, bit)   (((data) & (1u << (bit))) == (1u << (bit)))
 #define BIT_SET(data, bit)      ((data) | (1u << (bit)))
 #define BIT_CLR(data, bit)      ((data) & ~(1u << (bit)))
 
-#define SYS_FAN_DIR             "/sys/devices/platform/comcerto_i2c.0/i2c-0/0-004c/"
-#define SYS_TEMP1               SYS_FAN_DIR "temp1_input"
-#define SYS_TEMP2               SYS_FAN_DIR "temp2_input"
-#define SYS_FAN                 SYS_FAN_DIR "pwm1"
-#define SYS_RPM                 SYS_FAN_DIR "fan1_input"
+const char sys_fan_dir1[] =     "/sys/class/hwmon/hwmon0/";
+const char sys_fan_dir2[] =     "/sys/class/hwmon/hwmon0/device/";
+#define SYS_TEMP1               "temp1_input"
+#define SYS_TEMP2               "temp2_input"
+#define SYS_FAN                 "pwm1"
+#define SYS_RPM                 "fan1_input"
 
 /* helper methods */
 
@@ -185,7 +191,7 @@ static void setPWMValue(PinHandle handle, int gpio, int pwm, int value) {
 static int getFan(PinHandle handle) {
   static int rpm_failed = 0;
   if (!rpm_failed) {
-    int val = read_file_long(SYS_RPM);
+    int val = read_file_long(handle->sys_rpm_path);
     if (val >= 0) return (val+30)/60;   // rounded
     rpm_failed = 1;     // old bootloader doesn't enable tachometer
   }
@@ -196,20 +202,21 @@ static void setFan(PinHandle handle, int percent) {
   int val = percent * 255 / 100;
   if (val < 0) val = 0;
   if (val > 255) val = 255;
-  writeIntToFile(SYS_FAN, val);
+  writeIntToFile(handle->sys_fan_path, val);
 }
 
 static int getTemp1(PinHandle handle) {
-  return read_file_long(SYS_TEMP1);
+  return read_file_long(handle->sys_temp1_path);
 }
 
 static int getTemp2(PinHandle handle) {
-  return read_file_long(SYS_TEMP2);
+  return read_file_long(handle->sys_temp2_path);
 }
 
 /* API implementation */
 
 PinHandle PinCreate(void) {
+  char buf[128];
   PinHandle handle = (PinHandle) calloc(1, sizeof (*handle));
   if (handle == NULL) {
     perror("calloc(PinHandle)");
@@ -231,6 +238,19 @@ PinHandle PinCreate(void) {
     PinDestroy(handle);
     return NULL;
   }
+  snprintf(buf, sizeof(buf), "%s%s", sys_fan_dir1, SYS_TEMP1);
+  if (!access(buf, F_OK))
+          handle->sys_fan_dir = sys_fan_dir1;
+  else
+          handle->sys_fan_dir = sys_fan_dir2;
+  snprintf(handle->sys_temp1_path, sizeof(handle->sys_temp1_path), "%s%s",
+		  handle->sys_fan_dir, SYS_TEMP1);
+  snprintf(handle->sys_temp2_path, sizeof(handle->sys_temp2_path), "%s%s",
+		  handle->sys_fan_dir, SYS_TEMP2);
+  snprintf(handle->sys_fan_path, sizeof(handle->sys_fan_path), "%s%s",
+		  handle->sys_fan_dir, SYS_FAN);
+  snprintf(handle->sys_rpm_path, sizeof(handle->sys_rpm_path), "%s%s",
+		  handle->sys_fan_dir, SYS_RPM);
   return handle;
 }
 
