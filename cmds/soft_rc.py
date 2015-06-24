@@ -191,7 +191,7 @@ keymap = {
     "EXIT":          0x02044003,
     "INFO":          0x00044003,
     "VOL_UP":        0x00E94003,
-    "SEARCH":        0x00F74003,
+    "SEARCH":        0x02214003,
     "CH_UP":         0x009C4003,
     "VOL_DOWN":      0x00EA4003,
     "MUTE":          0x00E24003,
