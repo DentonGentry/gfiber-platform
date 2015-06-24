@@ -7,13 +7,13 @@ if [ -z "$FILE" ]; then
   exit 1
 fi
 
-printf 'START ' >$FILE
-
 # log SIGTERM and exit
 trap "printf 'TERM ' >>$FILE; exit 0" TERM
 
 # log SIGHUP but *don't* exit
 trap "printf 'HUP ' >>$FILE" HUP
+
+printf 'START ' >$FILE
 
 while sleep 0.1; do
   echo "PPID=$PPID"
