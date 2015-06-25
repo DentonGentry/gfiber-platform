@@ -66,6 +66,7 @@ localhost         Reject packets not from local IP address (for testing)
 
 opt = None
 
+
 # TODO(apenwarr): not sure what's the right multicast address to use.
 # MCAST_ADDRESS = '224.0.0.2'  # "all routers" address
 MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
@@ -81,6 +82,28 @@ def gettime():
   # local timers, which will show problems better in unit tests.  The
   # monotonic timestamp should never leak out of a given instance.
   return _gettime() + _gettime_rand
+
+
+# Do not assign consensus_key directly; call UpdateConsensus() instead.
+consensus_key = None
+consensus_start = None
+
+
+def UpdateConsensus(new_uptime_ms, new_consensus_key):
+  """Update the consensus key based on received multicast packets."""
+  global consensus_key, consensus_start
+  new_consensus_start = gettime() - new_uptime_ms/1000.0
+  if (consensus_start is None or
+      (new_consensus_start < consensus_start and
+       consensus_key != new_consensus_key)):
+    consensus_key = new_consensus_key
+    consensus_start = new_consensus_start
+
+    key_file = os.path.join(opt.status_dir, 'consensus_key')
+    helpers.WriteFileAtomic(key_file, consensus_key)
+    return True
+
+  return False
 
 
 freq_to_chan = {}     # a mapping from wifi frequencies (MHz) to channel no.
@@ -167,8 +190,6 @@ class WlanManager(object):
     self.arp_list = {}
     self.peer_list = {}
     self.starttime = gettime()
-    self.consensus_start = self.starttime
-    self.consensus_key = os.urandom(16)  # TODO(apenwarr): rotate occasionally
     self.mcast = MulticastSocket((MCAST_ADDRESS, MCAST_PORT))
     self.did_initial_scan = False
     self.next_scan_time = None
@@ -182,7 +203,7 @@ class WlanManager(object):
     return os.path.join(opt.status_dir, '%s.%s' % (self.vdevname, suffix))
 
   def AnonymizeMAC(self, mac):
-    return log.AnonymizeMAC(self.consensus_key, mac)
+    return log.AnonymizeMAC(consensus_key, mac)
 
   def _LogPrefix(self):
     return '%s(%s): ' % (self.vdevname, self.AnonymizeMAC(self.mac))
@@ -222,11 +243,7 @@ class WlanManager(object):
     # devices come and go.
     # TODO(apenwarr): make sure this doesn't accidentally undo key rotations.
     #   ...once we even do key rotations.
-    consensus_start = gettime() - p.me.uptime_ms/1000.0
-    if (consensus_start < self.consensus_start and
-        self.consensus_key != p.me.consensus_key):
-      self.consensus_key = p.me.consensus_key
-      self.consensus_start = consensus_start
+    if UpdateConsensus(p.me.uptime_ms, p.me.consensus_key):
       self.Log('new key: phy=%r vdev=%r mac=%r',
                self.phyname,
                self.vdevname,
@@ -234,7 +251,7 @@ class WlanManager(object):
     if p.me.mac == self.mac:
       self.Debug('ignoring packet from self')
       return 0
-    if p.me.consensus_key != self.consensus_key:
+    if p.me.consensus_key != consensus_key:
       self.Debug('ignoring peer due to key mismatch')
       return 0
     if p.me.mac not in self.peer_list:
@@ -247,7 +264,7 @@ class WlanManager(object):
     """Return a wgdata.State() for this object."""
     me = wgdata.Me(now=time.time(),
                    uptime_ms=(gettime() - self.starttime) * 1000,
-                   consensus_key=self.consensus_key,
+                   consensus_key=consensus_key,
                    mac=self.mac,
                    flags=self.flags)
     seen_bss_list = self.bss_list.values()
@@ -821,7 +838,7 @@ class WifiblasterController(object):
       return
 
     def Repl(match):
-      return self._managers[0].AnonymizeMAC(helpers.EncodeMAC(match.group()))
+      return log.AnonymizeMAC(consensus_key, helpers.EncodeMAC(match.group()))
 
     for line in stdout.splitlines():
       log.Log('wifiblaster: %s' %
@@ -933,6 +950,8 @@ def main():
 
   AP_LIST_FILE[0] = os.path.join(opt.status_dir, 'APs')
 
+  # Seed the consensus key with random data.
+  UpdateConsensus(0, os.urandom(16))
   managers = []
   if opt.fake:
     for k, fakemac in flags:

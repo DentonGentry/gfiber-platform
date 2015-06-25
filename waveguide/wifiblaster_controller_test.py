@@ -19,7 +19,6 @@ __author__ = 'mikemu@google.com (Mike Mu)'
 
 import mock
 import helpers
-import log
 import waveguide
 import wgdata
 from wvtest import wvtest
@@ -65,8 +64,8 @@ def LogWifiblasterResultsTest(log_mock):
   manager = mock.MagicMock()
   wc = waveguide.WifiblasterController([manager], '')
 
-  # Stub WlanManager.AnonymizeMAC to use a fake consensus key.
-  manager.AnonymizeMAC = lambda mac: log.AnonymizeMAC(16 * 'x', mac)
+  # set the consensus key to a known value
+  waveguide.consensus_key = 16 * 'x'
 
   # Result should be anonymized and not include "not connected" lines.
   stdout = ('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
