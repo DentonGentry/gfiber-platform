@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DIAGS_VERSION "1.0.1"
+#define DIAGS_VERSION "1.5"
 
 /* External Functions */
 int ioread(int argc, char **argv);
