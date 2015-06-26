@@ -254,7 +254,29 @@ _PHY_INFO = """Wiphy phy0
 
 _HOSTAPD_CONFIG = """ctrl_interface=/var/run/hostapd
 interface=wlan0
-bridge=
+
+ssid=TEST_SSID
+utf8_ssid=1
+auth_algs=1
+hw_mode=g
+channel=1
+country_code=US
+ieee80211d=1
+ieee80211h=1
+ieee80211n=1
+
+
+
+
+
+
+ht_capab=[HT20][RX-STBC1]
+
+"""
+
+_HOSTAPD_CONFIG_BRIDGE = """ctrl_interface=/var/run/hostapd
+interface=wlan0
+bridge=br0
 ssid=TEST_SSID
 utf8_ssid=1
 auth_algs=1
@@ -283,54 +305,67 @@ wpa_pairwise=CCMP
 
 class FakeOptDict(object):
   """A fake options.OptDict containing default values."""
-  band = '2.4 5'
-  channel = 'auto'
-  autotype = 'NONDFS'
-  ssid = 'TEST_SSID'
-  encryption = 'WPA2_PSK_AES'
-  force_restart = False
-  hidden_mode = False
-  enable_wmm = False
-  short_guard_interval = False
-  protocols = 'a/b/g/n/ac'
-  width = '20'
-  bridge = ''
-  extra_short_timeout_intervals = False
-  persist = False
-  interface_suffix = ''
+
+  def __init__(self):
+    self.band = '2.4 5'
+    self.channel = 'auto'
+    self.autotype = 'NONDFS'
+    self.ssid = 'TEST_SSID'
+    self.encryption = 'WPA2_PSK_AES'
+    self.force_restart = False
+    self.hidden_mode = False
+    self.enable_wmm = False
+    self.short_guard_interval = False
+    self.protocols = 'a/b/g/n/ac'
+    self.width = '20'
+    self.bridge = ''
+    self.extra_short_timeout_intervals = False
+    self.persist = False
+    self.interface_suffix = ''
 
 
 # pylint: disable=protected-access
 @wvtest.wvtest
 def generate_hostapd_config_test():
   """Tests generate_hostapd_config."""
+  opt = FakeOptDict()
+
   # Test a simple case.
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
-      'asdfqwer', FakeOptDict)
-  wvtest.WVPASSEQ('\n'.join([_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA]), config)
+      'asdfqwer', opt)
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA)), config)
 
-  # Test with no encryption.
-  default_encryption, FakeOptDict.encryption = FakeOptDict.encryption, 'NONE'
+  # Test bridge.
+  default_bridge, opt.bridge = opt.bridge, 'br0'
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
-      'asdfqwer', FakeOptDict)
+      'asdfqwer', opt)
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG_BRIDGE, _HOSTAPD_CONFIG_WPA)),
+                  config)
+  opt.bridge = default_bridge
+
+  # Test with no encryption.
+  default_encryption, opt.encryption = opt.encryption, 'NONE'
+  config = configs.generate_hostapd_config(
+      _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
+      'asdfqwer', opt)
   wvtest.WVPASSEQ(_HOSTAPD_CONFIG, config)
-  FakeOptDict.encryption = default_encryption
+  opt.encryption = default_encryption
 
   # Now enable extra short timeout intervals and the Wifi80211k experiment.
   experiment._EXPERIMENTS_TMP_DIR = '/tmp'
   experiment._EXPERIMENTS_DIR = '/tmp'
   open('/tmp/Wifi80211k.available', 'a').close()
   open('/tmp/Wifi80211k.active', 'a').close()
-  FakeOptDict.extra_short_timeout_intervals = True
+  opt.extra_short_timeout_intervals = True
   new_config = '\n'.join((
       '\n'.join([_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA]),
       configs._EXPERIMENT_80211K_TPL.format(interface='wlan0'),
       configs._EXTRA_SHORT_TIMEOUT_INTERVALS_TPL))
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
-      'asdfqwer', FakeOptDict)
+      'asdfqwer', opt)
   wvtest.WVPASSEQ(new_config, config)
 
 

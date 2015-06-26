@@ -47,7 +47,7 @@ vht_oper_centr_freq_seg0_idx={vht_base}
 
 _HOSTCONF_TPL = """ctrl_interface=/var/run/hostapd
 interface={interface}
-bridge={bridge}
+{bridge}
 ssid={ssid}
 utf8_ssid=1
 auth_algs={auth_algs}
@@ -237,6 +237,7 @@ def generate_hostapd_config(
 
   enable_wmm = 'wmm_enabled=1' if opt.enable_wmm else ''
   hidden = 'ignore_broadcast_ssid=1' if opt.hidden_mode else ''
+  bridge = 'bridge=%s' % opt.bridge if opt.bridge else ''
   hostapd_conf_parts = [_HOSTCONF_TPL.format(
       interface=interface, band=band, channel=channel, width=width,
       protocols=protocols, hostapd_band=hostapd_band,
@@ -244,8 +245,7 @@ def generate_hostapd_config(
       require_ht=require_ht, require_vht=require_vht, ht20=ht20, ht40=ht40,
       ht_rxstbc=ht_rxstbc, vht_settings=vht_settings,
       guard_interval=guard_interval, enable_wmm=enable_wmm, hidden=hidden,
-      auth_algs=auth_algs,
-      bridge=opt.bridge, ssid=utils.sanitize_ssid(opt.ssid))]
+      auth_algs=auth_algs, bridge=bridge, ssid=utils.sanitize_ssid(opt.ssid))]
 
   if opt.encryption != 'NONE':
     hostapd_conf_parts.append(_HOSTCONF_WPA_TPL.format(
