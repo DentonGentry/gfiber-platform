@@ -298,3 +298,15 @@ def create_client_interface(interface, phy, suffix):
         ('ip', 'link', 'set', interface, 'address', mac_address))
   except subprocess.CalledProcessError as e:
     utils.log('Creating client interface failed: %s', e)
+
+
+def station_dump(interface):
+  """Dumps station stats into a string.
+
+  Args:
+    interface: Which interface to output info about.
+  Returns:
+    String containing station information.
+  """
+  return utils.subprocess_output_or_none(
+      ['iw', 'dev', interface, 'station', 'dump'])
