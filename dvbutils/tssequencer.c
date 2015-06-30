@@ -98,6 +98,23 @@ static void print_stats(int* pid_table, int diff_ms, int uptime_ms) {
          bad_crc_count, bad_seq_num_count, lost_packets, uptime_ms/1000.0);
 }
 
+// Returns non-zero if data is available.
+static int wait_for_input(int fd, int timeout_ms) {
+  fd_set rfds;
+  struct timeval tv;
+  int retval;
+
+  FD_ZERO(&rfds);
+  FD_SET(fd, &rfds);
+
+  tv.tv_sec = timeout_ms / 1000;
+  tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+  retval = select(fd+1, &rfds, NULL, NULL, &tv);
+
+  return retval > 0;
+}
+
 int main(int argc, char** argv) {
   int err = 0;
   int opt;
@@ -107,7 +124,7 @@ int main(int argc, char** argv) {
   int summary = 0;
   int quiet = 0;
   int pid = 0x2000;
-  int timeout = 0;
+  int timeout_ms = 0;
   int buffer_size = 16*1024*1024;
   int fd = 0;
   int dmxfd = 0;
@@ -157,7 +174,8 @@ int main(int argc, char** argv) {
         pid = atoi(optarg);
         break;
       case 't':
-        timeout = atoi(optarg);
+        timeout_ms = atoi(optarg);
+        timeout_ms *= 1000;
         break;
       case 'c':
         use_crc = 0;
@@ -238,6 +256,15 @@ int main(int argc, char** argv) {
     int i, n;
     uint32_t seq_num;
 
+    t1 = time_ms();
+    if (timeout_ms > 0 && (t1 - start) >= timeout_ms) {
+      break;
+    }
+
+    if (!wait_for_input(fd, timeout_ms - (t1 - start))) {
+      continue;
+    }
+
     n = read(fd, buf, rbuf_size);
     if (n <= 0) {
       fprintf(stderr, "Read returned %d, stop! %s\n", n, strerror(errno));
@@ -254,8 +281,8 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to write %d bytes\n", w);
       }
 
-      if (timeout > 0) {
-        if ((time_ms() - start) >= (timeout*1000)) {
+      if (timeout_ms > 0) {
+        if ((time_ms() - start) >= timeout_ms) {
           break;
         }
       }
@@ -330,7 +357,7 @@ int main(int argc, char** argv) {
           print_stats(pid_table, diff, t1 - start);
         }
 
-        if (timeout > 0 && (t1 - start) >= (timeout*1000)) {
+        if (timeout_ms > 0 && (t1 - start) >= timeout_ms) {
           break;
         }
 
