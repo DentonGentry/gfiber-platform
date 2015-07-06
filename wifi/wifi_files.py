@@ -5,6 +5,7 @@
 
 import os
 import re
+import sys
 import time
 import iw
 import utils
@@ -58,6 +59,13 @@ def parse_interface(content_list, info_string):
 
 
 def main():
+  if not os.path.exists(filepath):
+    os.makedirs(filepath)
+  try:
+    iw.RUNNABLE_IW()
+  except OSError:
+    print 'No wifi functionality on this device'
+    sys.exit(0)
   while True:
     content_list = []
     for band in ['2.4', '5']:
