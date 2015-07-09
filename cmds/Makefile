@@ -27,6 +27,7 @@ TARGETS=\
 	dhcp-rogue \
 	dir-monitor \
 	diskbench \
+	dnsck \
 	freemegs \
 	gstatic \
 	ionice \
@@ -80,7 +81,8 @@ CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=c99 -D_GNU_SOURCE
 CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=gnu++0x -D_GNU_SOURCE
-HOST_PROTO_INCS=-I$(HOSTDIR)/usr/include
+HOST_INCS=-I$(HOSTDIR)/usr/include
+HOST_LIBS=-L$(HOSTDIR)/usr/lib -Wl,-rpath=$(HOSTDIR)/usr/lib
 INCS=-I../libstacktrace
 
 .PRECIOUS: %.o host-%.o
@@ -119,10 +121,10 @@ install-libs:
 	$(CXX) $(CXXFLAGS) -fPIC $(INCS) -o $@ -c $<
 
 host-%.o: %.c
-	$(HOST_CC) $(CFLAGS) $(INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
+	$(HOST_CC) $(CFLAGS) $(INCS) $(HOST_INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 host-%.o: %.cc
-	$(HOST_CXX) $(CXXFLAGS) $(INCS) $(HOST_PROTO_INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
+	$(HOST_CXX) $(CXXFLAGS) $(INCS) $(HOST_INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
 %: %.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) -lc
@@ -151,6 +153,7 @@ host-%.pb.cc: %.proto
 host-isoping isoping: LIBS+=$(RT) -lm
 host-isostream isostream: LIBS+=$(RT)
 host-diskbench diskbench: LIBS+=-lpthread $(RT)
+host-dnsck: LIBS+=$(HOST_LIBS) -lcares $(RT)
 dnssd_hosts: LIBS+=-lavahi-client -lavahi-common
 host-dnssd_hosts: LIBS+=-lavahi-client
 host-logos logos: LIBS+=-lrt
@@ -163,6 +166,8 @@ alivemonitor: alivemonitor.o
 isoping: isoping.o
 isostream: isostream.o
 diskbench: diskbench.o
+dnsck: LIBS+=-lcares $(RT)
+dnsck: dnsck.o
 dnssd_hosts: dnssd_hosts.o
 host-logos: host-logos.o host-utils.o
 logos: logos.o utils.o
