@@ -181,7 +181,7 @@ class Pktgen(object):
       raise
 
   @contextlib.contextmanager
-  def PacketBlast(self, client, count, duration, size):
+  def PacketBlast(self, client, size):
     """Runs a packet blast."""
     # Reset pktgen.
     self._WriteFile(self._control_file, 'reset')
@@ -191,10 +191,11 @@ class Pktgen(object):
     self._WriteFile(self._device_file, 'queue_map_min 2')
     self._WriteFile(self._device_file, 'queue_map_max 2')
 
+    # Disable packet count limit.
+    self._WriteFile(self._device_file, 'count 0')
+
     # Set parameters.
     self._WriteFile(self._device_file, 'dst_mac %s' % client)
-    self._WriteFile(self._device_file, 'count %d' % count)
-    self._WriteFile(self._device_file, 'duration %d' % (1000000 * duration))
     self._WriteFile(self._device_file, 'pkt_size %d' % size)
 
     # Start packet blast.
@@ -216,8 +217,6 @@ class Pktgen(object):
     finally:
       p.terminate()
       p.join()
-      if not re.search(r'Result: OK', self._ReadFile(self._device_file)):
-        raise PktgenError
 
 
 def _PacketBlast(iw, mac80211stats, pktgen, client, duration, fraction, size):
@@ -227,12 +226,27 @@ def _PacketBlast(iw, mac80211stats, pktgen, client, duration, fraction, size):
     if client not in iw.GetClients():
       raise NotAssociatedError
 
-    # Attempt to start an aggregation session.
-    with pktgen.PacketBlast(client, 1, 0, size):
-      pass
+    with pktgen.PacketBlast(client, size):
+      # Before measuring throughput, ensure that:
+      #
+      # 1. Block ack session has started.
+      # 2. Maximum PHY rate has been negotiated.
+      # 3. Client has woken up from power save.
+      # 4. Packets have actually begun transmitting on the air.
+      start = _gettime()
+      while True:
+        # Allow at least .1s for (1) and (2).
+        if _gettime() < start + .1:
+          continue
+        # Detect (3) and (4) by checking the client's inactive time, which is
+        # reset to zero when an ack is received from the client.
+        if iw.GetInactiveTime(client) == 0:
+          break
+        # Assume the client has disassociated after 2s of no activity.
+        if _gettime() >= start + 2:
+          raise NotActiveError
 
-    # Start packet blast and sample transmitted frame count.
-    with pktgen.PacketBlast(client, 0, duration, size):
+      # Sample transmitted frame count.
       samples = [mac80211stats.GetTransmittedFrameCount()]
       start = _gettime()
       dt = duration / fraction
