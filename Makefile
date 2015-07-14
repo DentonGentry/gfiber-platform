@@ -30,7 +30,6 @@ endif
 
 ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfibersc)
 DIRS+=diags
-DIRS+=monlog
 endif
 
 ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberwc)
