@@ -115,11 +115,11 @@ def DecodeMAC(macbin):
 
 
 def EncodeIP(ip):
-  return socket.inet_aton(ip)
+  return socket.inet_pton(socket.AF_INET, ip)
 
 
 def DecodeIP(ipbin):
-  return socket.inet_ntoa(ipbin)
+  return socket.inet_ntop(socket.AF_INET, ipbin)
 
 
 _experiment_warned = set()
