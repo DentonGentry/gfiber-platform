@@ -136,7 +136,8 @@ class MulticastSocket(object):
         else:
           raise
     self.rsock.bind(('', self.port))
-    mreq = struct.pack('4sl', socket.inet_aton(self.host), socket.INADDR_ANY)
+    mreq = struct.pack('4sl', socket.inet_pton(socket.AF_INET, self.host),
+                       socket.INADDR_ANY)
     self.rsock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
     # A multicast transmitter has an arbitrary local address but the remote
