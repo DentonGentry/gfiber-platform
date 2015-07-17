@@ -227,24 +227,18 @@ def _PacketBlast(iw, mac80211stats, pktgen, client, duration, fraction, size):
       raise NotAssociatedError
 
     with pktgen.PacketBlast(client, size):
-      # Before measuring throughput, ensure that:
-      #
-      # 1. Block ack session has started.
-      # 2. Maximum PHY rate has been negotiated.
-      # 3. Client has woken up from power save.
-      # 4. Packets have actually begun transmitting on the air.
+      # Wait for the client's inactive time to become zero, which happens when
+      # an ack is received from the client. Assume the client has disassociated
+      # after 2s.
       start = _gettime()
-      while True:
-        # Allow at least .1s for (1) and (2).
-        if _gettime() < start + .1:
-          continue
-        # Detect (3) and (4) by checking the client's inactive time, which is
-        # reset to zero when an ack is received from the client.
+      while _gettime() < start + 2:
         if iw.GetInactiveTime(client) == 0:
           break
-        # Assume the client has disassociated after 2s of no activity.
-        if _gettime() >= start + 2:
-          raise NotActiveError
+      else:
+        raise NotActiveError
+
+      # Wait for block ack session and max PHY rate negotiation.
+      time.sleep(.1)
 
       # Sample transmitted frame count.
       samples = [mac80211stats.GetTransmittedFrameCount()]
