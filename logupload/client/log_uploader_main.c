@@ -99,6 +99,7 @@ static int parse_args(struct upload_config* config, int argc,
     { "all", no_argument, 0, 'a' },
     { "stdout", no_argument, 0, 'd' },
     { "stdin", required_argument, 0, 'i' },
+    { "logtype", required_argument, 0 , 'l' },
     { 0, 0, 0, 0}
   };
 
@@ -121,6 +122,9 @@ static int parse_args(struct upload_config* config, int argc,
         config->use_stdin = 1;
         snprintf(config->upload_target, sizeof(config->upload_target), "%s",
             optarg);
+        break;
+      case 'l':
+        snprintf(config->logtype, sizeof(config->logtype), "%s", optarg);
         break;
      default:
        return -1;
@@ -253,6 +257,7 @@ int main(int argc, char* const argv[]) {
       kvparams.serial_path = SERIAL_PATH;
       kvparams.name_info_resolver = getnameinfo_resolver;
       kvparams.interface_to_mac = iface_to_mac;
+      kvparams.logtype = config.logtype;
       struct kvpair* kvpairs = extract_kv_pairs(&kvparams);
       freeifaddrs(ifaddr);
       if (!kvpairs) {

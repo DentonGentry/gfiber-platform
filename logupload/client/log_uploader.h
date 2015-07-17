@@ -1,6 +1,8 @@
 #ifndef _H_LOGUPLOAD_CLIENT_LOG_UPLOADER_H_
 #define _H_LOGUPLOAD_CLIENT_LOG_UPLOADER_H_
 
+#include "kvextract.h"
+
 #define LOG_MARKER_START "*LOG_UPLOAD_START*"
 #define LOG_MARKER_END "*LOG_UPLOAD_END*"
 #define LOG_MARKER_START_LINE "<7>*LOG_UPLOAD_START*\n"
@@ -8,6 +10,7 @@
 
 struct upload_config {
   char server[1024];
+  char logtype[MAX_KV_LENGTH];
   int upload_all;
   int use_stdout;
   int use_stdin;

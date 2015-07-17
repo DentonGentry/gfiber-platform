@@ -118,5 +118,19 @@ struct kvpair* extract_kv_pairs(struct kvextractparams* params) {
     }
   }
 
+  // Now add the logtype
+  if (params->logtype && strlen(params->logtype) > 0) {
+    pair_tail->next_pair = (struct kvpair*) malloc(sizeof(struct kvpair));
+    if (!pair_tail->next_pair) {
+      fprintf(stderr, "failed allocating memory for kvpair\n");
+      free_kv_pairs(pair_head);
+      return NULL;
+    }
+    pair_tail = pair_tail->next_pair;
+    memset(pair_tail, 0, sizeof(struct kvpair));
+    strcpy(pair_tail->key, "logtype");
+    strcpy(pair_tail->value, params->logtype);
+  }
+
   return pair_head;
 }

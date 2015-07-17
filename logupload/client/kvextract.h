@@ -22,6 +22,7 @@ struct kvextractparams {
   struct ifaddrs* ifaddr;
   const char* platform_path;
   const char* serial_path;
+  const char* logtype;
   int (*name_info_resolver)(const struct sockaddr* sa, socklen_t salen,
       char* host, size_t hostlen, char* serv, size_t servlen, int flags);
   int (*interface_to_mac)(const char* iface, char* buf, int len);
