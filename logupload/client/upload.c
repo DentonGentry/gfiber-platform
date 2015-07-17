@@ -196,6 +196,7 @@ int upload_file(const char *server_url, const char* target_name, char* data,
   int resolvers[2] = { CURL_IPRESOLVE_V6, CURL_IPRESOLVE_V4 };
   const char *resolvers_str[2] = { "IPv6", "IPv4" };
 
+  memset(url, 0, sizeof(url));
   memset(&getdata, 0, sizeof(getdata));
   struct postdatamem postdata;
   memset(&postdata, 0, sizeof(postdata));
@@ -243,13 +244,12 @@ int upload_file(const char *server_url, const char* target_name, char* data,
 
       url_end = url + strlen(url);
       lim = sizeof(url) - strlen(url);
-      snprintf(url_end, lim, "%s=%s", encoded_key, encoded_value);
+      snprintf(url_end, lim, "%s=%s%s", encoded_key, encoded_value,
+               (kvpairs->next_pair != NULL) ? "&" : "");
 
       curl_free(encoded_key);
       curl_free(encoded_value);
       kvpairs = kvpairs->next_pair;
-      if (kvpairs)
-        strncat(url, "&", sizeof(url));
     }
 
     http_code = 0;
