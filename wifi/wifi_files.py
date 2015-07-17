@@ -3,6 +3,8 @@
 """Script that produces a file in /tmp/stations for each connected wifi client.
 """
 
+import copy
+import json
 import os
 import re
 import sys
@@ -11,28 +13,59 @@ import iw
 import utils
 
 filepath = '/tmp/stations'
+prev_content = {}
 
 
-def create_files_from_wifi_info(content_list):
-  """Parses iw info and creates files organized by station name/MAC address.
+def create_content_dict(content_list):
+  """Parses iw info and creates dictionary of content with MAC address as a key.
 
   Args:
-    content_list: The list of content from which to create files.
+    content_list: The list of content from which to create the dictionary.
+
+  Returns:
+    content_dict: The content dictionary of parsed information from content_list
   """
-  contents_dict = dict()
-  for entry in content_list:
+  content_dict = {}
+  for content in content_list:
+    entry_dict = {}
+    for line in content.splitlines()[1:]:
+      line = line.strip()
+      key, value = line.split(':', 1)
+      value = value.strip()
+      if key in ['rx bytes', 'rx packets', 'tx bytes', 'tx packets',
+                 'tx retries', 'tx failed', 'signal', 'signal avg',
+                 'tx bitrate', 'rx bitrate']:
+        try:
+          num_value = float(value.split()[0])
+          entry_dict[key] = num_value
+        except ValueError:
+          entry_dict[key] = value
+      else:
+        entry_dict[key] = value
+    entry_dict.pop('inactive time', None)
     station_mac = re.search(r'([0-9A-F]{2}[:-]){5}([0-9A-F]{2})',
-                            entry, re.IGNORECASE)
+                            content, re.IGNORECASE)
     if station_mac:
-      contents_dict[station_mac.group().lower()] = entry
+      content_dict[station_mac.group().lower()] = entry_dict
+  return content_dict
+
+
+def create_files_from_content_dict(content_dict):
+  """Parses dictionary of iw info and creates files organized by MAC address.
+
+  Args:
+    content_dict: The dict of content from which to create files.
+  """
+  global prev_content
   if not os.path.exists(filepath):
     os.makedirs(filepath)
-  for mac_addr in contents_dict:
-    utils.atomic_write(os.path.join(filepath, mac_addr),
-                       contents_dict.get(mac_addr))
+  for mac_addr, content in content_dict.items():
+    if content != prev_content.get(mac_addr):
+      utils.atomic_write(os.path.join(filepath, mac_addr), json.dumps(content))
   for dirfile in os.listdir(filepath):
-    if dirfile not in contents_dict:
+    if dirfile not in content_dict:
       os.remove(os.path.join(filepath, dirfile))
+  prev_content = copy.deepcopy(content_dict)
 
 
 def parse_interface(content_list, info_string):
@@ -77,7 +110,8 @@ def main():
           if info_string is None:
             info_string = ''
           parse_interface(content_list, info_string)
-    create_files_from_wifi_info(content_list)
+    content_dict = create_content_dict(content_list)
+    create_files_from_content_dict(content_dict)
     time.sleep(1)
 
 if __name__ == '__main__':
