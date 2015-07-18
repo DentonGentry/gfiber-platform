@@ -53,7 +53,7 @@ ARCH_TARGETS += dnssd_hosts
 endif
 
 ifeq ($(BUILD_IBEACON),y)
-ARCH_TARGETS += ibeacon
+ARCH_TARGETS += ibeacon eddystone
 endif
 
 ifeq ($(BUILD_STATUTILS),y)
@@ -168,6 +168,9 @@ host-statcatcher: host-device_stats.pb.o host-statcatcher.o
 ibeacon: LIBS += -lbluetooth -luuid
 ibeacon: CFLAGS += -std=gnu99
 ibeacon: ibeacon.o
+eddystone: LIBS += -lbluetooth
+eddystone: CFLAGS += -std=gnu99
+eddystone: eddystone.o
 host-dir-monitor dir-monitor: LIBS+=-lstdc++
 
 TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
