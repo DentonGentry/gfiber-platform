@@ -34,7 +34,7 @@ def create_content_dict(content_list):
       value = value.strip()
       if key in ['rx bytes', 'rx packets', 'tx bytes', 'tx packets',
                  'tx retries', 'tx failed', 'signal', 'signal avg',
-                 'tx bitrate', 'rx bitrate']:
+                 'tx bitrate', 'rx bitrate', 'inactive time']:
         try:
           num_value = float(value.split()[0])
           entry_dict[key] = num_value
@@ -42,7 +42,6 @@ def create_content_dict(content_list):
           entry_dict[key] = value
       else:
         entry_dict[key] = value
-    entry_dict.pop('inactive time', None)
     station_mac = re.search(r'([0-9A-F]{2}[:-]){5}([0-9A-F]{2})',
                             content, re.IGNORECASE)
     if station_mac:
@@ -60,6 +59,16 @@ def create_files_from_content_dict(content_dict):
   if not os.path.exists(filepath):
     os.makedirs(filepath)
   for mac_addr, content in content_dict.items():
+    inactive_time = content.pop('inactive time', 0)
+    inactive_since = time.time() - inactive_time / 1000
+    if mac_addr in prev_content:
+      prev_inactive_since = prev_content[mac_addr].get('inactive since', 0)
+    else:
+      prev_inactive_since = 0
+    if abs(inactive_since - prev_inactive_since) > 2:  # over 2 second jitter
+      content['inactive since'] = inactive_since
+    else:  # if 2 seconds haven't passed, use the old value
+      content['inactive since'] = prev_inactive_since
     if content != prev_content.get(mac_addr):
       utils.atomic_write(os.path.join(filepath, mac_addr), json.dumps(content))
   for dirfile in os.listdir(filepath):
