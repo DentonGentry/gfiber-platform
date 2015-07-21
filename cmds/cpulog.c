@@ -15,6 +15,7 @@
  */
 
 #include <fcntl.h>
+#include <getopt.h>
 #include <glob.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -166,12 +167,13 @@ void usage_and_die(const char *argv0)
 {
   fprintf(stderr, "Usage: %s [options]\n"
       "\n"
-      "      -i <interval>  sampling interval in seconds (" XSTR(DEFAULT_READ_INTERVAL) ")\n"
-      "      -n <num>       number of processes to sample (" XSTR(DEFAULT_PROCS_TO_SAMPLE) ")\n"
-      "      -o             one-shot mode, do not loop\n"
-      "      -p <path>      path for process stat files (" DEFAULT_PROC_GLOB_PATH ")\n"
-      "      -w <warmup>    seconds to wait before sampling begins (" XSTR(DEFAULT_WARMUP_SECONDS) ")\n",
-      argv0);
+      "      -i, --interval=<interval>  sampling interval in seconds (%d)\n"
+      "      -n, --num=<num>            number of processes to sample (%d)\n"
+      "      -o, --oneshot              one-shot mode, do not loop\n"
+      "      -p, --path=<path>          path for process stat files (%s)\n"
+      "      -w, --warmup=<warmup>      seconds to wait before sampling begins (%d)\n",
+      argv0, DEFAULT_READ_INTERVAL, DEFAULT_PROCS_TO_SAMPLE,
+      DEFAULT_PROC_GLOB_PATH, DEFAULT_WARMUP_SECONDS);
   exit(1);
 }
 
@@ -186,8 +188,17 @@ int main(int argc, char **argv)
   int one_shot_mode = false;
   const char *proc_glob_path = DEFAULT_PROC_GLOB_PATH;
 
+  struct option long_options[] = {
+    {"interval", required_argument, 0, 'i'},
+    {"num",      required_argument, 0, 'n'},
+    {"oneshot",  no_argument,       0, 'o'},
+    {"path",     required_argument, 0, 'p'},
+    {"warmup",   required_argument, 0, 'w'},
+    {0,          0,                 0, 0},
+  };
+
   int c;
-  while ((c = getopt(argc, argv, "i:n:w:p:o")) != -1) {
+  while ((c = getopt_long(argc, argv, "i:n:w:p:o", long_options, NULL)) != -1) {
     switch (c) {
     case 'i':
       read_interval = atoi(optarg);
@@ -214,6 +225,9 @@ int main(int argc, char **argv)
       usage_and_die(argv[0]);
     }
   }
+
+  if (optind < argc)
+    usage_and_die(argv[0]);
 
   ticks_per_sec = sysconf(_SC_CLK_TCK);
 
