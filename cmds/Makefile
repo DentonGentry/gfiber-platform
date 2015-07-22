@@ -26,7 +26,6 @@ TARGETS=\
 	cpulog \
 	dir-monitor \
 	diskbench \
-	dnsck \
 	freemegs \
 	ionice \
 	memwatcher \
@@ -170,8 +169,6 @@ rtwatcher: rtwatcher.o
 buttonmon: buttonmon.o
 host-utils_test: host-utils_test.o host-utils.o
 ssdp_poll: ssdp_poll.o
-dnsck: LIBS+=-lcares $(RT)
-host-dnsck: LIBS+=-lcares $(RT)
 statpitcher.o: device_stats.pb.o
 statpitcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread -lstdc++
 statpitcher: device_stats.pb.o statpitcher.o
