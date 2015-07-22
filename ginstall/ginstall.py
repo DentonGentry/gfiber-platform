@@ -869,7 +869,7 @@ def InstallImage(f, partition, skiploader=False, skiploadersig=False):
 def OpenPathOrUrl(path):
   """Try to open path as a URL and as a local file."""
   try:
-    return urllib2.urlopen(path)
+    return urllib2.urlopen(path, timeout=1800)
   except ValueError:
     pass
 
