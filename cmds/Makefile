@@ -27,6 +27,7 @@ TARGETS=\
 	dir-monitor \
 	diskbench \
 	freemegs \
+	gstatic \
 	ionice \
 	memwatcher \
 	netusage \
