@@ -18,12 +18,14 @@
 """Wifi channel selection and roaming daemon."""
 
 import errno
+import json
 import os
 import os.path
 import random
 import re
 import select
 import socket
+import string
 import struct
 import subprocess
 import sys
@@ -32,8 +34,8 @@ import autochannel
 import clientinfo
 import helpers
 import log
-import options
 import wgdata
+import options
 
 
 try:
@@ -72,6 +74,7 @@ opt = None
 MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
 MCAST_PORT = 4442
 AP_LIST_FILE = ['']
+PEER_AP_LIST_FILE = ['']
 
 
 _gettime_rand = random.randint(0, 1000000)
@@ -196,6 +199,7 @@ class WlanManager(object):
     self.next_scan_time = None
     self.scan_idx = -1
     self.last_survey = {}
+    self.self_signals = {}
     self.auto_disabled = None
     self.autochan_2g = self.autochan_5g = self.autochan_free = 0
     helpers.Unlink(self.Filename('disabled'))
@@ -344,13 +348,39 @@ class WlanManager(object):
         continue
       bssid = helpers.DecodeMAC(peer.me.mac)
       b = self.bss_list[peer.me.mac]
-      txt = 'bssid:%s|freq:%d|cap:0x%x|phy:%d|reg:%s'
-      s = txt % (bssid, b.freq, b.cap, b.phy, b.reg)
+      txt = 'bssid:%s|freq:%d|cap:0x%x|phy:%d|reg:%s|rssi:%s|last_seen:%d'
+      s = txt % (bssid, b.freq, b.cap, b.phy, b.reg, b.rssi, b.last_seen)
       ap_list.append(s)
     content = '\n'.join(ap_list)
     if AP_LIST_FILE[0]:
       filename = AP_LIST_FILE[0] + '.' + self.vdevname
       helpers.WriteFileAtomic(filename, content)
+
+  def WritePeerApInfoFile(self, peer_data):
+    """Write out a file with what other APs see about their peers.
+
+    Writes a file with signal strengths of the current device from other APs.
+    """
+    peer_ap_list = []
+    for peer_mac_addr in peer_data:
+      for b in peer_data[peer_mac_addr]:
+        peer_ap = helpers.DecodeMAC(b.mac)
+        txt = ('peer:%s|bssid:%s|freq:%d|cap:0x%x|phy:%d|reg:%s|rssi:%s'
+               '|last_seen:%d')
+        if all(c in string.printable for c in b.reg):
+          reg = b.reg
+        else:
+          reg = ''
+        s = txt % (peer_mac_addr, peer_ap, b.freq, b.cap, b.phy, reg, b.rssi,
+                   b.last_seen)
+        peer_ap_list.append(s)
+    content = '\n'.join(peer_ap_list)
+    if PEER_AP_LIST_FILE[0]:
+      filename = PEER_AP_LIST_FILE[0] + '.' + self.vdevname
+      helpers.WriteFileAtomic(filename, content)
+    signal_file = os.path.join(opt.status_dir, 'self_signals')
+    if self.self_signals:
+      helpers.WriteFileAtomic(signal_file, json.dumps(self.self_signals))
 
   def ShouldAutoDisable(self):
     """Returns MAC address of high-powered peer if we should auto disable."""
@@ -950,6 +980,7 @@ def main():
       raise
 
   AP_LIST_FILE[0] = os.path.join(opt.status_dir, 'APs')
+  PEER_AP_LIST_FILE[0] = os.path.join(opt.status_dir, 'PeerAPs')
 
   # Seed the consensus key with random data.
   UpdateConsensus(0, os.urandom(16))
@@ -1043,6 +1074,10 @@ def main():
       last_print = now
       selfmacs = set()
       peers = {}
+      peer_data = {}
+      seen_peers = {}
+      self_signals = {}
+      bss_signal = {}
       # Get all peers from all interfaces; remove duplicates.
       for m in managers:
         selfmacs.add(m.mac)
@@ -1052,6 +1087,12 @@ def main():
         seen_bss_peers = [bss for bss in p.seen_bss
                           if bss.mac in peers]
         if p.me.mac in selfmacs: continue
+        seen_peers[helpers.DecodeMAC(p.me.mac)] = seen_bss_peers
+        for b in seen_bss_peers:
+          if b.mac in selfmacs:
+            bss_signal[helpers.DecodeMAC(p.me.mac)] = b.rssi
+        self_signals[m.mac] = bss_signal
+        peer_data[m.mac] = seen_peers
         log.Log('%s: APs=%-4d peer-APs=%s stations=%s',
                 m.AnonymizeMAC(p.me.mac),
                 len(p.seen_bss),
@@ -1061,6 +1102,10 @@ def main():
                 ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
                          for i in sorted(p.assoc,
                                          key=lambda i: -i.rssi)))
+      for m in managers:
+        if m.mac in self_signals:
+          m.self_signals = self_signals[m.mac]
+          m.WritePeerApInfoFile(peer_data[m.mac])
       # Log STA information. Only log station band capabilities if there we can
       # determine it, i.e. if there are APs on both bands with the same SSID.
       log_sta_band_capabilities = do_ssids_match(managers)
