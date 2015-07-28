@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 # pylint:disable=invalid-name
-
 """Wifi channel selection and roaming daemon."""
 
 import errno
@@ -34,9 +33,8 @@ import autochannel
 import clientinfo
 import helpers
 import log
-import wgdata
 import options
-
+import wgdata
 
 try:
   import monotime  # pylint: disable=unused-import,g-import-not-at-top
@@ -46,7 +44,6 @@ try:
   _gettime = time.monotonic
 except AttributeError:
   _gettime = time.time
-
 
 optspec = """
 waveguide [options...]
@@ -68,14 +65,12 @@ localhost         Reject packets not from local IP address (for testing)
 
 opt = None
 
-
 # TODO(apenwarr): not sure what's the right multicast address to use.
 # MCAST_ADDRESS = '224.0.0.2'  # "all routers" address
 MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
 MCAST_PORT = 4442
 AP_LIST_FILE = ['']
 PEER_AP_LIST_FILE = ['']
-
 
 _gettime_rand = random.randint(0, 1000000)
 
@@ -86,7 +81,6 @@ def gettime():
   # monotonic timestamp should never leak out of a given instance.
   return _gettime() + _gettime_rand
 
-
 # Do not assign consensus_key directly; call UpdateConsensus() instead.
 consensus_key = None
 consensus_start = None
@@ -95,10 +89,9 @@ consensus_start = None
 def UpdateConsensus(new_uptime_ms, new_consensus_key):
   """Update the consensus key based on received multicast packets."""
   global consensus_key, consensus_start
-  new_consensus_start = gettime() - new_uptime_ms/1000.0
-  if (consensus_start is None or
-      (new_consensus_start < consensus_start and
-       consensus_key != new_consensus_key)):
+  new_consensus_start = gettime() - new_uptime_ms / 1000.0
+  if (consensus_start is None or (new_consensus_start < consensus_start and
+                                  consensus_key != new_consensus_key)):
     consensus_key = new_consensus_key
     consensus_start = new_consensus_start
 
@@ -109,8 +102,8 @@ def UpdateConsensus(new_uptime_ms, new_consensus_key):
   return False
 
 
-freq_to_chan = {}     # a mapping from wifi frequencies (MHz) to channel no.
-chan_to_freq = {}     # a mapping from channel no. to wifi frequency (MHz)
+freq_to_chan = {}  # a mapping from wifi frequencies (MHz) to channel no.
+chan_to_freq = {}  # a mapping from channel no. to wifi frequency (MHz)
 
 
 def TouchAliveFile():
@@ -164,8 +157,7 @@ class MulticastSocket(object):
 def RunProc(callback, args, *xargs, **kwargs):
   p = subprocess.Popen(args, *xargs,
                        stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE,
-                       **kwargs)
+                       stderr=subprocess.PIPE, **kwargs)
   stdout, stderr = p.communicate()
   errcode = p.wait()
   callback(errcode, stdout, stderr)
@@ -241,17 +233,15 @@ class WlanManager(object):
       self.Debug('recv: from %r: %s', hostport, e)
       return 0
     else:
-      self.Debug('recv: from %r uptime=%d key=%r',
-                 hostport, p.me.uptime_ms, p.me.consensus_key[:4])
+      self.Debug('recv: from %r uptime=%d key=%r', hostport, p.me.uptime_ms,
+                 p.me.consensus_key[:4])
     # the waveguide that has been running the longest gets to win the contest
     # for what anonymization key to use.  This prevents disruption in case
     # devices come and go.
     # TODO(apenwarr): make sure this doesn't accidentally undo key rotations.
     #   ...once we even do key rotations.
     if UpdateConsensus(p.me.uptime_ms, p.me.consensus_key):
-      self.Log('new key: phy=%r vdev=%r mac=%r',
-               self.phyname,
-               self.vdevname,
+      self.Log('new key: phy=%r vdev=%r mac=%r', self.phyname, self.vdevname,
                helpers.DecodeMAC(self.mac))
     if p.me.mac == self.mac:
       self.Debug('ignoring packet from self')
@@ -293,8 +283,8 @@ class WlanManager(object):
     """Calls programs and reads files to obtain the current wifi status."""
     now = gettime()
     if not self.did_initial_scan:
-      log.Log('startup on %s (initial_scans=%d).',
-              self.vdevname, opt.initial_scans)
+      log.Log('startup on %s (initial_scans=%d).', self.vdevname,
+              opt.initial_scans)
       self._ReadArpTable()
       RunProc(callback=self._PhyResults,
               args=['iw', 'phy', self.phyname, 'info'])
@@ -302,10 +292,9 @@ class WlanManager(object):
               args=['iw', 'dev', self.vdevname, 'info'])
       # channel scan more than once in case we miss hearing a beacon
       for _ in range(opt.initial_scans):
-        RunProc(callback=self._ScanResults,
-                args=['iw', 'dev', self.vdevname, 'scan',
-                      'ap-force',
-                      'passive'])
+        RunProc(
+            callback=self._ScanResults,
+            args=['iw', 'dev', self.vdevname, 'scan', 'ap-force', 'passive'])
         self.UpdateStationInfo()
       self.next_scan_time = now
       self.did_initial_scan = True
@@ -314,19 +303,16 @@ class WlanManager(object):
     elif self.next_scan_time and now > self.next_scan_time:
       self.scan_idx = (self.scan_idx + 1) % len(self.allowed_freqs)
       scan_freq = list(sorted(self.allowed_freqs))[self.scan_idx]
-      self.Log('scanning %d MHz (%d/%d)',
-               scan_freq, self.scan_idx + 1, len(self.allowed_freqs))
+      self.Log('scanning %d MHz (%d/%d)', scan_freq, self.scan_idx + 1,
+               len(self.allowed_freqs))
       RunProc(callback=self._ScanResults,
-              args=['iw', 'dev', self.vdevname, 'scan',
-                    'freq', str(scan_freq),
-                    'ap-force',
-                    'passive'])
+              args=['iw', 'dev', self.vdevname, 'scan', 'freq', str(scan_freq),
+                    'ap-force', 'passive'])
       chan_interval = opt.scan_interval / len(self.allowed_freqs)
       # Randomly fiddle with the timing to avoid permanent alignment with
       # other nodes also doing scans.  If we're perfectly aligned with
       # another node, they might never see us in their periodic scan.
-      chan_interval = random.uniform(chan_interval * 0.5,
-                                     chan_interval * 1.5)
+      chan_interval = random.uniform(chan_interval * 0.5, chan_interval * 1.5)
       self.next_scan_time += chan_interval
       if not self.scan_idx:
         log.WriteEventFile('%s.scanned' % self.vdevname)
@@ -360,6 +346,9 @@ class WlanManager(object):
     """Write out a file with what other APs see about their peers.
 
     Writes a file with signal strengths of the current device from other APs.
+
+    Args:
+      peer_data: address about each MAC.
     """
     peer_ap_list = []
     for peer_mac_addr in peer_data:
@@ -387,8 +376,7 @@ class WlanManager(object):
     if self.flags & wgdata.ApFlags.HighPower:
       self.Debug('high-powered AP: never auto-disable')
       return None
-    for peer in sorted(self.peer_list.values(),
-                       key=lambda p: p.me.mac):
+    for peer in sorted(self.peer_list.values(), key=lambda p: p.me.mac):
       self.Debug('considering auto disable: peer=%s',
                  self.AnonymizeMAC(peer.me.mac))
       if peer.me.mac not in self.bss_list:
@@ -403,17 +391,16 @@ class WlanManager(object):
         #  are on all bands simultaneously anyway.
         overlap = self.flags & peer.me.flags & wgdata.ApFlags.Can_Mask
         self.Debug('--> peer matches! p_age=%.3f s_age=%.3f power=0x%x '
-                   'band_overlap=0x%02x',
-                   peer_age_secs, scan_age_secs, peer_power, overlap)
+                   'band_overlap=0x%02x', peer_age_secs, scan_age_secs,
+                   peer_power, overlap)
         if bss.rssi <= opt.auto_disable_threshold:
           self.Debug('--> peer is far away, keep going.')
         elif not peer_power:
           self.Debug('--> peer is not high-power, keep going.')
         elif not overlap:
           self.Debug('--> peer does not overlap our band, keep going.')
-        elif (peer_age_secs > opt.tx_interval * 4
-              or (opt.scan_interval and
-                  scan_age_secs > opt.scan_interval * 4)):
+        elif (peer_age_secs > opt.tx_interval * 4 or
+              (opt.scan_interval and scan_age_secs > opt.scan_interval * 4)):
           self.Debug('--> peer is too old, keep going.')
         else:
           self.Debug('--> peer overwhelms us, shut down.')
@@ -462,8 +449,9 @@ class WlanManager(object):
       if cs:
         frac = cs.busy_ms * 100 / (cs.observed_ms + 1)
         busy += '%s%d ' % (
-            ('*' if cs.observed_ms < autochannel.AIRTIME_THRESHOLD_MS else ''),
-            frac)
+            ('*'
+             if cs.observed_ms < autochannel.AIRTIME_THRESHOLD_MS else ''), frac
+        )
       else:
         busy += '*0 '
     self.Log('Busy%%: %s', busy)
@@ -510,24 +498,23 @@ class WlanManager(object):
                        str(self.autochan_free))
     helpers.WriteFileAtomic(self.Filename('autochan_free'),
                             str(self.autochan_free))
-    self.Log('Recommended freqs: %d %d -> %d',
-             self.autochan_2g, self.autochan_5g, self.autochan_free)
+    self.Log('Recommended freqs: %d %d -> %d', self.autochan_2g,
+             self.autochan_5g, self.autochan_free)
     log.WriteEventFile('autochan_done')
 
   def _ReadArpTable(self):
     """Reads the kernel's ARP entries."""
     now = time.time()
     try:
-      f = open('/proc/net/arp', 'r', 64*1024)
+      f = open('/proc/net/arp', 'r', 64 * 1024)
     except IOError, e:
       self.Log('arp table missing: %s', e)
       return
-    data = f.read(64*1024)
+    data = f.read(64 * 1024)
     lines = data.split('\n')[1:]  # skip header line
     for line in lines:
       g = re.match(r'(\d+\.\d+\.\d+\.\d+)\s+.*\s+'
-                   r'(([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})',
-                   line)
+                   r'(([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
       if g:
         ip = helpers.EncodeIP(g.group(1))
         mac = helpers.EncodeMAC(g.group(2))
@@ -536,8 +523,8 @@ class WlanManager(object):
 
   def _PhyResults(self, errcode, stdout, stderr):
     """Callback for 'iw phy xxx info' results."""
-    self.Debug('phy %r err:%r stdout:%r stderr:%r',
-               self.phyname, errcode, stdout[:70], stderr)
+    self.Debug('phy %r err:%r stdout:%r stderr:%r', self.phyname, errcode,
+               stdout[:70], stderr)
     if errcode: return
     for line in stdout.split('\n'):
       line = line.strip()
@@ -578,15 +565,23 @@ class WlanManager(object):
     mac = freq = rssi = last_seen = None
     reg = ''
     flags = cap = phy = 0
+
     def AddEntry():
       if mac:
         is_ours = False  # TODO(apenwarr): calc from received waveguide packets
-        bss = wgdata.BSS(is_ours=is_ours, freq=freq, mac=mac,
-                         rssi=rssi, flags=flags, last_seen=last_seen,
-                         cap=cap, phy=phy, reg=reg)
+        bss = wgdata.BSS(is_ours=is_ours,
+                         freq=freq,
+                         mac=mac,
+                         rssi=rssi,
+                         flags=flags,
+                         last_seen=last_seen,
+                         cap=cap,
+                         phy=phy,
+                         reg=reg)
         if mac not in self.bss_list:
           self.Debug('Added: %r', bss)
         self.bss_list[mac] = bss
+
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'BSS (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
@@ -604,7 +599,7 @@ class WlanManager(object):
         rssi = float(g.group(1))
       g = re.match(r'last seen: (\d+) ms ago', line)
       if g:
-        last_seen = now - float(g.group(1))/1000
+        last_seen = now - float(g.group(1)) / 1000
       g = re.match(r'capability: .* \((\S+)\)', line)
       if g:
         cap = int(g.group(1), 0)
@@ -623,11 +618,12 @@ class WlanManager(object):
 
   def _SurveyResults(self, errcode, stdout, stderr):
     """Callback for 'iw survey dump' results."""
-    self.Debug('survey err:%r stdout:%r stderr:%r',
-               errcode, stdout[:70], stderr)
+    self.Debug('survey err:%r stdout:%r stderr:%r', errcode, stdout[:70],
+               stderr)
     if errcode: return
     freq = None
     noise = active_ms = busy_ms = rx_ms = tx_ms = 0
+
     def AddEntry():
       if freq:
         # TODO(apenwarr): ath9k: rx_ms includes all airtime, not just ours.
@@ -675,6 +671,7 @@ class WlanManager(object):
           #   time period.  On the other hand, if the device reboots, maybe
           #   the environment will be different when it comes back.
           self.last_survey[freq] = current
+
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'Survey data from', line)
@@ -704,8 +701,7 @@ class WlanManager(object):
 
   def _AssocResults(self, errcode, stdout, stderr):
     """Callback for 'iw station dump' results."""
-    self.Debug('assoc err:%r stdout:%r stderr:%r',
-               errcode, stdout[:70], stderr)
+    self.Debug('assoc err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
     if errcode: return
     now = time.time()
     self.assoc_list = {}
@@ -713,12 +709,14 @@ class WlanManager(object):
     rssi = 0
     last_seen = now
     can5G = None
+
     def AddEntry():
       if mac:
         a = wgdata.Assoc(mac=mac, rssi=rssi, last_seen=last_seen, can5G=can5G)
         if mac not in self.assoc_list:
           self.Debug('Added: %r', a)
         self.assoc_list[mac] = a
+
     for line in stdout.split('\n'):
       line = line.strip()
       g = re.match(r'Station (([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})', line)
@@ -770,8 +768,8 @@ def CreateManagers(managers, high_power):
   def ParseDevList(errcode, stdout, stderr):
     """Callback for 'iw dev' results."""
     if errcode:
-      raise Exception('failed (%d) getting wifi dev list: %r'
-                      % (errcode, stderr))
+      raise Exception('failed (%d) getting wifi dev list: %r' %
+                      (errcode, stderr))
     phy = dev = devtype = None
     phy_devs = {}
 
@@ -863,8 +861,8 @@ class WifiblasterController(object):
 
   def _LogWifiblasterResults(self, errcode, stdout, stderr):
     """Callback for 'wifiblaster' results."""
-    log.Debug('wifiblaster err:%r stdout:%r stderr:%r',
-              errcode, stdout[:70], stderr)
+    log.Debug('wifiblaster err:%r stdout:%r stderr:%r', errcode, stdout[:70],
+              stderr)
     if errcode:
       return
 
@@ -916,18 +914,16 @@ class WifiblasterController(object):
     # Packet blast.
     elif now >= self._next_packet_blast_time:
       StartPacketBlastTimer(interval)
-      clients = [(manager.vdevname, assoc.mac)
-                 for manager in self._managers
-                 for assoc in manager.GetState().assoc]
+      clients = [
+          (manager.vdevname, assoc.mac)
+          for manager in self._managers for assoc in manager.GetState().assoc
+      ]
       if clients:
         (interface, client) = random.choice(clients)
-        RunProc(callback=self._LogWifiblasterResults,
-                args=['wifiblaster',
-                      '-i', interface,
-                      '-d', str(duration),
-                      '-f', str(fraction),
-                      '-s', str(size),
-                      helpers.DecodeMAC(client)])
+        RunProc(
+            callback=self._LogWifiblasterResults,
+            args=['wifiblaster', '-i', interface, '-d', str(duration), '-f',
+                  str(fraction), '-s', str(size), helpers.DecodeMAC(client)])
 
     # Poll again in at most one second. This allows parameter changes (e.g. a
     # long interval to a short interval) to take effect sooner than the next
@@ -1054,9 +1050,8 @@ def main():
     #   possible.  But if we do that, we need to rate limit it somehow.
     for m in managers:
       m.DoScans()
-    if ((opt.tx_interval and now - last_sent > opt.tx_interval) or
-        (opt.autochan_interval and
-         now - last_autochan > opt.autochan_interval)):
+    if ((opt.tx_interval and now - last_sent > opt.tx_interval) or (
+        opt.autochan_interval and now - last_autochan > opt.autochan_interval)):
       if not opt.fake:
         CreateManagers(managers, high_power=opt.high_power)
       for m in managers:
@@ -1084,8 +1079,7 @@ def main():
         for peermac, p in m.peer_list.iteritems():
           peers[peermac] = m, p
       for m, p in peers.values():
-        seen_bss_peers = [bss for bss in p.seen_bss
-                          if bss.mac in peers]
+        seen_bss_peers = [bss for bss in p.seen_bss if bss.mac in peers]
         if p.me.mac in selfmacs: continue
         seen_peers[helpers.DecodeMAC(p.me.mac)] = seen_bss_peers
         for b in seen_bss_peers:
@@ -1094,8 +1088,7 @@ def main():
         self_signals[m.mac] = bss_signal
         peer_data[m.mac] = seen_peers
         log.Log('%s: APs=%-4d peer-APs=%s stations=%s',
-                m.AnonymizeMAC(p.me.mac),
-                len(p.seen_bss),
+                m.AnonymizeMAC(p.me.mac), len(p.seen_bss),
                 ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
                          for i in sorted(seen_bss_peers,
                                          key=lambda i: -i.rssi)),
