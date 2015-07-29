@@ -1,0 +1,49 @@
+#!/usr/bin/python
+# Test program called from test-alivemonitor.sh.
+
+import optparse
+import os
+import signal
+import sys
+import time
+
+g = {}
+
+
+def check_pid(pid):
+  try:
+    os.kill(pid, 0)
+  except OSError:
+    return False
+  else:
+    return True
+
+
+def sigterm(signal, frame):
+  g['FILE'].write('TERM ')
+  g['FILE'].flush()
+  sys.exit(0)
+
+
+def sighup(signal, frame):
+  g['FILE'].write('HUP ')
+  g['FILE'].flush()
+
+
+if __name__ == '__main__':
+  print sys.argv
+  if len(sys.argv) == 1 or not sys.argv[1]:
+    sys.stderr.write('usage: %s <filename>' % sys.argv[0])
+  g['FILE'] = open(sys.argv[1], 'w')
+
+  signal.signal(signal.SIGTERM, sigterm)
+  signal.signal(signal.SIGHUP, sighup)
+
+  g['FILE'].write('START ')
+  g['FILE'].flush()
+
+  while True:
+    time.sleep(0.1)
+    ppid = os.getppid()
+    if ppid == 1 or not check_pid(ppid):
+      sys.exit(2)

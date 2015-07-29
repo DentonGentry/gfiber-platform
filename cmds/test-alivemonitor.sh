@@ -67,10 +67,10 @@ $AM $TICK 0.05 0.05 100 sh -c 'kill 0' 2>&1 | tee $NOTLOG2
 WVFAIL fgrep -q 'Timeout!' $NOTLOG2
 WVPASS grep -q 'signal [0-9]* received' $NOTLOG2
 
-# test traplog.sh that we will use for testing prekill
+# test traplog that we will use for testing prekill
 TMP=trap.$pid.tmp
 : >$TMP
-./traplog.sh $TMP &
+./traplog $TMP &
 tlpid=$!
 wait_until_contains $TMP "START "
 kill -HUP $tlpid
@@ -82,13 +82,13 @@ wait_until_contains $TMP "START HUP HUP TERM "
 WVPASS wait $tlpid
 
 # check prekill behaviour
-# traplog.sh does exit(0) on SIGTERM
+# traplog does exit(0) on SIGTERM
 : >$TMP
-WVPASS $AM -S 15 -T 5 $TICK 0.1 0.1 1 ./traplog.sh $TMP
+WVPASS $AM -S 15 -T 5 $TICK 0.1 0.1 1 ./traplog $TMP
 WVPASSEQ "$(cat $TMP)" "START TERM "
 # but it doesn't exit on SIGHUP, so we'll end up killing it
 : >$TMP
-WVFAIL $AM -S 1 -T 0.5 $TICK 0.1 0.1 1 ./traplog.sh $TMP
+WVFAIL $AM -S 1 -T 0.5 $TICK 0.1 0.1 1 ./traplog $TMP
 WVPASSEQ "$(cat $TMP)" "START HUP "
 
 rm -f *.$pid.tmp
