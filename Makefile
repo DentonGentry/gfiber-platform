@@ -57,7 +57,7 @@ install:
 	$(MAKE) install-optionspy
 
 sysmgr/all: base/all libstacktrace/all
-logos/all: libstacktrace/all
+cmds/all: libstacktrace/all
 gpio-mailbox/all: libstacktrace/all
 
 %/all:
