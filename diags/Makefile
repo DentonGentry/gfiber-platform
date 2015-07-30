@@ -21,6 +21,8 @@ test:    $(addsuffix /test,$(DIRS))
 clean:   $(addsuffix /clean,$(DIRS))
 install-libs: $(addsuffix /install-libs,$(DIRS))
 
+windcharger/all spacecast/all:	common/all
+
 # The install targets in the recursive call use setuptools to build the python
 # packages. These cannot be run in parallel, as they appear to race with each
 # other to write site-packages/easy-install.pth.
