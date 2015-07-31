@@ -33,8 +33,8 @@ import autochannel
 import clientinfo
 import helpers
 import log
-import wgdata
 import options
+import wgdata
 
 try:
   import monotime  # pylint: disable=unused-import,g-import-not-at-top
@@ -192,7 +192,6 @@ class WlanManager(object):
     self.scan_idx = -1
     self.last_survey = {}
     self.self_signals = {}
-    self.ap_signals = {}
     self.auto_disabled = None
     self.autochan_2g = self.autochan_5g = self.autochan_free = 0
     helpers.Unlink(self.Filename('disabled'))
@@ -344,10 +343,9 @@ class WlanManager(object):
       helpers.WriteFileAtomic(filename, content)
 
   def WritePeerApInfoFile(self, peer_data):
-    """Writes files containing signal strength information.
+    """Write out a file with what other APs see about their peers.
 
-    The files contain other access points' data about their peers;
-    these are named PeerAPs.{interface}.
+    Writes a file with signal strengths of the current device from other APs.
 
     Args:
       peer_data: address about each MAC.
@@ -369,27 +367,9 @@ class WlanManager(object):
     if PEER_AP_LIST_FILE[0]:
       filename = PEER_AP_LIST_FILE[0] + '.' + self.vdevname
       helpers.WriteFileAtomic(filename, content)
-
-  def WriteJsonSignals(self):
-    """Writes set of files containing JSON formatted signal data.
-
-    The files are about the signal strength of other access points
-    as seen by this access point (ap_signals) and the signal strength
-    of this access point as seen by other access points (self_signals).
-    These two files are in the signals_json directory.
-    """
-    signal_dir = os.path.join(opt.status_dir, 'signals_json')
-    self_signals_file = os.path.join(signal_dir, 'self_signals')
-    ap_signals_file = os.path.join(signal_dir, 'ap_signals')
-    try:
-      os.makedirs(signal_dir)
-    except OSError as e:
-      if e.errno != errno.EEXIST:
-        raise
+    signal_file = os.path.join(opt.status_dir, 'self_signals')
     if self.self_signals:
-      helpers.WriteFileAtomic(self_signals_file, json.dumps(self.self_signals))
-    if self.ap_signals:
-      helpers.WriteFileAtomic(ap_signals_file, json.dumps(self.ap_signals))
+      helpers.WriteFileAtomic(signal_file, json.dumps(self.self_signals))
 
   def ShouldAutoDisable(self):
     """Returns MAC address of high-powered peer if we should auto disable."""
@@ -1098,10 +1078,6 @@ def main():
         selfmacs.add(m.mac)
         for peermac, p in m.peer_list.iteritems():
           peers[peermac] = m, p
-          if p.me.mac not in m.bss_list:
-            continue
-          b = m.bss_list[p.me.mac]
-          m.ap_signals[helpers.DecodeMAC(p.me.mac)] = b.rssi
       for m, p in peers.values():
         seen_bss_peers = [bss for bss in p.seen_bss if bss.mac in peers]
         if p.me.mac in selfmacs: continue
@@ -1119,12 +1095,10 @@ def main():
                 ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
                          for i in sorted(p.assoc,
                                          key=lambda i: -i.rssi)))
-
       for m in managers:
         if m.mac in self_signals:
           m.self_signals = self_signals[m.mac]
           m.WritePeerApInfoFile(peer_data[m.mac])
-          m.WriteJsonSignals()
       # Log STA information. Only log station band capabilities if there we can
       # determine it, i.e. if there are APs on both bands with the same SSID.
       log_sta_band_capabilities = do_ssids_match(managers)
