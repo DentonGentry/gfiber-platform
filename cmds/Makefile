@@ -24,6 +24,7 @@ TARGETS=\
 	buttonmon \
 	chg_mod_own \
 	cpulog \
+	dhcp-rogue \
 	dir-monitor \
 	diskbench \
 	freemegs \
