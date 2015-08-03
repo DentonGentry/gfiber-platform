@@ -9,7 +9,7 @@ TARGETS := sysvar_cmd $(addsuffix /all, $(DIRS))
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter -g -O -I./include
-LDFLAGS += -L./lib -lsysvar
+LIBS += -L./lib -lsysvar
 
 PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
@@ -19,7 +19,7 @@ INSTALL=install
 
 all: $(TARGETS)
 
-sysvar_cmd: |lib/all
+sysvar_cmd: sysvar_cmd.o |lib/all
 
 %.o: %.c
 	@echo "# sysvar compile"
@@ -27,7 +27,7 @@ sysvar_cmd: |lib/all
 
 %: %.o
 	@echo "# sysvar link"
-	$(CC) $(CFLAGS) -lsysvar -o $@ $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 install:
 	@echo "# sysvar install"
