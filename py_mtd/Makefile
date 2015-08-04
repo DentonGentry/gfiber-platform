@@ -11,6 +11,9 @@ PREFIX=/usr
 build:
 	PYTHONPATH=$(TARGETPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py build
 
+clean:
+	PYTHONPATH=$(TARGETPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py clean --all
+
 install-libs: install
 
 install:
