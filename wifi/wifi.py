@@ -362,10 +362,12 @@ def stop_ap_wifi(opt):
     if interface is None:
       raise utils.BinWifiException('No AP interface for band=\'%s\'', band)
 
-    if opt.persist:
-      persist.delete_options('hostapd', band)
-
-    success &= _stop_hostapd(interface)
+    if _stop_hostapd(interface):
+      if opt.persist:
+        persist.delete_options('hostapd', band)
+    else:
+      utils.log('Failed to stop hostapd on interface %s', interface)
+      success = False
 
   return success
 
@@ -834,14 +836,14 @@ def stop_client_wifi(opt):
     interface = iw.find_interface_from_band(
         band, iw.INTERFACE_TYPE.client, opt.interface_suffix)
     if interface is not None:
-      if not _stop_wpa_supplicant(interface):
+      if _stop_wpa_supplicant(interface):
+        if opt.persist:
+          persist.delete_options('wpa_supplicant', band)
+      else:
         utils.log('Failed to stop wpa_supplicant on interface %s', interface)
         success = False
     else:
       utils.log('No client interface for %s GHz; nothing to stop', band)
-
-    if opt.persist:
-      persist.delete_options('wpa_supplicant', band)
 
   return success
 
@@ -879,16 +881,8 @@ def _run(argv):
   if extra[0].startswith('set') and ' ' in opt.band:
     opt.band = '2.4'
 
-  if extra[0] == 'set':
-    if opt.persist:
-      persist.save_options('hostapd', opt.band, argv)
-    persist.save_options('hostapd', opt.band, argv, tmp=True)
-
-  if extra[0] == 'setclient' and opt.persist:
-    persist.save_options('wpa_supplicant', opt.band, argv)
-
   try:
-    return {
+    success = {
         'set': set_wifi,
         'stop': stop_wifi,
         'off': stop_wifi,
@@ -900,6 +894,17 @@ def _run(argv):
     }[extra[0]](opt)
   except KeyError:
     parser.fatal('Unrecognized command %s' % extra[0])
+
+  if success:
+    if extra[0] == 'set':
+      if opt.persist:
+        persist.save_options('hostapd', opt.band, argv)
+      persist.save_options('hostapd', opt.band, argv, tmp=True)
+
+    if extra[0] == 'setclient' and opt.persist:
+      persist.save_options('wpa_supplicant', opt.band, argv)
+
+  return success
 
 
 def main():
