@@ -30,6 +30,6 @@ def taxonomize(mac):
   try:
     with open(os.path.join(FINGERPRINTS_DIR, mac)) as f:
       signature = f.read()
-      return taxonomy.identify_wifi_device(signature, mac)
+      return ';'.join(taxonomy.identify_wifi_device(signature, mac))
   except IOError:
     return None
