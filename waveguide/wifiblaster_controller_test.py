@@ -17,6 +17,9 @@
 
 __author__ = 'mikemu@google.com (Mike Mu)'
 
+import os
+import shutil
+import tempfile
 import mock
 import helpers
 import waveguide
@@ -60,11 +63,12 @@ def ReadParameterIOErrorTest():
 
 @wvtest.wvtest
 @mock.patch('log.Log')
-def LogWifiblasterResultsTest(log_mock):
+@mock.patch('waveguide.WifiblasterController._SaveWifiblasterResult')
+def LogWifiblasterResultsTest(save_mock, log_mock):
   manager = mock.MagicMock()
   wc = waveguide.WifiblasterController([manager], '')
 
-  # set the consensus key to a known value
+  # Set the consensus key to a known value.
   waveguide.consensus_key = 16 * 'x'
 
   # Result should be anonymized and not include "not connected" lines.
@@ -77,6 +81,39 @@ def LogWifiblasterResultsTest(log_mock):
               'wifiblaster: malformed CYAFVU but has macs CYAFVU\n')
   result = '\n'.join([s for ((s,), _) in log_mock.call_args_list]) + '\n'
   wvtest.WVPASSEQ(result, expected)
+  expected = [('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
+               'samples=5000000,15000000'),
+              'malformed 11:11:11:11:11:11 but has macs 11:11:11:11:11:11']
+  result = [s for ((s, _), _) in save_mock.call_args_list]
+  wvtest.WVPASSEQ(result, expected)
+
+
+@wvtest.wvtest
+def SaveWifiblasterResultTest():
+  oldwifiblasterdir = waveguide.WIFIBLASTERDIR
+  waveguide.WIFIBLASTERDIR = tempfile.mkdtemp()
+  manager = mock.MagicMock()
+  wc = waveguide.WifiblasterController([manager], '')
+
+  wc._SaveWifiblasterResult('j 00:00:00:00:00:00\n', '00:00:00:00:00:00')
+  with open(os.path.join(waveguide.WIFIBLASTERDIR, '00:00:00:00:00:00')) as f:
+    contents = f.read()
+  wvtest.WVPASSEQ('j 00:00:00:00:00:00\n', contents)
+  wc._SaveWifiblasterResult('k 00:00:00:00:00:00\n', '00:00:00:00:00:00')
+  wc._SaveWifiblasterResult('l 00:00:00:00:00:00\n', '00:00:00:00:00:00')
+  with open(os.path.join(waveguide.WIFIBLASTERDIR, '00:00:00:00:00:00')) as f:
+    contents = f.read()
+  expected = ('j 00:00:00:00:00:00\nk 00:00:00:00:00:00\nl 00:00:00:00:00:00\n')
+  wvtest.WVPASSEQ(expected, contents)
+
+  for _ in range(256):
+    wc._SaveWifiblasterResult('x 00:00:00:00:00:00\n', '00:00:00:00:00:00')
+  with open(os.path.join(waveguide.WIFIBLASTERDIR, '00:00:00:00:00:00')) as f:
+    lines = f.readlines()
+    wvtest.WVPASSEQ(128, len(lines))
+
+  shutil.rmtree(waveguide.WIFIBLASTERDIR)
+  waveguide.WIFIBLASTERDIR = oldwifiblasterdir
 
 
 @wvtest.wvtest

@@ -71,6 +71,7 @@ MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
 MCAST_PORT = 4442
 AP_LIST_FILE = ['']
 PEER_AP_LIST_FILE = ['']
+WIFIBLASTERDIR = '/tmp/wifi/wifiblaster'
 
 _gettime_rand = random.randint(0, 1000000)
 
@@ -125,7 +126,7 @@ class MulticastSocket(object):
     if hasattr(socket, 'SO_REUSEPORT'):  # needed for MacOS
       try:
         self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-      except socket.error, e:
+      except socket.error as e:
         if e.errno == errno.ENOPROTOOPT:
           # some kernels don't support this even if python does
           pass
@@ -527,7 +528,7 @@ class WlanManager(object):
     now = time.time()
     try:
       f = open('/proc/net/arp', 'r', 64 * 1024)
-    except IOError, e:
+    except IOError as e:
       self.Log('arp table missing: %s', e)
       return
     data = f.read(64 * 1024)
@@ -879,6 +880,22 @@ class WifiblasterController(object):
     except ValueError:
       return None
 
+  def _SaveWifiblasterResult(self, line, client):
+    """Append wifiblaster result to a file.
+
+    Args:
+      line: the string result of the wifiblaster run.
+      client: the MAC address of the client, as a string.
+
+    The last N results are retained in the file.
+    """
+    filename = os.path.join(WIFIBLASTERDIR, client)
+    with open(filename, 'a+') as f:
+      results = f.read(65536).splitlines()
+    results.append(line)
+    newresults = '\n'.join(results[-128:])
+    helpers.WriteFileAtomic(filename, newresults)
+
   def _LogWifiblasterResults(self, errcode, stdout, stderr):
     """Callback for 'wifiblaster' results."""
     log.Debug('wifiblaster err:%r stdout:%r stderr:%r', errcode, stdout[:70],
@@ -892,6 +909,9 @@ class WifiblasterController(object):
     for line in stdout.splitlines():
       log.Log('wifiblaster: %s' %
               re.sub(r'([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', Repl, line))
+      result = re.search(r'([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', line)
+      if result:
+        self._SaveWifiblasterResult(line, result.group())
 
   def _StrToBool(self, s):
     """Returns True if a string expresses a true value."""
@@ -991,7 +1011,13 @@ def main():
 
   try:
     os.makedirs(opt.status_dir)
-  except OSError, e:
+  except OSError as e:
+    if e.errno != errno.EEXIST:
+      raise
+
+  try:
+    os.makedirs(WIFIBLASTERDIR)
+  except OSError as e:
     if e.errno != errno.EEXIST:
       raise
 
@@ -1027,7 +1053,7 @@ def main():
     if opt.watch_pid > 1:
       try:
         os.kill(opt.watch_pid, 0)
-      except OSError, e:
+      except OSError as e:
         if e.errno == errno.ESRCH:
           log.Log('watch-pid %r died; shutting down', opt.watch_pid)
           break
