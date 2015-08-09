@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <getopt.h>
 #include <iostream>
 #include <sys/inotify.h>
 #include <sys/ioctl.h>
@@ -15,6 +16,10 @@
 #include <sys/time.h>
 
 using namespace std;
+
+
+int do_output_modify_events = 0;
+
 
 static int is_dir(const char *dir_path)
 {
@@ -241,6 +246,14 @@ void DirMonitor::HandleFileCreate(const char *name, int pwd)
   AddWatch(full_path, pwd, INOTIFY_FILE_EVENTS);
 }
 
+// Handler for the IN_MODIFY event:
+// File modified in watched directory (*).
+void DirMonitor::HandleFileModify(const char *name, int pwd)
+{
+  cout << "IN_MODIFY triggered for file " << name << " and parent wd "
+       << pwd << endl;
+}
+
 // Handler for the IN_DELETE_SELF inotify event:
 // Watched file/directory was itself deleted.
 void DirMonitor::HandleDeleteSelf(int wd)
@@ -345,6 +358,9 @@ void DirMonitor::StartMonitoring()
         if (event->mask & IN_CREATE) {
           HandleFileCreate(event->name, event->wd);
         }
+        if (do_output_modify_events && (event->mask & (IN_MODIFY|IN_MOVE))) {
+          HandleFileModify(event->name, event->wd);
+        }
       }
     }
   }
@@ -356,14 +372,36 @@ DirMonitor::~DirMonitor() {
 }
 
 
+void usage(const char *progname)
+{
+  cerr << "usage: " << progname << " [-m] <dirname_1>...<dirname_n>" << endl;
+  cerr << "\t-m: watch for file modification, not just creation" << endl;
+  exit(1);
+}
+
+
 int main(int argc, char *argv[])
 {
-  if (argc < 2) {
-    cerr << "usage: " << argv[0] << " <dirname_1>...<dirname_n>" << endl;
-    exit(1);
+  int c;
+
+  while ((c = getopt(argc, argv, "m")) != -1) {
+    switch (c) {
+    case 'm':
+      do_output_modify_events = 1;
+      break;
+    case '?':
+    default:
+      usage(argv[0]);
+      break;
+    }
   }
 
-  DirMonitor monitor(argc - 1, argv + 1);
+  argc -= optind;
+  if (argc < 1) {
+    usage(argv[0]);
+  }
+
+  DirMonitor monitor(argc, &argv[optind]);
   monitor.StartMonitoring();
   return 0;
 }
