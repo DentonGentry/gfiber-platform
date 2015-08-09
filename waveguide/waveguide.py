@@ -940,7 +940,11 @@ class WifiblasterController(object):
     enable = self._ReadParameter('enable', self._StrToBool)
     fraction = self._ReadParameter('fraction', int)
     interval = self._ReadParameter('interval', float)
+    rapidpolling = self._ReadParameter('rapidpolling', int)
     size = self._ReadParameter('size', int)
+
+    if rapidpolling > now:
+      interval = 10.0
 
     # Disable.
     if (not enable or duration <= 0 or fraction <= 0 or interval <= 0 or

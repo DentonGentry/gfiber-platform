@@ -142,7 +142,8 @@ def PollTest(expovariate_mock, run_proc_mock):
            'wifiblaster.enable': 'False',
            'wifiblaster.fraction': '10',
            'wifiblaster.interval': '10',
-           'wifiblaster.size': '64'}
+           'wifiblaster.rapidpolling': '0',
+           'wifiblaster.size': '1470'}
   wc._ReadFile = lambda filename: files[filename]
 
   # Disabled. No packet blasts should be run.
@@ -193,6 +194,54 @@ def PollTest(expovariate_mock, run_proc_mock):
   for t in xrange(401, 410):
     wc.Poll(t)
   wvtest.WVPASSEQ(run_proc_mock.call_count, 27)
+
+
+@wvtest.wvtest
+@mock.patch('waveguide.RunProc')
+@mock.patch('random.expovariate')
+def RapidPollingTest(expovariate_mock, run_proc_mock):
+  manager = mock.MagicMock()
+  wc = waveguide.WifiblasterController([manager], '')
+
+  # Stub random.expovariate to return the average.
+  expovariate_mock.side_effect = lambda lambd: 1.0 / lambd
+
+  # Stub WlanManager.GetState to return a single client.
+  manager.GetState = lambda: wgdata.State(  # pylint: disable=g-long-lambda
+      me=None,
+      seen_bss=None,
+      channel_survey=None,
+      assoc=[wgdata.Assoc(mac=helpers.EncodeMAC('11:11:11:11:11:11'),
+                          rssi=None,
+                          last_seen=None,
+                          can5G=None)],
+      arp=None)
+
+  # Stub WifiblasterController._ReadFile to return fake parameter file data.
+  files = {'wifiblaster.duration': '.1',
+           'wifiblaster.enable': 'True',
+           'wifiblaster.fraction': '10',
+           'wifiblaster.interval': '3600',
+           'wifiblaster.rapidpolling': '0',
+           'wifiblaster.size': '1470'}
+  wc._ReadFile = lambda filename: files[filename]
+
+  # Enabled with 3600 second interval. No packet blasts should be run.
+  for t in xrange(0, 100):
+    wc.Poll(t)
+  wvtest.WVPASSEQ(run_proc_mock.call_count, 0)
+
+  files['wifiblaster.rapidpolling'] = 200
+
+  # Rapid polling with 10 second interval. 9 packet blasts should be run.
+  for t in xrange(100, 200):
+    wc.Poll(t)
+  wvtest.WVPASSEQ(run_proc_mock.call_count, 9)
+
+  # Rapid polling expired, packet blasts should now run at wifiblaster.interval
+  for t in xrange(200, 300):
+    wc.Poll(t)
+  wvtest.WVPASSEQ(run_proc_mock.call_count, 9)
 
 
 if __name__ == '__main__':
