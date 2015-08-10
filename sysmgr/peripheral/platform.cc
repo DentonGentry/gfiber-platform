@@ -12,12 +12,16 @@ Platform* platformInstance_ = NULL;
 
 /* Platform table */
 const Platform Platform::kPlatformTable[] = {
-  Platform("GFMS100", BRUNO_GFMS100, true),
-  Platform("GFHD100", BRUNO_GFHD100, false),
-  Platform("GFRG200", BRUNO_GFRG200, false),
-  Platform("GFRG210", BRUNO_GFRG210, true),
-  Platform("GFSC100", BRUNO_GFSC100, true),
-  Platform("UNKNOWN PLATFORM", BRUNO_UNKNOWN, false),
+         /* model     type           hdd    fan */
+  Platform("GFMS100", BRUNO_GFMS100, true,  true),
+  Platform("GFHD100", BRUNO_GFHD100, false, true),
+  Platform("GFHD200", BRUNO_GFHD200, false, false),
+  Platform("GFRG200", BRUNO_GFRG200, false, true),
+  Platform("GFRG210", BRUNO_GFRG210, true,  true),
+  Platform("GFSC100", BRUNO_GFSC100, true,  true),
+  Platform("GFLT110", BRUNO_GFLT110, false, false),
+  Platform("GFLT120", BRUNO_GFLT110, false, false),
+  Platform("UNKNOWN PLATFORM", BRUNO_UNKNOWN, false, false),
 };
 
 void Platform::Init(void) {
@@ -30,8 +34,6 @@ void Platform::Init(void) {
 }
 
 void Platform::GetPlatformType(void) {
-  std::ifstream platform_file;
-
   std::string result = GetLine((char *)PLATFORM_FILE, NULL);
 
   if (result.empty() == false) {
@@ -41,6 +43,7 @@ void Platform::GetPlatformType(void) {
         name_ = kPlatformTable[i].name_;
         type_ = kPlatformTable[i].type_;
         has_hdd_ = kPlatformTable[i].has_hdd_;
+        has_fan_ = kPlatformTable[i].has_fan_;
         break;
       }
     }

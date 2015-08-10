@@ -19,9 +19,11 @@ enum BrunoPlatformTypes {
   BRUNO_PLATFORM_FIRST = 0,
   BRUNO_GFMS100 = 0,      /* Bruno-IS */
   BRUNO_GFHD100,          /* Bruno */
-  BRUNO_GFRG200,          /* Optimus noHDD */
+  BRUNO_GFRG200,          /* Sideswipe noHDD */
   BRUNO_GFRG210,          /* Optimus HDD */
   BRUNO_GFSC100,          /* Spacecast */
+  BRUNO_GFHD200,          /* Camaro */
+  BRUNO_GFLT110,          /* Fiber Jack */
   BRUNO_PLATFORM_MAX
 };
 
@@ -30,8 +32,9 @@ enum BrunoPlatformTypes {
 class Platform {
 
  public:
-  Platform(const std::string name, enum BrunoPlatformTypes type, bool has_hdd)
-      : name_(name), type_(type), has_hdd_(has_hdd) {}
+  Platform(const std::string name, enum BrunoPlatformTypes type,
+           bool has_hdd, bool has_fan)
+      : name_(name), type_(type), has_hdd_(has_hdd), has_fan_(has_fan) {}
 
   static const Platform kPlatformTable[];
 
@@ -40,12 +43,14 @@ class Platform {
   std::string PlatformName(void) const { return name_; }
   enum BrunoPlatformTypes PlatformType(void) const { return type_; }
   bool PlatformHasHdd(void) const { return has_hdd_; }
+  bool PlatformHasFan(void) const { return has_fan_; }
   std::string GetLine(char *file, std::string *pattern);
 
  private:
   std::string name_;
   enum BrunoPlatformTypes type_;
   bool has_hdd_;
+  bool has_fan_;
 
   void GetPlatformType(void);
   DISALLOW_COPY_AND_ASSIGN(Platform);

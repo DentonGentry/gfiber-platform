@@ -129,11 +129,6 @@ const FanControlParams FanControl::kGFSC100FanCtrlHddDefaults = {
  * (or fan speed) is 99%. pwm is set to any value greater 40
  * it will only increase fan speed by less than 1%.
  * Therefore Dmax is set to 40.
- *
- * Temporary Solution (09/24/2012)
- * Since we are getting close to FCS, make the immediate change of raising
- * the Tmin for Thin Bruno from 45C to 85C. This will reduce the overall
- * fan speed and noise.
  */
 const FanControlParams FanControl::kGFHD100FanCtrlSocDefaults = {
                           temp_setpt    : 90,
@@ -143,6 +138,26 @@ const FanControlParams FanControl::kGFHD100FanCtrlSocDefaults = {
                           duty_cycle_max: 40,
                           pwm_step      : 1,
                           temp_overheat : 120,
+                        };
+
+const FanControlParams FanControl::kGFHD200FanCtrlSocDefaults = {
+                          temp_setpt    : 0,  /* No fan */
+                          temp_max      : 0,
+                          temp_step     : 0,
+                          duty_cycle_min: 0,
+                          duty_cycle_max: 0,
+                          pwm_step      : 0,
+                          temp_overheat : 120,
+                        };
+
+const FanControlParams FanControl::kGFLT110FanCtrlSocDefaults = {
+                          temp_setpt    : 0,  /* No fan */
+                          temp_max      : 0,
+                          temp_step     : 0,
+                          duty_cycle_min: 0,
+                          duty_cycle_max: 0,
+                          pwm_step      : 0,
+                          temp_overheat : 97,
                         };
 
 FanControl::~FanControl() {
@@ -159,7 +174,8 @@ bool FanControl::Init(bool *gpio_mailbox_ready) {
   if (platformInstance_ == NULL) {
     /* The global platform instance is not initialized. Let's handle it. */
     LOG(LS_VERBOSE) << "Init platformInstance_ in fancontrol";
-    platformInstance_ = new Platform ("Unknown Platform", BRUNO_UNKNOWN, false);
+    platformInstance_ = new Platform ("Unknown Platform", BRUNO_UNKNOWN,
+                                      false, false);
     platformInstance_->Init();
     allocatedPlatformInstanceLocal_ = true;
   }
@@ -213,6 +229,10 @@ void FanControl::InitParams() {
       pfan_ctrl_params_[BRUNO_SOC] = kGFHD100FanCtrlSocDefaults;
       max = BRUNO_SOC;
       break;
+    case BRUNO_GFHD200:
+      pfan_ctrl_params_[BRUNO_SOC] = kGFHD200FanCtrlSocDefaults;
+      max = BRUNO_SOC;
+      break;
     case BRUNO_GFRG200:
       /* Set thermal fan policy parameters of GFRG200 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFRG200FanCtrlSocDefaults;
@@ -229,6 +249,10 @@ void FanControl::InitParams() {
       pfan_ctrl_params_[BRUNO_SOC] = kGFSC100FanCtrlSocDefaults;
       pfan_ctrl_params_[BRUNO_IS_HDD] = kGFSC100FanCtrlHddDefaults;
       max = BRUNO_IS_HDD;
+      break;
+    case BRUNO_GFLT110:
+      pfan_ctrl_params_[BRUNO_SOC] = kGFLT110FanCtrlSocDefaults;
+      max = BRUNO_SOC;
       break;
     default:
       LOG(LS_ERROR) << "Invalid platform type, ignore ... " << platform_;

@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 namespace bruno_platform_peripheral {
+extern Platform* platformInstance_;
 
 PeripheralMon::~PeripheralMon() {
 }
@@ -17,10 +18,11 @@ PeripheralMon::~PeripheralMon() {
 void PeripheralMon::Probe(void) {
   bruno_base::TimeStamp now = bruno_base::Time();
   float soc_temperature;
-  uint16_t  fan_speed;
+  uint16_t  fan_speed = 0;
   std::string soc_voltage;
 
-  if (bruno_base::TimeIsLaterOrEqual(next_time_hdd_temp_check_, now)) {
+  if (platformInstance_->PlatformHasHdd() &&
+      bruno_base::TimeIsLaterOrEqual(next_time_hdd_temp_check_, now)) {
     fan_control_->GetHddTemperature(&hdd_temp_);
     LOG(LS_INFO) << "hdd_temperature (new):" << hdd_temp_;
     next_time_hdd_temp_check_ = bruno_base::TimeAfter(hdd_temp_interval_);
@@ -30,27 +32,32 @@ void PeripheralMon::Probe(void) {
     gpio_mailbox_ready = CheckIfMailBoxIsReady();
 
   if (gpio_mailbox_ready == true) {
-    ReadFanSpeed(&fan_speed);
     bool read_soc_temperature = ReadSocTemperature(&soc_temperature);
     ReadSocVoltage(&soc_voltage);
+
+    if (platformInstance_->PlatformHasFan()) {
+      ReadFanSpeed(&fan_speed);
+    }
 
     LOG(LS_INFO) << "voltage:" << soc_voltage
                  << "  soc_temperature:" << soc_temperature
                  << "  hdd_temperature:" << hdd_temp_
                  << "  fanspeed:" << fan_speed;
 
-    /* If failed to read soc_temperature, don't change PWM
-     * for both thin bruno and fat bruno
-     */
-    if (read_soc_temperature == true) {
+    if (read_soc_temperature) {
       Overheating(soc_temperature);
+    }
 
-      fan_control_->AdjustSpeed(
-                    static_cast<uint16_t>(soc_temperature),
-                    hdd_temp_,
-                    fan_speed);
-    } else {
-      LOG(LS_INFO) << "Not change PWM due to fail to read soc_temperature";
+    if (platformInstance_->PlatformHasFan()) {
+      /* If failed to read soc_temperature, don't change PWM */
+      if (read_soc_temperature) {
+        fan_control_->AdjustSpeed(
+                      static_cast<uint16_t>(soc_temperature),
+                      hdd_temp_,
+                      fan_speed);
+      } else {
+        LOG(LS_INFO) << "Not change PWM due to fail to read soc_temperature";
+      }
     }
   } else {
     LOG(LS_INFO) << "gpio_mailbox is not ready";

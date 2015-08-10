@@ -354,7 +354,9 @@ void run_gpio_mailbox(void) {
         write_file_double_atomic("cpu_temperature", &cpu_temp, cpu_temp_millidegrees / 1000.0);
       }
       int cpu_millivolts;
-      if (PinValue(handle, PIN_MVOLTS_CPU, &cpu_millivolts) == 0) {
+      if (!has_cpu_voltage) {
+        write_file_double_atomic("cpu_voltage", &cpu_volts, 0.0);
+      } else if (PinValue(handle, PIN_MVOLTS_CPU, &cpu_millivolts) == 0) {
         write_file_double_atomic("cpu_voltage", &cpu_volts, cpu_millivolts / 1000.0);
       }
       last_time = now;

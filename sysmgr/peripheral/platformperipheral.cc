@@ -26,7 +26,8 @@ bool PlatformPeripheral::Init(unsigned int monitor_interval,
       return false;
     }
     LOG(LS_INFO) << "Init platformInstance_ in platformperipheral" << std::endl;
-    platformInstance_ = new Platform ("Unknown Platform", BRUNO_UNKNOWN, false);
+    platformInstance_ = new Platform ("Unknown Platform", BRUNO_UNKNOWN,
+                                      false, false);
     kInstance_ = new PlatformPeripheral(platformInstance_);
   }
   /* Initialize platform */
