@@ -28,6 +28,10 @@ ifeq ($(BUILD_DVBUTILS),y)
 DIRS+=dvbutils
 endif
 
+ifeq ($(BUILD_CRYPTDEV),y)
+DIRS+=cryptdev
+endif
+
 ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfibersc)
 DIRS+=diags
 endif
