@@ -17,6 +17,7 @@
 """Wifi channel selection and roaming daemon."""
 
 import errno
+import gc
 import json
 import os
 import os.path
@@ -998,6 +999,12 @@ def do_ssids_match(managers):
 
 
 def main():
+  gc.set_debug(gc.DEBUG_STATS |
+               gc.DEBUG_COLLECTABLE |
+               gc.DEBUG_UNCOLLECTABLE |
+               gc.DEBUG_INSTANCES |
+               gc.DEBUG_OBJECTS)
+
   global opt
   o = options.Options(optspec)
   opt, flags, unused_extra = o.parse(sys.argv[1:])
