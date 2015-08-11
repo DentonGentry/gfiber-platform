@@ -41,7 +41,7 @@ def hostapd_options(band, ssid):
   elif experiment.enabled('WifiHostapdLogging'):
     target = ''
   else:
-    return ()
+    return []
 
   band_dir = _bandsteering_dir(band, ssid)
   target_dir = _bandsteering_dir(target, ssid)
@@ -66,9 +66,9 @@ def hostapd_options(band, ssid):
         raise utils.BinWifiException(
             "Couldn't create bandsteering directory %s", band_dir)
 
-  result = ('-L', band_dir)
+  result = ['-L', band_dir]
   if target and band != target:
-    result += ('-S', target_dir)
+    result += ['-S', target_dir]
 
   return result
 

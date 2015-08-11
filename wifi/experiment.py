@@ -14,10 +14,14 @@ _experiment_warned = set()
 _experiment_enabled = set()
 
 
-# TODO(rofrankel): Move registration to /etc/init.d/S50wifi.
 def register(name):
-  if subprocess.call(('register_experiment', name)) != 0:
-    utils.log('Failed to register experiment %s.', name)
+  try:
+    rv = subprocess.call(['register_experiment', name])
+  except OSError as e:
+    utils.log('register_experiment: %s', e)
+  else:
+    if rv:
+      utils.log('Failed to register experiment %s.', name)
 
 
 def enabled(name):

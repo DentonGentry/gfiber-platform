@@ -50,13 +50,6 @@ S,interface-suffix=               Interface suffix []
 
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
 
-experiment.register('NoSwapWifiPrimaryChannel')  # checked by hostapd itself
-experiment.register('NoAutoNarrowWifiChannel')  # checked by hostapd itself
-experiment.register('Wifi80211k')
-experiment.register('WifiBandsteering')
-experiment.register('WifiReverseBandsteering')
-experiment.register('WifiHostapdLogging')
-
 
 # pylint: disable=protected-access
 subprocess.call(('mkdir', '-p', utils._CONFIG_DIR))
@@ -231,7 +224,7 @@ def set_wifi(opt):
     return True
 
   if not iw.RUNNABLE_IW():
-    raise utils.BinWifiException('Can\'t proceed without iw')
+    raise utils.BinWifiException("Can't proceed without iw")
 
   # If this phy is running client mode, we need to use its width/channel.
   phy = iw.find_phy(band, channel)
@@ -259,8 +252,8 @@ def set_wifi(opt):
         break
       time.sleep(0.2)
     else:
-      utils.log('Couldn\'t find band, width, and channel used by client '
-                '(it may not be connected)')
+      utils.log("Couldn't find band, width, and channel used by client "
+                "(it may not be connected)")
 
   interface = iw.find_interface_from_phy(
       phy, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
@@ -360,7 +353,7 @@ def stop_ap_wifi(opt):
     interface = iw.find_interface_from_band(
         band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
     if interface is None:
-      raise utils.BinWifiException('No AP interface for band=\'%s\'', band)
+      raise utils.BinWifiException('No AP interface for band=%r', band)
 
     if _stop_hostapd(interface):
       if opt.persist:
@@ -496,12 +489,12 @@ def _start_hostapd(interface, config_filename, band, ssid):
       'hostapd', utils.FILENAME_KIND.alive, interface, tmp=True)
 
   utils.log('Starting hostapd.')
-  utils.babysit(('alivemonitor', alivemonitor_filename, '30', '2', '65',
+  utils.babysit(['alivemonitor', alivemonitor_filename, '30', '2', '65',
                  'hostapd',
                  '-A', alivemonitor_filename,
-                 '-F', _FINGERPRINTS_DIRECTORY) +
+                 '-F', _FINGERPRINTS_DIRECTORY] +
                 bandsteering.hostapd_options(band, ssid) +
-                (config_filename,),
+                [config_filename],
                 'hostapd-%s' % interface, 10, pid_filename)
 
   # Wait for hostapd to start, and return False if it doesn't.
@@ -565,8 +558,10 @@ def _start_wpa_supplicant(interface, config_filename):
       'wpa_supplicant', utils.FILENAME_KIND.pid, interface, tmp=True)
 
   utils.log('Starting wpa_supplicant.')
-  utils.babysit(('wpa_supplicant', '-Dnl80211', '-i', interface,
-                 '-c', config_filename),
+  utils.babysit(['wpa_supplicant',
+                 '-Dnl80211',
+                 '-i', interface,
+                 '-c', config_filename],
                 'wpa_supplicant-%s' % interface, 10, pid_filename)
 
   # Wait for wpa_supplicant to start, and return False if it doesn't.
@@ -747,7 +742,7 @@ def _maybe_restart_wpa_supplicant(interface, config, opt):
     opt_without_persist.interface_suffix = opt.interface_suffix
     if not stop_ap_wifi(opt_without_persist):
       raise utils.BinWifiException(
-          'Couldn\'t stop hostapd to start wpa_supplicant.')
+          "Couldn't stop hostapd to start wpa_supplicant.")
 
   if not _start_wpa_supplicant(interface, tmp_config_filename):
     raise utils.BinWifiException(
@@ -785,7 +780,7 @@ def set_client_wifi(opt):
 
   phy = iw.find_phy(band, 'auto')
   if phy is None:
-    utils.log('Couldn\'t find phy for band %s', band)
+    utils.log("Couldn't find phy for band %s", band)
     return False
 
   interface = iw.find_interface_from_phy(phy, iw.INTERFACE_TYPE.client,

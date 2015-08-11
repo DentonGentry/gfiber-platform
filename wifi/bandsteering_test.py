@@ -45,8 +45,8 @@ def bandsteering_test(f):
 # pylint: disable=unused-argument
 def hostapd_options_no_bandsteering_test(experiments_dir, bandsteering_dir):
   """Test bandsteering.hostapd_options when not bandsteering."""
-  wvtest.WVPASSEQ((), bandsteering.hostapd_options('2.4', 'my_ssid'))
-  wvtest.WVPASSEQ((), bandsteering.hostapd_options('5', 'my_ssid'))
+  wvtest.WVPASSEQ([], bandsteering.hostapd_options('2.4', 'my_ssid'))
+  wvtest.WVPASSEQ([], bandsteering.hostapd_options('5', 'my_ssid'))
 
 
 @wvtest.wvtest
@@ -57,10 +57,10 @@ def hostapd_options_bandsteering_test(experiments_dir, bandsteering_dir):
   open(os.path.join(experiments_dir, 'WifiBandsteering.active'), 'a').close()
 
   wvtest.WVPASS(experiment.enabled('WifiBandsteering'))
-  wvtest.WVPASSEQ(('-L', os.path.join(bandsteering_dir, '2.4_30abcc9ec8'),
-                   '-S', os.path.join(bandsteering_dir, '5_30abcc9ec8')),
+  wvtest.WVPASSEQ(['-L', os.path.join(bandsteering_dir, '2.4_30abcc9ec8'),
+                   '-S', os.path.join(bandsteering_dir, '5_30abcc9ec8')],
                   bandsteering.hostapd_options('2.4', 'my_ssid'))
-  wvtest.WVPASSEQ(('-L', os.path.join(bandsteering_dir, '5_30abcc9ec8')),
+  wvtest.WVPASSEQ(['-L', os.path.join(bandsteering_dir, '5_30abcc9ec8')],
                   bandsteering.hostapd_options('5', 'my_ssid'))
 
 
@@ -75,10 +75,10 @@ def hostapd_options_reverse_bandsteering_test(experiments_dir,
                     'WifiReverseBandsteering.active'), 'a').close()
 
   wvtest.WVPASS(experiment.enabled('WifiReverseBandsteering'))
-  wvtest.WVPASSEQ(('-L', os.path.join(bandsteering_dir, '2.4_30abcc9ec8')),
+  wvtest.WVPASSEQ(['-L', os.path.join(bandsteering_dir, '2.4_30abcc9ec8')],
                   bandsteering.hostapd_options('2.4', 'my_ssid'))
-  wvtest.WVPASSEQ(('-L', os.path.join(bandsteering_dir, '5_30abcc9ec8'),
-                   '-S', os.path.join(bandsteering_dir, '2.4_30abcc9ec8')),
+  wvtest.WVPASSEQ(['-L', os.path.join(bandsteering_dir, '5_30abcc9ec8'),
+                   '-S', os.path.join(bandsteering_dir, '2.4_30abcc9ec8')],
                   bandsteering.hostapd_options('5', 'my_ssid'))
 
 
@@ -115,9 +115,9 @@ def hostapd_options_logging_test(experiments_dir, bandsteering_dir):
   open(os.path.join(experiments_dir, 'WifiHostapdLogging.active'), 'a').close()
 
   wvtest.WVPASS(experiment.enabled('WifiHostapdLogging'))
-  wvtest.WVPASSEQ(('-L', os.path.join(bandsteering_dir, '2.4_30abcc9ec8')),
+  wvtest.WVPASSEQ(['-L', os.path.join(bandsteering_dir, '2.4_30abcc9ec8')],
                   bandsteering.hostapd_options('2.4', 'my_ssid'))
-  wvtest.WVPASSEQ(('-L', os.path.join(bandsteering_dir, '5_30abcc9ec8')),
+  wvtest.WVPASSEQ(['-L', os.path.join(bandsteering_dir, '5_30abcc9ec8')],
                   bandsteering.hostapd_options('5', 'my_ssid'))
 
 
