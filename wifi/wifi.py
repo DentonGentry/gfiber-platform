@@ -471,6 +471,13 @@ def _is_wpa_supplicant_running(interface):
       ('wpa_cli', '-i', interface, 'status'), no_stdout=True) == 0
 
 
+def _hostapd_debug_options():
+  if experiment.enabled('WifiHostapdDebug'):
+    return ['-d']
+  else:
+    return []
+
+
 def _start_hostapd(interface, config_filename, band, ssid):
   """Starts a babysat hostapd.
 
@@ -494,6 +501,7 @@ def _start_hostapd(interface, config_filename, band, ssid):
                  '-A', alivemonitor_filename,
                  '-F', _FINGERPRINTS_DIRECTORY] +
                 bandsteering.hostapd_options(band, ssid) +
+                _hostapd_debug_options() +
                 [config_filename],
                 'hostapd-%s' % interface, 10, pid_filename)
 
@@ -561,7 +569,8 @@ def _start_wpa_supplicant(interface, config_filename):
   utils.babysit(['wpa_supplicant',
                  '-Dnl80211',
                  '-i', interface,
-                 '-c', config_filename],
+                 '-c', config_filename] +
+                _hostapd_debug_options(),
                 'wpa_supplicant-%s' % interface, 10, pid_filename)
 
   # Wait for wpa_supplicant to start, and return False if it doesn't.

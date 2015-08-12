@@ -15,6 +15,7 @@ EXPERIMENTS = [
     'WifiBandsteering',
     'WifiReverseBandsteering',
     'WifiHostapdLogging',
+    'WifiHostapdDebug',
 ]
 for _i in EXPERIMENTS:
   experiment.register(_i)
