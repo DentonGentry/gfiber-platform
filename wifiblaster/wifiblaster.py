@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -S
 # Copyright 2015 Google Inc. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,7 +42,7 @@ except AttributeError:
 _OPTSPEC = """
 wifiblaster [options...] [clients...]
 --
-i,interface=  Name of access point interface [wlan0]
+i,interface=  Name of access point interface
 d,duration=   Packet blast duration in seconds [.1]
 f,fraction=   Number of samples per duration [10]
 s,size=       Packet size in bytes [1470]
@@ -278,12 +278,14 @@ def main():
   opt.duration = float(opt.duration)
   opt.fraction = int(opt.fraction)
   opt.size = int(opt.size)
+  if not opt.interface:
+    o.fatal('must specify --interface')
   if opt.duration <= 0:
-    o.fatal('duration must be positive')
+    o.fatal('--duration must be positive')
   if opt.fraction <= 0:
-    o.fatal('fraction must be a positive integer')
+    o.fatal('--fraction must be a positive integer')
   if opt.size <= 0:
-    o.fatal('size must be a positive integer')
+    o.fatal('--size must be a positive integer')
 
   # Initialize iw, mac80211stats, and pktgen.
   iw = Iw(opt.interface)
