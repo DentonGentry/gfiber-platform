@@ -102,12 +102,12 @@ def babysit(command, name, retry_timeout, pid_filename):
   Returns:
     The name of the interface if found, otherwise None.
   """
-  args = ('babysit', str(retry_timeout), 'startpid', pid_filename) + command
+  args = ['babysit', str(retry_timeout), 'startpid', pid_filename] + command
   process = subprocess.Popen(args,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
   # Sleep for two seconds to give startpid time to create the pid filename.
   time.sleep(2)
-  subprocess.Popen(('logos', name), stdin=process.stdout)
+  subprocess.Popen(['logos', name], stdin=process.stdout)
 
 
 def get_mac_address_for_interface(interface):

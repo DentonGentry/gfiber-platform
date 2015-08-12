@@ -24,7 +24,7 @@ network={
 def generate_wpa_supplicant_config_test():
   if subprocess.call(('which', 'wpa_passphrase')) != 0:
     utils.log(
-        'Can\'t test generate_wpa_supplicant_config without wpa_passphrase.')
+        "Can't test generate_wpa_supplicant_config without wpa_passphrase.")
     return
 
   config = configs.generate_wpa_supplicant_config(
@@ -334,14 +334,18 @@ def generate_hostapd_config_test():
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', opt)
-  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG, _HOSTAPD_CONFIG_WPA)), config)
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG,
+                             _HOSTAPD_CONFIG_WPA,
+                             '# Experiments: ()\n')), config)
 
   # Test bridge.
   default_bridge, opt.bridge = opt.bridge, 'br0'
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', opt)
-  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG_BRIDGE, _HOSTAPD_CONFIG_WPA)),
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG_BRIDGE,
+                             _HOSTAPD_CONFIG_WPA,
+                             '# Experiments: ()\n')),
                   config)
   opt.bridge = default_bridge
 
@@ -350,7 +354,7 @@ def generate_hostapd_config_test():
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', opt)
-  wvtest.WVPASSEQ(_HOSTAPD_CONFIG, config)
+  wvtest.WVPASSEQ(_HOSTAPD_CONFIG + '\n# Experiments: ()\n', config)
   opt.encryption = default_encryption
 
   # Now enable extra short timeout intervals and the Wifi80211k experiment.
@@ -363,7 +367,8 @@ def generate_hostapd_config_test():
       _HOSTAPD_CONFIG,
       _HOSTAPD_CONFIG_WPA,
       configs._EXPERIMENT_80211K_TPL.format(interface='wlan0'),
-      configs._EXTRA_SHORT_TIMEOUT_INTERVALS_TPL))
+      configs._EXTRA_SHORT_TIMEOUT_INTERVALS_TPL,
+      '# Experiments: (Wifi80211k)\n'))
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', opt)

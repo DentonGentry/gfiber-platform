@@ -8,6 +8,18 @@ import experiment
 import utils
 
 
+EXPERIMENTS = [
+    'NoSwapWifiPrimaryChannel',  # checked by hostapd itself
+    'NoAutoNarrowWifiChannel',  # checked by hostapd itself
+    'Wifi80211k',
+    'WifiBandsteering',
+    'WifiReverseBandsteering',
+    'WifiHostapdLogging',
+]
+for _i in EXPERIMENTS:
+  experiment.register(_i)
+
+
 # Recommended HT40/VHT80 settings for given primary channels.
 # HT40 channels can fall back to 20 MHz, and VHT80 can fall back to 40 or 20.
 # So we configure using a "primary" 20 MHz channel, then allow wider
@@ -231,7 +243,7 @@ def generate_hostapd_config(
         raise utils.BinWifiException(
             'Box has no MAC_ADDR_WIFI, MAC_ADDR_WIFI2, or MAC_ADDR.  You can '
             'set these with e.g. '
-            '\'# hnvram -w MAC_ADDR_WIFI="00:00:00:00:00:00"\'')
+            "'# hnvram -w MAC_ADDR_WIFI=00:00:00:00:00:00'")
   except OSError:
     pass
 
@@ -258,6 +270,15 @@ def generate_hostapd_config(
 
   if opt.extra_short_timeout_intervals:
     hostapd_conf_parts.append(_EXTRA_SHORT_TIMEOUT_INTERVALS_TPL)
+
+  # Track the active experiments the last time hostapd was started:
+  #  - for easier examination of the state
+  #  - to make sure the config counts as changed whenever the set of
+  #    experiments changes.
+  active_experiments = [i for i in EXPERIMENTS
+                        if experiment.enabled(i)]
+  hostapd_conf_parts.append('# Experiments: (%s)\n'
+                            % ','.join(active_experiments))
 
   utils.log('configuration ready.')
 
