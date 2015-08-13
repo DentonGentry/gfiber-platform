@@ -69,8 +69,8 @@ ifeq ($(BUILD_STATUTILS),y)
 TARGETS += statpitcher statcatcher
 endif
 
-ifeq ($(BUILD_WIFI2JSON),y)
-ARCH_TARGETS += wifi2json
+ifeq ($(BUILD_WIFIUTILS),y)
+ARCH_TARGETS += wifi_files
 endif
 
 AS=$(CROSS_COMPILE)as
@@ -198,8 +198,8 @@ eddystone: CFLAGS += -std=gnu99
 eddystone: eddystone.o
 host-dir-monitor dir-monitor: LIBS+=-lstdc++
 netusage: CFLAGS += -Wno-sign-compare
-wifi2json: wifi2json.o
-wifi2json: LIBS+=-lnl-3 -lnl-genl-3
+wifi_files: wifi_files.o
+wifi_files: LIBS+=-lnl-3 -lnl-genl-3
 
 TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
 runtests: all $(TESTS)
