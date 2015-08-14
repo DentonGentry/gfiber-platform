@@ -48,6 +48,9 @@ skiploadersig suppress checking the loader signature
 b,basepath=   for tests, prepend a path to all files accessed.
 """
 
+# Error codes.
+HNVRAM_ERR = 1
+GINSTALL_RUNNING_ERR = 2
 
 # unit tests can override these with fake versions
 BUFSIZE = 4 * 1024            # 64k causes b/14299411
@@ -56,6 +59,13 @@ HNVRAM = 'hnvram'
 NANDDUMP = ['nanddump']
 SGDISK = 'sgdisk'
 
+# Lock prefix is used for process locking.  The full file will be saved with
+# ".lock" appended to the end.
+LOCK_PREFIX = '/tmp/ginstall'
+
+# Status file for informing a potential second ginstall that an installation has
+# already run to completion.
+GINSTALL_COMPLETED_FILE = '/tmp/ginstall_complete'
 
 F = {
     'ETCPLATFORM': '/etc/platform',
@@ -85,6 +95,41 @@ default_manifest_files = {
     'installer_version': '2',
     'image_type': 'unlocked'
 }
+
+
+class LockException(Exception):
+  """An exception raised when a lock cannot be acquired."""
+  pass
+
+
+class PidLock(object):
+  """A class meant to handle process mutual exclusion through a lock file.
+
+     Usage: create the lock, then use in a `with' statement.
+
+     ex:
+        with PidLock(prefix):
+          # Lock is now acquired.
+          ... do atomic things ...
+
+        # Lock is now released.
+        ... do other things ...
+  """
+
+  def __init__(self, lock_path):
+    self.lock_path = lock_path
+
+  def __enter__(self):
+    # Returns immediately if lockfile is already taken.
+    cmd = ['lockfile-create', '--use-pid', '--retry', '0', self.lock_path]
+    res = subprocess.call(cmd)
+    if res != 0:
+      raise LockException('Unable to acquire lock')
+    return self
+
+  def __exit__(self, *err):
+    cmd = ['lockfile-remove', self.lock_path]
+    subprocess.call(cmd)
 
 
 class Fatal(Exception):
@@ -890,28 +935,34 @@ def main():
   if not (opt.drm or opt.tar or opt.partition):
     o.fatal('Expected at least one of --partition, --tar, or --drm')
 
-  quiet = opt.quiet
+  try:
+    with PidLock(LOCK_PREFIX):
+      quiet = opt.quiet
 
-  if opt.basepath:
-    # Standalone test harness can pass in a fake root path.
-    AddBasePath(opt.basepath)
+      if opt.basepath:
+        # Standalone test harness can pass in a fake root path.
+        AddBasePath(opt.basepath)
 
-  if opt.drm:
-    WriteDrm(opt)
+      if opt.drm:
+        WriteDrm(opt)
 
-  if opt.tar and not opt.partition:
-    # default to the safe option if not given
-    opt.partition = 'other'
+      if opt.tar and not opt.partition:
+        # default to the safe option if not given
+        opt.partition = 'other'
 
-  partition = GetPartition(opt)
-  if opt.tar:
-    f = OpenPathOrUrl(opt.tar)
-    InstallImage(f, partition, skiploader=opt.skiploader,
-                 skiploadersig=opt.skiploadersig)
+      partition = GetPartition(opt)
+      if opt.tar:
+        f = OpenPathOrUrl(opt.tar)
+        InstallImage(f, partition, skiploader=opt.skiploader,
+                     skiploadersig=opt.skiploadersig)
 
-  if partition is not None:
-    return SetBootPartition(partition)
+      if partition is not None:
+        res = SetBootPartition(partition)
+        return HNVRAM_ERR if res else 0
 
+      open(GINSTALL_COMPLETED_FILE, 'w').close()
+  except LockException:
+    return GINSTALL_RUNNING_ERR
   return 0
 
 
