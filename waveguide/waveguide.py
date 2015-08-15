@@ -72,7 +72,7 @@ MCAST_ADDRESS = '239.255.0.1'  # "administratively scoped" RFC2365 subnet
 MCAST_PORT = 4442
 AP_LIST_FILE = ['']
 PEER_AP_LIST_FILE = ['']
-WIFIBLASTERDIR = '/tmp/wifi/wifiblaster'
+WIFIBLASTER_DIR = '/tmp/wifi/wifiblaster'
 
 _gettime_rand = random.randint(0, 1000000)
 
@@ -890,10 +890,10 @@ class WifiblasterController(object):
 
     The last N results are retained in the file.
     """
-    filename = os.path.join(WIFIBLASTERDIR, client)
+    filename = os.path.join(WIFIBLASTER_DIR, client)
     with open(filename, 'a+') as f:
       results = f.read(65536).splitlines()
-    results.append(line)
+    results.append('%d %s' % (time.time(), line))
     newresults = '\n'.join(results[-128:])
     helpers.WriteFileAtomic(filename, newresults)
 
@@ -1027,7 +1027,7 @@ def main():
       raise
 
   try:
-    os.makedirs(WIFIBLASTERDIR)
+    os.makedirs(WIFIBLASTER_DIR)
   except OSError as e:
     if e.errno != errno.EEXIST:
       raise
