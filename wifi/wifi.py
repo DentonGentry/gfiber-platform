@@ -427,36 +427,44 @@ def show_wifi(opt):
     True.
   """
   for band in opt.band.split():
-    interface = iw.find_interface_from_band(
-        band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
-    if interface is None:
-      continue
-
     print('Band: %s' % band)
     for tokens in utils.subprocess_line_tokens(('iw', 'reg', 'get')):
       if len(tokens) >= 2 and tokens[0] == 'country':
         print('RegDomain: %s' % tokens[1].strip(':'))
         break
 
-    info_parsed = iw.info_parsed(interface)
-    for k, label in (('channel', 'Channel'),
-                     ('ssid', 'SSID'),
-                     ('addr', 'BSSID')):
-      v = info_parsed.get(k, None)
-      if v is not None:
-        print('%s: %s' % (label, v))
+    for prefix, interface_type in (('', iw.INTERFACE_TYPE.ap),
+                                   ('Client ', iw.INTERFACE_TYPE.client)):
+      interface = iw.find_interface_from_band(
+          band, interface_type, opt.interface_suffix)
+      if interface is None:
+        continue
+      print('%sInterface: %s  # %s GHz %s' %
+            (prefix, interface, band, 'client' if 'cli' in interface else 'ap'))
 
-    print('AutoChannel: %r' % os.path.exists('/tmp/autochan.%s' % interface))
-    try:
-      with open('/tmp/autotype.%s' % interface) as autotype:
-        print('AutoType: %s' % autotype.read().strip())
-    except IOError:
-      pass
+      info_parsed = iw.info_parsed(interface)
+      for k, label in (('channel', 'Channel'),
+                       ('ssid', 'SSID'),
+                       ('addr', 'BSSID')):
+        v = info_parsed.get(k, None)
+        if v is not None:
+          print('%s%s: %s' % (prefix, label, v))
 
-    print('Station List for band: %s' % band)
-    station_dump = iw.station_dump(interface)
-    if station_dump:
-      print(station_dump)
+      if interface_type == iw.INTERFACE_TYPE.ap:
+        print('AutoChannel: %r' %
+              os.path.exists('/tmp/autochan.%s' % interface))
+        try:
+          with open('/tmp/autotype.%s' % interface) as autotype:
+            print('AutoType: %s' % autotype.read().strip())
+        except IOError:
+          pass
+
+        print('Station List for band: %s' % band)
+        station_dump = iw.station_dump(interface)
+        if station_dump:
+          print(station_dump)
+
+      print()
 
   return True
 
