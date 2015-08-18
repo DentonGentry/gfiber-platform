@@ -4,8 +4,8 @@ INSTALL=install
 PKG_CONFIG?=pkg-config
 CC=$(CROSS_COMPILE)gcc
 
-CFLAGS = -Wall -O2 $(shell $(PKG_CONFIG) --cflags dbus-1) -D_LARGEFILE64_SOURCE
-LDFLAGS = $(shell $(PKG_CONFIG) --libs dbus-1) -ldevmapper
+CFLAGS = -Wall -O2 $(shell $(PKG_CONFIG) --cflags dbus-1) -D_LARGEFILE64_SOURCE $(EXTRACFLAGS)
+LDFLAGS = $(shell $(PKG_CONFIG) --libs dbus-1) $(EXTRACFLAGS) -ldevmapper
 
 APPS := cryptdev
 SRCS := cryptdev.c tpm.c keyfile.c loopdev.c devmap.c

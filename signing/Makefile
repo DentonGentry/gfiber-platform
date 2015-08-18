@@ -2,39 +2,42 @@
 # Author: kedong@google.com (Ke Dong)
 
 PYTHON?=python
-CC:=$(CROSS_COMPILE)gcc
-RM:=rm -f
-EXES=readverity readverity_test
+AS=$(CROSS_COMPILE)as
+CC=$(CROSS_COMPILE)gcc
+CXX=$(CROSS_COMPILE)g++
+LD=$(CROSS_COMPILE)gcc
+RM=rm -f
+INSTALL=install
 
-all: $(EXES)
+all: readverity
 
-CFLAGS:=-Wall -Wimplicit -Wno-unknown-pragmas
-HOST_CFLAGS=-I/include -I/usr/include -I$(HOSTDIR)/include -I$(HOSTDIR)/usr/include
-HOST_LDFLAGS=-L$(HOSTDIR)/lib -L$(HOSTDIR)/usr/lib -lgtest -lpthread
+CFLAGS+=-Wall -Wno-unknown-pragmas -Wimplicit $(EXTRACFLAGS)
+CXXFLAGS+=-Wall -Wno-unknown-pragmas $(EXTRACXXFLAGS)
 
 readverity: readverity.o main.o
-	$(CC) -o $@ $^ $(CFLAGS)
+	$(CC) -o $@ $^ $(LDFLAGS)
 
-host_%.o: %.c
-	gcc -c -o $@ $< $(CFLAGS) $(HOST_CFLAGS)
+readverity_test: readverity.o readverity_test.o
+	$(CXX) -o $@ $^ $(LDFLAGS) $(CXXFLAGS) -lgtest -lpthread
 
-host_%.o: %.cc
-	g++ -c -o $@ $< $(CFLAGS) $(HOST_CFLAGS)
+install-libs: readverity
+	mkdir -p $(DESTDIR)/usr/sbin/
+	$(INSTALL) -D -m 0755 repack.py signserial.py \
+		$(DESTDIR)/usr/sbin/
 
-readverity_test: host_readverity.o host_readverity_test.o
-	g++ -o $@ $^ $(HOST_LDFLAGS)
-
-install: readverity
+install:
+	mkdir -p $(DESTDIR)/usr/sbin $(DESTDIR)/usr/bin
 	$(INSTALL) -D -m 0755 readverity \
-		$(TARGET_DIR)/usr/sbin/readverity &&\
+		$(DESTDIR)/usr/sbin/
 	$(INSTALL) -D -m 0755 readallfiles.py \
-		$(TARGET_DIR)/usr/bin/readallfiles
+		$(DESTDIR)/usr/bin/readallfiles
 	$(INSTALL) -D -m 0750 S99readallfiles \
-		$(TARGET_DIR)/etc/init.d/S99readallfiles
+		$(DESTDIR)/etc/init.d/S99readallfiles
 
 test: readverity_test
+	$(PYTHON) repacktest.py
 	./readverity_test && \
 		$(PYTHON) readallfilestest.py
 
 clean:
-	$(RM) $(EXES)
+	$(RM) readverity readverity_test

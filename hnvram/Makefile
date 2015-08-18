@@ -31,5 +31,8 @@ install:
 	mkdir -p $(BINDIR)
 	cp hnvram $(BINDIR)
 
+install-libs:
+	@echo "No libs to install."
+
 clean:
 	rm -f hnvram hnvram_test *.o

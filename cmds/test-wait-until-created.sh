@@ -68,3 +68,5 @@ wait
 
 
 rm -f f1 f2
+rm -rf d2
+

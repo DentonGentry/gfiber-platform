@@ -11,7 +11,7 @@ INCLUDEDIR=$(DESTDIR)$(PREFIX)/include/bruno
 
 all: libbrunobase.so libbrunobase.a
 
-CFLAGS=-Wall -fPIC -Os
+CFLAGS=-Wall -Werror -Wno-unused-local-typedefs -fPIC -Os
 CPPFLAGS=-DPOSIX -DLINUX -D_DEBUG -DLOGGING=1
 OBJS=$(patsubst %.cc,%.o,$(wildcard *.cc))
 
