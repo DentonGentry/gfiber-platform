@@ -8,8 +8,10 @@ buttonmon
 chg_mod_own
 cpulog
 device_stats.pb.h
+dhcp-rogue
 dir-monitor
 diskbench
+dnsck
 dnssd_hosts
 freemegs
 gsetsid
