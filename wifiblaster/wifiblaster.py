@@ -253,14 +253,11 @@ def _PacketBlast(iw, mac80211stats, pktgen, client, duration, fraction, size):
                for (after, before) in zip(samples[1:], samples[:-1])]
 
     # Print result.
-    ts = time.strftime('%a %b %d %H:%M:%S %Y UTC', time.gmtime())
-    print ('version=2 mac=%s throughput=%d rssi=%g frequency=%d '
-           'ts="%s" samples=%s') % (
+    print ('version=2 mac=%s throughput=%d rssi=%g frequency=%d samples=%s') % (
         client,
         sum(samples) / len(samples),
         iw.GetRssi(client),
         iw.GetFrequency(),
-        ts,
         ','.join(['%d' % sample for sample in samples]))
 
   except Error as e:

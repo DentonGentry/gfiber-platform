@@ -89,31 +89,34 @@ def LogWifiblasterResultsTest(save_mock, log_mock):
 
 
 @wvtest.wvtest
-def SaveWifiblasterResultTest():
-  oldwifiblasterdir = waveguide.WIFIBLASTERDIR
-  waveguide.WIFIBLASTERDIR = tempfile.mkdtemp()
+@mock.patch('time.time')
+def SaveWifiblasterResultTest(unused_time_mock):
+  oldwifiblasterdir = waveguide.WIFIBLASTER_DIR
+  waveguide.WIFIBLASTER_DIR = tempfile.mkdtemp()
   manager = mock.MagicMock()
   wc = waveguide.WifiblasterController([manager], '')
 
   wc._SaveWifiblasterResult('j 00:00:00:00:00:00\n', '00:00:00:00:00:00')
-  with open(os.path.join(waveguide.WIFIBLASTERDIR, '00:00:00:00:00:00')) as f:
+  with open(os.path.join(waveguide.WIFIBLASTER_DIR, '00:00:00:00:00:00')) as f:
     contents = f.read()
-  wvtest.WVPASSEQ('j 00:00:00:00:00:00\n', contents)
+  wvtest.WVPASSEQ('1 j 00:00:00:00:00:00\n', contents)
   wc._SaveWifiblasterResult('k 00:00:00:00:00:00\n', '00:00:00:00:00:00')
   wc._SaveWifiblasterResult('l 00:00:00:00:00:00\n', '00:00:00:00:00:00')
-  with open(os.path.join(waveguide.WIFIBLASTERDIR, '00:00:00:00:00:00')) as f:
+  with open(os.path.join(waveguide.WIFIBLASTER_DIR, '00:00:00:00:00:00')) as f:
     contents = f.read()
-  expected = ('j 00:00:00:00:00:00\nk 00:00:00:00:00:00\nl 00:00:00:00:00:00\n')
+  expected = ('1 j 00:00:00:00:00:00\n'
+              '1 k 00:00:00:00:00:00\n'
+              '1 l 00:00:00:00:00:00\n')
   wvtest.WVPASSEQ(expected, contents)
 
   for _ in range(256):
     wc._SaveWifiblasterResult('x 00:00:00:00:00:00\n', '00:00:00:00:00:00')
-  with open(os.path.join(waveguide.WIFIBLASTERDIR, '00:00:00:00:00:00')) as f:
+  with open(os.path.join(waveguide.WIFIBLASTER_DIR, '00:00:00:00:00:00')) as f:
     lines = f.readlines()
     wvtest.WVPASSEQ(128, len(lines))
 
-  shutil.rmtree(waveguide.WIFIBLASTERDIR)
-  waveguide.WIFIBLASTERDIR = oldwifiblasterdir
+  shutil.rmtree(waveguide.WIFIBLASTER_DIR)
+  waveguide.WIFIBLASTER_DIR = oldwifiblasterdir
 
 
 @wvtest.wvtest
