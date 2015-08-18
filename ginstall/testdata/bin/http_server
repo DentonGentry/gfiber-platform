@@ -2,7 +2,17 @@
 
 import SimpleHTTPServer
 import SocketServer
+import os
 import sys
+
+
+def check_pid(pid):
+  try:
+    os.kill(pid, 0)
+  except OSError:
+    return False
+  else:
+    return True
 
 
 class MyHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
@@ -12,18 +22,30 @@ class MyHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
       return
     SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
 
-server = SocketServer.TCPServer(('127.0.0.1', 0), MyHandler)
-server.timeout = 0.5
-ip, port = server.server_address
 
-if len(sys.argv) <= 1:
-  print 'Usage: http_server /path/to/control/file'
-  sys.exit(1)
+def main():
+  server = SocketServer.TCPServer(('127.0.0.1', 0), MyHandler)
+  server.timeout = 0.5
+  ip, port = server.server_address
 
-filename = sys.argv[1]
-open(filename, 'w').write(str(port))
+  if len(sys.argv) <= 1:
+    print 'Usage: http_server /path/to/control/file'
+    return 1
 
-while True:
-  server.handle_request()
-  if 'quitquitquit' in open(filename).read():
-    sys.exit(0)
+  filename = sys.argv[1]
+  open(filename, 'w').write(str(port))
+
+  while True:
+    print 'http_server running...'
+    server.handle_request()
+    if 'quitquitquit' in open(filename).read():
+      return 0
+    ppid = os.getppid()
+    if ppid == 1 or not check_pid(ppid):
+      print 'parent process died.'
+      return 2
+
+if __name__ == '__main__':
+  rv = main()
+  print 'http_server exiting with code %d.' % rv
+  exit(rv)
