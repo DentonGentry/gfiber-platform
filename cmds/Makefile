@@ -82,9 +82,9 @@ HOST_CXX ?= g++
 HOST_LD ?= cc
 HOST_PROTOC ?= $(HOSTDIR)/usr/bin/protoc
 CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
-	-g -O -std=c99 -D_GNU_SOURCE $(EXTRACFLAGS)
+	-g -O -std=c99 -D_GNU_SOURCE
 CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
-	-g -O -std=gnu++0x -D_GNU_SOURCE $(EXTRACXXFLAGS)
+	-g -O -std=gnu++0x -D_GNU_SOURCE
 HOST_INCS=-I$(HOSTDIR)/usr/include
 HOST_LIBS=-L$(HOSTDIR)/usr/lib -Wl,-rpath=$(HOSTDIR)/usr/lib
 INCS=-I../libstacktrace

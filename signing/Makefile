@@ -5,7 +5,6 @@ PYTHON?=python
 CC:=$(CROSS_COMPILE)gcc
 RM:=rm -f
 EXES=readverity readverity_test
-INSTALL=install
 
 all: $(EXES)
 
@@ -25,22 +24,15 @@ host_%.o: %.cc
 readverity_test: host_readverity.o host_readverity_test.o
 	g++ -o $@ $^ $(HOST_LDFLAGS)
 
-install-libs: readverity
-	mkdir -p $(DESTDIR)/usr/sbin/
-	$(INSTALL) -D -m 0755 repack.py signserial.py \
-		$(DESTDIR)/usr/sbin/
-
-install:
-	mkdir -p $(DESTDIR)/usr/sbin $(DESTDIR)/usr/bin
+install: readverity
 	$(INSTALL) -D -m 0755 readverity \
-		$(DESTDIR)/usr/sbin/
+		$(TARGET_DIR)/usr/sbin/readverity &&\
 	$(INSTALL) -D -m 0755 readallfiles.py \
-		$(DESTDIR)/usr/bin/readallfiles
+		$(TARGET_DIR)/usr/bin/readallfiles
 	$(INSTALL) -D -m 0750 S99readallfiles \
-		$(DESTDIR)/etc/init.d/S99readallfiles
+		$(TARGET_DIR)/etc/init.d/S99readallfiles
 
 test: readverity_test
-	$(PYTHON) repacktest.py
 	./readverity_test && \
 		$(PYTHON) readallfilestest.py
 

@@ -1,21 +1,5 @@
 default: all
 
-# Build everything by default
-BUILD_HNVRAM?=      # default off: needs separate library
-BUILD_SSDP?=y
-BUILD_DNSSD?=y
-BUILD_LOGUPLOAD?=   # default off: needs libgtest
-BUILD_IBEACON?=     # default off: needs bluetooth.h
-BUILD_WAVEGUIDE?=y
-BUILD_DVBUTILS?=y
-BUILD_SYSMGR?=y
-BUILD_STATUTILS?=y
-BUILD_CRYPTDEV?=    # default off: needs libdevmapper
-BUILD_SIGNING?=     # default off: needs libgtest
-export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
-	BUILD_IBEACON BUILD_WAVEGUIDE BUILD_DVBUTILS BUILD_SYSMGR \
-	BUILD_STATUTILS BUILD_CRYPTDEV BUILD_SIGNING
-
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
 DIRS=libstacktrace ginstall cmds \
@@ -46,10 +30,6 @@ endif
 
 ifeq ($(BUILD_CRYPTDEV),y)
 DIRS+=cryptdev
-endif
-
-ifeq ($(BUILD_SIGNING),y)
-DIRS+=signing
 endif
 
 ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfibersc)
