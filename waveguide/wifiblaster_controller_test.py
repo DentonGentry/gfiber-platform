@@ -202,9 +202,11 @@ def PollTest(expovariate_mock, run_proc_mock):
 @wvtest.wvtest
 @mock.patch('waveguide.RunProc')
 @mock.patch('random.expovariate')
-def RapidPollingTest(expovariate_mock, run_proc_mock):
+@mock.patch('time.time')
+def RapidPollingTest(time_mock, expovariate_mock, run_proc_mock):
   manager = mock.MagicMock()
   wc = waveguide.WifiblasterController([manager], '')
+  time_mock.side_effect = range(0, 1000)
 
   # Stub random.expovariate to return the average.
   expovariate_mock.side_effect = lambda lambd: 1.0 / lambd

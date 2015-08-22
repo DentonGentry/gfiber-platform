@@ -944,7 +944,7 @@ class WifiblasterController(object):
     rapidpolling = self._ReadParameter('rapidpolling', int)
     size = self._ReadParameter('size', int)
 
-    if rapidpolling > now:
+    if rapidpolling > time.time():
       interval = 10.0
 
     # Disable.
