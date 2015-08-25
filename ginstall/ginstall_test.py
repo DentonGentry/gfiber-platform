@@ -108,11 +108,11 @@ class GinstallTest(unittest.TestCase):
   def testLockExceptions(self):
     lock_prefix = '/tmp/ginstall_test_lock'
     lock = ginstall.PidLock(lock_prefix)
-    def lockFailure():
+    def LockFailure():
       with lock:
         with ginstall.PidLock(lock_prefix):
           pass
-    self.assertRaises(ginstall.LockException, lockFailure)
+    self.assertRaises(ginstall.LockException, LockFailure)
     # Asserts no exceptions happen during normal usage.
     with lock:
       pass
