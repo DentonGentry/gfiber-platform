@@ -2,6 +2,7 @@ INSTALL?=install
 PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
 LIBDIR=$(PREFIX)/waveguide
+PYTHON?=python
 GPYLINT=$(shell \
     if which gpylint >/dev/null; then \
       echo gpylint; \
@@ -13,7 +14,7 @@ GPYLINT=$(shell \
 all:
 
 %.test: %_test.py
-	./$<
+	$(PYTHON) $<
 
 %.test: %_test.sh
 	./$<
