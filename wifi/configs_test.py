@@ -12,6 +12,7 @@ from wvtest import wvtest
 
 _WPA_SUPPLICANT_CONFIG = """ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
+autoscan=exponential:1:30
 network={
 \tssid="some ssid"
 \t#psk="some passphrase"
