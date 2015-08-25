@@ -19,7 +19,7 @@
 #include <stddef.h>
 
 // blockdev_get_size returns the size of block device in bytes.
-size_t blockdev_get_size(const char* name);
+int64_t blockdev_get_size(const char* name);
 
 // loopdev_open opens a loopback device.
 // Returns -1 on error.

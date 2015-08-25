@@ -27,9 +27,9 @@
 
 #include "loopdev.h"
 
-size_t blockdev_get_size(const char* name) {
+int64_t blockdev_get_size(const char* name) {
   int fd;
-  size_t size = 0;
+  int64_t size = 0;
 
   fd = open(name, O_RDWR|O_LARGEFILE);
   if (fd < 0) {
