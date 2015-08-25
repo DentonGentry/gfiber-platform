@@ -290,6 +290,7 @@ def generate_wpa_supplicant_config(ssid, passphrase):
   return '\n'.join(
       ('ctrl_interface=/var/run/wpa_supplicant',
        'ap_scan=1',
+       'autoscan=exponential:1:30',
        subprocess.check_output(('wpa_passphrase',
                                 utils.sanitize_ssid(ssid),
                                 utils.validate_and_sanitize_psk(passphrase)))))
