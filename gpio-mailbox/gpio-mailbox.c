@@ -42,6 +42,13 @@
 #define POLL_HZ 2000    // polls per sec
 #define USEC_PER_TICK (1000000 / POLL_HZ)
 
+/*
+ * At this temp, if sysmgr isn't setting fan, jump to 100% as a failsafe.
+ * sysmgr has a per-platform setting, but we don't share code with that here.
+ * Setting to MAX(temp_max) from fancontrol.cc in sysmgr, which is 100 now.
+ */
+#define HIGH_TEMP_OVERRIDE		100.0
+
 #define CHECK(x) do { \
     int rv = (x); \
     if (rv) { \
@@ -324,7 +331,7 @@ void run_gpio_mailbox(void) {
               wantspeed_warned = wantspeed;
             }
             wantspeed = 100;
-          } else if (wantspeed < 100 && cpu_temp >= 95.0) {
+          } else if (wantspeed < 100 && cpu_temp >= HIGH_TEMP_OVERRIDE) {
             if (wantspeed_warned != wantspeed) {
               fprintf(stderr,
                       "DANGER: fanpercent (%d) is too low for CPU temp %.2f; "
