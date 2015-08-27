@@ -36,7 +36,6 @@ install:
 	mkdir -p $(LIBDIR) $(BINDIR)
 	$(INSTALL) -m 0644 *.py $(LIBDIR)/
 	$(INSTALL) -m 0755 wifi.py $(LIBDIR)/
-	$(INSTALL) -m 0755 wifi_files.py $(LIBDIR)/
 	rm -f $(BINDIR)/wifi
 	ln -s /usr/wifi/wifi.py $(BINDIR)/wifi
 
