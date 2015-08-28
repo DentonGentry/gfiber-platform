@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DIAGS_VERSION "1.5"
+#define DIAGS_VERSION "1.8"
 
 /* External Functions */
 int ioread(int argc, char **argv);
@@ -22,6 +22,7 @@ int check_reset_button(int argc, char *argv[]);
 int cpu_reset(int argc, char *argv[]);
 int set_red_led(int argc, char *argv[]);
 int set_blue_led(int argc, char *argv[]);
+int set_led_dim(int argc, char *argv[]);
 int set_poe(int argc, char *argv[]);
 int send_if_to_if(int argc, char *argv[]);
 int send_if(int argc, char *argv[]);
@@ -61,6 +62,7 @@ tCOMMAND command_list[] = {
     {"cpu_reset", cpu_reset},
     {"set_red_led", set_red_led},
     {"set_blue_led", set_blue_led},
+    {"set_led_dim", set_led_dim},
     {"set_poe", set_poe},
     {"", NULL},
     {"ethreg", ethreg_main},

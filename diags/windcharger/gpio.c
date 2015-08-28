@@ -308,6 +308,29 @@ int set_blue_led(int argc, char *argv[]) {
   }
 }
 
+static void set_led_dim_usage(void) {
+  printf("set_led_dim <on/off>\n");
+  printf("Example:\n");
+  printf("set_led_dim on\n");
+  printf("dim LED\n");
+}
+
+int set_led_dim(int argc, char *argv[]) {
+  if (argc != 2) {
+    set_led_dim_usage();
+    return -1;
+  }
+
+  if (strcmp(argv[1], LED_ON_OPTION) == 0) {
+    return set_gpio_pin(GPIO_DIM_LED_PIN, 1);
+  } else if (strcmp(argv[1], LED_OFF_OPTION) == 0) {
+    return set_gpio_pin(GPIO_DIM_LED_PIN, 0);
+  } else {
+    set_led_dim_usage();
+    return -1;
+  }
+}
+
 static void set_poe_usage(void) {
   printf("set_poe <on/off>\n");
   printf("Example:\n");
