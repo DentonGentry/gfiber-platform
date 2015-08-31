@@ -2,19 +2,14 @@
 
 """Tests for wifi.py."""
 
-import options
-import utils
 import wifi
 
 from wvtest import wvtest
 
 
 @wvtest.wvtest
-def stop_ap_wifi_dies_with_invalid_band():
-  opts = options.OptDict({})
-  opts.band = '42'
-  opts.interface_suffix = ''
-  wvtest.WVEXCEPT(utils.BinWifiException, wifi.stop_ap_wifi, opts)
+def a_placeholder_because_all_we_really_care_is_that_import_wifi_works():
+  wvtest.WVPASS(wifi)
 
 
 if __name__ == '__main__':
