@@ -10,18 +10,17 @@ import subprocess
 import sys
 import time
 
-import options
-
 import autochannel
 import bandsteering
 import configs
 import experiment
 import iw
+import options
 import persist
 import utils
 
 
-_OPTSPEC = """
+_OPTSPEC_FORMAT = """
 {bin} set           Enable or modify access points.  Takes all options unless otherwise specified.
 {bin} setclient     Enable or modify wifi clients.  Takes -b, -P, -s, -S.
 {bin} stop|off      Disable access points and clients.  Takes -b, -P, -S.
@@ -45,8 +44,7 @@ B,bridge=                         Bridge device to use [br0]
 X,extra-short-timeout-intervals   Use extra short timeout intervals for stress testing
 P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
 S,interface-suffix=               Interface suffix []
-""".format(bin=__file__.split('/')[-1],
-           ssid='%s_TestWifi' % subprocess.check_output(('serial')).strip())
+"""
 
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
 
@@ -881,7 +879,10 @@ def _run(argv):
   Raises:
     BinWifiException: On file write failures.
   """
-  parser = options.Options(_OPTSPEC)
+  optspec = _OPTSPEC_FORMAT.format(
+      bin=__file__.split('/')[-1],
+      ssid='%s_TestWifi' % subprocess.check_output(('serial')).strip())
+  parser = options.Options(optspec)
   opt, _, extra = parser.parse(argv)
   stringify_options(opt)
 
