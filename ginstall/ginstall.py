@@ -956,12 +956,13 @@ def main():
         InstallImage(f, partition, skiploader=opt.skiploader,
                      skiploadersig=opt.skiploadersig)
 
-      if partition is not None:
-        res = SetBootPartition(partition)
-        return HNVRAM_ERR if res else 0
+      if partition is not None and SetBootPartition(partition) != 0:
+        VerbosePrint('Unable to set boot partition\n')
+        return HNVRAM_ERR
 
       open(GINSTALL_COMPLETED_FILE, 'w').close()
   except LockException:
+    VerbosePrint('Another instance of ginstall is running\n')
     return GINSTALL_RUNNING_ERR
   return 0
 
