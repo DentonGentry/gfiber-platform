@@ -770,6 +770,17 @@ def _maybe_restart_wpa_supplicant(interface, config, opt):
   return True
 
 
+@iw.requires_iw
+def client_interface_name(phy, interface_suffix):
+  ap_interface = iw.find_interface_from_phy(phy, iw.INTERFACE_TYPE.ap,
+                                            interface_suffix)
+  if ap_interface:
+    return 'w%s%s' % (iw.INTERFACE_TYPE.client,
+                      re.match(r'[^0-9]+([0-9]+)$', ap_interface).group(1))
+  else:
+    return None
+
+
 @iw.requires_iw  # Client mode not supported on Broadcom.
 def set_client_wifi(opt):
   """Set up a wifi client in response to the 'setclient' command.
@@ -802,11 +813,12 @@ def set_client_wifi(opt):
                                          opt.interface_suffix)
 
   if interface is None:
-    # Create the client interface if it does not exist.
-    # TODO(rofrankel):  Create client interfaces outside this script, so that
-    # they don't depend on the phynum, which occasionally changes.
-    interface = 'w%s%s' % (iw.INTERFACE_TYPE.client,
-                           filter(None, re.split(r'(\d+)', phy))[-1])
+    # Create the client interface if it does not exist, using the same number as
+    # an existing AP interface, which is stable across driver reloads.
+    interface = client_interface_name(phy, opt.interface_suffix)
+    if interface is None:
+      raise utils.BinWifiException('AP interface not initialized for %s' % phy)
+
     if not iw.does_interface_exist(interface):
       utils.log('Creating client interface %s', interface)
       utils.subprocess_quiet(
