@@ -46,6 +46,7 @@ case "$words" in
     exit 0
     ;;
   dev-*-station-dump)
+    [ -r "stationdump.$dev" ] && cat "stationdump.$dev"
     exit 0
     ;;
   *)
