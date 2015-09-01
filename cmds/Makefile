@@ -30,6 +30,7 @@ TARGETS=\
 	dnsck \
 	freemegs \
 	gstatic \
+	http_bouncer \
 	ionice \
 	memwatcher \
 	netusage \
@@ -159,6 +160,7 @@ host-isoping isoping: LIBS+=$(RT) -lm
 host-isostream isostream: LIBS+=$(RT)
 host-diskbench diskbench: LIBS+=-lpthread $(RT)
 host-dnsck: LIBS+=$(HOST_LIBS) -lcares $(RT)
+host-http_bouncer: LIBS+=$(HOST_LIBS) -lcurl $(RT)
 dnssd_hosts: LIBS+=-lavahi-client -lavahi-common
 host-dnssd_hosts: LIBS+=-lavahi-client
 host-logos logos: LIBS+=-lrt
@@ -180,6 +182,8 @@ logos: logos.o utils.o
 realtime: realtime.o
 rtwatcher: rtwatcher.o
 buttonmon: buttonmon.o
+http_bouncer: LIBS+=-lcurl $(RT)
+http_bouncer: http_bouncer.o
 host-utils_test: host-utils_test.o host-utils.o
 ssdp_poll: ssdp_poll.o
 statpitcher.o: device_stats.pb.o
