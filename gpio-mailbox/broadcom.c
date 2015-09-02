@@ -97,6 +97,7 @@ struct platform_info {
 };
 
 static void init_gfhd200(struct platform_info* p);
+static void init_gfhd300(struct platform_info* p);
 
 struct platform_info platforms[] = {
   {
@@ -308,6 +309,67 @@ struct platform_info platforms[] = {
       .is_present = 1,                  // 7429 AVS_RO_REGISTERS_0
       .offset_data = 0x2330c,           // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
     },
+  },
+  {
+    .name = "GFHD300",
+    .init = init_gfhd300,
+    .mmap_base = 0xf0400000,            // AON_PIN_CTRL ...
+    .mmap_size =    0xe0000,
+    .led_red = {
+      .is_present = 1,                  // AON_GPIO_05
+      .pinmux_offset = 0x10700,         // PIN_MUX_CTRL_0
+      .pinmux_mask =  0x00f00000,
+      .pinmux_value = 0x00200000,       // LED_LD_13
+      .offset_data = 0x1701c,           // LDK_DIGIT1
+      .mask = 1<<13,                    // 1<<13
+      .shift = 13,
+      .off_value =1,
+      .on_value = 0,
+      .old_val = -1,
+    },
+    .led_blue = {
+      .is_present = 0,
+    },
+    .led_activity = {
+      .is_present = 1,                  // AON_GPIO_04
+      .pinmux_offset = 0x10700,         // PIN_MUX_CTRL_0
+      .pinmux_mask = 0x000f0000,
+      .pinmux_value = 0x00020000,       // LED_LD_12
+      .offset_data = 0x1701c,           // LDK_DIGIT1
+      .mask = 1<<12,                    // 1<<12
+      .shift = 12,
+      .off_value = 1,
+      .on_value = 0,
+      .old_val = -1,
+    },
+    .led_standby = {
+      .is_present = 0,
+    },
+    .reset_button = {
+      .is_present = 1,                  // GPIO_009
+      .pinmux_offset = 0x4120,          // SUN_TOP_CTRL_PIN_MUX_CTRL_8
+      .pinmux_mask = 0xf0000000,
+      .pinmux_value = 0x00000000,       // GPIO_009
+      .offset_direction = 0xa608,       // GIO_IODIR_LO
+      .offset_data = 0xa604,            // GIO_DATA_LO
+      .mask = 0x00000200,               // 1<<9
+      .shift = 9,
+      .off_value = 0,
+      .on_value = 1,
+      .direction_value = 1,
+      .old_val = -1,
+    },
+    .fan_control = {
+      .is_present = 0,
+    },
+    .temp_monitor = {
+      .is_present = 1,                  // 7252 AVS_RO_REGISTERS_0
+      .offset_data = 0xd2200,           // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
+    },
+    .voltage_monitor = {
+      .is_present = 1,                  // 7252 AVS_RO_REGISTERS_0
+      .offset_data = 0xd2204,           // BCHP_AVS_RO_REGISTERS_0_PVT_0P85V_0_MNTR_STATUS
+    },
   }
 };
 
@@ -328,6 +390,53 @@ static void init_gfhd200(struct platform_info* p) {
   reg = mmap_addr + 0x9010;     // LDK_DUTYOFF, ON
   reg[0] = 0x40;
   reg[1] = 0xc0;                // 0x40 off ticks then 0xc0 on ticks == 75% brightness
+}
+
+/* set LED/Keypad timings to control LED brightness */
+static void init_gfhd300(struct platform_info* p) {
+  volatile uint32_t* reg;
+
+  // The led display controller works like this:
+  //  - there are 16 gpios (we connect our leds to 2 of these)
+  //  - the controller steps through digit1-4 and then status
+  //  - bit0 in a register maps to a particular gpio
+  //     when digit1 is being displayed the controller uses digit1_bit[15:0] to
+  //     drive the gpios.  When digit 2 is displayed digit2[15:0] and so forth.
+  //  - duty_on controls how many clocks a digit is displayed
+  //  - duty_off controls number of clocks of all off time when switching
+  //    between digits
+  //
+  //  To get 100% brightness you set all of digit1-4 and status to 1 for the led
+  //  you are drivng, and set duty_off to 0.
+  //
+  //  Here we also invert the values, so a 1 means off, and 0 means on, this is
+  //  done because for unknown reasons the time between status and digit1 is on,
+  //  so we can't get the brightness to 0 unless we invert.
+  //
+  //  For simplicity we enable only one of the digits because the leds are
+  //  already insanely bright, and then to disable an led we simply toggle the
+  //  bit in that one digit register.
+  //
+  //  The red led is attached to bit 13 and blue led is attached to bit 12.
+
+  reg = mmap_addr + 0x17034;     // LDK_CONTROL
+  *reg = 0x01;                   // reset
+  *reg = 0x18;                   // ver=1
+
+  reg = mmap_addr + 0x17018;
+  reg[0] = 0xffff;               // LDK_DIGIT2
+  reg[1] = 0xcfff;               // LDK_DIGIT1
+  reg[2] = 0xffff;               // LDK_DIGIT4
+  reg[3] = 0xffff;               // LDK_DIGIT3
+  reg[5] = 0xffff;               // LDK_STATUS
+
+  reg = mmap_addr + 0x17008;     // LDK_PRESCHI, LO (clock divisor)
+  reg[0] = 0x00;
+  reg[1] = 0x10;                 // tick = clock / 0x0010, not sure what clock is
+
+  reg = mmap_addr + 0x17010;     // LDK_DUTYOFF, ON
+  reg[0] = 0x40;
+  reg[1] = 0xc0;                 // 0x40 off ticks then 0xc0 on ticks to dim a bit more.
 }
 
 // Set the given PWM (pulse width modulator) to the given percent duty cycle.
