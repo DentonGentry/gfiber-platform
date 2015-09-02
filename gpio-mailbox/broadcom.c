@@ -71,12 +71,14 @@ struct Fan {
 struct Temp {
   int is_present;
   unsigned int offset_data;
+  double (*get_temp)(struct Temp* t);
 };
 
 
 struct Voltage {
   int is_present;
   unsigned int offset_data;
+  double (*get_voltage)(struct Voltage* v);
 };
 
 
@@ -98,6 +100,10 @@ struct platform_info {
 
 static void init_gfhd200(struct platform_info* p);
 static void init_gfhd300(struct platform_info* p);
+static double get_avs_temperature_74xx(struct Temp* t);
+static double get_avs_temperature_7252(struct Temp* t);
+static double get_avs_voltage_74xx(struct Voltage* v);
+static double get_avs_voltage_7252(struct Voltage* v);
 
 struct platform_info platforms[] = {
   {
@@ -178,10 +184,12 @@ struct platform_info platforms[] = {
     .temp_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
       .offset_data = 0x32b00,           // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
+      .get_temp = get_avs_temperature_74xx,
     },
     .voltage_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
       .offset_data = 0x32b0c,           // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
+      .get_voltage = get_avs_voltage_74xx,
     },
   },
   {
@@ -246,10 +254,12 @@ struct platform_info platforms[] = {
     .temp_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
       .offset_data = 0x32b00,           // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
+      .get_temp = get_avs_temperature_74xx,
     },
     .voltage_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
       .offset_data = 0x32b0c,           // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
+      .get_voltage = get_avs_voltage_74xx,
     },
   },
   {
@@ -304,10 +314,12 @@ struct platform_info platforms[] = {
     .temp_monitor = {
       .is_present = 1,                  // 7429 AVS_RO_REGISTERS_0
       .offset_data = 0x23300,           // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
+      .get_temp = get_avs_temperature_74xx,
     },
     .voltage_monitor = {
       .is_present = 1,                  // 7429 AVS_RO_REGISTERS_0
       .offset_data = 0x2330c,           // BCHP_AVS_RO_REGISTERS_0_PVT_1P10V_0_MNTR_STATUS
+      .get_voltage = get_avs_voltage_74xx,
     },
   },
   {
@@ -365,10 +377,12 @@ struct platform_info platforms[] = {
     .temp_monitor = {
       .is_present = 1,                  // 7252 AVS_RO_REGISTERS_0
       .offset_data = 0xd2200,           // BCHP_AVS_RO_REGISTERS_0_PVT_TEMPERATURE_MNTR_STATUS
+      .get_temp = get_avs_temperature_7252,
     },
     .voltage_monitor = {
       .is_present = 1,                  // 7252 AVS_RO_REGISTERS_0
-      .offset_data = 0xd2204,           // BCHP_AVS_RO_REGISTERS_0_PVT_0P85V_0_MNTR_STATUS
+      .offset_data = 0xd220c,           // BCHP_AVS_RO_REGISTERS_0_PVT_1V_0_MNTR_STATUS
+      .get_voltage = get_avs_voltage_7252,
     },
   }
 };
@@ -470,7 +484,7 @@ static void set_pwm(struct Fan *f, int percent) {
 }
 
 // Get the CPU temperature.  I think it's in Celsius.
-static double get_avs_temperature(struct Temp* t) {
+static double get_avs_temperature_74xx(struct Temp* t) {
   volatile uint32_t* reg;
   uint32_t value, valid, raw_data;
 
@@ -483,7 +497,19 @@ static double get_avs_temperature(struct Temp* t) {
   return (418000 - (556 * raw_data)) / 1000.0;
 }
 
-static double get_avs_voltage(struct Voltage* v) {
+static double get_avs_temperature_7252(struct Temp* t) {
+  volatile uint32_t* reg;
+  uint32_t value, valid, raw_data;
+
+  reg = mmap_addr + t->offset_data;
+  value = *reg;
+  valid = (value & 0x00000400) >> 10;
+  raw_data = value & 0x000003ff;
+  if (!valid) return -1.0;
+  return 410.04 - (0.48705 * raw_data);
+}
+
+static double get_avs_voltage_74xx(struct Voltage* v) {
   volatile uint32_t* reg;
   uint32_t value, valid, raw_data;
 
@@ -494,6 +520,19 @@ static double get_avs_voltage(struct Voltage* v) {
   raw_data = value & 0x000003ff;
   if (!valid) return -1.0;
   return ((990 * raw_data * 8) / (7*1024)) / 1000.0;
+}
+
+static double get_avs_voltage_7252(struct Voltage* v) {
+  volatile uint32_t* reg;
+  uint32_t value, valid, raw_data;
+
+  reg = mmap_addr + v->offset_data;
+  value = *reg;
+  // see 7425-PR500-RDS.pdf
+  valid = (value & 0x00000400) >> 10;
+  raw_data = value & 0x000003ff;
+  if (!valid) return -1.0;
+  return (880.0/1024.0)/(0.7)*raw_data;
 }
 
 // Write the given GPIO pin.
@@ -687,11 +726,15 @@ void set_fan(int wantspeed) {
 }
 
 double get_cpu_temperature(void) {
-  return get_avs_temperature(&platform->temp_monitor);
+  if (platform->temp_monitor.get_temp)
+    return platform->temp_monitor.get_temp(&platform->temp_monitor);
+  return -1;
 }
 
 double get_cpu_voltage(void) {
-  return get_avs_voltage(&platform->voltage_monitor);
+  if (platform->voltage_monitor.get_voltage)
+    return platform->voltage_monitor.get_voltage(&platform->voltage_monitor);
+  return -1;
 }
 
 int get_reset_button() {
