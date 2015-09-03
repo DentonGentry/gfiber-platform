@@ -553,5 +553,20 @@ def find_width_and_channel_test():
   INTERFACE_INFO_OUTPUT = hold
 
 
+@wvtest.wvtest
+def phy_bands_test():
+  # phy0 claims to support 5 GHz, but phy1 only supports 5 GHz and so it
+  # supercedes it.
+  wvtest.WVPASSEQ(set(['2.4']), iw.phy_bands('phy0'))
+  wvtest.WVPASSEQ(set(['5']), iw.phy_bands('phy1'))
+
+  # Now remove phy1 from the 'iw phy' output and see that phy0 gets both bands.
+  global PHY_OUTPUT
+  hold = PHY_OUTPUT
+  PHY_OUTPUT = PHY_OUTPUT[PHY_OUTPUT.find('Wiphy phy0'):]
+  wvtest.WVPASSEQ(set(['2.4', '5']), iw.phy_bands('phy0'))
+  PHY_OUTPUT = hold
+
+
 if __name__ == '__main__':
   wvtest.wvtest_main()
