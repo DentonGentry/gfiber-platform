@@ -73,6 +73,8 @@ MCAST_PORT = 4442
 AP_LIST_FILE = ['']
 PEER_AP_LIST_FILE = ['']
 WIFIBLASTER_DIR = '/tmp/wifi/wifiblaster'
+WIFIBLASTER_BIN = 'wifiblaster'
+MACADDR_REGEX = r'([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
 
 _gettime_rand = random.randint(0, 1000000)
 
@@ -865,15 +867,10 @@ class WifiblasterController(object):
     self._next_packet_blast_time = float('inf')
     self._next_timeout = 0
 
-  def _ReadFile(self, filename):
-    """Returns the contents of a file."""
-    with open(filename) as f:
-      return f.read()
-
   def _ReadParameter(self, name, typecast):
     """Returns a parameter value read from a file."""
     try:
-      s = self._ReadFile(os.path.join(self._basedir, 'wifiblaster.%s' % name))
+      s = open(os.path.join(self._basedir, 'wifiblaster.%s' % name)).read()
     except IOError:
       return None
     try:
@@ -881,38 +878,25 @@ class WifiblasterController(object):
     except ValueError:
       return None
 
-  def _SaveWifiblasterResult(self, line, client):
-    """Append wifiblaster result to a file.
+  def _SaveResult(self, line):
+    """Save wifiblaster result to the status file for that client."""
+    g = re.search(MACADDR_REGEX, line)
+    if g:
+      helpers.WriteFileAtomic(os.path.join(WIFIBLASTER_DIR, g.group()),
+                              '%d %s' % (time.time(), line))
 
-    Args:
-      line: the string result of the wifiblaster run.
-      client: the MAC address of the client, as a string.
+  def _AnonymizeResult(self, line):
+    def Repl(match):
+      return log.AnonymizeMAC(consensus_key, helpers.EncodeMAC(match.group()))
+    return re.sub(MACADDR_REGEX, Repl, line)
 
-    The last N results are retained in the file.
-    """
-    filename = os.path.join(WIFIBLASTER_DIR, client)
-    with open(filename, 'a+') as f:
-      results = f.read(65536).splitlines()
-    results.append('%d %s' % (time.time(), line))
-    newresults = '\n'.join(results[-128:])
-    helpers.WriteFileAtomic(filename, newresults)
-
-  def _LogWifiblasterResults(self, errcode, stdout, stderr):
+  def _HandleResults(self, errcode, stdout, stderr):
     """Callback for 'wifiblaster' results."""
     log.Debug('wifiblaster err:%r stdout:%r stderr:%r', errcode, stdout[:70],
               stderr)
-    if errcode:
-      return
-
-    def Repl(match):
-      return log.AnonymizeMAC(consensus_key, helpers.EncodeMAC(match.group()))
-
     for line in stdout.splitlines():
-      log.Log('wifiblaster: %s' %
-              re.sub(r'([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', Repl, line))
-      result = re.search(r'([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', line)
-      if result:
-        self._SaveWifiblasterResult(line, result.group())
+      log.Log('wifiblaster: %s' % self._AnonymizeResult(line))
+      self._SaveResult(line)
 
   def _StrToBool(self, s):
     """Returns True if a string expresses a true value."""
@@ -921,6 +905,10 @@ class WifiblasterController(object):
   def NextTimeout(self):
     """Returns the time of the next event."""
     return self._next_timeout
+
+  def NextBlast(self):
+    """Return the time of the next packet blast event."""
+    return self._next_packet_blast_time
 
   def Poll(self, now):
     """Polls the state machine."""
@@ -947,17 +935,14 @@ class WifiblasterController(object):
     if rapidpolling > time.time():
       interval = 10.0
 
-    # Disable.
     if (not enable or duration <= 0 or fraction <= 0 or interval <= 0 or
         size <= 0):
       Disable()
-
-    # Enable or change interval.
     elif self._interval != interval:
+      # Enable or change interval.
       StartPacketBlastTimer(interval)
-
-    # Packet blast.
     elif now >= self._next_packet_blast_time:
+      # Packet blast.
       StartPacketBlastTimer(interval)
       clients = [
           (manager.vdevname, assoc.mac)
@@ -966,9 +951,10 @@ class WifiblasterController(object):
       if clients:
         (interface, client) = random.choice(clients)
         RunProc(
-            callback=self._LogWifiblasterResults,
-            args=['wifiblaster', '-i', interface, '-d', str(duration), '-f',
-                  str(fraction), '-s', str(size), helpers.DecodeMAC(client)])
+            callback=self._HandleResults,
+            args=[WIFIBLASTER_BIN, '-i', interface, '-d', str(duration),
+                  '-f', str(fraction), '-s', str(size),
+                  helpers.DecodeMAC(client)])
 
     # Poll again in at most one second. This allows parameter changes (e.g. a
     # long interval to a short interval) to take effect sooner than the next

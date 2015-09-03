@@ -1,0 +1,18 @@
+Station 48:d7:05:b4:5a:5f (on wlan1)
+	inactive time:	1060 ms
+	rx bytes:	20448
+	rx packets:	304
+	tx bytes:	1166923136
+	tx packets:	783175
+	tx retries:	0
+	tx failed:	2
+	signal:  	-43 dBm
+	signal avg:	-43 dBm
+	tx bitrate:	6.0 MBit/s
+	rx bitrate:	24.0 MBit/s
+	authorized:	yes
+	authenticated:	yes
+	preamble:	long
+	WMM/WME:	yes
+	MFP:		no
+	TDLS peer:	no

@@ -1,0 +1,3 @@
+#!/bin/sh
+echo fakeblaster: "$@"
+echo fakeblaster: "$@" >>fake/wifiblaster.out
