@@ -58,31 +58,38 @@ def ReadParameterTest():
 
 @wvtest.wvtest
 def LogWifiblasterResultsTest():
-  wc = waveguide.WifiblasterController([], '')
+  old_wifiblaster_dir = waveguide.WIFIBLASTER_DIR
+  waveguide.WIFIBLASTER_DIR = tempfile.mkdtemp()
+  try:
+    wc = waveguide.WifiblasterController([], '')
 
-  # Set the consensus key to a known value.
-  waveguide.consensus_key = 16 * 'x'
+    # Set the consensus key to a known value.
+    waveguide.consensus_key = 16 * 'x'
 
-  stdout = ('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
-            'samples=5000000,15000000\n'
-            'malformed 11:11:11:11:11:11 but has macs 11:11:11:11:11:11\n')
-
-  result = wc._AnonymizeResult(stdout)
-  expected = ('version=1 mac=CYAFVU throughput=10000000 '
+    stdout = ('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
               'samples=5000000,15000000\n'
-              'malformed CYAFVU but has macs CYAFVU\n')
-  wvtest.WVPASSEQ(result, expected)
+              'malformed 11:11:11:11:11:11 but has macs 11:11:11:11:11:11\n')
 
-  expected = [('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
-               'samples=5000000,15000000'),
-              'malformed 11:11:11:11:11:11 but has macs 11:11:11:11:11:11']
-  filename = os.path.join(waveguide.WIFIBLASTER_DIR, '11:11:11:11:11:11')
-  # Should save only the second line, with leading timestamp
-  wc._HandleResults(2, stdout, 'error')
-  wvtest.WVPASSEQ(open(filename).read().split(' ', 1)[1], expected[1])
-  # Should save the first line, with leading timestamp
-  wc._HandleResults(0, stdout.split('\n')[0], 'error 2')
-  wvtest.WVPASSEQ(open(filename).read().split(' ', 1)[1], expected[0])
+    result = wc._AnonymizeResult(stdout)
+    expected = ('version=1 mac=CYAFVU throughput=10000000 '
+                'samples=5000000,15000000\n'
+                'malformed CYAFVU but has macs CYAFVU\n')
+    wvtest.WVPASSEQ(result, expected)
+
+    expected = [('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
+                 'samples=5000000,15000000'),
+                'malformed 11:11:11:11:11:11 but has macs 11:11:11:11:11:11']
+    filename = os.path.join(waveguide.WIFIBLASTER_DIR, '11:11:11:11:11:11')
+    # Should save only the second line, with leading timestamp
+    wc._HandleResults(2, stdout, 'error')
+    wvtest.WVPASSEQ(open(filename).read().split(' ', 1)[1], expected[1])
+    # Should save the first line, with leading timestamp
+    wc._HandleResults(0, stdout.split('\n')[0], 'error 2')
+    wvtest.WVPASSEQ(open(filename).read().split(' ', 1)[1], expected[0])
+
+  finally:
+    shutil.rmtree(waveguide.WIFIBLASTER_DIR)
+    waveguide.WIFIBLASTER_DIR = old_wifiblaster_dir
 
 
 class Empty(object):
