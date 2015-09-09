@@ -11,6 +11,31 @@
 #include "fileops.h"
 #include "pin.h"
 
+#define __stringify_1(x...)	#x
+#define __stringify(x...)	__stringify_1(x)
+
+/* This is the driver that allows gpio-mailbox to control the fan speed and the
+ * brightness of the two LEDs on Optimus based platforms which include Optimus,
+ * Optimus Prime, Sideswipe and Sideswipe Prime.
+ *
+ * To control the LED brightness and read the status of the reset button, we
+ * support two methods to interface with the hardware:
+ *
+ * (1) Using /dev/mem to directly poke at the memory mapped registers of the
+ * PWM and GPIO hardware. This method is used on the Linux 3.2 kernel which
+ * lacks PWM, GPIO and LED drivers.
+ *
+ * (2) Going through Linux' LED and GPIO interfaces which are accessible
+ * through sysfs. In other words: Just writing a number between 0 and 200 to
+ * /sys/class/leds/blue/brightness and reading "0" or "1" from
+ * /sys/class/gpio/gpio6/value. This method is used if we run the Linux 4.1
+ * kernel. This newer kernel has proper drivers for the PWM and GPIO hardware.
+ * The PWM driver is hooked up to the pwm-leds driver.
+ *
+ * We pick method 2 if /sys/class/leds/blue/brightness is accessible. If not,
+ * we fall back to method 1.
+ * */
+
 #define  DEVMEM  "/dev/mem"
 
 /* optimus */
@@ -62,6 +87,9 @@ struct PinHandle_s {
 #define BIT_SET(data, bit)      ((data) | (1u << (bit)))
 #define BIT_CLR(data, bit)      ((data) & ~(1u << (bit)))
 
+const char sys_button_reset_path[] = "/sys/class/gpio/gpio" __stringify(GPIO_BUTTON) "/value";
+const char blue_led_brightness[] = "/sys/class/leds/blue/brightness";
+const char red_led_brightness[] = "/sys/class/leds/red/brightness";
 const char sys_fan_dir1[] =     "/sys/class/hwmon/hwmon0/";
 const char sys_fan_dir2[] =     "/sys/class/hwmon/hwmon0/device/";
 #define SYS_TEMP1               "temp1_input"
@@ -71,9 +99,9 @@ const char sys_fan_dir2[] =     "/sys/class/hwmon/hwmon0/device/";
 
 /* helper methods */
 
-// this is for writing to SYS_FAN
+// this is for writing to sysfs files
 // don't use for writing to a regular file since this is not atomic
-static void writeIntToFile(char* file, int value) {
+static void writeIntToFile(const char* file, int value) {
   FILE* fp = fopen(file, "w");
   if (fp == NULL) {
     perror(file);
@@ -81,6 +109,37 @@ static void writeIntToFile(char* file, int value) {
   }
   fprintf(fp, "%d", value);
   fclose(fp);
+}
+
+// this is for writing to sysfs files
+// don't use for writing to a regular file since this is not atomic
+static void writeStringToFile(const char* file, const char* value) {
+  FILE* fp = fopen(file, "w");
+  if (fp == NULL) {
+    perror(file);
+    return;
+  }
+  fprintf(fp, "%s", value);
+  fclose(fp);
+}
+
+// this is for reading from sysfs files
+static int readIntFromFile(const char* file) {
+  int value = 0;
+  FILE* fp = fopen(file, "r");
+  if (fp == NULL) {
+    perror(file);
+    return 0;
+  }
+  if (fscanf(fp, "%d", &value) != 1) {
+    if (ferror(fp))
+      perror(file);
+    else
+      fprintf(stderr, "Cannot parse integer from %s\n", file);
+    return 0;
+  }
+  fclose(fp);
+  return value;
 }
 
 /* optimus methods get sensor data */
@@ -225,18 +284,30 @@ PinHandle PinCreate(void) {
   handle->fd = -1;
   handle->addr = NULL;
 
-  handle->fd = open(DEVMEM, O_RDWR);
-  if (handle->fd < 0) {
-    perror(DEVMEM);
-    PinDestroy(handle);
-    return NULL;
-  }
-  handle->addr = mmap(NULL, REG_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED,
-                      handle->fd, REG_FIRST);
-  if (handle->addr == MAP_FAILED) {
-    perror("mmap");
-    PinDestroy(handle);
-    return NULL;
+  if (access(blue_led_brightness, F_OK)) {
+    /* The sysfs file /sys/class/leds/blue/brightness is not available. Assume
+     * we are running on the old kernel that lacks PWM and GPIO drivers. Open
+     * /dev/mem so that we can poke at the hw registers directly. */
+    handle->fd = open(DEVMEM, O_RDWR);
+    if (handle->fd < 0) {
+      perror(DEVMEM);
+      PinDestroy(handle);
+      return NULL;
+    }
+    handle->addr = mmap(NULL, REG_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED,
+                        handle->fd, REG_FIRST);
+    if (handle->addr == MAP_FAILED) {
+      perror("mmap");
+      PinDestroy(handle);
+      return NULL;
+    }
+  } else {
+    /* The sysfs file /sys/class/leds/blue/brightness is available. We can use
+     * the Linux GPIO and LED abstractions which are accessible through sysfs.
+     * */
+    writeIntToFile("/sys/class/gpio/export", GPIO_BUTTON);
+    writeStringToFile("/sys/class/gpio/gpio" __stringify(GPIO_BUTTON) "/direction", "in");
+    writeIntToFile("/sys/class/gpio/gpio" __stringify(GPIO_BUTTON) "/active_low", 1);
   }
   snprintf(buf, sizeof(buf), "%s%s", sys_fan_dir1, SYS_TEMP1);
   if (!access(buf, F_OK))
@@ -301,7 +372,10 @@ PinStatus PinValue(PinHandle handle, PinId id, int* valueP) {
       break;
 
     case PIN_BUTTON_RESET:
-      *valueP = !getGPIO(handle, GPIO_BUTTON);  /* inverted */
+      if (handle->fd < 0)
+        *valueP = !!readIntFromFile(sys_button_reset_path);
+      else
+        *valueP = !getGPIO(handle, GPIO_BUTTON);  /* inverted */
       break;
 
     case PIN_TEMP_CPU:
@@ -335,11 +409,17 @@ PinStatus PinValue(PinHandle handle, PinId id, int* valueP) {
 PinStatus PinSetValue(PinHandle handle, PinId id, int value) {
   switch (id) {
     case PIN_LED_RED:
-      setPWMValue(handle, GPIO_RED, PWM_RED, value);
+      if (handle->fd < 0)
+        writeIntToFile(red_led_brightness, value);
+      else
+        setPWMValue(handle, GPIO_RED, PWM_RED, value);
       break;
 
     case PIN_LED_ACTIVITY:
-      setPWMValue(handle, GPIO_ACTIVITY, PWM_ACTIVITY, value);
+      if (handle->fd < 0)
+        writeIntToFile(blue_led_brightness, value);
+      else
+        setPWMValue(handle, GPIO_ACTIVITY, PWM_ACTIVITY, value);
       break;
 
     case PIN_FAN_CHASSIS:
