@@ -99,6 +99,8 @@ class Empty(object):
 @wvtest.wvtest
 def PollTest():
   d = tempfile.mkdtemp()
+  old_wifiblaster_dir = waveguide.WIFIBLASTER_DIR
+  waveguide.WIFIBLASTER_DIR = tempfile.mkdtemp()
   oldpath = os.environ['PATH']
   oldtime = time.time
   faketime = [-1]
@@ -217,6 +219,8 @@ def PollTest():
     time.time = oldtime
     shutil.rmtree(d)
     os.environ['PATH'] = oldpath
+    shutil.rmtree(waveguide.WIFIBLASTER_DIR)
+    waveguide.WIFIBLASTER_DIR = old_wifiblaster_dir
 
 
 if __name__ == '__main__':
