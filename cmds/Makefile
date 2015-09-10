@@ -34,6 +34,7 @@ TARGETS=\
 	memwatcher \
 	netusage \
 	logos \
+	randint \
 	readubootver \
 	realtime \
 	rtwatcher \
@@ -162,6 +163,7 @@ dnssd_hosts: LIBS+=-lavahi-client -lavahi-common
 host-dnssd_hosts: LIBS+=-lavahi-client
 host-logos logos: LIBS+=-lrt
 logos: LIBS+=-L../libstacktrace -lstacktrace
+host-randint randint: LIBS+=-lstdc++
 host-rtwatcher rtwatcher: LIBS+=-lpthread $(RT)
 host-realtime realtime: LIBS+=-lpthread
 host-alivemonitor alivemonitor: LIBS+=$(RT)
