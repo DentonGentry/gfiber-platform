@@ -99,7 +99,7 @@ struct platform_info {
 };
 
 static void init_gfhd200(struct platform_info* p);
-static void init_gfhd300(struct platform_info* p);
+static void init_gfhd254(struct platform_info* p);
 static double get_avs_temperature_74xx(struct Temp* t);
 static double get_avs_temperature_7252(struct Temp* t);
 static double get_avs_voltage_74xx(struct Voltage* v);
@@ -323,8 +323,8 @@ struct platform_info platforms[] = {
     },
   },
   {
-    .name = "GFHD300",
-    .init = init_gfhd300,
+    .name = "GFHD254",
+    .init = init_gfhd254,
     .mmap_base = 0xf0400000,            // AON_PIN_CTRL ...
     .mmap_size =    0xe0000,
     .led_red = {
@@ -407,7 +407,7 @@ static void init_gfhd200(struct platform_info* p) {
 }
 
 /* set LED/Keypad timings to control LED brightness */
-static void init_gfhd300(struct platform_info* p) {
+static void init_gfhd254(struct platform_info* p) {
   volatile uint32_t* reg;
 
   // The led display controller works like this:
