@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define DIAGS_VERSION "1.8"
+#define DIAGS_VERSION "1.9"
 
 /* External Functions */
 int ioread(int argc, char **argv);
@@ -29,7 +29,8 @@ int send_if(int argc, char *argv[]);
 int send_if_to_mac(int argc, char *argv[]);
 int test_both_ports(int argc, char *argv[]);
 int loopback_test(int argc, char *argv[]);
-int ethreg_main(int argc, char *argv[]);
+int phy_read(int argc, char *argv[]);
+int phy_write(int argc, char *argv[]);
 
 /* Define the command structure */
 typedef struct {
@@ -65,7 +66,8 @@ tCOMMAND command_list[] = {
     {"set_led_dim", set_led_dim},
     {"set_poe", set_poe},
     {"", NULL},
-    {"ethreg", ethreg_main},
+    {"phy_read", phy_read},
+    {"phy_write", phy_write},
     {"send_if_to_if", send_if_to_if},
     {"send_if", send_if},
     {"send_if_to_mac", send_if_to_mac},

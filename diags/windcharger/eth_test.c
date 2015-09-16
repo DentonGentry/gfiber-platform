@@ -26,6 +26,7 @@
 #include "gpio.h"
 #include "../common/util.h"
 #include "common.h"
+#include "mdio.h"
 
 #define DEFAULT_TST_IF "lan0"
 #define LAN_PORT_NAME "lan0"
@@ -68,9 +69,6 @@
 #define ETH_EXT_LPBK_PORT_ADDR_OFFSET 0xB
 #define ETH_EXT_LPBK_PORT_SET_DATA 0x3C40
 #define ETH_EXT_LPBK_PORT_CLEAR_DATA 0xBC00
-#define ETH_LAN_IF_PORT 0
-#define ETH_WAN_IF_PORT 4
-#define ETH_DEBUG_CMD "diags ethreg -i %s -p %d 0x%x=0x%x > /dev/null"
 #define ETH_STAT_CLEAR_CMD "ifstat > /dev/null"
 #define ETH_STAT_CMD "ifstat %s | sed '1,3d;5d'"
 #define ETH_STAT_RX_POS 5
@@ -81,31 +79,29 @@
 // First set the address offset, then read/write the data RW port. The
 // following are functions to set up/take down external loopback.
 
-void eth_set_debug_reg(char *if_name, unsigned short port, unsigned short addr,
+int eth_set_debug_reg(char *if_name, unsigned short addr,
                        unsigned short data) {
-  char cmd[MAX_CMD_SIZE];
+  int rc;
 
-  snprintf(cmd, MAX_CMD_SIZE, ETH_DEBUG_CMD, if_name, port, addr, data);
-  system_cmd(cmd);
+  mdio_init();
+  mdio_set_interface(if_name);
+  rc = mdio_write(addr, data);
+  mdio_done();
+
+  return rc;
 }
 
 int eth_external_loopback(char *if_name, bool set_not_clear) {
   unsigned short data = ETH_EXT_LPBK_PORT_SET_DATA;
+  int rc;
 
   if (!set_not_clear) data = ETH_EXT_LPBK_PORT_CLEAR_DATA;
 
-  if (strcmp(if_name, LAN_PORT_NAME) == 0) {
-    eth_set_debug_reg(if_name, ETH_LAN_IF_PORT, ETH_DEBUG_PORT_ADDR_REG,
-                      ETH_EXT_LPBK_PORT_ADDR_OFFSET);
-    eth_set_debug_reg(if_name, ETH_LAN_IF_PORT, ETH_DEBUG_PORT_DATA_REG, data);
-  } else if (strcmp(if_name, WAN_PORT_NAME) == 0) {
-    eth_set_debug_reg(if_name, ETH_WAN_IF_PORT, ETH_DEBUG_PORT_ADDR_REG,
-                      ETH_EXT_LPBK_PORT_ADDR_OFFSET);
-    eth_set_debug_reg(if_name, ETH_WAN_IF_PORT, ETH_DEBUG_PORT_DATA_REG, data);
-  } else {
-    return -1;
-  }
-  return 0;
+  rc = eth_set_debug_reg(if_name, ETH_DEBUG_PORT_ADDR_REG,
+                         ETH_EXT_LPBK_PORT_ADDR_OFFSET);
+  if (rc < 0) return rc;
+  rc = eth_set_debug_reg(if_name, ETH_DEBUG_PORT_DATA_REG, data);
+  return rc;
 }
 
 void send_mac_pkt(char *if_name, char *out_name, unsigned int xfer_len,
@@ -433,6 +429,63 @@ int get_if_ip(char *name, unsigned int *ip) {
     return -1;
   }
 
+  return 0;
+}
+
+static void phy_read_usage(void) {
+  printf("phy_read <ifname> <reg>\n");
+  printf("Example:\n");
+  printf("phy_read lan0 2\n");
+}
+
+int phy_read(int argc, char *argv[]) {
+  int reg, val;
+
+  if (argc != 3) {
+    phy_read_usage();
+    return -1;
+  }
+
+  reg = strtol(argv[2], NULL, 0);
+  mdio_init();
+  mdio_set_interface(argv[1]);
+  val = mdio_read(reg);
+  mdio_done();
+
+  if (val < 0) {
+    printf("Read PHY %s reg %d failed\n", argv[1], reg);
+    return -1;
+  }
+  printf("PHY %s Reg %d = 0x%x\n", argv[1], reg, val);
+  return 0;
+}
+
+static void phy_write_usage(void) {
+  printf("phy_write <ifname> <reg> <val>\n");
+  printf("Example:\n");
+  printf("phy_write lan0 22 0x6\n");
+}
+
+int phy_write(int argc, char *argv[]) {
+  int reg, val, rc;
+
+  if (argc != 4) {
+    phy_write_usage();
+    return -1;
+  }
+
+  reg = strtol(argv[2], NULL, 0);
+  val = strtol(argv[3], NULL, 16);
+  mdio_init();
+  mdio_set_interface(argv[1]);
+  rc = mdio_write(reg, val);
+  mdio_done();
+
+  if (rc < 0) {
+    printf("Write PHY %s reg %d val 0x%x failed\n", argv[1], reg, val);
+    return -1;
+  }
+  printf("PHY %s Reg %d = 0x%x\n", argv[1], reg, val);
   return 0;
 }
 
