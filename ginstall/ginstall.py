@@ -79,8 +79,14 @@ F = {
     'SIGNINGKEY': '/etc/gfiber_public.der',
     'SYSCLASSMTD': '/sys/class/mtd',
     'SYSBLOCK': '/sys/block',
+    'MMCBLK0BOOT0': '/dev/mmcblk0boot0',
+    'MMCBLK0BOOT1': '/dev/mmcblk0boot1',
 }
 
+MMC_RO_LOCK = {
+    'MMCBLK0BOOT0': '/sys/block/mmcblk0boot0/force_ro',
+    'MMCBLK0BOOT1': '/sys/block/mmcblk0boot1/force_ro',
+}
 
 # Verbosity of output
 quiet = False
@@ -771,6 +777,18 @@ def InstallRootfs(rootfs, partition):
     raise Fatal('no partition named %r is available' % partition_name)
 
 
+def UnlockMMC(mmc_name):
+  if mmc_name in MMC_RO_LOCK:
+    with open(MMC_RO_LOCK[mmc_name], 'w') as f:
+      f.write('0')
+
+
+def LockMMC(mmc_name):
+  if mmc_name in MMC_RO_LOCK:
+    with open(MMC_RO_LOCK[mmc_name], 'w') as f:
+      f.write('1')
+
+
 def InstallLoader(loader):
   """Install a bootloader.
 
@@ -784,10 +802,19 @@ def InstallLoader(loader):
 
   loader_start = loader.filelike.tell()
   installed = False
-  for i in ['cfe', 'loader', 'loader0', 'loader1']:
+  for i in ['cfe', 'loader', 'loader0', 'loader1', 'flash0.bolt']:
     mtd = GetMtdDevForNameOrNone(i)
     if mtd:
       WriteLoaderToMtd(loader, loader_start, mtd, 'loader')
+      installed = True
+  # For hd254 we also write the loader to the emmc boot partitions.
+  for emmc_name in ['MMCBLK0BOOT0', 'MMCBLK0BOOT1']:
+    emmc_dev = F[emmc_name]
+    if os.path.exists(emmc_dev):
+      UnlockMMC(emmc_name)
+      loader.filelike.seek(0, os.SEEK_SET)
+      InstallToFile(loader, emmc_dev)
+      LockMMC(emmc_name)
       installed = True
   if not installed:
     raise Fatal('no loader partition is available')

@@ -61,6 +61,11 @@ class GinstallTest(unittest.TestCase):
     for i in range(0, 10):
       open(ginstall.F['MTD_PREFIX'] + str(i), 'w').write('1')
 
+    os.mkdir(self.tmpdir + '/mmcblk0boot0')
+    os.mkdir(self.tmpdir + '/mmcblk0boot1')
+    ginstall.MMC_RO_LOCK['MMCBLK0BOOT0'] = self.tmpdir + '/mmcblk0boot0/force_ro'
+    ginstall.MMC_RO_LOCK['MMCBLK0BOOT1'] = self.tmpdir + '/mmcblk0boot1/force_ro'
+
   def tearDown(self):
     os.environ['PATH'] = self.old_path
     shutil.rmtree(self.tmpdir, ignore_errors=True)
@@ -325,6 +330,20 @@ class GinstallTest(unittest.TestCase):
     self.assertEqual(stripped_uloader_bytes[24:56], '\x00' * 32)
 
     self.assertEqual(stripped_uloader_bytes[56:], uloader_data)
+
+  def testLockUnlockMmcBoot(self):
+    ginstall.UnlockMMC('MMCBLK0BOOT0')
+    ginstall.UnlockMMC('MMCBLK0BOOT1')
+    self.assertEqual(open(ginstall.MMC_RO_LOCK['MMCBLK0BOOT0']).read(), '0')
+    self.assertEqual(open(ginstall.MMC_RO_LOCK['MMCBLK0BOOT1']).read(), '0')
+
+    ginstall.LockMMC('MMCBLK0BOOT0')
+    self.assertEqual(open(ginstall.MMC_RO_LOCK['MMCBLK0BOOT0']).read(), '1')
+    self.assertEqual(open(ginstall.MMC_RO_LOCK['MMCBLK0BOOT1']).read(), '0')
+
+    ginstall.LockMMC('MMCBLK0BOOT1')
+    self.assertEqual(open(ginstall.MMC_RO_LOCK['MMCBLK0BOOT1']).read(), '1')
+    self.assertEqual(open(ginstall.MMC_RO_LOCK['MMCBLK0BOOT0']).read(), '1')
 
   def _CreateUloader(self, magic_num, time, crc, key_len, key_type, image_len):
     """Helper method that creates a memory-backed uloader file."""
