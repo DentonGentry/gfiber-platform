@@ -131,7 +131,7 @@ int parse_line_data(char* line, struct line_data* data) {
 
 int deflate_inplace(z_stream *strm, unsigned char* buf,
     unsigned long len, unsigned long *out_len) {
-  int rv, used_out, used_in;
+  int rv;
   unsigned char temp[1024]; // big enough to hold the header which is 11 bytes,
                             // plus more so we can eat into our data quicker
 
@@ -149,22 +149,15 @@ int deflate_inplace(z_stream *strm, unsigned char* buf,
   strm->avail_out = sizeof(temp);
 
   // Do the first compression step
-  rv = deflate(strm, Z_FINISH);
+  rv = deflate(strm, Z_NO_FLUSH);
   if (rv == Z_STREAM_ERROR)
     return rv;
-  used_out = strm->next_out - temp;
-  used_in = len - strm->avail_in;
-  if (used_out > used_in) {
-    // Our output data is larger than the input data consumed, sad panda :(
-    return Z_BUF_ERROR;
-  }
+  int temp_used = strm->next_out - temp;
 
-  // Copy the data back to our buffer and use that from now on.
-  memcpy(buf, temp, used_out);
-  strm->next_out = buf + used_out;
+  strm->next_out = buf;
   while (rv == Z_OK) {
     // Update how much room we have in the output buffer, there may be a point
-    // where its consumed all the input data and we just need to provide more
+    // where it's consumed all the input data and we just need to provide more
     // output data as well.
     if (strm->avail_in) {
       strm->avail_out = strm->next_in - strm->next_out;
@@ -177,7 +170,13 @@ int deflate_inplace(z_stream *strm, unsigned char* buf,
   }
   if (rv == Z_STREAM_END) {
     // Successfully did the compression.
-    *out_len = strm->next_out - buf;
+    if (strm->avail_out < temp_used) {
+      fprintf(stderr, "zlib problem: out is larger than in!\n");
+      return Z_BUF_ERROR;
+    }
+    memmove(buf + temp_used, buf, strm->next_out - buf);
+    memcpy(buf, temp, temp_used);
+    *out_len = strm->next_out - buf + temp_used;
     return Z_OK;
   }
 

@@ -26,7 +26,8 @@
 #define COUNTER_MARKER_FILE "/tmp/loguploadcounter"
 #define LOGS_UPLOADED_MARKER_FILE "/tmp/logs-uploaded"
 #define DEFAULT_UPLOAD_TARGET "dmesg"
-#define MAX_LOG_SIZE 8*1024*1024 // 8 MB
+#define MAX_LOG_SIZE 8*1024*1024  // max bytes to upload in one run
+#define LOG_BUF_EXTRA 65536       // extra bytes for extra compression slop
 #define DEV_KMSG_PATH "/dev/kmsg"
 #define NTP_SYNCED_PATH "/tmp/ntp.synced"
 #define VERSION_PATH "/etc/version"
@@ -209,7 +210,6 @@ int main(int argc, char* const argv[]) {
         perror("stdin");
         return 2;
       }
-      log_buffer[total_read] = '\0';
       log_data_to_use = log_buffer;
     } else {
       // Remove the marker file to indicate we've completed the upload process.
@@ -238,8 +238,8 @@ int main(int argc, char* const argv[]) {
     // with uploading or outputting it.
 
     if (config.use_stdout) {
-      // Just print the whole thing to stdout
-      printf("%s", log_data_to_use);
+      // Just print the whole thing to stdout.  Note: might be binary.
+      fwrite(log_data_to_use, total_read, 1, stdout);
     } else {
       struct ifaddrs* ifaddr;
       if (getifaddrs(&ifaddr)) {
@@ -265,7 +265,7 @@ int main(int argc, char* const argv[]) {
       }
 
       // Adjust this if we moved the pointer.
-      unsigned long compressed_size = MAX_LOG_SIZE -
+      unsigned long compressed_size = MAX_LOG_SIZE + LOG_BUF_EXTRA -
         (log_data_to_use - log_buffer);
       int comp_result = deflate_inplace(&zstrm, (unsigned char*)log_data_to_use,
           total_read, &compressed_size);

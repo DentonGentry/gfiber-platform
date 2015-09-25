@@ -107,25 +107,55 @@ TEST(Utils, parse_line_data_failure) {
   EXPECT_EQ(-1, parse_line_data(buf4, &data));
 }
 
-TEST(Utils, deflate_in_place_test) {
-  // We only test the success case because the failure cases shouldn't occur or
-  // require incompressible data which we will never encounter in ASCII logs.
+
+#define RANDBUF 16384
+
+static void zlib_test(int modulus, unsigned long datalen, unsigned long maxlen,
+    int expect_ok) {
   z_stream zstrm;
   memset(&zstrm, 0, sizeof(zstrm));
-  unsigned char random_data[16384];
-  // Use only 7 bits of data so its closer to ASCII chars and will compress.
+  unsigned char random_data[RANDBUF];
   for (unsigned int i = 0; i < sizeof(random_data); i++) {
-    random_data[i] = random() % 128;
+    random_data[i] = random() % modulus;
   }
-  unsigned char backup_data[16384];
+  unsigned char backup_data[RANDBUF];
   memcpy(backup_data, random_data, sizeof(random_data));
-  unsigned long comp_size = sizeof(random_data);
-  EXPECT_EQ(Z_OK, deflate_inplace(&zstrm, random_data, sizeof(random_data),
-      &comp_size));
-  unsigned char decompressed[16384];
-  unsigned long full_size = sizeof(decompressed);
-  EXPECT_EQ(Z_OK, uncompress(decompressed, &full_size, random_data,
-      comp_size));
-  EXPECT_EQ(full_size, sizeof(random_data));
-  EXPECT_EQ(0, memcmp(decompressed, backup_data, sizeof(backup_data)));
+  unsigned long comp_size = maxlen;
+  int rv = deflate_inplace(&zstrm, random_data, datalen, &comp_size);
+  if (expect_ok) {
+    EXPECT_EQ(Z_OK, rv);
+    unsigned char decompressed[RANDBUF];
+    unsigned long full_size = sizeof(decompressed);
+    EXPECT_EQ(Z_OK, uncompress(decompressed, &full_size, random_data,
+        comp_size));
+    EXPECT_EQ(full_size, datalen);
+    EXPECT_EQ(0, memcmp(decompressed, backup_data, datalen));
+  } else {
+    EXPECT_NE(Z_OK, rv);
+  }
+}
+
+TEST(Utils, deflate_in_place1_test) {
+  // 7-bit compressible data
+  zlib_test(128, RANDBUF, RANDBUF, 1);
+}
+
+TEST(Utils, deflate_in_place2_test) {
+  // 8-bit uncompressible data
+  zlib_test(256, RANDBUF, RANDBUF, 0);
+}
+
+TEST(Utils, deflate_in_place3_test) {
+  // 8-bit, but room for *only* 11-byte zlib header.
+  // zlib should choose to "store" the data directly (with header) rather
+  // than ever making it larger, so this should always fit.
+  zlib_test(256, RANDBUF-11, RANDBUF, 1);
+}
+
+TEST(Utils, deflate_in_place4_test) {
+  zlib_test(256, 0, RANDBUF, 1);
+}
+
+TEST(Utils, deflate_in_place5_test) {
+  zlib_test(256, 1, RANDBUF, 1);
 }

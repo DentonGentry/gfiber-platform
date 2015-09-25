@@ -50,6 +50,11 @@ install-libs:
 
 test: tests
 	set -e; for d in $(TESTS); do ./$$d; done
+	# Ensure proper handling of binary files
+	rm -f test.tmp
+	./upload-crash-log2 --stdin=test --stdout <upload-crash-log2 >test.tmp
+	cmp upload-crash-log2 test.tmp
+	rm -f test.tmp
 
 clean:
 	rm -f upload-crash-log2 $(TESTS) *~ *.o
