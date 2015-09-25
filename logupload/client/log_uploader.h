@@ -18,6 +18,7 @@ struct upload_config {
   int upload_all;
   int use_stdout;
   int use_stdin;
+  int freq;
   char upload_target[1024];
 };
 
