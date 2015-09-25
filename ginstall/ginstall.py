@@ -46,6 +46,7 @@ p,partition=  partition to install to (primary, secondary, or other)
 q,quiet       suppress unnecessary output
 skiploadersig suppress checking the loader signature
 b,basepath=   for tests, prepend a path to all files accessed.
+once          skips running if ginstall has already been run successfully.
 """
 
 # Error codes.
@@ -965,6 +966,11 @@ def main():
   try:
     with PidLock(LOCK_PREFIX):
       quiet = opt.quiet
+      # If running only once, check for the completion file and exit with
+      # success.
+      if opt.once and os.path.exists(GINSTALL_COMPLETED_FILE):
+        VerbosePrint('Previous instance completion detected.  Skipping.\n')
+        return 0
 
       if opt.basepath:
         # Standalone test harness can pass in a fake root path.
