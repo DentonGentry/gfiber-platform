@@ -63,8 +63,10 @@ class GinstallTest(unittest.TestCase):
 
     os.mkdir(self.tmpdir + '/mmcblk0boot0')
     os.mkdir(self.tmpdir + '/mmcblk0boot1')
-    ginstall.MMC_RO_LOCK['MMCBLK0BOOT0'] = self.tmpdir + '/mmcblk0boot0/force_ro'
-    ginstall.MMC_RO_LOCK['MMCBLK0BOOT1'] = self.tmpdir + '/mmcblk0boot1/force_ro'
+    ginstall.MMC_RO_LOCK['MMCBLK0BOOT0'] = (
+        self.tmpdir + '/mmcblk0boot0/force_ro')
+    ginstall.MMC_RO_LOCK['MMCBLK0BOOT1'] = (
+        self.tmpdir + '/mmcblk0boot1/force_ro')
 
   def tearDown(self):
     os.environ['PATH'] = self.old_path
