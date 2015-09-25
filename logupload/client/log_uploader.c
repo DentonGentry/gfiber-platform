@@ -17,7 +17,6 @@ int logmark_once(const char* output_path, const char* version_path,
   struct tm timeinfo;
   struct timespec curr_time;
   if (read_file_as_string(version_path, version, sizeof(version)) < 0) {
-    fprintf(stderr, "failed reading %s\n", version_path);
     return -1;
   }
   rstrip(version);
@@ -30,7 +29,12 @@ int logmark_once(const char* output_path, const char* version_path,
       version, (int)curr_time.tv_sec, (int)(curr_time.tv_nsec/1000000L),
       timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min,
       timeinfo.tm_sec, path_exists(ntp_sync_path));
-  return write_to_file(output_path, buf) < 0;
+  int rv = write_to_file(output_path, buf);
+  if (rv < 0) {
+    perror(output_path);
+    return -1;
+  }
+  return 0;
 }
 
 char* parse_and_consume_log_data(struct log_parse_params* params) {
@@ -69,11 +73,11 @@ char* parse_and_consume_log_data(struct log_parse_params* params) {
         if (!wrote_start_marker) {
           // Write out the start marker.
           if (write_to_file(params->dev_kmsg_path, LOG_MARKER_START_LINE) < 0) {
-            fprintf(stderr, "failed to write out start marker\n");
+            perror("start marker");
             return NULL;
           }
           if (logmark_once(params->dev_kmsg_path, params->version_path,
-                params->ntp_synced_path)) {
+                params->ntp_synced_path) < 0) {
             fprintf(stderr, "failed to execute logmark-once properly\n");
             return NULL;
           }
@@ -99,7 +103,7 @@ char* parse_and_consume_log_data(struct log_parse_params* params) {
         perror("kernel memory possibly corrupted, devkmsg_read");
         continue;
       } else {
-        fprintf(stderr, "failed reading from /dev/kmsg: %s\n", strerror(errno));
+        perror("/dev/kmsg");
         return NULL;
       }
     }

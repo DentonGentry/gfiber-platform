@@ -1,6 +1,10 @@
 #ifndef _H_LOGUPLOAD_CLIENT_KVEXTRACT_H_
 #define _H_LOGUPLOAD_CLIENT_KVEXTRACT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <sys/socket.h>
 #include <ifaddrs.h>
 
@@ -43,5 +47,9 @@ int get_pair_from_file(const char* filepath, const char* key,
 // about the network config such as MAC and IPV4/6 addresses.
 struct kvpair* extract_kv_pairs(struct kvextractparams* params);
 void free_kv_pairs(struct kvpair* pairs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // _H_LOGUPLOAD_CLIENT_KVEXTRACT_H_

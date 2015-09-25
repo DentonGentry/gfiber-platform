@@ -148,7 +148,7 @@ int main(int argc, char* const argv[]) {
   if (argc > 1) {
     if (parse_args(&config, argc, argv) < 0) {
       usage(argv[0]);
-      return 1;
+      return 99;
     }
   }
 
@@ -156,10 +156,10 @@ int main(int argc, char* const argv[]) {
   srandom(getpid() ^ time(NULL));
 
   // Allocate this once and re-use it very time
-  char* log_buffer = (char*) malloc(MAX_LOG_SIZE);
+  char* log_buffer = (char*) malloc(MAX_LOG_SIZE + LOG_BUF_EXTRA);
   if (!log_buffer) {
     fprintf(stderr, "Failed to allocate log_buffer!\n");
-    return 1;
+    return 98;
   }
 
   int kmsg_read_fd = 0;
@@ -168,8 +168,7 @@ int main(int argc, char* const argv[]) {
     // Use nonblocking mode so we know when we're consumed all the recent data.
     kmsg_read_fd = open("/dev/kmsg", O_RDONLY | O_NONBLOCK);
     if (kmsg_read_fd < 0) {
-      fprintf(stderr, "failed to open /dev/kmsg for reading: %s\n",
-          strerror(errno));
+      perror("/dev/kmsg");
       return 1;
     }
   }
@@ -207,8 +206,8 @@ int main(int argc, char* const argv[]) {
         total_read += num_read;
       }
       if (num_read < 0) {
-        fprintf(stderr, "failed reading from stdin: %s\n", strerror(errno));
-        return 1;
+        perror("stdin");
+        return 2;
       }
       log_buffer[total_read] = '\0';
       log_data_to_use = log_buffer;
@@ -223,14 +222,14 @@ int main(int argc, char* const argv[]) {
           logmark_once(DEV_KMSG_PATH, VERSION_PATH,
           NTP_SYNCED_PATH)) {
         fprintf(stderr, "failed to execute logmark-once properly\n");
-        return 1;
+        return 3;
       }
 
       parse_params.total_read = MAX_LOG_SIZE;
       log_data_to_use = parse_and_consume_log_data(&parse_params);
       if (!log_data_to_use) {
         fprintf(stderr, "failed with logs parsing, abort!\n");
-        return 1;
+        return 4;
       }
       total_read = parse_params.total_read;
     }
@@ -244,8 +243,8 @@ int main(int argc, char* const argv[]) {
     } else {
       struct ifaddrs* ifaddr;
       if (getifaddrs(&ifaddr)) {
-        fprintf(stderr, "failed calling getifaddrs: %s\n", strerror(errno));
-        return 1;
+        perror("getifaddrs");
+        return 5;
       }
 
       struct kvextractparams kvparams;
@@ -262,7 +261,7 @@ int main(int argc, char* const argv[]) {
       freeifaddrs(ifaddr);
       if (!kvpairs) {
         fprintf(stderr, "failure extracting kv pairs, abort\n");
-        return 1;
+        return 6;
       }
 
       // Adjust this if we moved the pointer.
@@ -271,19 +270,21 @@ int main(int argc, char* const argv[]) {
       int comp_result = deflate_inplace(&zstrm, (unsigned char*)log_data_to_use,
           total_read, &compressed_size);
       if (comp_result != Z_OK) {
-        return 1;
+        fprintf(stderr, "fatal: deflate_inplace failed\n");
+        return 7;
       }
 
       int upload_res = upload_file(config.server, config.upload_target,
             log_data_to_use, compressed_size, kvpairs);
       free_kv_pairs(kvpairs);
       if (upload_res) {
-        return 1;
+        fprintf(stderr, "upload_file failed\n");
+        return 8;
       }
       if (write_file_as_uint64(COUNTER_MARKER_FILE,
             parse_params.last_log_counter)) {
         fprintf(stderr, "unable to write out last log counter\n");
-        return 1;
+        return 9;
       }
       // Write the marker file to indicate we finished the upload.
       int marker_fd = open(LOGS_UPLOADED_MARKER_FILE, O_CREAT | O_WRONLY,
@@ -292,9 +293,11 @@ int main(int argc, char* const argv[]) {
         close(marker_fd);
     }
 
-    if (write_to_file(DEV_KMSG_PATH, LOG_MARKER_END_LINE) < 0) {
-      fprintf(stderr, "failed to write out end marker\n");
-      return 1;
+    if (!config.use_stdin) {
+      if (write_to_file(DEV_KMSG_PATH, LOG_MARKER_END_LINE) < 0) {
+        perror("end marker");
+        return 10;
+      }
     }
 
     if (!config.use_stdin) {

@@ -1,6 +1,10 @@
 #ifndef _H_LOGUPLOAD_CLIENT_LOG_UPLOADER_H_
 #define _H_LOGUPLOAD_CLIENT_LOG_UPLOADER_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "kvextract.h"
 
 #define LOG_MARKER_START "*LOG_UPLOAD_START*"
@@ -43,5 +47,9 @@ char* parse_and_consume_log_data(struct log_parse_params* params);
 // will parse it.
 int logmark_once(const char* output_path, const char* version_path,
     const char* ntp_sync_path);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // _H_LOGUPLOAD_CLIENT_LOG_UPLOADER_H_

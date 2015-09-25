@@ -90,7 +90,7 @@ struct kvpair* extract_kv_pairs(struct kvextractparams* params) {
               sizeof(struct sockaddr_in6), pair_tail->value,
               sizeof(pair_tail->value), NULL, 0, NI_NUMERICHOST);
           if (rv != 0) {
-            fprintf(stderr, "getnameinfo() failed: %s\n", gai_strerror(rv));
+            fprintf(stderr, "getnameinfo(): %s\n", gai_strerror(rv));
             free_kv_pairs(pair_head);
             return NULL;
           }

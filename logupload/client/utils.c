@@ -10,15 +10,23 @@
 #include "utils.h"
 
 ssize_t read_file_as_string(const char* file_path, char* data, int length) {
-  if (!file_path || !data)
+  if (!file_path || !data) {
+    errno = EINVAL;
     return -1;
+  }
   int fd = open(file_path, O_RDONLY);
-  if (fd < 0)
+  if (fd < 0) {
+    perror(file_path);
     return -1;
+  }
   ssize_t num_read = read(fd, data, length - 1);
+  if (num_read < 0) {
+    perror(file_path);
+  }
   close(fd);
-  if (num_read < 0)
+  if (num_read < 0) {
     return -1;
+  }
   data[num_read] = '\0';
   return num_read;
 }
@@ -40,9 +48,14 @@ uint64_t read_file_as_uint64(const char* file_path) {
   char buf[64];
   ssize_t num_read;
   int fd = open(file_path, O_RDONLY);
-  if (fd < 0)
+  if (fd < 0) {
+    perror(file_path);
     return 0;
+  }
   num_read = read(fd, buf, sizeof(buf) -1);
+  if (num_read < 0) {
+    perror(file_path);
+  }
   close(fd);
   if (num_read > 0) {
     buf[num_read] = '\0';
@@ -54,7 +67,7 @@ uint64_t read_file_as_uint64(const char* file_path) {
 int write_file_as_uint64(const char* file_path, uint64_t counter) {
   int fd = open(file_path, O_WRONLY | O_CREAT, RW_FILE_PERMISSIONS);
   if (fd < 0) {
-    fprintf(stderr, "could not open file %s: %s\n", file_path, strerror(errno));
+    perror(file_path);
     return -1;
   }
   char data[64];
@@ -62,8 +75,7 @@ int write_file_as_uint64(const char* file_path, uint64_t counter) {
   ssize_t num_written = write(fd, data, len);
   close(fd);
   if (num_written < len) {
-    fprintf(stderr, "failed writing to file %s:  %s\n", file_path,
-        strerror(errno));
+    perror(file_path);
     return -1;
   }
   return 0;
@@ -72,15 +84,12 @@ int write_file_as_uint64(const char* file_path, uint64_t counter) {
 ssize_t write_to_file(const char* file_path, const char* data) {
   int fd = open(file_path, O_WRONLY | O_CREAT | O_APPEND, RW_FILE_PERMISSIONS);
   if (fd < 0) {
-    fprintf(stderr, "could not open %s for writing: %s\n", file_path,
-        strerror(errno));
     return -1;
   }
   ssize_t len = strlen(data);
   ssize_t num_written = write(fd, data, len);
   close(fd);
   if (num_written < len) {
-    fprintf(stderr, "failed writing to %s: %s\n", file_path, strerror(errno));
     return -1;
   }
   return num_written;

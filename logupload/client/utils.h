@@ -1,6 +1,10 @@
 #ifndef _H_LOGUPLOAD_CLIENT_UTILS_H_
 #define _H_LOGUPLOAD_CLIENT_UTILS_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <fcntl.h>
 #include <inttypes.h>
 #include <sys/stat.h>
@@ -50,4 +54,9 @@ int parse_line_data(char* line, struct line_data* data);
 // called.
 int deflate_inplace(z_stream *strm, unsigned char* buf,
     unsigned long len, unsigned long *out_len);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif  // _H_LOGUPLOAD_CLIENT_UTILS_H_
