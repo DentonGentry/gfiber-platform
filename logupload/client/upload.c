@@ -9,8 +9,8 @@
 #include "kvextract.h"
 #include "utils.h"
 
-#define DEVICE_KEY_PATH "/etc/ssl/private/device.key"
-#define DEVICE_CERT_PATH "/etc/ssl/certs/device.pem"
+#define DEVICE_KEY_PATH "/tmp/ssl/private/device.key"
+#define DEVICE_CERT_PATH "/tmp/ssl/certs/device.pem"
 
 #define FORM_DATA_SPLITTER_PREFIX "foo-splitter-"
 

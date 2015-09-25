@@ -17,7 +17,7 @@ int logmark_once(const char* output_path, const char* version_path,
   struct tm timeinfo;
   struct timespec curr_time;
   if (read_file_as_string(version_path, version, sizeof(version)) < 0) {
-    return -1;
+    strcpy(version, "unknown-version");
   }
   rstrip(version);
   memset(&timeinfo, 0, sizeof(timeinfo));

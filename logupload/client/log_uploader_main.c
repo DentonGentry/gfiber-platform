@@ -30,8 +30,8 @@
 #define DEV_KMSG_PATH "/dev/kmsg"
 #define NTP_SYNCED_PATH "/tmp/ntp.synced"
 #define VERSION_PATH "/etc/version"
-#define SERIAL_PATH "/etc/serial"
-#define PLATFORM_PATH "/etc/platform"
+#define SERIAL_PATH "/tmp/serial"
+#define PLATFORM_PATH "/tmp/platform"
 // 8192 is the size of the buffer used in printk.c to store a line read from
 // /dev/kmsg before copying it into our userspace buffer
 #define LOG_LINE_BUFFER_SIZE 8192

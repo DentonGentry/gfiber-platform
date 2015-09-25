@@ -34,6 +34,7 @@ int get_pair_from_file(const char* filepath, const char* key,
   len = read_file_as_string(filepath, (*pair)->value, sizeof((*pair)->value));
   if (len < 0) {
     free(*pair);
+    *pair = NULL;
     return KV_NOTHING;
   }
   rstrip((*pair)->value);
