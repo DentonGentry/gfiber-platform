@@ -46,6 +46,12 @@ static const char *interfaces_to_check[] = { "br0", "eth0", "man", "pon0" };
 static int num_interfaces = sizeof(interfaces_to_check) /
   sizeof(interfaces_to_check[0]);
 
+volatile static int interrupted = 0;
+
+static void got_alarm(int sig) {
+  interrupted = 1;
+}
+
 // To allow overriding for testing.
 int getnameinfo_resolver(const struct sockaddr* sa, socklen_t salen, char* host,
     size_t hostlen, char* serv, size_t servlen, int flags) {
@@ -82,13 +88,15 @@ int standard_read(char* buffer, int len, void* user_data) {
 }
 
 static void usage(const char* progname) {
-  fprintf(stderr, "Usage for: %s\n", progname);
-  fprintf(stderr, " --server URL Server URL (default: " DEFAULT_SERVER ")\n");
-  fprintf(stderr, " --all        Upload entire logs, not just new data\n");
-  fprintf(stderr, " --stdout     Print to stdout instead of uploading\n");
-  fprintf(stderr, " --stdin name Get data from stdin rather than /dev/kmsg and"
-      " upload to 'name' facility rather than 'dmesg', also disables "
-      "looping\n");
+  fprintf(stderr, "\nUsage: %s [options...]\n", progname);
+  fprintf(stderr, " --server URL    Server URL [" DEFAULT_SERVER "]\n");
+  fprintf(stderr, " --all           Upload entire logs, not just new data\n");
+  fprintf(stderr, " --logtype TYPE  Tell server which log category this is\n");
+  fprintf(stderr, " --freq SECS     Upload logs every SECS seconds [60]\n");
+  fprintf(stderr, " --stdout        Print to stdout instead of uploading\n");
+  fprintf(stderr,
+          " --stdin NAME    Get data from stdin, not /dev/kmsg, and\n"
+          "                   name uploaded file NAME rather than 'dmesg'\n");
   exit(EXIT_SUCCESS);
 }
 
@@ -98,9 +106,10 @@ static int parse_args(struct upload_config* config, int argc,
   static struct option long_options[] = {
     { "server", required_argument, 0, 's' },
     { "all", no_argument, 0, 'a' },
+    { "logtype", required_argument, 0, 'l' },
+    { "freq", required_argument, 0, 'f' },
     { "stdout", no_argument, 0, 'd' },
     { "stdin", required_argument, 0, 'i' },
-    { "logtype", required_argument, 0 , 'l' },
     { 0, 0, 0, 0}
   };
 
@@ -127,13 +136,28 @@ static int parse_args(struct upload_config* config, int argc,
       case 'l':
         snprintf(config->logtype, sizeof(config->logtype), "%s", optarg);
         break;
-     default:
-       return -1;
+      case 'f':
+        config->freq = atoi(optarg);
+        if (config->freq < 0) {
+          fprintf(stderr, "fatal: freq must be >= 0\n");
+          return -1;
+        }
+        break;
+      default:
+        return -1;
     }
   }
   if (optind < argc)
     return -1; // extraneous non-option arguments
   return 0;
+}
+
+static int pick_delay(struct upload_config* config) {
+  // Randomize the sleep time to be near the specified amount, +/- 1/12th.
+  // (1/12th is weird, but it means +/- 5 for 60 seconds, which is nice).
+  int variance = config->freq / 12;
+  return ((config->freq - variance) +
+          (random() % (variance * 2 + 1)));
 }
 
 int main(int argc, char* const argv[]) {
@@ -152,6 +176,10 @@ int main(int argc, char* const argv[]) {
       return 99;
     }
   }
+
+  struct sigaction sa = {};
+  sa.sa_handler = got_alarm;
+  sigaction(SIGALRM, &sa, NULL);
 
   // Initiliaze the random number generator
   srandom(getpid() ^ time(NULL));
@@ -202,13 +230,19 @@ int main(int argc, char* const argv[]) {
       // Read in all the data from stdin
       int num_read;
       total_read = num_read = 0;
+      interrupted = 0;
+      alarm(pick_delay(&config));
       while ((num_read = read(STDIN_FILENO, log_buffer + total_read,
-              MAX_LOG_SIZE - total_read)) > 0) {
+              MAX_LOG_SIZE - total_read)) > 0 && !interrupted) {
         total_read += num_read;
       }
-      if (num_read < 0) {
+      if (num_read < 0 && errno != EINTR) {
         perror("stdin");
         return 2;
+      }
+      if (num_read == 0 && total_read == 0) {
+        fprintf(stderr, "stdin: end of input. done.\n");
+        return 0;
       }
       log_data_to_use = log_buffer;
     } else {
@@ -237,6 +271,7 @@ int main(int argc, char* const argv[]) {
     // Now we've read all of the log data into our buffer, proceed
     // with uploading or outputting it.
 
+    fprintf(stderr, "uploading %lu bytes of logs.\n", total_read);
     if (config.use_stdout) {
       // Just print the whole thing to stdout.  Note: might be binary.
       fwrite(log_data_to_use, total_read, 1, stdout);
@@ -300,13 +335,12 @@ int main(int argc, char* const argv[]) {
       }
     }
 
-    if (!config.use_stdin) {
-      // Randomize the sleep time between 55 and 65 seconds which matches
-      // what is done in the log-delay script.
-      int sleep_dur = 55 + (random() % 11);
-      sleep(sleep_dur);
-    } else
+    if (!config.freq) {
       break;
+    } else if (!config.use_stdin) {
+      // if using stdin, we want to read incrementally instead.
+      sleep(pick_delay(&config));
+    }
   }
   free(log_buffer);
   return 0;
