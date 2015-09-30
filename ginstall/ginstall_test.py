@@ -112,18 +112,6 @@ class GinstallTest(unittest.TestCase):
     self.assertFalse(ginstall.IsIdentical(
         'loader', loader, open('testdata/img/loader1.bin')))
 
-  def testLockExceptions(self):
-    lock_prefix = '/tmp/ginstall_test_lock'
-    lock = ginstall.PidLock(lock_prefix)
-    def LockFailure():
-      with lock:
-        with ginstall.PidLock(lock_prefix):
-          pass
-    self.assertRaises(ginstall.LockException, LockFailure)
-    # Asserts no exceptions happen during normal usage.
-    with lock:
-      pass
-
   def testIsMtdNand(self):
     mtd = ginstall.F['MTD_PREFIX']
     self.assertFalse(ginstall.IsMtdNand(mtd + '6'))
