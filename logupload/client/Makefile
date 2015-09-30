@@ -21,13 +21,19 @@ INCS = kvextract.h upload.h utils.h
 MAIN_OBJ = log_uploader_main.o
 TESTS = kvextract_test utils_test log_uploader_test
 
-all: upload-crash-log2
+all: upload-crash-log2 upload-logs
 
 tests: all $(TESTS)
 
 kvextract_test: kvextract_test.o
 utils_test: utils_test.o
 log_uploader_test: log_uploader_test.o
+
+# an alias the Debian package can use, since upload-crash-log2 is kind of
+# a weird name, present mainly for backward compatibility with the old
+# loguploader on GFiber CPE devices (for now).
+upload-logs: upload-crash-log2
+	ln -f $< $@
 
 %.o: %.c $(INCS)
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -55,6 +61,7 @@ test: tests
 	./upload-crash-log2 --stdin=test --stdout <upload-crash-log2 >test.tmp
 	cmp upload-crash-log2 test.tmp
 	rm -f test.tmp
+	wvtest/wvtestrun ./prefix-logs.test
 
 clean:
-	rm -f upload-crash-log2 $(TESTS) *~ *.o
+	rm -f upload-crash-log2 upload-logs $(TESTS) *~ *.o

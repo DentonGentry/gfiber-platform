@@ -1,0 +1,40 @@
+#!/bin/sh
+. ./wvtest/wvtest.sh
+
+WVSTART "prefix-logs"
+
+contains() {
+  [ "$1" != "${1%$2*}" ]
+}
+
+WVPASS contains foible ib
+WVPASS contains 'big deal' ' '
+WVFAIL contains foible ' '
+
+echo "time stamp crap silly whatever hostname foo: blue message ☺
+2015-09-30T22:37:34.207817-04:00 whatever.xxx.corp.google.com CRON[1734]: pam_unix(cron:session): session closed for user root
+Sep 30 19:42:10 blob102 apenwarr: hello world
+" |
+./prefix-logs | {
+  # prefix-logs always prepends an initial T: line as well as printing
+  # additional ones on a schedule. Test the initial one.
+  read ts fac version timeval date time ntp junk
+  WVPASSEQ "$fac" "T:"
+  WVFAIL contains "$version" ' '
+  WVPASS [ "$timeval" -gt 0 ]
+  WVPASSEQ "$ntp" "ntp=1"
+  WVPASSEQ "$junk" ""
+
+  # our actual log messages from above.
+  read ts fac msg
+  WVPASSEQ "$fac" "foo:"
+  WVPASSEQ "$msg" "blue message ☺"
+
+  read ts fac msg
+  WVPASSEQ "$fac" "CRON:"
+  WVPASSEQ "$msg" "pam_unix(cron:session): session closed for user root"
+
+  read ts fac msg
+  WVPASSEQ "$fac" "apenwarr:"
+  WVPASSEQ "$msg" "hello world"
+}

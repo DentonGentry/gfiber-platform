@@ -1,0 +1,4 @@
+upload-logs                            /usr/bin
+prefix-logs                            /usr/bin
+debian/upload-logs-loop                /usr/bin
+debian/70-gfiber-loguploader.conf      /etc/rsyslog.d

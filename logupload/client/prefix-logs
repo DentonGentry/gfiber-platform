@@ -1,0 +1,40 @@
+#!/usr/bin/python -S
+"""Fix prefixes in rsyslog lines to make them look like /dev/kmsg."""
+import sys
+import time
+
+uptimef = open('/proc/uptime')
+version = open('/etc/version').read().strip().replace(' ', '-')
+
+
+def Log(service, msg):
+  uptimef.seek(0)
+  uptime = float(uptimef.read().split(' ', 1)[0])
+  sys.stdout.write('<7>[%13.6f] %s: %s' % (uptime, service, msg))
+
+
+def main():
+  last_mark = 0
+  while True:
+    line = sys.stdin.readline()
+    if not line: break
+    # sigh, different rsyslog installs log the date in a different format.
+    # for robustness, parse backwards from the colon.
+    # Input format:
+    #    this is a date hostname service[pid]: msg\n
+    pre, msg = line.split(': ', 1)
+    servicepid = pre.split(' ')[-1]
+    service = servicepid.split('[', 1)[0]
+    now = time.time()
+    if now - last_mark >= 30:
+      Log('T', '%s %d %s ntp=1\n' % (
+          version,
+          time.time(),
+          time.strftime('%m/%d %H:%M:%S', time.localtime())))
+      last_mark = now
+    Log(service, msg)
+    sys.stdout.flush()
+
+
+if __name__ == '__main__':
+  main()

@@ -1,0 +1,7 @@
+#!/bin/sh
+while :; do
+  # TODO(apenwarr): register a new logtype and change the --logtype here.
+  prefix-logs </var/log/gfiber-loguploader/pipe |
+    upload-logs --logtype server --freq 60 --stdin dmesg
+  sleep 1
+done 2>&1 | logger -t upload-logs-loop

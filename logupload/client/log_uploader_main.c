@@ -181,10 +181,10 @@ int main(int argc, char* const argv[]) {
   sa.sa_handler = got_alarm;
   sigaction(SIGALRM, &sa, NULL);
 
-  // Initiliaze the random number generator
+  // Initialize the random number generator
   srandom(getpid() ^ time(NULL));
 
-  // Allocate this once and re-use it very time
+  // Allocate this once and re-use it every time
   char* log_buffer = (char*) malloc(MAX_LOG_SIZE + LOG_BUF_EXTRA);
   if (!log_buffer) {
     fprintf(stderr, "Failed to allocate log_buffer!\n");

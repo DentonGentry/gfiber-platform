@@ -1,0 +1,6 @@
+/files
+/changelog
+/*.debhelper
+/gfiber-loguploader.debhelper.log
+/gfiber-loguploader.substvars
+/gfiber-loguploader

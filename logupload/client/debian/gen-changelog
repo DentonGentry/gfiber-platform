@@ -1,0 +1,16 @@
+#!/bin/sh
+git log --pretty='format:gfiber-loguploader (SHA:%H) unstable; urgency=low
+
+  * %s
+  
+ -- %aN <%aE>  %aD
+' . |
+python -Sc '
+import os, re, subprocess, sys
+
+def Describe(g):
+  s = subprocess.check_output(["git", "describe", "--", g.group(1)]).strip()
+  return re.sub(r"^\D*", "", s)
+
+print re.sub(r"SHA:([0-9a-f]+)", Describe, sys.stdin.read())
+'

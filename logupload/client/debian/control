@@ -1,0 +1,14 @@
+Source: gfiber-loguploader
+Section: net
+Priority: extra
+Maintainer: Avery Pennarun <apenwarr@google.com>
+Build-Depends: debhelper (>= 7.0.50~)
+Standards-Version: 3.9.2
+Homepage: https://gfiber.googlesource.com/vendor/google/platform/+/master/logupload/client/
+Vcs-Git: https://gfiber.googlesource.com/vendor/google/platform
+Vcs-Browser: https://gfiber.googlesource.com/vendor/google/platform
+
+Package: gfiber-loguploader
+Architecture: any
+Depends: rsyslog (>= 5.8)
+Description: Tool for uploading syslogs to GFiber log servers.

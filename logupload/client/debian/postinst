@@ -1,0 +1,9 @@
+#DEBHELPER#
+
+umask 007
+PNAME=/var/log/gfiber-loguploader/pipe
+if ! [ -p "$PNAME" ]; then
+  rm -f "$PNAME"
+  mkfifo "$PNAME"
+fi
+service rsyslog restart
