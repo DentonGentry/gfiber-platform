@@ -1,0 +1,2 @@
+gfiber-device-cert                     /usr/bin
+openssl.conf                           /usr/share/gfiber-device-cert

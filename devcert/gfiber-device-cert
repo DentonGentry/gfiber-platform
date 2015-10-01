@@ -1,0 +1,60 @@
+#!/bin/sh
+[ -n "$KEYFILE" ] || KEYFILE=/etc/ssl/private/device.key
+[ -n "$CERTFILE" ] || CERTFILE=/etc/ssl/certs/device.pem
+[ -n "$SSLCONF" ] || SSLCONF=/usr/share/gfiber-device-cert/openssl.conf
+
+
+fatal() {
+  echo "$0:" "$@" >&2
+  exit 99
+}
+
+
+host=$(
+  hostname -f |
+    sed -e 's/\([^.]*\.[^.]*\).*/\1/' \
+        -e 's/\./_/g'
+)
+full_cn="f88fca-Linux-$host"
+
+if [ "$1" = "-f" ] || [ ! -e "$CERTFILE" ]; then
+  echo "Generating cert for '$full_cn'" >&2
+  touch "$CERTFILE.new" 2>/dev/null ||
+    fatal "can't write '$CERTFILE.new'.  run as root?"
+  touch "$KEYFILE.new" 2>/dev/null ||
+    fatal "can't write '$KEYFILE.new'.  run as root?"
+  openssl req \
+      -config "$SSLCONF" \
+      -batch \
+      -new \
+      -x509 \
+      -newkey rsa:2048 \
+      -nodes \
+      -keyout "$KEYFILE.new" \
+      -out "$CERTFILE.new" \
+      -days 36500 \
+      -subj "/CN=$full_cn" || fatal "failed to generate key"
+  chmod a+r "$CERTFILE.new"
+  mv "$KEYFILE.new" "$KEYFILE"
+  mv "$CERTFILE.new" "$CERTFILE"
+fi
+
+[ -r "$CERTFILE" ] || fatal "'$CERTFILE' is not readable. run as root?"
+
+real_cn=$(
+  openssl x509 -in "$CERTFILE" -text -noout |
+  perl -ne '/Subject: CN=(.*)/ && { print $1 }'
+)
+
+openssl x509 -in "$CERTFILE" -text || fatal "error dumping certificate"
+
+if [ "$real_cn" != "$full_cn" ]; then
+  echo >&2
+  echo "Warning: expected 'CN=$full_cn'" >&2
+  echo "              got 'CN=$real_cn'" >&2
+  echo "Warning: this cert might not be accepted by servers." >&2
+  echo "Warning: to regenerate it, run: $0 -f" >&2
+  exit 10
+fi
+
+exit 0

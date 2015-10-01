@@ -1,5 +1,6 @@
 #!/bin/sh
-git log --pretty='format:gfiber-loguploader (SHA:%H) unstable; urgency=low
+read junk pkgname <debian/control
+git log --pretty='format:'"$pkgname"' (SHA:%H) unstable; urgency=low
 
   * %s
   

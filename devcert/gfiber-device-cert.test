@@ -1,0 +1,25 @@
+#!/bin/sh
+. ./wvtest/wvtest.sh
+
+WVSTART "gfiber-device-cert"
+
+export CERTFILE=cert.tmp KEYFILE=key.tmp SSLCONF=openssl.conf
+
+# Generate an initial certificate
+rm -f "$CERTFILE" "$KEYFILE"
+WVFAIL [ -r "$CERTFILE" ]
+WVFAIL [ -r "$KEYFILE" ]
+WVPASS ./gfiber-device-cert
+WVPASS [ -r "$CERTFILE" ]
+WVPASS [ -r "$KEYFILE" ]
+sum1=$(sha1sum "$CERTFILE" "$KEYFILE")
+
+# should not replace the cert
+WVPASS ./gfiber-device-cert
+sum2=$(sha1sum "$CERTFILE" "$KEYFILE")
+WVPASSEQ "$sum1" "$sum2"
+
+# -f should cause the cert to be replaced
+WVPASS ./gfiber-device-cert -f
+sum2=$(sha1sum "$CERTFILE" "$KEYFILE")
+WVPASSNE "$sum1" "$sum2"

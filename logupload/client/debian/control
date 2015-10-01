@@ -10,5 +10,5 @@ Vcs-Browser: https://gfiber.googlesource.com/vendor/google/platform
 
 Package: gfiber-loguploader
 Architecture: any
-Depends: rsyslog (>= 5.8)
+Depends: rsyslog (>= 5.8), gfiber-device-cert (>= 0.0)
 Description: Tool for uploading syslogs to GFiber log servers.

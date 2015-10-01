@@ -1,0 +1,13 @@
+GFiber device certificates
+--------------------------
+
+This package ensures that there's a GFiber client certificate in
+/etc/ssl/certs/device.pem (and associated private key in
+/etc/ssl/private/device.key).  If one isn't already there, it will self-sign
+a certificate and install it for you.
+
+You can dump the contents of the certificate by running gfiber-device-cert
+with no parameters, or add -f to force regeneration of the cert.
+
+Find the source here:
+https://gfiber.googlesource.com/vendor/google/platform/+/master/devcert/

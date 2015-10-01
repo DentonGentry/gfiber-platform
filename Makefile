@@ -20,7 +20,7 @@ export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
 # via buildroot/packages/google/google_platform/google_platform.mk
 DIRS=libstacktrace ginstall cmds \
 	antirollback tvstat gpio-mailbox spectralanalyzer wifi wifiblaster \
-	sysvar py_mtd
+	sysvar py_mtd devcert
 
 ifeq ($(BUILD_SYSMGR),y)
 DIRS+=sysmgr

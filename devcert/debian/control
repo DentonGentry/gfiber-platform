@@ -1,0 +1,14 @@
+Source: gfiber-device-cert
+Section: net
+Priority: extra
+Maintainer: Avery Pennarun <apenwarr@google.com>
+Build-Depends: debhelper (>= 7.0.50~)
+Standards-Version: 3.9.2
+Homepage: https://gfiber.googlesource.com/vendor/google/platform/+/master/devcert/
+Vcs-Git: https://gfiber.googlesource.com/vendor/google/platform
+Vcs-Browser: https://gfiber.googlesource.com/vendor/google/platform
+
+Package: gfiber-device-cert
+Architecture: all
+Depends: openssl (>= 1.0.1)
+Description: Tool for managing GFiber client device certificates

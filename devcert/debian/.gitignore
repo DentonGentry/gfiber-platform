@@ -1,0 +1,6 @@
+/files
+/changelog
+/*.debhelper
+/gfiber-device-cert.debhelper.log
+/gfiber-device-cert.substvars
+/gfiber-device-cert
