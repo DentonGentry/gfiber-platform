@@ -1,10 +1,12 @@
 #!/usr/bin/python -S
 """Fix prefixes in rsyslog lines to make them look like /dev/kmsg."""
+import os
 import sys
 import time
 
 uptimef = open('/proc/uptime')
-version = open('/etc/version').read().strip().replace(' ', '-')
+versionfile = os.getenv('VERSIONFILE', '/etc/version')
+version = open(versionfile).read().strip().replace(' ', '-')
 
 
 def Log(service, msg):

@@ -1,6 +1,7 @@
 #!/bin/sh
 . ./wvtest/wvtest.sh
 
+export VERSIONFILE='./testdata/version'
 WVSTART "prefix-logs"
 
 contains() {
