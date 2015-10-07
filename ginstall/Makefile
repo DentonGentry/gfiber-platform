@@ -9,7 +9,7 @@ all:
 install:
 	mkdir -p $(BINDIR)
 	cp ginstall.py $(BINDIR)
-	ln -sf ginstall.py $(BINDIR)/ginstall
+	ln -sf ginstall.py $(BINDIR)/ginstall.real
 
 install-libs:
 	@echo "No libs to install."
