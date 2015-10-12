@@ -923,6 +923,10 @@ def _run(argv):
   if success:
     if extra[0] == 'set':
       if opt.persist:
+        phy = iw.find_phy(opt.band, opt.channel)
+        for band in iw.phy_bands(phy):
+          if band != opt.band:
+            persist.delete_options('hostapd', band)
         persist.save_options('hostapd', opt.band, argv)
       persist.save_options('hostapd', opt.band, argv, tmp=True)
 

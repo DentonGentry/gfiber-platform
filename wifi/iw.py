@@ -65,7 +65,8 @@ def phy_parsed(**kwargs):
     **kwargs: Passed to the underlying subprocess call.
 
   Returns:
-    A dict of the the form: {'phyX': 'frequency_and_channel': [(F, C), ...]}
+    A dict of the the form: {'phyX': {'frequency_and_channel': [(F, C), ...],
+                                      'bands': set(band1, ...)}, ...}
   """
   result = {}
   phy = None
@@ -74,12 +75,18 @@ def phy_parsed(**kwargs):
     match = _WIPHY_RE.match(line)
     if match:
       phy = match.group('phy')
-      result[phy] = {'frequency_and_channel': []}
+      result[phy] = {'frequency_and_channel': [], 'bands': set()}
     else:
       match = _FREQUENCY_AND_CHANNEL_RE.match(line)
       if match:
-        result[phy]['frequency_and_channel'].append(
-            (match.group('frequency'), match.group('channel')))
+        frequency, channel = match.group('frequency'), match.group('channel')
+        result[phy]['frequency_and_channel'].append((frequency, channel))
+        if frequency.startswith('2'):
+          result[phy]['bands'].add('2.4')
+        elif frequency.startswith('5'):
+          result[phy]['bands'].add('5')
+        else:
+          utils.log('Unrecognized frequency %s', frequency)
 
   return result
 
@@ -310,3 +317,32 @@ def station_dump(interface):
   """
   return utils.subprocess_output_or_none(
       ['iw', 'dev', interface, 'station', 'dump'])
+
+
+def phy_bands(which_phy):
+  """Returns the bands supported by the given phy.
+
+  If a phy P supports more than one band, and another phy Q supports only one of
+  those bands, P is not said to support that band.
+
+  Args:
+    which_phy: The phy for which to get bands.
+
+  Returns:
+    The bands supported by the given phy.
+  """
+
+  band_phys = {}
+  for phy, info in phy_parsed().iteritems():
+    bands = info['bands']
+    for band in bands:
+      band_phys.setdefault(band, phy)
+    if len(bands) == 1:
+      band_phys[list(bands)[0]] = phy
+
+  result = set()
+  for band, phy in band_phys.iteritems():
+    if which_phy == phy:
+      result.add(band)
+
+  return result
