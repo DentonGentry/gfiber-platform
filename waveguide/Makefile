@@ -39,7 +39,7 @@ test: all
 
 install:
 	mkdir -p $(LIBDIR) $(BINDIR)
-	$(INSTALL) -m 0644 *.py $(LIBDIR)/
+	$(INSTALL) -m 0644 $(filter-out %_test.py, $(wildcard *.py)) $(LIBDIR)/
 	$(INSTALL) -m 0755 waveguide.py $(LIBDIR)/
 	$(INSTALL) -m 0755 waveguide $(BINDIR)/
 
