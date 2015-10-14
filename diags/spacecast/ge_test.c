@@ -971,7 +971,7 @@ static void lan_lpbk_usage(void) {
 
 /* This is for Marvell 88E1512 only */
 int lan_lpbk(int argc, char *argv[]) {
-  int reg, data;
+  int data;
   bool loopback_on = false;
 
   if (argc != 2) {

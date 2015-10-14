@@ -12,41 +12,14 @@ INCLUDEDIR=$(PREFIX)/include
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 RM=rm -f
-CFLAGS = -Wall -Wimplicit -Wno-unknown-pragmas -W -std=c99 -D_GNU_SOURCE
 
+CFLAGS = -Wall -Werror -Wimplicit -Wno-unknown-pragmas -D_GNU_SOURCE -g
 CFLAGS += $(EXTRA_CFLAGS)
 LDFLAGS += $(EXTRA_LDFLAGS)
 
-# enable the platform we're supporting
-ifeq ($(BR2_PACKAGE_BCM_NEXUS),y)
-  CFLAGS += -DBROADCOM
-  NOSTUB=1
-endif
-ifeq ($(BR2_PACKAGE_MINDSPEED_DRIVERS),y)
-  CFLAGS += -DMINDSPEED
-  NOSTUB=1
-endif
-
-ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberlt)
-  CFLAGS += -DGFIBER_LT
-  NOSTUB=1
-endif
-
-ifndef NOSTUB
-  CFLAGS += -DSTUB
-  LDFLAGS += -lm
-endif
-
-CFLAGS += -g
-
 IFLAGS += $(patsubst %,-I%,$(INC_DIRS))
-
 CFILES = $(wildcard *.c ../common/*.c)
 OFILES = $(patsubst %.c,%.o,$(CFILES))
-
-ifndef BRUNO_ARCH
-$(warning BRUNO_ARCH is undefined.  Set it to arm or mips or i386)
-endif
 
 all:	$(TARGETS)
 
