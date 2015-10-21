@@ -4,7 +4,19 @@
 """Repackage image for signing check.
 
 The image is packaged as follows
-Signing will add 8 bytes header (header size and signature offset).
+Signing will add 16 bytes header (header size and signature offset) plus
+8 bytes of padding.
+
+There are two cases:
+  if signature_offset == FAKE_SIGN_OFFSET
+   header_size contains the length of the file after the 16 byte header
+    (or file_size = 16 + header_size)
+
+  if signature_offset != FAKE_SIGN_OFFSET
+    header_size =  signature_offset - 16 (not needed/used)
+    signature_offset = filesize - 256 - 16 (means the signature is 256 bytes)
+
+
 The info is free format. Now it is only a string to hold verity table.
 |-------------------| <=== Byte 0
 | header size       | (integer)
