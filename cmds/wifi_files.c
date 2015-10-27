@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <linux/if_ether.h>
 #include <linux/nl80211.h>
 #include <math.h>
 #include <net/if.h>
@@ -46,6 +47,7 @@
 
 
 #define STATIONS_DIR "/tmp/stations"
+#define WIFISHOW_DIR "/tmp/wifi/wifiinfo"
 
 
 typedef struct client_state {
@@ -59,6 +61,7 @@ int ifindexes[NINTERFACES];
 const char *interfaces[NINTERFACES];
 int ninterfaces = 0;
 
+static FILE *wifi_show_handle = NULL;
 
 int GetIfIndex(const char *ifname)
 {
@@ -110,12 +113,16 @@ static int InterfaceListCallback(struct nl_msg *msg, void *arg)
 }
 
 
-void RequestInterfaceList(struct nl_sock *nlsk, int nl80211_id)
+void HandleNLCommand(struct nl_sock *nlsk, int nl80211_id, int n,
+                     int cb(struct nl_msg *, void *),
+                     int cmd, int flag)
 {
   struct nl_msg *msg;
+  int ifindex = n >= 0 ? ifindexes[n] : -1;
+  const char *ifname = n>=0 ? interfaces[n] : NULL;
 
   if (nl_socket_modify_cb(nlsk, NL_CB_VALID, NL_CB_CUSTOM,
-                          InterfaceListCallback, NULL)) {
+                          cb, (void *)ifname)) {
     fprintf(stderr, "nl_socket_modify_cb failed\n");
     exit(1);
   }
@@ -124,9 +131,14 @@ void RequestInterfaceList(struct nl_sock *nlsk, int nl80211_id)
     fprintf(stderr, "nlmsg_alloc failed\n");
     exit(1);
   }
-  if (genlmsg_put(msg, 0, 0, nl80211_id, 0, NLM_F_DUMP,
-                  NL80211_CMD_GET_INTERFACE, 0) == NULL) {
+  if (genlmsg_put(msg, 0, 0, nl80211_id, 0, flag,
+                  cmd, 0) == NULL) {
     fprintf(stderr, "genlmsg_put failed\n");
+    exit(1);
+  }
+
+  if (ifindex >= 0 && nla_put_u32(msg, NL80211_ATTR_IFINDEX, ifindex)) {
+    fprintf(stderr, "NL80211_CMD_GET_STATION put IFINDEX failed\n");
     exit(1);
   }
 
@@ -134,8 +146,14 @@ void RequestInterfaceList(struct nl_sock *nlsk, int nl80211_id)
     fprintf(stderr, "nl_send_auto failed\n");
     exit(1);
   }
-
   nlmsg_free(msg);
+}
+
+
+void RequestInterfaceList(struct nl_sock *nlsk, int nl80211_id)
+{
+  HandleNLCommand(nlsk, nl80211_id, -1, InterfaceListCallback,
+                  NL80211_CMD_GET_INTERFACE, NLM_F_DUMP);
 }  /* RequestInterfaceList */
 
 
@@ -354,38 +372,9 @@ static int StationDumpCallback(struct nl_msg *msg, void *arg)
 
 void RequestAssociatedDevices(struct nl_sock *nlsk, int nl80211_id, int n)
 {
-  struct nl_msg *msg;
-  int ifindex = ifindexes[n];
-  const char *ifname = interfaces[n];
-
-  if (nl_socket_modify_cb(nlsk, NL_CB_VALID, NL_CB_CUSTOM,
-                          StationDumpCallback, (void *)ifname)) {
-    fprintf(stderr, "nl_socket_modify_cb failed\n");
-    exit(1);
-  }
-
-  if ((msg = nlmsg_alloc()) == NULL) {
-    fprintf(stderr, "nlmsg_alloc failed\n");
-    exit(1);
-  }
-  if (genlmsg_put(msg, 0, 0, nl80211_id, 0, NLM_F_DUMP,
-                  NL80211_CMD_GET_STATION, 0) == NULL) {
-    fprintf(stderr, "genlmsg_put failed\n");
-    exit(1);
-  }
-  if (nla_put_u32(msg, NL80211_ATTR_IFINDEX, ifindex)) {
-    fprintf(stderr, "NL80211_CMD_GET_STATION put IFINDEX failed\n");
-    exit(1);
-  }
-
-  if (nl_send_auto(nlsk, msg) < 0) {
-    fprintf(stderr, "nl_send_auto failed\n");
-    exit(1);
-  }
-  nlmsg_free(msg);
+  HandleNLCommand(nlsk, nl80211_id, n, StationDumpCallback,
+                  NL80211_CMD_GET_STATION, NLM_F_DUMP);
 }  /* RequestAssociatedDevices */
-
-
 
 static int NlFinish(struct nl_msg *msg, void *arg)
 {
@@ -470,6 +459,166 @@ void usage(const char *progname)
 }  /* usage */
 
 
+/* From iw package, try untouched except indentation */
+int ieee80211_frequency_to_channel(int freq)
+{
+  /* see 802.11-2007 17.3.8.3.2 and Annex J */
+  if (freq == 2484)
+    return 14;
+  else if (freq < 2484)
+    return (freq - 2407) / 5;
+  else if (freq >= 4910 && freq <= 4980)
+    return (freq - 4000) / 5;
+  else if (freq <= 45000) /* DMG band lower limit */
+    return (freq - 5000) / 5;
+  else if (freq >= 58320 && freq <= 64800)
+    return (freq - 56160) / 2160;
+  else
+    return 0;
+}
+
+
+void print_ssid_escaped(FILE* f, const uint8_t len, const uint8_t *data)
+{
+  int i;
+
+  for (i = 0; i < len; i++) {
+    if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\')
+      fprintf(f, "%c", data[i]);
+    else if (data[i] == ' ' && (i != 0 && i != len -1))
+      fprintf(f," ");
+    else
+      fprintf(f, "\\x%.2x", data[i]);
+  }
+}
+
+
+static int WlanInfoCallback(struct nl_msg *msg, void *arg)
+{
+  struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+  struct nlattr *tb_msg[NL80211_ATTR_MAX + 1];
+
+  nla_parse(tb_msg, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+            genlmsg_attrlen(gnlh, 0), NULL);
+
+  if (tb_msg[NL80211_ATTR_MAC]) {
+    unsigned char *mac_addr = nla_data(tb_msg[NL80211_ATTR_MAC]);
+    fprintf(wifi_show_handle,
+            "  \"BSSID\": \"%02x:%02x:%02x:%02x:%02x:%02x\",\n",
+            mac_addr[0], mac_addr[1], mac_addr[2],
+            mac_addr[3], mac_addr[4], mac_addr[5]);
+  }
+  if (tb_msg[NL80211_ATTR_SSID]) {
+    fprintf(wifi_show_handle, "  \"SSID\": \"");
+    print_ssid_escaped(wifi_show_handle, nla_len(tb_msg[NL80211_ATTR_SSID]),
+                       nla_data(tb_msg[NL80211_ATTR_SSID]));
+    fprintf(wifi_show_handle, "\",\n");
+  }
+  if (tb_msg[NL80211_ATTR_WIPHY_FREQ]) {
+    uint32_t freq = nla_get_u32(tb_msg[NL80211_ATTR_WIPHY_FREQ]);
+
+    fprintf(wifi_show_handle, "  \"Channel\": %d",
+            ieee80211_frequency_to_channel(freq));
+
+    fprintf(wifi_show_handle, ",\n");
+  }
+
+  return NL_SKIP;
+}
+
+
+void UpdateWifiShowContent(struct nl_sock *nlsk, int nl80211_id, int n)
+{
+  HandleNLCommand(nlsk, nl80211_id, n, WlanInfoCallback,
+                  NL80211_CMD_GET_INTERFACE, 0);
+}
+
+
+static int RegdomainCallback(struct nl_msg *msg, void *arg)
+{
+  struct nlattr *tb_msg[NL80211_ATTR_MAX + 1];
+  struct genlmsghdr *gnlh = nlmsg_data(nlmsg_hdr(msg));
+  char *alpha2;
+
+  nla_parse(tb_msg, NL80211_ATTR_MAX, genlmsg_attrdata(gnlh, 0),
+            genlmsg_attrlen(gnlh, 0), NULL);
+
+  if (!tb_msg[NL80211_ATTR_REG_ALPHA2]) {
+    return NL_SKIP;
+  }
+
+  if (!tb_msg[NL80211_ATTR_REG_RULES]) {
+    return NL_SKIP;
+  }
+
+  alpha2 = nla_data(tb_msg[NL80211_ATTR_REG_ALPHA2]);
+  fprintf(wifi_show_handle, "  \"RegDomain\": \"%c%c\",\n", alpha2[0], alpha2[1]);
+
+  return NL_SKIP;
+}
+
+
+void UpdateWifiRegdomain(struct nl_sock *nlsk, int nl80211_id)
+{
+  HandleNLCommand(nlsk, nl80211_id, -1, RegdomainCallback,
+                  NL80211_CMD_GET_REG, 0);
+}
+
+
+void UpdateWifiShow(struct nl_sock *nlsk, int nl80211_id, int n)
+{
+  char tmpfile[PATH_MAX];
+  char filename[PATH_MAX];
+  char autofile[PATH_MAX];
+  const char *ifname = interfaces[n];
+  int done = 0;
+  struct stat buffer;
+  FILE *fptr;
+
+  if (!ifname || !ifname[0]) {
+    return;
+  }
+
+  snprintf(tmpfile, sizeof(tmpfile), "%s/%s.new", WIFISHOW_DIR, ifname);
+  snprintf(filename, sizeof(filename), "%s/%s", WIFISHOW_DIR, ifname);
+
+  if ((wifi_show_handle = fopen(tmpfile, "w+")) == NULL) {
+    perror("fopen");
+    return;
+  }
+
+  fprintf(wifi_show_handle, "{\n");
+  done = 0;
+  UpdateWifiShowContent(nlsk, nl80211_id, n);
+  ProcessNetlinkMessages(nlsk, &done);
+
+  done = 0;
+  UpdateWifiRegdomain(nlsk, nl80211_id);
+  ProcessNetlinkMessages(nlsk, &done);
+
+  snprintf(autofile, sizeof(autofile), "/tmp/autochan.%s", ifname);
+  if (stat(autofile, &buffer) == 0) {
+    fprintf(wifi_show_handle, "  \"AutoChannel\": true,\n");
+  } else {
+    fprintf(wifi_show_handle, "  \"AutoChannel\": false,\n");
+  }
+  snprintf(autofile, sizeof(autofile), "/tmp/autotype.%s", ifname);
+  if ((fptr = fopen(autofile, "r")) == NULL) {
+    fprintf(wifi_show_handle, "  \"AutoType\": \"LOW\"\n");
+  } else {
+    char buf[24];
+    fgets(buf, sizeof(buf), fptr);
+    fprintf(wifi_show_handle, "  \"AutoType\": \"%s\"\n", buf);
+  }
+  fprintf(wifi_show_handle, "}\n");
+
+  fclose(wifi_show_handle);
+  wifi_show_handle = NULL;
+  if (rename(tmpfile, filename)) {
+    perror("rename");
+  }
+}
+
 int main(int argc, char **argv)
 {
   int done = 0;
@@ -508,6 +657,8 @@ int main(int argc, char **argv)
       done = 0;
       RequestAssociatedDevices(nlsk, nl80211_id, i);
       ProcessNetlinkMessages(nlsk, &done);
+
+      UpdateWifiShow(nlsk, nl80211_id, i);
     }
     TouchUpdateFile();
     sleep(2);
