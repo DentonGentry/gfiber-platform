@@ -14,6 +14,9 @@ void stacktrace_sighandler(int sig);
 /* Call this to setup common signal handlers automatically. */
 void stacktrace_setup(void);
 
+/* Need to export this in order to allow testing it */
+char *format_uint(unsigned int i);
+
 #ifdef __cplusplus
 }
 #endif

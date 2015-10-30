@@ -1,30 +1,33 @@
 #include "stacktrace.h"
-#include <signal.h>
+
 #include <errno.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/syscall.h>
+#include <string.h>
+#include <syscall.h>
+#include <sys/types.h>  // for waitpid
+#include <sys/wait.h>  // for waitpid
 #include <unistd.h>
-#include <stdio.h>
 
-#define WRITE(s) do { if (write(2, s, my_strlen(s)) < 0) { perror("write"); } } while (0);
+// We need this because strlen() isn't safe to call from a signal handler.
+static int safe_strlen(const char *s) {
+  int i = 0;
+  while (s[i] != '\0')
+    ++i;
+  return i;
+}
 
-static size_t my_strlen(char* s)
-{
-  size_t length = 0;
-
-  if (s != NULL) {
-    while (*s++ != '\0') {
-      length++;
-    }
-  }
-  return length;
+#define WRITELEN(s, l) do {if (write(2, s, l)) {}} while (0)
+#define WRITE(s) do {if (write(2, s, sizeof(s))) {}} while (0)
+#define WRITEINT(i) { \
+    char *str = format_uint(i); \
+    WRITELEN(str, safe_strlen(str)); \
 }
 
 
 // We need this because sprintf() isn't safe to call from a signal handler.
-static char *format_uint(unsigned int i)
-{
+char *format_uint(unsigned int i) {
   static char str[100];
   char *p = str + sizeof(str) - 1;
   *(--p) = '\0';
@@ -35,25 +38,23 @@ static char *format_uint(unsigned int i)
   return p;
 }
 
-
-static pid_t gettid(void)
-{
+static pid_t gettid(void) {
   // According to 'man gettid', this function is not in libc, so you need
   // to call syscall() yourself.  Seems to be true.
   return syscall(__NR_gettid);
 }
 
-
-void stacktrace(void)
-{
+void stacktrace(void) {
   pid_t pid, trace_tid = gettid();
 
   if ((pid = fork()) > 0) {
-    // For some reason, if we call waitpid() here, gdb (7.3.1) isn't able to
-    // get a valid stack trace.  If we use syscall(__NR_waitpid), then it
-    // works fine.
+// For some reason, if we call waitpid() here, gdb (7.3.1) isn't able to
+// get a valid stack trace.  If we use syscall(__NR_waitpid), then it
+// works fine.
 #if defined(__MIPSEL__) || defined(_MIPSEB_)
     syscall(__NR_waitpid, pid, 0);
+#else
+    waitpid(pid, NULL, 0);
 #endif
   } else if (pid == 0) {
     char *argv[] = {(char*)"stacktrace", format_uint(trace_tid), NULL};
@@ -61,15 +62,16 @@ void stacktrace(void)
   } else {
     int e = errno;
     WRITE("ERROR: fork failed?!  code=");
-    WRITE(format_uint(e));
+    WRITEINT(e);
   }
 }
 
-
-void stacktrace_sighandler(int sig)
-{
-  WRITE("\nExiting on signal ");
-  WRITE(format_uint(sig));
+void stacktrace_sighandler(int sig) {
+  WRITE("\nExiting thread ");
+  pid_t tid = gettid();
+  WRITEINT(tid);
+  WRITE(" on signal ");
+  WRITEINT(sig);
   WRITE("\n");
 
   stacktrace();
@@ -88,9 +90,7 @@ void stacktrace_sighandler(int sig)
   abort();
 }
 
-
-void stacktrace_setup(void)
-{
+void stacktrace_setup(void) {
   signal(SIGSEGV, stacktrace_sighandler);
   signal(SIGBUS, stacktrace_sighandler);
   signal(SIGFPE, stacktrace_sighandler);
