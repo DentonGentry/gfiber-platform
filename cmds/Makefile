@@ -48,8 +48,9 @@ HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
 	stdoutline.so
 TEST_TARGETS=\
-	host-utils_test \
-	host-asus_hosts_test
+	host-asus_hosts_test \
+	host-netusage_test \
+	host-utils_test
 SCRIPT_TARGETS=\
 	is-secure-boot
 ARCH_TARGETS=\
@@ -204,6 +205,7 @@ eddystone: CFLAGS += -std=gnu99
 eddystone: eddystone.o
 host-dir-monitor dir-monitor: LIBS+=-lstdc++
 netusage: CFLAGS += -Wno-sign-compare
+host-netusage_test: host-netusage_test.o
 wifi_files: wifi_files.o
 wifi_files: LIBS+=-lnl-3 -lnl-genl-3
 

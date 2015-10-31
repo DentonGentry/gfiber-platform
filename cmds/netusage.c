@@ -33,12 +33,17 @@
 #define SAMPLES 8
 
 
-static uint64_t mono_usecs(void)
+#ifndef UNIT_TESTS
+#define CLOCK_GETTIME clock_gettime
+#endif  /* UNIT_TESTS */
+
+
+uint64_t mono_usecs(void)
 {
   struct timespec ts;
   uint64_t usec;
 
-  if (clock_gettime(CLOCK_MONOTONIC, &ts) < 0) {
+  if (CLOCK_GETTIME(CLOCK_MONOTONIC, &ts) < 0) {
     perror("clock_gettime(CLOCK_MONOTONIC)");
     exit(1);
   }
@@ -70,6 +75,7 @@ int netlink_socket()
 }
 
 
+#ifndef UNIT_TESTS
 void sendreq(int s, const char *ifname)
 {
   struct {
@@ -107,10 +113,12 @@ void sendreq(int s, const char *ifname)
     exit(1);
   }
 }
+#endif  /* UNIT_TESTS */
 
 
+#ifndef UNIT_TESTS
 void recvresp(int s, uint32_t *tx_bytes, uint32_t *rx_bytes,
-    uint32_t *tx_pkts, uint32_t *rx_unipkts, uint32_t *rx_multipkts)
+    uint32_t *tx_pkts, uint32_t *rx_pkts, uint32_t *rx_multipkts)
 {
   ssize_t len;
   unsigned char buf[4096];
@@ -137,7 +145,7 @@ void recvresp(int s, uint32_t *tx_bytes, uint32_t *rx_bytes,
         *rx_bytes = stats->rx_bytes;
         *tx_bytes = stats->tx_bytes;
         *tx_pkts = stats->tx_packets;
-        *rx_unipkts = stats->rx_packets - stats->multicast;
+        *rx_pkts = stats->rx_packets;
         *rx_multipkts = stats->multicast;
       }
 
@@ -147,8 +155,67 @@ void recvresp(int s, uint32_t *tx_bytes, uint32_t *rx_bytes,
     nh = NLMSG_NEXT(nh, len);
   }
 }
+#endif  /* UNIT_TESTS */
 
 
+struct saved_counters {
+  uint32_t tx_bytes;
+  uint32_t rx_bytes;
+  uint32_t tx_pkts;
+  uint32_t rx_unipkts;
+  uint32_t rx_multipkts;
+};
+
+void accumulate_stats(int s, double delta, const char *interface,
+    double *tx_kbps, double *rx_kbps, double *tx_pps,
+    double *rx_uni_pps, double *rx_multi_pps,
+    struct saved_counters *old)
+{
+  uint32_t tx_bytes, rx_bytes, tx_pkts, rx_pkts, rx_multipkts;
+  uint32_t tx_bytes2, rx_bytes2, tx_pkts2, rx_pkts2, rx_multipkts2;
+  uint32_t rx_unipkts;
+
+  sendreq(s, interface);
+  recvresp(s, &tx_bytes, &rx_bytes, &tx_pkts, &rx_pkts, &rx_multipkts);
+
+  /*
+   * Most hardware platforms do not have an RX unicast packet counter, they
+   * have an overall RX counter and they have a multicast counter. We cannot
+   * read the two counters atomically, the hardware does not provide a way
+   * to do so.
+   *
+   * Therefore there is a race condition. Assume no packets have arrived, so
+   * we read an rx_packets count of zero. At that instant a multicast packet
+   * arrives, so rx_packets and rx_multipackets both increment to 1. We've
+   * already read the rx_packets counter so its too late for that, but we
+   * read the rx_multipkts counter of 1.
+   *
+   * rx_unipkts = (rx_packets - rx_multipkts) is 4,294,967,295, which
+   * is very wrong.
+   *
+   * To resolve this, we read the counters twice. We use the rx_multipkts
+   * count from the first read, and the rx_packets count from the second,
+   * to ensure that rx_packets has a chance to update.
+   */
+  sendreq(s, interface);
+  recvresp(s, &tx_bytes2, &rx_bytes2, &tx_pkts2, &rx_pkts2, &rx_multipkts2);
+
+  *tx_kbps = (8.0 * (tx_bytes - old->tx_bytes) / 1000.0) / delta;
+  *rx_kbps = (8.0 * (rx_bytes - old->rx_bytes) / 1000.0) / delta;
+  *tx_pps = (tx_pkts - old->tx_pkts) / delta;
+  rx_unipkts = rx_pkts2 - rx_multipkts;
+  *rx_uni_pps = (rx_unipkts - old->rx_unipkts) / delta;
+  *rx_multi_pps = (rx_multipkts - old->rx_multipkts) / delta;
+
+  old->tx_bytes = tx_bytes;
+  old->rx_bytes = rx_bytes;
+  old->tx_pkts = tx_pkts;
+  old->rx_unipkts = rx_unipkts;
+  old->rx_multipkts = rx_multipkts;
+}
+
+
+#ifndef UNIT_TESTS
 void usage(const char *progname)
 {
   fprintf(stderr, "usage: %s -i foo0\n", progname);
@@ -164,8 +231,8 @@ int main(int argc, char **argv)
   const char *interface = NULL;
   int s = netlink_socket();
   uint64_t start;
-  uint32_t old_tx_bytes, old_rx_bytes, old_tx_pkts;
-  uint32_t old_rx_unipkts, old_rx_multipkts;
+  double junk;
+  struct saved_counters old;
   int i = 0;
 
   while ((c = getopt(argc, argv, "i:")) >= 0) {
@@ -186,14 +253,11 @@ int main(int argc, char **argv)
 
   setlinebuf(stdout);
   start = mono_usecs();
-  sendreq(s, interface);
-  recvresp(s, &old_tx_bytes, &old_rx_bytes, &old_tx_pkts, &old_rx_unipkts,
-      &old_rx_multipkts);
+  accumulate_stats(s, 1.0, interface, &junk, &junk, &junk, &junk, &junk, &old);
 
   while (1) {
     uint64_t timestamp;
     double delta;
-    uint32_t tx_bytes, rx_bytes, tx_pkts, rx_unipkts, rx_multipkts;
     double tx_kbps[SAMPLES];
     double rx_kbps[SAMPLES];
     double tx_pps[SAMPLES];
@@ -202,17 +266,12 @@ int main(int argc, char **argv)
 
     sleep(1);
     timestamp = mono_usecs();
-    sendreq(s, interface);
-    recvresp(s, &tx_bytes, &rx_bytes, &tx_pkts, &rx_unipkts, &rx_multipkts);
-
     delta = (timestamp - start) / 1000000.0;
-    tx_kbps[i] = (8.0 * (tx_bytes - old_tx_bytes) / 1000.0) / delta;
-    rx_kbps[i] = (8.0 * (rx_bytes - old_rx_bytes) / 1000.0) / delta;
-    tx_pps[i] = (tx_pkts - old_tx_pkts) / delta;
-    rx_uni_pps[i] = (rx_unipkts - old_rx_unipkts) / delta;
-    rx_multi_pps[i] = (rx_multipkts - old_rx_multipkts) / delta;
-    i++;
 
+    accumulate_stats(s, delta, interface, &tx_kbps[i], &rx_kbps[i], &tx_pps[i],
+        &rx_uni_pps[i], &rx_multi_pps[i], &old);
+
+    i++;
     if (i == SAMPLES) {
       printf("%s TX Kbps %.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f\n",
           interface,
@@ -237,11 +296,7 @@ int main(int argc, char **argv)
       i = 0;
     }
 
-    old_tx_bytes = tx_bytes;
-    old_rx_bytes = rx_bytes;
-    old_tx_pkts = tx_pkts;
-    old_rx_unipkts = rx_unipkts;
-    old_rx_multipkts = rx_multipkts;
     start = timestamp;
   }
 }
+#endif  /* UNIT_TESTS */
