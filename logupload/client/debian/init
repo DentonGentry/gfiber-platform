@@ -38,8 +38,7 @@ case "$1" in
     # sadly the name field in our certs isn't super happy about that, so
     # let's use _ instead of dot, where relevant.
     hostname -f |
-      sed -e 's/\.googlefiber\.net$//' \
-          -e 's/\.nyc\.corp\.google\.com$//' \
+      sed -e 's/\([^.]*\.[^.]*\).*/\1/' \
           -e 's/\./_/g' |
       atomic_stdin /tmp/serial
     cd /
