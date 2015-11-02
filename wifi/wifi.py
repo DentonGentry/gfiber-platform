@@ -41,7 +41,8 @@ G,short-guard-interval            Enable short guard interval
 p,protocols=                      802.11 levels to allow, slash-delimited [a/b/g/n/ac]
 w,width=                          Channel width to use, in MHz (20, 40, or 80) [20]
 B,bridge=                         Bridge device to use [br0]
-X,extra-short-timeout-intervals   Use extra short timeout intervals for stress testing
+X,extra-short-timeouts            Use shorter key rotations; 1=rotate PTK, 2=rotate often
+Y,yottasecond-timeouts            Don't rotate any keys: PTK, GTK, or GMK
 P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
 S,interface-suffix=               Interface suffix []
 """
