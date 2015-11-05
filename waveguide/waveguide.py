@@ -24,6 +24,7 @@ import os.path
 import random
 import re
 import select
+import signal
 import socket
 import string
 import struct
@@ -75,6 +76,7 @@ PEER_AP_LIST_FILE = ['']
 WIFIBLASTER_DIR = '/tmp/wifi/wifiblaster'
 WIFIBLASTER_BIN = 'wifiblaster'
 MACADDR_REGEX = r'([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}'
+IW_TIMEOUT_SECS = 15
 
 _gettime_rand = random.randint(0, 1000000)
 
@@ -159,11 +161,31 @@ class MulticastSocket(object):
 #  in parallel while still processing packets.  Preparation for that is
 #  why we use a callback instead of a simple return value.
 def RunProc(callback, args, *xargs, **kwargs):
+  """Run the process in args and pass the results to callback.
+
+  Adds a timeout to any 'iw' commands.  See b/18996821.
+
+  Args:
+    callback:  The callback which receives the error code, stdout, and stderr of
+        the called process.
+    args:  The args specifying the process to call.
+    *xargs:  Arguments passed through to Popen.
+    **kwargs:  Keyword arguments passed through to Popen.
+  """
+  is_iw = args[0] == 'iw'
+  if is_iw:
+    kwargs['preexec_fn'] = os.setsid
   p = subprocess.Popen(args, *xargs,
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE, **kwargs)
+  if is_iw:
+    signal.signal(signal.SIGALRM, lambda s, f: os.killpg(p.pid, signal.SIGKILL))
+    signal.alarm(IW_TIMEOUT_SECS)
+
   stdout, stderr = p.communicate()
   errcode = p.wait()
+  if is_iw:
+    signal.alarm(0)
   callback(errcode, stdout, stderr)
 
 

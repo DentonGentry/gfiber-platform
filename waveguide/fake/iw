@@ -8,6 +8,9 @@ if [ "$1" = "phy" ]; then
 elif [ "$1" = "dev" ]; then
   phy=
   dev=$2
+elif [ "$1" = "sleepn" ]; then
+  sleep $2
+  exit 99
 else
   echo "fake/iw: first arg ('$1') must be 'dev' or 'phy'" >&2
   exit 99
