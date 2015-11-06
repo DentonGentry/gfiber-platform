@@ -94,8 +94,13 @@ spectrum_mgmt_required=1
 neighbor_ap_list_file=/tmp/waveguide/APs.{interface}
 """
 
+_EXTRA_SHORT_TIMEOUTS1_TPL = """
+# Enable PTK rekeying (ie. rotate per-station keys, not just group keys).
+# People seem to rarely use this but it might improve security.
+wpa_ptk_rekey=333
+"""
 
-_EXTRA_SHORT_TIMEOUT_INTERVALS_TPL = """
+_EXTRA_SHORT_TIMEOUTS2_TPL = """
 # Obnoxiously short rekey intervals to maximize the chance of discovering bugs
 # caused by rekeying at inopportune times.
 wep_rekey_period=10
@@ -103,6 +108,17 @@ wpa_group_rekey=10
 wpa_strict_rekey=1
 wpa_gmk_rekey=9
 wpa_ptk_rekey=10
+"""
+
+_YOTTASECOND_TIMEOUTS_TPL = """
+# Disable all rekeying.  This may slightly reduce security but might be
+# useful if there are rekeying bugs.
+wpa_ptk_rekey=0
+wep_rekey_period=0
+wpa_group_rekey=0
+wpa_strict_rekey=0
+wpa_gmk_rekey=0
+wpa_ptk_rekey=0
 """
 
 
@@ -269,8 +285,12 @@ def generate_hostapd_config(
     hostapd_conf_parts.append(
         _EXPERIMENT_80211K_TPL.format(interface=interface))
 
-  if opt.extra_short_timeout_intervals:
-    hostapd_conf_parts.append(_EXTRA_SHORT_TIMEOUT_INTERVALS_TPL)
+  if opt.yottasecond_timeouts:
+    hostapd_conf_parts.append(_YOTTASECOND_TIMEOUTS_TPL)
+  elif opt.extra_short_timeouts >= 2:
+    hostapd_conf_parts.append(_EXTRA_SHORT_TIMEOUTS2_TPL)
+  elif opt.extra_short_timeouts >= 1:
+    hostapd_conf_parts.append(_EXTRA_SHORT_TIMEOUTS1_TPL)
 
   # Track the active experiments the last time hostapd was started:
   #  - for easier examination of the state

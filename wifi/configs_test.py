@@ -320,7 +320,8 @@ class FakeOptDict(object):
     self.protocols = 'a/b/g/n/ac'
     self.width = '20'
     self.bridge = ''
-    self.extra_short_timeout_intervals = False
+    self.extra_short_timeouts = False
+    self.yottasecond_timeouts = False
     self.persist = False
     self.interface_suffix = ''
 
@@ -363,12 +364,37 @@ def generate_hostapd_config_test():
   experiment._EXPERIMENTS_DIR = '/tmp'
   open('/tmp/Wifi80211k.available', 'a').close()
   open('/tmp/Wifi80211k.active', 'a').close()
-  opt.extra_short_timeout_intervals = True
+  opt.extra_short_timeouts = 2
   new_config = '\n'.join((
       _HOSTAPD_CONFIG,
       _HOSTAPD_CONFIG_WPA,
       configs._EXPERIMENT_80211K_TPL.format(interface='wlan0'),
-      configs._EXTRA_SHORT_TIMEOUT_INTERVALS_TPL,
+      configs._EXTRA_SHORT_TIMEOUTS2_TPL,
+      '# Experiments: (Wifi80211k)\n'))
+  config = configs.generate_hostapd_config(
+      _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
+      'asdfqwer', opt)
+  wvtest.WVPASSEQ(new_config, config)
+
+  opt.extra_short_timeouts = 1
+  new_config = '\n'.join((
+      _HOSTAPD_CONFIG,
+      _HOSTAPD_CONFIG_WPA,
+      configs._EXPERIMENT_80211K_TPL.format(interface='wlan0'),
+      configs._EXTRA_SHORT_TIMEOUTS1_TPL,
+      '# Experiments: (Wifi80211k)\n'))
+  config = configs.generate_hostapd_config(
+      _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
+      'asdfqwer', opt)
+  wvtest.WVPASSEQ(new_config, config)
+
+  opt.extra_short_timeouts = 2
+  opt.yottasecond_timeouts = 1
+  new_config = '\n'.join((
+      _HOSTAPD_CONFIG,
+      _HOSTAPD_CONFIG_WPA,
+      configs._EXPERIMENT_80211K_TPL.format(interface='wlan0'),
+      configs._YOTTASECOND_TIMEOUTS_TPL,
       '# Experiments: (Wifi80211k)\n'))
   config = configs.generate_hostapd_config(
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
