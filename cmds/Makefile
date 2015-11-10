@@ -10,6 +10,7 @@ PORTABLE_TARGETS=\
 	isoping \
 	isostream \
 	mcastreceive \
+	mmap \
 	randomdata \
 	setuid \
 	udpburst \

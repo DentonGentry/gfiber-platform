@@ -1,0 +1,20 @@
+EXIT=1
+
+FILES="A B"
+
+A_1='0123456789012345678901234567890123456789'
+A_2='0123456789012345678901234567890123456789'
+
+INPUT='
+open 0 A 0 -1
+close 0
+'
+
+OUTPUT="# 
+# open 0 A 0 -1
+mapped range (0x0,0xffffffffffffffff) is outside of size of file (0x28)
+stdin:2: command 'open' failed
+# close 0
+stdin:3: slot '0' is not open
+stdin:3: command 'close' failed
+"

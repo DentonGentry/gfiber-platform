@@ -1,0 +1,18 @@
+EXIT=1
+
+FILES="A B"
+
+A_1='0123456789012345678901234567890123456789'
+A_2='0123456789012345678901234567890123456789'
+
+INPUT='
+open 0 A 0 40
+write 0 0 0 0x41
+'
+
+OUTPUT="# 
+# open 0 A 0 40
+# write 0 0 0 0x41
+stdin:3: length '0' must be 1, 2, 4 or 8
+stdin:3: command 'write' failed
+"

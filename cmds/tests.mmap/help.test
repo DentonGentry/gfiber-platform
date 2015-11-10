@@ -1,0 +1,33 @@
+EXIT=0
+
+INPUT='
+help
+open help
+close help
+read help
+write help
+dump help
+msleep help
+'
+
+OUTPUT='# 
+# help
+	open slot file offset length
+	close slot
+	read slot addr wordlen
+	write slot addr wordlen value
+	dump slot addr wordlen count
+	msleep msecs
+# open help
+	open slot file offset length
+# close help
+	close slot
+# read help
+	read slot addr wordlen
+# write help
+	write slot addr wordlen value
+# dump help
+	dump slot addr wordlen count
+# msleep help
+	msleep msecs
+'

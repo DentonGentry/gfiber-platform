@@ -1,0 +1,16 @@
+EXIT=1
+
+FILES="A B"
+
+A_1='0123456789012345678901234567890123456789'
+A_2='0123456789012345678901234567890123456789'
+
+INPUT='
+close 0
+'
+
+OUTPUT="# 
+# close 0
+stdin:2: slot '0' is not open
+stdin:2: command 'close' failed
+"

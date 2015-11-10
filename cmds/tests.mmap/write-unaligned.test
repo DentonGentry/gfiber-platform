@@ -1,0 +1,24 @@
+EXIT=0
+
+FILES="A B"
+
+A_1='x012345678901234567890123456789012345678'
+A_2='xA1CB4567GFED2345ONMLKJIH456789012345678'
+
+INPUT='
+open 0 A 0 40
+write 0 1 1 0x41
+write 0 3 2 0x4243
+write 0 9 4 0x44454647
+write 0 17 8 0x48494a4b4c4d4e4f
+close 0
+'
+
+OUTPUT="# 
+# open 0 A 0 40
+# write 0 1 1 0x41
+# write 0 3 2 0x4243
+# write 0 9 4 0x44454647
+# write 0 17 8 0x48494a4b4c4d4e4f
+# close 0
+"

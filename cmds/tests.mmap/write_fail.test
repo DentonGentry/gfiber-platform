@@ -1,0 +1,20 @@
+EXIT=1
+
+FILES="A B"
+
+A_1='0123456789012345678901234567890123456789'
+A_2='0123456789012345678901234567890123456789'
+
+INPUT='
+open 0 A 0 40
+write 0 999 1 0x41
+close 0
+'
+
+OUTPUT="# 
+# open 0 A 0 40
+# write 0 999 1 0x41
+stdin:3: address '999' out of range 0x0..0x27
+stdin:3: command 'write' failed
+# close 0
+"

@@ -1,0 +1,16 @@
+EXIT=1
+
+FILES="A B"
+
+A_1='0123456789012345678901234567890123456789'
+A_2='0123456789012345678901234567890123456789'
+
+INPUT='
+open 0 this-file-does-not-exist 0 40
+'
+
+OUTPUT="# 
+# open 0 this-file-does-not-exist 0 40
+this-file-does-not-exist: No such file or directory
+stdin:2: command 'open' failed
+"
