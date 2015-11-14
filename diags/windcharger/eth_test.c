@@ -46,6 +46,7 @@
 
 #define SERVER_PORT 8888
 #define MAX_CMD_SIZE 256
+#define SCAN_CMD_FORMAT "%256s"
 #define MAX_INT 0x7FFFFFFF
 
 #define ETH_SEND_DELAY_IN_USEC 1000
@@ -73,14 +74,15 @@
 #define ETH_STAT_CMD "ifstat %s | sed '1,3d;5d'"
 #define ETH_STAT_RX_POS 5
 #define ETH_STAT_TX_POS 7
+#define ETH_STAT_WAIT_PERIOD 1  // sec
+#define ETH_STAT_PERCENT_MARGIN 95
 
 // WindCharger external loopback is set and cleared via Port Debug Registers.
 // Debug port address offset register is 0x1D and RW port is 0x1E. It needs to
 // First set the address offset, then read/write the data RW port. The
 // following are functions to set up/take down external loopback.
 
-int eth_set_debug_reg(char *if_name, unsigned short addr,
-                       unsigned short data) {
+int eth_set_debug_reg(char *if_name, unsigned short addr, unsigned short data) {
   int rc;
 
   mdio_init();
@@ -281,13 +283,36 @@ int send_ip(int argc, char *argv[]) {
   return 0;
 }
 
+/* If extra is not NULL, rsp is returned as the string followed extra */
+int scan_command(char *command, char *rsp, char *extra) {
+  FILE *fp;
+  fp = popen(command, "r");
+  if (fp != NULL) {
+    if (extra != NULL) {
+      while (fscanf(fp, "%s", rsp) != EOF) {
+        if (!strcmp(rsp, extra)) {
+          if (fscanf(fp, "%s", rsp) <= 0)
+            return -1;
+          else
+            return 0;
+        }
+      }
+    } else {
+      fscanf(fp, SCAN_CMD_FORMAT, rsp);
+    }
+    pclose(fp);
+  } else {
+    return -1;
+  }
+  return 0;
+}
+
 int net_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   static const char *kIfName[MAX_NET_IF] = {LAN_PORT_NAME, WAN_PORT_NAME};
   static unsigned int tx_stat[MAX_NET_IF] = {0, 0};
   static unsigned int rx_stat[MAX_NET_IF] = {0, 0};
   char command[MAX_CMD_SIZE], rsp[MAX_CMD_SIZE];
   unsigned int index, tmp;
-  FILE *fp;
 
   for (index = 0; index < MAX_NET_IF; ++index) {
     if (strcmp(name, kIfName[index]) == 0) {
@@ -296,23 +321,13 @@ int net_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   }
   if (index >= MAX_NET_IF) return -1;
 
-  sprintf(command, "cat /sys/class/net/%s/statistics/tx_bytes", name);
-  fp = popen(command, "r");
-  if (fp != NULL) {
-    if (fscanf(fp, "%s", rsp) != EOF) {
-      *tx_bytes = strtoul(rsp, NULL, 10);
-    }
-    pclose(fp);
-  }
+  snprintf(command, sizeof(command),
+           "cat /sys/class/net/%s/statistics/tx_bytes", name);
+  if (scan_command(command, rsp, NULL) == 0) *tx_bytes = strtoul(rsp, NULL, 10);
 
-  sprintf(command, "cat /sys/class/net/%s/statistics/rx_bytes", name);
-  fp = popen(command, "r");
-  if (fp != NULL) {
-    if (fscanf(fp, "%s", rsp) != EOF) {
-      *rx_bytes = strtoul(rsp, NULL, 10);
-    }
-    pclose(fp);
-  }
+  snprintf(command, sizeof(command),
+           "cat /sys/class/net/%s/statistics/rx_bytes", name);
+  if (scan_command(command, rsp, NULL) == 0) *rx_bytes = strtoul(rsp, NULL, 10);
 
   if (*tx_bytes >= tx_stat[index]) {
     *tx_bytes -= tx_stat[index];
@@ -336,61 +351,15 @@ int net_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
   return 0;
 }
 
-// Not needed for now
-#if 0
-int get_ip_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
-  char command[MAX_CMD_SIZE], rsp[MAX_CMD_SIZE];
-  FILE *fp;
-  int pos = 0;
-  unsigned long long long_long_tmp;
-  unsigned int uint_tmp;
-
-  *rx_bytes = 0;
-  *tx_bytes = 0;
-  sprintf(command, ETH_STAT_CMD, name);
-  fp = popen(command, "r");
-  while (fscanf(fp, "%s", rsp) != EOF) {
-    if ((pos == ETH_STAT_RX_POS) || (pos == ETH_STAT_TX_POS)) {
-      long_long_tmp = strtoull(rsp, NULL, 0);
-      if (rsp[strlen(rsp) - 1] == 'K') {
-        long_long_tmp *= 1000;
-      } else if (rsp[strlen(rsp) - 1] == 'M') {
-        long_long_tmp *= (1024 * 1024);
-      }
-      uint_tmp = long_long_tmp & 0xffffffff;
-      if (uint_tmp & 0x80000000) {
-        uint_tmp = 0xffffffff - uint_tmp;
-      }
-      if (pos == ETH_STAT_RX_POS)
-        *rx_bytes = uint_tmp;
-      else
-        *tx_bytes = uint_tmp;
-    }
-    ++pos;
-  }
-  pclose(fp);
-
-  return 0;
-}
-#endif
-
 // Return 0 if lost carrier. Otherwise, 1
 int get_carrier_state(char *name) {
   char command[MAX_CMD_SIZE], rsp[MAX_CMD_SIZE];
-  FILE *fp;
 
-  sprintf(command, "cat /sys/class/net/%s/carrier", name);
-  fp = popen(command, "r");
-  if (fp != NULL) {
-    if (fscanf(fp, "%s", rsp) != EOF) {
-      if (strcmp(rsp, "0") == 0) {
-        pclose(fp);
-        return 0;
-      }
-    }
-    pclose(fp);
+  snprintf(command, sizeof(command), "cat /sys/class/net/%s/carrier", name);
+  if (scan_command(command, rsp, NULL) == 0) {
+    if (strcmp(rsp, "0") != 0) return 1;
   }
-  return 1;
+  return 0;
 }
 
 // This is the same as sleep but monitor the link carrier every second
@@ -407,23 +376,15 @@ bool sleep_and_check_carrier(int duration, char *if_name) {
 
 int get_if_ip(char *name, unsigned int *ip) {
   char command[ETH_TEST_MAX_CMD], rsp[ETH_TEST_MAX_RSP];
-  static const char *kIpName = "inet";
-  FILE *fp;
   bool found = false;
 
-  sprintf(command, "ip addr show %s", name);
-  fp = popen(command, "r");
-  while (fscanf(fp, "%s", rsp) != EOF) {
-    if (!strcmp(rsp, kIpName)) {
-      if (fscanf(fp, "%s", rsp) <= 0) return -1;
-      if (sscanf(rsp, "%u.%u.%u.%u", ip, (ip + 1), (ip + 2), (ip + 3)) <= 0) {
-        return -1;
-      }
-      found = true;
-      break;
+  snprintf(command, sizeof(command), "ip addr show %s", name);
+  if (scan_command(command, rsp, "inet") == 0) {
+    if (sscanf(rsp, "%u.%u.%u.%u", ip, (ip + 1), (ip + 2), (ip + 3)) <= 0) {
+      return -1;
     }
+    found = true;
   }
-  pclose(fp);
 
   if (!found) {
     return -1;
@@ -543,7 +504,7 @@ static void send_if_to_if_usage(void) {
 int send_if_to_if(int argc, char *argv[]) {
   int n;
   unsigned int xfer_len = ETH_PKTS_LEN_DEFAULT, xfer_wait = 0;
-  char if_name[IFNAMSIZ], dst_name[IFNAMSIZ];
+  char src_name[IFNAMSIZ], dst_name[IFNAMSIZ];
   unsigned int src_rx_bytes, src_tx_bytes, dst_rx_bytes, dst_tx_bytes;
   int pid;
 
@@ -553,7 +514,7 @@ int send_if_to_if(int argc, char *argv[]) {
     return -1;
   }
 
-  strcpy(if_name, argv[1]);
+  strcpy(src_name, argv[1]);
   strcpy(dst_name, argv[2]);
 
   if (argc >= 6) {
@@ -596,7 +557,7 @@ int send_if_to_if(int argc, char *argv[]) {
 
   n = strtoul(argv[3], NULL, 10);
 
-  net_stat(&src_rx_bytes, &src_tx_bytes, if_name);
+  net_stat(&src_rx_bytes, &src_tx_bytes, src_name);
   net_stat(&dst_rx_bytes, &dst_tx_bytes, dst_name);
   pid = fork();
   if (pid < 0) {
@@ -605,21 +566,22 @@ int send_if_to_if(int argc, char *argv[]) {
   }
   if (pid == 0) {
     // Child process
-    send_mac_pkt(if_name, dst_name, xfer_len, xfer_wait, -1, NULL);
+    send_mac_pkt(src_name, dst_name, xfer_len, xfer_wait, -1, NULL);
     exit(0);
   }
   // Parent process
   sleep(n);
   kill(pid, SIGKILL);
-  net_stat(&src_rx_bytes, &src_tx_bytes, if_name);
+  sleep(ETH_STAT_WAIT_PERIOD);
+  net_stat(&src_rx_bytes, &src_tx_bytes, src_name);
   net_stat(&dst_rx_bytes, &dst_tx_bytes, dst_name);
 
   if (dst_rx_bytes >= src_tx_bytes) {
     printf("Sent %d seconds from %s(%d) to %s(%d) rate %3.3f Mb/s\n", n,
-           if_name, src_tx_bytes, dst_name, dst_rx_bytes,
+           src_name, src_tx_bytes, dst_name, dst_rx_bytes,
            (((float)dst_rx_bytes) * 8.0) / ((float)(n * ONE_MEG)));
   } else {
-    printf("%s Sent %d seconds from %s(%d) to %s(%d)\n", FAIL_TEXT, n, if_name,
+    printf("%s Sent %d seconds from %s(%d) to %s(%d)\n", FAIL_TEXT, n, src_name,
            src_tx_bytes, dst_name, dst_rx_bytes);
   }
 
@@ -730,7 +692,7 @@ int test_both_ports(int argc, char *argv[]) {
   unsigned int wan0_rx, wan0_tx;
   bool print_every_period = true;
   bool failed = false, overall_failed = false;
-  ;
+  int residuals[MAX_NET_IF] = {0, 0};
 
   if ((argc != 2) && (argc != 4)) {
     test_both_ports_usage();
@@ -811,14 +773,21 @@ int test_both_ports(int argc, char *argv[]) {
         kill(pid1, SIGSTOP);
         kill(pid2, SIGSTOP);
       }
+      sleep(ETH_STAT_WAIT_PERIOD);
       net_stat(&wan0_rx, &wan0_tx, ETH_TRAFFIC_PORT);
       net_stat(&lan0_rx, &lan0_tx, ETH_TRAFFIC_DST_PORT);
       if ((lan0_rx == 0) || (wan0_rx == 0) || (lan0_tx == 0) || (wan0_tx == 0))
         failed = true;
       // Due to two processes are stopped one after another, need some
       // margin to compare RX vs TX. Set it to 1% for now
-      if (lan0_rx < ((wan0_tx / 100) * 99)) failed = true;
-      if (wan0_rx < ((lan0_tx / 100) * 99)) failed = true;
+      if ((lan0_rx + residuals[0]) <
+          ((wan0_tx / 100) * ETH_STAT_PERCENT_MARGIN))
+        failed = true;
+      if ((wan0_rx + residuals[1]) <
+          ((lan0_tx / 100) * ETH_STAT_PERCENT_MARGIN))
+        failed = true;
+      residuals[0] += lan0_rx - wan0_tx;
+      residuals[1] += wan0_rx - lan0_tx;
       // When the cable is disconnected and connected again, got bogus data
       if ((lan0_rx > ETH_TRAFFIC_PER_PERIOD_MAX) ||
           (wan0_rx > ETH_TRAFFIC_PER_PERIOD_MAX))
@@ -826,6 +795,8 @@ int test_both_ports(int argc, char *argv[]) {
       if (failed) {
         printf("Failed: %s (%d,%d) <-> %s (%d,%d)\n", ETH_TRAFFIC_PORT, wan0_tx,
                wan0_rx, ETH_TRAFFIC_DST_PORT, lan0_tx, lan0_rx);
+        residuals[0] = 0;
+        residuals[1] = 0;
       } else {
         printf("Passed: %s %3.3f Mb/s (%d,%d) <-> %s %3.3f Mb/s (%d,%d)\n",
                ETH_TRAFFIC_PORT,
@@ -935,11 +906,13 @@ int loopback_test(int argc, char *argv[]) {
     }
 
     if (duration > 0) kill(pid1, SIGSTOP);
+    sleep(ETH_STAT_WAIT_PERIOD);
     net_stat(&rx_bytes, &tx_bytes, argv[1]);
     if (duration > 0) kill(pid1, SIGCONT);
     ++collected_count;
     // Give 1% margin
-    if ((rx_bytes == 0) || (((tx_bytes / 100) * 99) > rx_bytes)) {
+    if ((rx_bytes == 0) ||
+        (((tx_bytes / 100) * ETH_STAT_PERCENT_MARGIN) > rx_bytes)) {
       problem = true;
     }
     if ((rx_bytes > ETH_TRAFFIC_PER_PERIOD_MAX) ||
