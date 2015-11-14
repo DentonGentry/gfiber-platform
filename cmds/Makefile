@@ -48,10 +48,11 @@ TARGETS=\
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
 	stdoutline.so
-TEST_TARGETS=\
+HOST_TEST_TARGETS=\
 	host-asus_hosts_test \
 	host-netusage_test \
-	host-utils_test
+	host-utils_test \
+	host-wifi_files_test
 SCRIPT_TARGETS=\
 	is-secure-boot
 ARCH_TARGETS=\
@@ -208,9 +209,14 @@ host-dir-monitor dir-monitor: LIBS+=-lstdc++
 netusage: CFLAGS += -Wno-sign-compare
 host-netusage_test: host-netusage_test.o
 wifi_files: wifi_files.o
-wifi_files: LIBS+=-lnl-3 -lnl-genl-3
+wifi_files: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
+host-wifi_files_test: host-wifi_files_test.o
+host-wifi_files_test: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
 
-TESTS=$(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
+TESTS = $(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
+ifeq ($(RUN_HOST_TESTS),y)
+TESTS += $(HOST_TEST_TARGETS)
+endif
 runtests: all $(TESTS)
 	set -e; \
 	for d in $(TESTS); do \
@@ -226,6 +232,7 @@ clean:
 		$(HOST_TARGETS) \
 		$(LIB_TARGETS) \
 		$(TEST_TARGETS) \
+		$(HOST_TEST_TARGETS) \
 		$(ARCH_TARGETS) \
 		*~ .*~ */*.pyc test_file *.pb.*
 	rm -rf test_dir
