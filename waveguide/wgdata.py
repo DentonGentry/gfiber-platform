@@ -35,6 +35,7 @@ class ApFlags(object):
   Can5G = 0x02          # device supports 5 GHz band
   Can_Mask = 0x0f       # mask of all bits referring to band capability
   HighPower = 0x10      # high-power device takes precedence over low-power
+  TvBox = 0x20          # tv boxes shouldn't connect to tv boxes (yet)
 
 
 PRE_FMT = '!4sB'

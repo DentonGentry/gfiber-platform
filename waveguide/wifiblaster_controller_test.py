@@ -15,6 +15,7 @@
 
 """Tests for WifiblasterController."""
 
+import glob
 import os
 import shutil
 import sys
@@ -103,7 +104,6 @@ def PollTest():
   waveguide.WIFIBLASTER_DIR = tempfile.mkdtemp()
   oldpath = os.environ['PATH']
   oldtime = time.time
-  faketime = [-1]
 
   def FakeTime():
     faketime[0] += 1
@@ -115,106 +115,114 @@ def PollTest():
     sys.path.insert(0, 'fake')
     waveguide.opt = Empty()
     waveguide.opt.status_dir = d
-    manager = waveguide.WlanManager(phyname='phy-22:22', vdevname='wlan-22:22',
-                                    high_power=True)
-    manager.UpdateStationInfo()
-    wc = waveguide.WifiblasterController([manager], d)
 
-    def WriteConfig(k, v):
-      open(os.path.join(d, 'wifiblaster.%s' % k), 'w').write(v)
+    for flags in [{'phyname': 'phy-22:22', 'vdevname': 'wlan-22:22',
+                   'high_power': True, 'tv_box': False},
+                  {'phyname': 'phy-22:22', 'vdevname': 'wlan-22:22',
+                   'high_power': False, 'tv_box': True}]:
+      # Reset time and config directory before every test run.
+      faketime = [-1]
+      for f in glob.glob(os.path.join(d, '*')):
+        os.remove(f)
 
-    WriteConfig('duration', '.1')
-    WriteConfig('enable', 'False')
-    WriteConfig('fraction', '10')
-    WriteConfig('interval', '10')
-    WriteConfig('rapidpolling', '10')
-    WriteConfig('size', '1470')
+      manager = waveguide.WlanManager(**flags)
+      manager.UpdateStationInfo()
+      wc = waveguide.WifiblasterController([manager], d)
 
-    # Disabled. No packet blasts should be run.
-    print manager.GetState()
-    for t in xrange(0, 100):
-      wc.Poll(t)
+      def WriteConfig(k, v):
+        open(os.path.join(d, 'wifiblaster.%s' % k), 'w').write(v)
 
-    def CountRuns():
-      try:
-        v = open('fake/wifiblaster.out').readlines()
-      except IOError:
-        return 0
-      else:
-        os.unlink('fake/wifiblaster.out')
-        return len(v)
+      WriteConfig('duration', '.1')
+      WriteConfig('enable', 'False')
+      WriteConfig('fraction', '10')
+      WriteConfig('interval', '10')
+      WriteConfig('rapidpolling', '10')
+      WriteConfig('size', '1470')
 
-    CountRuns()  # get rid of any leftovers
-    wvtest.WVPASSEQ(CountRuns(), 0)
+      # Disabled. No packet blasts should be run.
+      print manager.GetState()
+      for t in xrange(0, 100):
+        wc.Poll(t)
 
-    # The first packet blast should be one
-    # cycle later than the start time. This is not an implementation detail:
-    # it prevents multiple APs from running simultaneous packet blasts if
-    # packet blasts are enabled at the same time.
-    WriteConfig('enable', 'True')
-    wc.Poll(100)
-    wvtest.WVPASSGE(wc.NextBlast(), 100)
-    for t in xrange(101, 200):
-      wc.Poll(t)
-    wvtest.WVPASSGE(CountRuns(), 1)
+      def CountRuns():
+        try:
+          v = open('fake/wifiblaster.out').readlines()
+        except IOError:
+          return 0
+        else:
+          os.unlink('fake/wifiblaster.out')
+          return len(v)
 
-    # Invalid parameter.
-    # Disabled. No packet blasts should be run.
-    WriteConfig('duration', '-1')
-    for t in xrange(200, 300):
-      wc.Poll(t)
-    wvtest.WVPASSEQ(CountRuns(), 0)
+      CountRuns()  # get rid of any leftovers
+      wvtest.WVPASSEQ(CountRuns(), 0)
 
-    # Fix invalid parameter.
-    # Enabled again with 10 second average interval.
-    WriteConfig('duration', '.1')
-    for t in xrange(300, 400):
-      wc.Poll(t)
-    wvtest.WVPASSGE(CountRuns(), 1)
+      # The first packet blast should be one
+      # cycle later than the start time. This is not an implementation detail:
+      # it prevents multiple APs from running simultaneous packet blasts if
+      # packet blasts are enabled at the same time.
+      WriteConfig('enable', 'True')
+      wc.Poll(100)
+      wvtest.WVPASSGE(wc.NextBlast(), 100)
+      for t in xrange(101, 200):
+        wc.Poll(t)
+      wvtest.WVPASSGE(CountRuns(), 1)
 
-    # Run the packet blast at t=400 to restart the timer.
-    wc.Poll(400)
-    wvtest.WVPASSGE(CountRuns(), 0)
+      # Invalid parameter.
+      # Disabled. No packet blasts should be run.
+      WriteConfig('duration', '-1')
+      for t in xrange(200, 300):
+        wc.Poll(t)
+      wvtest.WVPASSEQ(CountRuns(), 0)
 
-    # Next poll should be in at most one second regardless of interval.
-    wvtest.WVPASSLE(wc.NextTimeout(), 401)
+      # Fix invalid parameter.
+      # Enabled again with 10 second average interval.
+      WriteConfig('duration', '.1')
+      for t in xrange(300, 400):
+        wc.Poll(t)
+      wvtest.WVPASSGE(CountRuns(), 1)
 
-    # Enabled with longer average interval.  The change in interval should
-    # trigger a change in next poll timeout.
-    WriteConfig('interval', '0.5')
-    old_to = wc.NextBlast()
-    wc.Poll(401)
-    wvtest.WVPASSNE(old_to, wc.NextBlast())
-    for t in xrange(402, 410):
-      wc.Poll(t)
-    wvtest.WVPASSGE(CountRuns(), 1)
+      # Run the packet blast at t=400 to restart the timer.
+      wc.Poll(400)
+      wvtest.WVPASSGE(CountRuns(), 0)
 
-    # Switch back to a longer poll interval.
-    WriteConfig('interval', '36000')
-    ok = False
-    for t in xrange(410, 600):
-      wc.Poll(t)
-      if wc.NextBlast() > t + 200:
-        ok = True
-    wvtest.WVPASS(ok)
+      # Next poll should be in at most one second regardless of interval.
+      wvtest.WVPASSLE(wc.NextTimeout(), 401)
 
-    # And then try rapid polling for a limited time
-    WriteConfig('rapidpolling', '800')
-    ok = False
-    for t in xrange(600, 700):
-      wc.Poll(t)
-      if wc.NextBlast() < t + 20:
-        ok = True
-    wvtest.WVPASS(ok)
+      # Enabled with longer average interval.  The change in interval should
+      # trigger a change in next poll timeout.
+      WriteConfig('interval', '0.5')
+      old_to = wc.NextBlast()
+      wc.Poll(401)
+      wvtest.WVPASSNE(old_to, wc.NextBlast())
+      for t in xrange(402, 410):
+        wc.Poll(t)
+      wvtest.WVPASSGE(CountRuns(), 1)
 
-    # Make sure rapid polling auto-disables
-    ok = False
-    for t in xrange(700, 900):
-      wc.Poll(t)
-      if wc.NextBlast() > t + 200:
-        ok = True
-    wvtest.WVPASS(ok)
+      # Switch back to a longer poll interval.
+      WriteConfig('interval', '36000')
+      ok = False
+      for t in xrange(410, 600):
+        wc.Poll(t)
+        if wc.NextBlast() > t + 200:
+          ok = True
+      wvtest.WVPASS(ok)
 
+      # And then try rapid polling for a limited time
+      WriteConfig('rapidpolling', '800')
+      ok = False
+      for t in xrange(600, 700):
+        wc.Poll(t)
+        if wc.NextBlast() < t + 20:
+          ok = True
+      wvtest.WVPASS(ok)
+
+      # Make sure rapid polling auto-disables
+      ok = False
+      for t in xrange(700, 900):
+        wc.Poll(t)
+        if wc.NextBlast() > t + 200:
+          ok = True
+      wvtest.WVPASS(ok)
   finally:
     time.time = oldtime
     shutil.rmtree(d)

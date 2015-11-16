@@ -51,6 +51,7 @@ optspec = """
 waveguide [options...]
 --
 high-power        This high-powered AP takes priority over low-powered ones
+tv-box            The AP is a TV Box; other TV Boxes should avoid it
 fake=             Create a fake instance with the given MAC address
 initial-scans=    Number of immediate full channel scans at startup [1]
 scan-interval=    Seconds between full channel scan cycles (0 to disable) [0]
@@ -197,7 +198,7 @@ def WriteFileIfMissing(filename, content):
 class WlanManager(object):
   """A class representing one wifi interface on the local host."""
 
-  def __init__(self, phyname, vdevname, high_power):
+  def __init__(self, phyname, vdevname, high_power, tv_box):
     self.phyname = phyname
     self.vdevname = vdevname
     self.mac = '\0\0\0\0\0\0'
@@ -206,6 +207,8 @@ class WlanManager(object):
     self.allowed_freqs = set()
     if high_power:
       self.flags |= wgdata.ApFlags.HighPower
+    if tv_box:
+      self.flags |= wgdata.ApFlags.TvBox
     self.bss_list = {}
     self.channel_survey_list = {}
     self.assoc_list = {}
@@ -383,13 +386,13 @@ class WlanManager(object):
       for b in peer_data[peer_mac_addr]:
         peer_ap = helpers.DecodeMAC(b.mac)
         txt = ('peer:%s|bssid:%s|freq:%d|cap:0x%x|phy:%d|reg:%s|rssi:%s'
-               '|last_seen:%d')
+               '|last_seen:%d|flags:0x%x')
         if all(c in string.printable for c in b.reg):
           reg = b.reg
         else:
           reg = ''
         s = txt % (peer_mac_addr, peer_ap, b.freq, b.cap, b.phy, reg, b.rssi,
-                   b.last_seen)
+                   b.last_seen, b.flags)
         peer_ap_list.append(s)
     content = '\n'.join(peer_ap_list)
     if PEER_AP_LIST_FILE[0]:
@@ -808,7 +811,7 @@ class WlanManager(object):
     return False
 
 
-def CreateManagers(managers, high_power):
+def CreateManagers(managers, high_power, tv_box):
   """Create WlanManager() objects, one per wifi interface."""
 
   def ParseDevList(errcode, stdout, stderr):
@@ -855,7 +858,8 @@ def CreateManagers(managers, high_power):
     for phy, dev in phy_devs.iteritems():
       if dev not in existing_devs:
         log.Debug('Creating wlan manager for (%r, %r)', phy, dev)
-        managers.append(WlanManager(phy, dev, high_power=high_power))
+        managers.append(WlanManager(phy, dev, high_power=high_power,
+                                    tv_box=tv_box))
 
   RunProc(callback=ParseDevList, args=['iw', 'dev'])
 
@@ -1055,12 +1059,13 @@ def main():
         # them.
         wlm = WlanManager(phyname='phy-%s' % fakemac[12:],
                           vdevname='wlan-%s' % fakemac[12:],
-                          high_power=opt.high_power)
+                          high_power=opt.high_power,
+                          tv_box=opt.tv_box)
         wlm.mac = helpers.EncodeMAC(fakemac)
         managers.append(wlm)
   else:
     # The list of managers is also refreshed occasionally in the main loop
-    CreateManagers(managers, high_power=opt.high_power)
+    CreateManagers(managers, high_power=opt.high_power, tv_box=opt.tv_box)
   if not managers:
     raise Exception('no wifi AP-mode devices found.  Try --fake.')
 
@@ -1118,7 +1123,7 @@ def main():
     if ((opt.tx_interval and now - last_sent > opt.tx_interval) or (
         opt.autochan_interval and now - last_autochan > opt.autochan_interval)):
       if not opt.fake:
-        CreateManagers(managers, high_power=opt.high_power)
+        CreateManagers(managers, high_power=opt.high_power, tv_box=opt.tv_box)
       for m in managers:
         m.UpdateStationInfo()
     if opt.tx_interval and now - last_sent > opt.tx_interval:
@@ -1150,10 +1155,17 @@ def main():
       for m, p in peers.values():
         seen_bss_peers = [bss for bss in p.seen_bss if bss.mac in peers]
         if p.me.mac in selfmacs: continue
-        seen_peers[helpers.DecodeMAC(p.me.mac)] = seen_bss_peers
-        for b in seen_bss_peers:
+        for i, b in enumerate(seen_bss_peers):
+          # `iw scan` can't see flags set in Waveguide.
+          # Join flags set in Waveguide with the results of the `iw scan`.
+          _, waveguide_peer = peers.get(b.mac)
+          if waveguide_peer:
+            # pylint:disable=protected-access
+            seen_bss_peers[i] = b._replace(flags=waveguide_peer.me.flags)
           if b.mac in selfmacs:
             bss_signal[helpers.DecodeMAC(p.me.mac)] = b.rssi
+
+        seen_peers[helpers.DecodeMAC(p.me.mac)] = seen_bss_peers
         self_signals[m.mac] = bss_signal
         peer_data[m.mac] = seen_peers
         log.Log('%s: APs=%-4d peer-APs=%s stations=%s',
