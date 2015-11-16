@@ -1,4 +1,5 @@
 EXIT=0
+ARGS=-q
 
 INPUT='
 help
@@ -11,27 +12,19 @@ msleep help
 echo help
 '
 
-OUTPUT='# 
-# help
-	open slot file offset length
+OUTPUT=\
+'	open slot file offset length
 	close slot
 	read slot addr wordlen
 	write slot addr wordlen value
 	dump slot addr wordlen count
 	msleep msecs
 	echo text ...
-# open help
 	open slot file offset length
-# close help
 	close slot
-# read help
 	read slot addr wordlen
-# write help
 	write slot addr wordlen value
-# dump help
 	dump slot addr wordlen count
-# msleep help
 	msleep msecs
-# echo help
 	echo text ...
 '

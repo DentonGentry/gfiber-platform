@@ -15,7 +15,7 @@ for n in tests.mmap/*.test; do
       echo -n "$IN" > $m
       echo -n "$OUT" > $m.expected
     done
-    $PREFIX ../host-mmap < INPUT >& GOT
+    $PREFIX ../host-mmap $ARGS < INPUT > GOT 2>&1
     status=$?
     if [ -n "$PREFIX" ]; then
       sleep .5      # script mysteriously delays output
@@ -33,7 +33,7 @@ for n in tests.mmap/*.test; do
         diff -u $m $m.expected
       fi
     done
-  ) >& $run/LOG
+  ) > $run/LOG 2>&1
   if [ ! -s $run/LOG ]; then
     echo PASS $n
   else

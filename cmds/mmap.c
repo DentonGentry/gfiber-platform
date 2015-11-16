@@ -34,7 +34,7 @@ static char* posPrefix = "";
 
 void usage(const char* prog)
 {
-  fprintf(stderr, "Usage: %s [command-file]\n", prog);
+  fprintf(stderr, "Usage: %s [-q)uiet] [command-file ...]\n", prog);
   fprintf(stderr, "\twhere command-file or stdin contains:\n");
   fprintf(stderr, "\t\tfile 0 /sys/bus/pci/devices/0000:01:00.0/resource0 "
                     "0 0x10000\n");
@@ -209,17 +209,17 @@ void do_close(int slot) {
 int do_read_helper(int slot, uint64_t addr, int wordlen, uint64_t* valueP)
 {
   void* vp = slots[slot].map + addr;
-  unsigned char uc;
-  unsigned short us;
-  unsigned int ui;
-  unsigned long long ull;
+  uint8_t u8;
+  uint16_t u16;
+  uint32_t u32;
+  uint64_t u64;
   void *dp;
 
   switch (wordlen) {
-  case sizeof(ull):     dp = &ull; break;
-  case sizeof(ui):      dp = &ui; break;
-  case sizeof(us):      dp = &us; break;
-  case sizeof(uc):      dp = &uc; break;
+  case sizeof(u64):     dp = &u64; break;
+  case sizeof(u32):     dp = &u32; break;
+  case sizeof(u16):     dp = &u16; break;
+  case sizeof(u8):      dp = &u8; break;
   default:
         fprintf(stderr, "Can't find datatype for wordlen '%d'\n", wordlen);
         return -1;
@@ -228,10 +228,10 @@ int do_read_helper(int slot, uint64_t addr, int wordlen, uint64_t* valueP)
   memcpy(dp, vp, wordlen);
 
   switch (wordlen) {
-  case sizeof(ull):     *valueP = ull; break;
-  case sizeof(ui):      *valueP = ui; break;
-  case sizeof(us):      *valueP = us; break;
-  case sizeof(uc):      *valueP = uc; break;
+  case sizeof(u64):     *valueP = u64; break;
+  case sizeof(u32):     *valueP = u32; break;
+  case sizeof(u16):     *valueP = u16; break;
+  case sizeof(u8):      *valueP = u8; break;
   default:
         fprintf(stderr, "Can't find datatype for wordlen '%d'\n", wordlen);
         return -1;
@@ -437,6 +437,22 @@ int cmd_msleep(int ac, char* av[])
   return 0;
 }
 
+int cmd_echo(int ac, char* av[])
+{
+  char* usage = "echo text ...";
+
+  if (ac > 1 && strcmp(av[1], "help") == 0) {
+    printf("\t%s\n", usage);
+    return 0;
+  }
+
+  for (int i = 1; i < ac; i++) {
+    printf("%s ", av[i]);
+  }
+  printf("\n");
+  return 0;
+}
+
 typedef int (*cmdFunc)(int ac, char* av[]);
 
 struct commands {
@@ -451,26 +467,28 @@ struct commands cmds[] = {
   { "write", cmd_write, },
   { "dump", cmd_dump, },
   { "msleep", cmd_msleep, },
+  { "echo", cmd_echo, },
   { NULL, NULL },
 };
 
-int main(int argc, char* argv[])
+int processFile(const char* file, int quiet)
 {
-  char* fpName = "stdin";
-  FILE* fp = stdin;
+  const char* fpName;
+  FILE* fp;
   char* delim= " \t\n";
 
-  setbuf(stdout, NULL);         // unbuffered
-
-  if (argc > 1) {
-    fpName = argv[1];
+  if (file == NULL || strcmp(file, "-") == 0) {
+    fpName = "stdin";
+    fp = stdin;
+  } else {
+    fpName = file;
     fp = fopen(fpName, "r");
     if (fp == NULL) {
       perror(fpName);
-      usage(argv[0]);
-      exit(1);
+      return -1;
     }
   }
+
   int isTTY = isatty(fileno(fp));
 
   int lineno = 0;
@@ -503,7 +521,9 @@ int main(int argc, char* argv[])
       continue;    // skip comments
     }
 
-    printf("# %s", line);
+    if (!quiet) {
+      printf("# %s", line);
+    }
 
     int ac = 0;
     char* av[MAXARGS];
@@ -555,5 +575,38 @@ int main(int argc, char* argv[])
       continue;
     }
   }
-  exit(err != 0);
+  return err ? -1 : 0;
+}
+
+int main(int argc, char* argv[])
+{
+  int err = 0;
+  int quiet = 0;
+
+  int opt;
+  while ((opt = getopt(argc, argv, "q")) != -1) {
+    switch (opt) {
+    case 'q':
+      quiet = 1;
+      break;
+    default:
+      usage(argv[0]);
+      exit(1);
+    }
+  }
+
+  setbuf(stdout, NULL);         // unbuffered
+
+  if (optind == argc) {
+    if (processFile(NULL, quiet) < 0) {
+      err++;
+    }
+  } else {
+    for (int i = optind; i < argc; i++) {
+      if (processFile(argv[i], quiet) < 0) {
+        err++;
+      }
+    }
+  }
+  exit(err ? 1 : 0);
 }
