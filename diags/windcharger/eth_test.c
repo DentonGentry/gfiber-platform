@@ -4,28 +4,28 @@
  *
  */
 
+#include <arpa/inet.h>
+#include <errno.h>
+#include <linux/if_packet.h>
+#include <linux/types.h>
+#include <net/if.h>
+#include <netdb.h>
+#include <netinet/ether.h>
+#include <netinet/in.h>
+#include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <linux/if_packet.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <net/if.h>
-#include <netinet/ether.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <linux/types.h>
+#include <sys/types.h>
 #include <unistd.h>
-#include <stdbool.h>
-#include <errno.h>
-#include <signal.h>
-#include "gpio.h"
+#include <unistd.h>
 #include "../common/util.h"
 #include "common.h"
+#include "gpio.h"
 #include "mdio.h"
 
 #define DEFAULT_TST_IF "lan0"
@@ -334,7 +334,9 @@ int net_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
     tx_stat[index] += *tx_bytes;
   } else {
     tmp = *tx_bytes;
-    // tx_bytes is uint.
+    // tx_bytes is uint. It will continue to increment till wrap around
+    // When it wraps around, the current value will be less than the
+    // previous one. That is why this logic kicked in.
     *tx_bytes += (0xffffffff - tx_stat[index]);
     tx_stat[index] = tmp;
   }
@@ -344,7 +346,9 @@ int net_stat(unsigned int *rx_bytes, unsigned int *tx_bytes, char *name) {
     rx_stat[index] += *rx_bytes;
   } else {
     tmp = *rx_bytes;
-    // rx_bytes is uint.
+    // rx_bytes is uint. It will continue to increment till wrap around
+    // When it wraps around, the current value will be less than the
+    // previous one. That is why this logic kicked in.
     *rx_bytes += (0xffffffff - rx_stat[index]);
     rx_stat[index] = tmp;
   }
@@ -688,11 +692,14 @@ static void test_both_ports_usage(void) {
 int test_both_ports(int argc, char *argv[]) {
   int duration, num = -1, pid, pid1, pid2;
   int print_period = ETH_TRAFFIC_REPORT_PERIOD;
-  unsigned int pkt_len = ETH_PKTS_LEN_DEFAULT, lan0_rx, lan0_tx;
+  unsigned int pkt_len = ETH_PKTS_LEN_DEFAULT;
+  unsigned int lan0_rx, lan0_tx;
   unsigned int wan0_rx, wan0_tx;
   bool print_every_period = true;
   bool failed = false, overall_failed = false;
-  int residuals[MAX_NET_IF] = {0, 0};
+  bool wan0_tx_passed_with_lost = false, lan0_tx_passed_with_lost = false;
+  bool wan0_tx_failed = false, lan0_tx_failed = false;
+  int residuals_wan0_tx = 0, residuals_lan0_tx = 0;
 
   if ((argc != 2) && (argc != 4)) {
     test_both_ports_usage();
@@ -774,20 +781,47 @@ int test_both_ports(int argc, char *argv[]) {
         kill(pid2, SIGSTOP);
       }
       sleep(ETH_STAT_WAIT_PERIOD);
+      if (failed) printf("Failed carrier status check\n");
       net_stat(&wan0_rx, &wan0_tx, ETH_TRAFFIC_PORT);
       net_stat(&lan0_rx, &lan0_tx, ETH_TRAFFIC_DST_PORT);
       if ((lan0_rx == 0) || (wan0_rx == 0) || (lan0_tx == 0) || (wan0_tx == 0))
         failed = true;
       // Due to two processes are stopped one after another, need some
       // margin to compare RX vs TX. Set it to 1% for now
-      if ((lan0_rx + residuals[0]) <
-          ((wan0_tx / 100) * ETH_STAT_PERCENT_MARGIN))
-        failed = true;
-      if ((wan0_rx + residuals[1]) <
-          ((lan0_tx / 100) * ETH_STAT_PERCENT_MARGIN))
-        failed = true;
-      residuals[0] += lan0_rx - wan0_tx;
-      residuals[1] += wan0_rx - lan0_tx;
+      // NOTE: since these number is unsigned int, (x * 95) / 100 could
+      //       overflow. Therefore, use (x / 100) * 95 to avoid overflow.
+      //       We don't care about such small truncation during integer
+      //       division.
+      if (lan0_rx <
+          (((wan0_tx - residuals_wan0_tx) / 100) * ETH_STAT_PERCENT_MARGIN)) {
+        if (!wan0_tx_failed && !wan0_tx_passed_with_lost) {
+          wan0_tx_passed_with_lost = true;
+          printf("LAN0 RX seen lost\n");
+        } else {
+          wan0_tx_failed = true;
+          printf("LAN0 RX failed\n");
+        }
+      } else {
+        wan0_tx_failed = false;
+        wan0_tx_passed_with_lost = false;
+      }
+      // See comment above about integer division
+      if (wan0_rx <
+          (((lan0_tx - residuals_lan0_tx) / 100) * ETH_STAT_PERCENT_MARGIN)) {
+        if (!lan0_tx_failed && !lan0_tx_passed_with_lost) {
+          lan0_tx_passed_with_lost = true;
+          printf("WAN0 RX seen lost\n");
+        } else {
+          lan0_tx_failed = true;
+          printf("WAN0 RX failed\n");
+        }
+      } else {
+        lan0_tx_failed = false;
+        lan0_tx_passed_with_lost = false;
+      }
+      if (lan0_tx_failed || wan0_tx_failed) failed = true;
+      residuals_wan0_tx += lan0_rx - wan0_tx;
+      residuals_lan0_tx += wan0_rx - lan0_tx;
       // When the cable is disconnected and connected again, got bogus data
       if ((lan0_rx > ETH_TRAFFIC_PER_PERIOD_MAX) ||
           (wan0_rx > ETH_TRAFFIC_PER_PERIOD_MAX))
@@ -795,10 +829,13 @@ int test_both_ports(int argc, char *argv[]) {
       if (failed) {
         printf("Failed: %s (%d,%d) <-> %s (%d,%d)\n", ETH_TRAFFIC_PORT, wan0_tx,
                wan0_rx, ETH_TRAFFIC_DST_PORT, lan0_tx, lan0_rx);
-        residuals[0] = 0;
-        residuals[1] = 0;
+        residuals_wan0_tx = 0;
+        residuals_lan0_tx = 0;
       } else {
-        printf("Passed: %s %3.3f Mb/s (%d,%d) <-> %s %3.3f Mb/s (%d,%d)\n",
+        printf("%s: %s %3.3f Mb/s (%d,%d) <-> %s %3.3f Mb/s (%d,%d)\n",
+               (wan0_tx_passed_with_lost || lan0_tx_passed_with_lost)
+                   ? "Passed + Lost"
+                   : "Passed",
                ETH_TRAFFIC_PORT,
                (((float)wan0_tx) * 8) / (float)(print_period * ONE_MEG),
                wan0_tx, wan0_rx, ETH_TRAFFIC_DST_PORT,
@@ -936,13 +973,9 @@ int loopback_test(int argc, char *argv[]) {
   eth_external_loopback(argv[1], false);
 
   average_throughput /= ((float)collected_count);
-  if (traffic_problem) {
-    printf("%s overall %s: %3.3f Mb/s\n", FAIL_TEXT, argv[1],
-           average_throughput);
-  } else {
-    printf("%s overall %s: %3.3f Mb/s\n", PASS_TEXT, argv[1],
-           average_throughput);
-  }
+  printf("%s overall %s: %3.3f Mb/s\n",
+         (traffic_problem) ? FAIL_TEXT : PASS_TEXT, argv[1],
+         average_throughput);
 
   return 0;
 }
