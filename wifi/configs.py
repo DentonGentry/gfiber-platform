@@ -306,11 +306,25 @@ def generate_hostapd_config(
   return '\n'.join(hostapd_conf_parts)
 
 
-def generate_wpa_supplicant_config(ssid, passphrase):
-  return '\n'.join(
-      ('ctrl_interface=/var/run/wpa_supplicant',
-       'ap_scan=1',
-       'autoscan=exponential:1:30',
-       subprocess.check_output(('wpa_passphrase',
-                                utils.sanitize_ssid(ssid),
-                                utils.validate_and_sanitize_psk(passphrase)))))
+def generate_wpa_supplicant_config(ssid, passphrase, opt):
+  """Generate a wpa_supplicant config from the provided arguments."""
+
+  network_block = subprocess.check_output(
+      ('wpa_passphrase',
+       utils.sanitize_ssid(ssid),
+       utils.validate_and_sanitize_psk(passphrase)))
+
+  if opt.bssid:
+    network_block_lines = network_block.splitlines(True)
+    network_block_lines[-1:-1] = ['\tbssid=%s\n' %
+                                  utils.validate_and_sanitize_bssid(opt.bssid)]
+    network_block = ''.join(network_block_lines)
+
+  lines = [
+      'ctrl_interface=/var/run/wpa_supplicant',
+      'ap_scan=1',
+      'autoscan=exponential:1:30',
+      network_block
+  ]
+  return '\n'.join(lines)
+

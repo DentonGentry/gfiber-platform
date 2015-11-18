@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import collections
 import os
+import re
 import subprocess
 import sys
 import time
@@ -255,6 +256,16 @@ def sanitize_ssid(ssid):
   """
   return ''.join(c for c in ssid.decode('utf-8', 'ignore')
                  if unicodedata.category(c)[0] != 'C').encode('utf-8')
+
+
+def validate_and_sanitize_bssid(bssid):
+  maybe_octets = bssid.lower().split(':')
+  if (len(maybe_octets) == 6 and
+      all(re.match('[0-9a-f]{2}', maybe_octet)
+          for maybe_octet in maybe_octets)):
+    return ':'.join(maybe_octets)
+  else:
+    raise BinWifiException('%s is not a valid BSSID', bssid)
 
 
 def validate_and_sanitize_psk(psk):
