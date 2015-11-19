@@ -20,6 +20,17 @@ network={
 }
 """
 
+_WPA_SUPPLICANT_CONFIG_BSSID = """ctrl_interface=/var/run/wpa_supplicant
+ap_scan=1
+autoscan=exponential:1:30
+network={
+\tssid="some ssid"
+\t#psk="some passphrase"
+\tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
+\tbssid=12:34:56:78:90:ab
+}
+"""
+
 
 @wvtest.wvtest
 def generate_wpa_supplicant_config_test():
@@ -28,9 +39,20 @@ def generate_wpa_supplicant_config_test():
         "Can't test generate_wpa_supplicant_config without wpa_passphrase.")
     return
 
+  opt = FakeOptDict()
   config = configs.generate_wpa_supplicant_config(
-      'some ssid', 'some passphrase')
+      'some ssid', 'some passphrase', opt)
   wvtest.WVPASSEQ(_WPA_SUPPLICANT_CONFIG, config)
+
+  opt.bssid = 'TotallyNotValid'
+  wvtest.WVEXCEPT(utils.BinWifiException,
+                  configs.generate_wpa_supplicant_config,
+                  'some ssid', 'some passphrase', opt)
+
+  opt.bssid = '12:34:56:78:90:Ab'
+  config = configs.generate_wpa_supplicant_config(
+      'some ssid', 'some passphrase', opt)
+  wvtest.WVPASSEQ(_WPA_SUPPLICANT_CONFIG_BSSID, config)
 
 
 _PHY_INFO = """Wiphy phy0
@@ -312,6 +334,7 @@ class FakeOptDict(object):
     self.channel = 'auto'
     self.autotype = 'NONDFS'
     self.ssid = 'TEST_SSID'
+    self.bssid = ''
     self.encryption = 'WPA2_PSK_AES'
     self.force_restart = False
     self.hidden_mode = False

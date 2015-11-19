@@ -22,7 +22,7 @@ import utils
 
 _OPTSPEC_FORMAT = """
 {bin} set           Enable or modify access points.  Takes all options unless otherwise specified.
-{bin} setclient     Enable or modify wifi clients.  Takes -b, -P, -s, -S.
+{bin} setclient     Enable or modify wifi clients.  Takes -b, -P, -s, --bssid, -S.
 {bin} stop|off      Disable access points and clients.  Takes -b, -P, -S.
 {bin} stopap        Disable access points.  Takes -b, -P, -S.
 {bin} stopclient    Disable wifi clients.  Takes -b, -P, -S.
@@ -33,6 +33,7 @@ b,band=                           Wifi band(s) to use (5 GHz and/or 2.4 GHz).  s
 c,channel=                        Channel to use [auto]
 a,autotype=                       Autochannel method to use (LOW, HIGH, DFS, NONDFS, ANY,OVERLAP) [NONDFS]
 s,ssid=                           SSID to use [{ssid}]
+bssid=                            BSSID to use []
 e,encryption=                     Encryption type to use (WPA_PSK_AES, WPA2_PSK_AES, WPA12_PSK_AES, WPA_PSK_TKIP, WPA2_PSK_TKIP, WPA12_PSK_TKIP, WEP, or NONE) [WPA2_PSK_AES]
 f,force-restart                   Force restart even if already running with these options
 H,hidden-mode                     Enable hidden mode (disable SSID advertisements)
@@ -834,7 +835,7 @@ def set_client_wifi(opt):
           ('ip', 'link', 'set', interface, 'address', mac_address))
 
   wpa_config = configs.generate_wpa_supplicant_config(
-      opt.ssid, os.environ['WIFI_CLIENT_PSK'])
+      opt.ssid, os.environ['WIFI_CLIENT_PSK'], opt)
   if not _maybe_restart_wpa_supplicant(interface, wpa_config, opt):
     return False
 
