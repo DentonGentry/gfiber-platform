@@ -609,6 +609,8 @@ void UpdateWifiShow(struct nl_sock *nlsk, int nl80211_id, int n)
     char buf[24];
     if (fgets(buf, sizeof(buf), fptr) != NULL)
       fprintf(wifi_show_handle, "  \"AutoType\": \"%s\"\n", buf);
+    fclose(fptr);
+    fptr = NULL;
   }
   fprintf(wifi_show_handle, "}\n");
 
