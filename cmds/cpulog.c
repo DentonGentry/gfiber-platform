@@ -229,6 +229,8 @@ int main(int argc, char **argv)
   if (optind < argc)
     usage_and_die(argv[0]);
 
+  setlinebuf(stdout);
+
   ticks_per_sec = sysconf(_SC_CLK_TCK);
 
   sleep(warmup_seconds);
