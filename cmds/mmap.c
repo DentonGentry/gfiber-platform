@@ -177,6 +177,7 @@ int do_open(char* path, int slot, uint64_t fileAddr, uint64_t length)
   uint64_t fileLength = stats.st_size;
 
   if (fileAddr + length > fileLength) {
+    fprintf(stderr, "%s", posPrefix);
     fprintf(stderr, "mapped range (0x%" PRIx64 ",0x%" PRIx64 ") "
                       "is outside of size of file (0x%" PRIx64 ")\n",
             fileAddr, length, fileLength);
@@ -221,8 +222,9 @@ int do_read_helper(int slot, uint64_t addr, int wordlen, uint64_t* valueP)
   case sizeof(u16):     dp = &u16; break;
   case sizeof(u8):      dp = &u8; break;
   default:
-        fprintf(stderr, "Can't find datatype for wordlen '%d'\n", wordlen);
-        return -1;
+    fprintf(stderr, "%s", posPrefix);
+    fprintf(stderr, "Can't find datatype for wordlen '%d'\n", wordlen);
+    return -1;
   }
 
   memcpy(dp, vp, wordlen);
@@ -233,8 +235,9 @@ int do_read_helper(int slot, uint64_t addr, int wordlen, uint64_t* valueP)
   case sizeof(u16):     *valueP = u16; break;
   case sizeof(u8):      *valueP = u8; break;
   default:
-        fprintf(stderr, "Can't find datatype for wordlen '%d'\n", wordlen);
-        return -1;
+    fprintf(stderr, "%s", posPrefix);
+    fprintf(stderr, "Can't find datatype for wordlen '%d'\n", wordlen);
+    return -1;
   }
   return 0;
 }
@@ -335,6 +338,37 @@ int do_mread(int slot, uint64_t addr_reg, uint64_t cmd_reg,
     printf("%" PRIx64 ".%" PRIx64 ".%04" PRIx32 ": %04x %04x\n",
            port, dev, rreg, value >> 16, value & 0xffff);
   }
+  return 0;
+}
+
+// write to device on MDIO bus attached to a PCI device
+int do_mwrite(int slot, uint64_t addr_reg, uint64_t cmd_reg,
+             uint64_t port, uint64_t dev, uint64_t reg, uint64_t newVal)
+{
+  uint32_t* areg = slots[slot].map + addr_reg;
+  uint32_t* creg = slots[slot].map + cmd_reg;
+  uint32_t value = newVal;
+
+  if (wait_for_bits(creg, CMD_BUSY, 0, 1000, 100) < 0) {
+    return -1;
+  }
+
+  // remote register we want to read
+  *areg = reg;
+
+  // issue command
+  *creg = (CMD_ADDR_THEN_WRITE << 26) | (dev << 21) | (port << 16) |
+          (value & 0xffff);
+
+  if (wait_for_bits(creg, CMD_BUSY, 0, 1000, 100) < 0) {
+    return -1;
+  }
+
+  // get result
+  value = *creg;
+
+  printf("%" PRIx64 ".%" PRIx64 ".%04" PRIx64 ": %04x %04x\n",
+         port, dev, reg, value >> 16, value & 0xffff);
   return 0;
 }
 
@@ -550,6 +584,43 @@ int cmd_mread(int ac, char* av[])
   return 0;
 }
 
+// write registers on mdio devices via PCI indirection
+int cmd_mwrite(int ac, char* av[])
+{
+  char* usage = "mwrite slot addr_reg cmd_reg port dev reg value";
+
+  if (ac > 1 && strcmp(av[1], "help") == 0) {
+    printf("\t%s\n", usage);
+    return 0;
+  }
+  if (ac != 8) {
+    fprintf(stderr, "Usage: %s\n", usage);
+    return -1;
+  }
+
+  int slot;
+  uint64_t addr_reg;
+  uint64_t cmd_reg;
+  uint64_t port;
+  uint64_t dev;
+  uint64_t reg;
+  uint64_t value;
+
+  if (asSlot(&slot, av[1], 1) < 0 ||
+      asAddr(&addr_reg, av[2], slot) < 0 ||
+      asAddr(&cmd_reg, av[3], slot) < 0 ||
+      asUnsigned(&port, av[4]) < 0 ||
+      asUnsigned(&dev, av[5]) < 0 ||
+      asUnsigned(&reg, av[6]) < 0 ||
+      asUnsigned(&value, av[7]) < 0) {
+    return -1;
+  }
+  if (do_mwrite(slot, addr_reg, cmd_reg, port, dev, reg, value) < 0) {
+    return -1;
+  }
+  return 0;
+}
+
 typedef int (*cmdFunc)(int ac, char* av[]);
 
 struct commands {
@@ -566,6 +637,7 @@ struct commands cmds[] = {
   { "msleep", cmd_msleep, },
   { "echo", cmd_echo, },
   { "mread", cmd_mread, },
+  { "mwrite", cmd_mwrite, },
   { NULL, NULL },
 };
 
