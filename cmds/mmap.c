@@ -278,6 +278,66 @@ int do_hexdump(int slot, uint64_t addr, int wordlen, uint64_t count)
   return err;
 }
 
+// loop waiting for a register to have a value
+int wait_for_bits(uint32_t* creg, uint32_t mask, uint32_t want,
+                  int usec_delay, int max_tries)
+{
+  uint32_t got = 0;
+
+  for (int i = 0; i < max_tries; i++) {
+    got = *creg;
+    if ((got & mask) == want) {
+      return 0;
+    }
+    usleep(usec_delay);
+  }
+  fprintf(stderr, "%s", posPrefix);
+  fprintf(stderr, "timeout waiting for bits: "
+                  "mask=0x%08x want=0x%08x got=0x%08x\n", mask, want, got);
+  return -1;
+}
+
+// Alleycat XSMI Management Register
+
+#define CMD_ADDR_THEN_WRITE             5
+#define CMD_ADDR_THEN_READ              7
+
+#define CMD_BUSY                        (1 << 30)
+
+// read from device on MDIO bus attached to a PCI device
+int do_mread(int slot, uint64_t addr_reg, uint64_t cmd_reg,
+             uint64_t port, uint64_t dev, uint64_t reg, uint64_t count)
+{
+  uint32_t* areg = slots[slot].map + addr_reg;
+  uint32_t* creg = slots[slot].map + cmd_reg;
+  uint32_t value;
+
+  for (uint64_t i = 0; i < count; i++) {
+    uint32_t rreg = reg + i;
+
+    if (wait_for_bits(creg, CMD_BUSY, 0, 1000, 100) < 0) {
+      return -1;
+    }
+
+    // remote register we want to read
+    *areg = rreg;
+
+    // issue command
+    *creg = (CMD_ADDR_THEN_READ << 26) | (dev << 21) | (port << 16);
+
+    if (wait_for_bits(creg, CMD_BUSY, 0, 1000, 100) < 0) {
+      return -1;
+    }
+
+    // get result
+    value = *creg;
+
+    printf("%" PRIx64 ".%" PRIx64 ".%04" PRIx32 ": %04x %04x\n",
+           port, dev, rreg, value >> 16, value & 0xffff);
+  }
+  return 0;
+}
+
 int cmd_open(int ac, char* av[])
 {
   char* usage = "open slot file offset length";
@@ -453,6 +513,43 @@ int cmd_echo(int ac, char* av[])
   return 0;
 }
 
+// read registers on mdio devices via PCI indirection
+int cmd_mread(int ac, char* av[])
+{
+  char* usage = "mread slot addr_reg cmd_reg port dev reg count";
+
+  if (ac > 1 && strcmp(av[1], "help") == 0) {
+    printf("\t%s\n", usage);
+    return 0;
+  }
+  if (ac != 8) {
+    fprintf(stderr, "Usage: %s\n", usage);
+    return -1;
+  }
+
+  int slot;
+  uint64_t addr_reg;
+  uint64_t cmd_reg;
+  uint64_t port;
+  uint64_t dev;
+  uint64_t reg;
+  uint64_t count;
+
+  if (asSlot(&slot, av[1], 1) < 0 ||
+      asAddr(&addr_reg, av[2], slot) < 0 ||
+      asAddr(&cmd_reg, av[3], slot) < 0 ||
+      asUnsigned(&port, av[4]) < 0 ||
+      asUnsigned(&dev, av[5]) < 0 ||
+      asUnsigned(&reg, av[6]) < 0 ||
+      asUnsigned(&count, av[7]) < 0) {
+    return -1;
+  }
+  if (do_mread(slot, addr_reg, cmd_reg, port, dev, reg, count) < 0) {
+    return -1;
+  }
+  return 0;
+}
+
 typedef int (*cmdFunc)(int ac, char* av[]);
 
 struct commands {
@@ -468,6 +565,7 @@ struct commands cmds[] = {
   { "dump", cmd_dump, },
   { "msleep", cmd_msleep, },
   { "echo", cmd_echo, },
+  { "mread", cmd_mread, },
   { NULL, NULL },
 };
 
