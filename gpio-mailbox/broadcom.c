@@ -528,11 +528,10 @@ static double get_avs_voltage_7252(struct Voltage* v) {
 
   reg = mmap_addr + v->offset_data;
   value = *reg;
-  // see 7425-PR500-RDS.pdf
   valid = (value & 0x00000400) >> 10;
   raw_data = value & 0x000003ff;
   if (!valid) return -1.0;
-  return (880.0/1024.0)/(0.7)*raw_data;
+  return ((880.0/1024.0)/(0.7)*raw_data) / 1000;
 }
 
 // Write the given GPIO pin.
