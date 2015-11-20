@@ -97,9 +97,9 @@ WVPASSEQ()
 	_wvfind_caller
 	_wvcheck $(_wvgetrv [ "$#" -eq 2 ]) "exactly 2 arguments"
 	echo "Comparing:" >&2
-	echo "$1" >&2
+	echo "$1" | sed -e 's/^/<<< /' >&2
 	echo "--" >&2
-	echo "$2" >&2
+	echo "$2" | sed -e 's/^/>>> /' >&2
 	_wvcheck $(_wvgetrv [ "$1" = "$2" ]) "'$1' = '$2'"
 }
 
@@ -109,9 +109,9 @@ WVPASSNE()
 	_wvfind_caller
 	_wvcheck $(_wvgetrv [ "$#" -eq 2 ]) "exactly 2 arguments"
 	echo "Comparing:" >&2
-	echo "$1" >&2
+	echo "$1" | sed -e 's/^/<<< /' >&2
 	echo "--" >&2
-	echo "$2" >&2
+	echo "$2" | sed -e 's/^/>>> /' >&2
 	_wvcheck $(_wvgetrv [ "$1" != "$2" ]) "'$1' != '$2'"
 }
 
