@@ -1,0 +1,22 @@
+EXIT=1
+
+FILES="A B"
+
+# by putting ffs in cmd spot, BUSY bit will be set
+A_1='01234567\xff\xff\xff\xff2345678901234567890123456789'
+A_2='01234567\xff\xff\xff\xff2345678901234567890123456789'
+
+
+INPUT='
+open 0 A 0 40
+mread 0 4 8 1 2 3 1
+close 0
+'
+
+OUTPUT="# 
+# open 0 A 0 40
+# mread 0 4 8 1 2 3 1
+stdin:3: timeout waiting for bits: mask=0x40000000 want=0x00000000 got=0xffffffff
+stdin:3: command 'mread' failed
+# close 0
+"

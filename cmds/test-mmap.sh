@@ -12,8 +12,8 @@ for n in tests.mmap/*.test; do
     for m in $FILES; do
       eval IN="\$${m}_1"
       eval OUT="\$${m}_2"
-      echo -n "$IN" > $m
-      echo -n "$OUT" > $m.expected
+      echo -en "$IN" > $m
+      echo -en "$OUT" > $m.expected
     done
     $PREFIX ../host-mmap $ARGS < INPUT > GOT 2>&1
     status=$?
