@@ -11,6 +11,7 @@ dump help
 msleep help
 echo help
 mread help
+mwrite help
 '
 
 OUTPUT=\
@@ -22,6 +23,7 @@ OUTPUT=\
 	msleep msecs
 	echo text ...
 	mread slot addr_reg cmd_reg port dev reg count
+	mwrite slot addr_reg cmd_reg port dev reg value
 	open slot file offset length
 	close slot
 	read slot addr wordlen
@@ -30,4 +32,5 @@ OUTPUT=\
 	msleep msecs
 	echo text ...
 	mread slot addr_reg cmd_reg port dev reg count
+	mwrite slot addr_reg cmd_reg port dev reg value
 '
