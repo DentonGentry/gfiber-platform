@@ -1,10 +1,10 @@
 default: all
 
 DIRS = common
-ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberwc)
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfmn100)
  DIRS += windcharger
 endif
-ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfibersc)
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfsc100)
  DIRS += spacecast
 endif
 

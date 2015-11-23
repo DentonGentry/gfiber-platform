@@ -23,26 +23,19 @@ LDFLAGS += $(EXTRA_LDFLAGS)
 # enable the platform we're supporting
 ifeq ($(BR2_PACKAGE_BCM_NEXUS),y)
   CFLAGS += -DBROADCOM
-  NOSTUB=1
-endif
-ifeq ($(BR2_PACKAGE_MINDSPEED_DRIVERS),y)
+else ifeq ($(BR2_PACKAGE_MINDSPEED_DRIVERS),y)
   CFLAGS += -DMINDSPEED
-  NOSTUB=1
-endif
-
-ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberlt)
+else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gflt110)
   CFLAGS += -DGFIBER_LT
-  NOSTUB=1
-endif
-
-ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberwc)
+else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfmn100)
   CFLAGS += -DWINDCHARGER
-  NOSTUB=1
-endif
-
-ifndef NOSTUB
+else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfch100)
+  CFLAGS += -DGFCH100
+else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),kvm)
   CFLAGS += -DSTUB
   LDFLAGS += -lm
+else
+  $(error can't determine which pin implementation to use for gpio_mailbox)
 endif
 
 INC_DIRS += ../libstacktrace

@@ -52,11 +52,12 @@ ifeq ($(BUILD_SIGNING),y)
 DIRS+=signing
 endif
 
-ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfibersc)
+
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfsc100)
 DIRS+=diags
 endif
 
-ifeq ($(BR2_TARGET_GOOGLE_PLATFORM),gfiberwc)
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfmn100)
 DIRS+=diags
 endif
 
