@@ -10,21 +10,23 @@
 #include "fileops.h"
 #include "pin.h"
 
-#define GPIO_OFF		"0"
-#define GPIO_ON		"1"
+#define UNUSED  __attribute__((unused))
 
-#define GPIO_OUT		"out"
+#define GPIO_OFF                "0"
+#define GPIO_ON                 "1"
 
-#define GPIO_RED		"30"
-#define GPIO_ACTIVITY		"31"
+#define GPIO_OUT                "out"
 
-#define GPIO_BASE_DIR        	"/sys/class/gpio"
-#define GPIO_EXPORT     	GPIO_BASE_DIR "/export"
+#define GPIO_RED                "30"
+#define GPIO_ACTIVITY           "31"
 
-#define GPIO_DIR(n)       	GPIO_BASE_DIR "/gpio" n
+#define GPIO_BASE_DIR           "/sys/class/gpio"
+#define GPIO_EXPORT             GPIO_BASE_DIR "/export"
 
-#define GPIO_DIRECTION(dir)	dir "/direction"
-#define GPIO_VALUE(dir)		dir "/value"
+#define GPIO_DIR(n)             GPIO_BASE_DIR "/gpio" n
+
+#define GPIO_DIRECTION(dir)     dir "/direction"
+#define GPIO_VALUE(dir)         dir "/value"
 
 struct PinHandle_s {
   int   unused;
@@ -140,7 +142,7 @@ PinStatus PinValue(PinHandle handle, PinId id, int* valueP) {
   return PIN_OKAY;
 }
 
-PinStatus PinSetValue(PinHandle handle, PinId id, int value) {
+PinStatus PinSetValue(PinHandle handle, PinId id, UNUSED int value) {
   if (handle == NULL) return PIN_ERROR;
   switch (id) {
     case PIN_LED_RED:

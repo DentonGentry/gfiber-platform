@@ -1,8 +1,8 @@
-#include <stdint.h>
-#include <stdbool.h>
-
 #ifndef FILEOPS_H_
 #define FILEOPS_H_
+
+#include <stdint.h>
+#include <stdbool.h>
 
 // Read a file containing a single short integer.
 long read_file_long(const char *filename);

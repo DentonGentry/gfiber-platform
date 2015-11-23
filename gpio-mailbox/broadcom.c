@@ -22,6 +22,8 @@
 
 #include "pin.h"
 
+#define UNUSED        __attribute__((unused))
+
 #define DEVMEM          "/dev/mem"
 
 struct PinHandle_s {
@@ -390,7 +392,7 @@ struct platform_info platforms[] = {
 struct platform_info *platform = NULL;
 
 /* set LED/Keypad timings to control LED brightness */
-static void init_gfhd200(struct platform_info* p) {
+static void init_gfhd200(UNUSED struct platform_info* p) {
   volatile uint32_t* reg;
 
   reg = mmap_addr + 0x9034;     // LDK_CONTROL
@@ -407,7 +409,7 @@ static void init_gfhd200(struct platform_info* p) {
 }
 
 /* set LED/Keypad timings to control LED brightness */
-static void init_gfhd254(struct platform_info* p) {
+static void init_gfhd254(UNUSED struct platform_info* p) {
   volatile uint32_t* reg;
 
   // The led display controller works like this:

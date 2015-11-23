@@ -16,6 +16,8 @@
 
 #include "pin.h"
 
+#define UNUSED        __attribute__((unused))
+
 struct PinHandle_s {
   int           want[PIN_MAX];
   int           have[PIN_MAX];
@@ -88,7 +90,7 @@ void PinDestroy(PinHandle handle) {
   free(handle);
 }
 
-int PinIsPresent(PinHandle handle, PinId id) {
+int PinIsPresent(UNUSED PinHandle handle, UNUSED PinId id) {
   return 1;
 }
 

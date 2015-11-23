@@ -12,7 +12,7 @@ INCLUDEDIR=$(PREFIX)/include
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 RM=rm -f
-CFLAGS = -Wall -Wimplicit -Wno-unknown-pragmas -W -std=c99
+CFLAGS = -Wall -Wextra -Werror -Wimplicit -Wno-unknown-pragmas -std=c99
 
 #CFLAGS += $(shell $(PKG_CONFIG) --cflags brunobase)
 #LDFLAGS += $(shell $(PKG_CONFIG) --libs brunobase)

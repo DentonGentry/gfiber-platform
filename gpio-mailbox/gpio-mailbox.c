@@ -25,6 +25,8 @@
 #include "gfiber-lt.h"
 #include "pin.h"
 
+#define UNUSED __attribute((unused))
+
 #define WRITE(s)  write(2, s, strlen(s))
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof (a) / sizeof ((a)[0]))
@@ -47,7 +49,7 @@
  * sysmgr has a per-platform setting, but we don't share code with that here.
  * Setting to MAX(temp_max) from fancontrol.cc in sysmgr, which is 100 now.
  */
-#define HIGH_TEMP_OVERRIDE		100.0
+#define HIGH_TEMP_OVERRIDE              100.0
 
 #define CHECK(x) do { \
     int rv = (x); \
@@ -257,7 +259,7 @@ static void sig_handler(int sig) {
 }
 
 
-static void alarm_handler(int sig) {
+static void alarm_handler(UNUSED int sig) {
   WRITE("\nexiting on SIGALRM\n");
   abort();
 }

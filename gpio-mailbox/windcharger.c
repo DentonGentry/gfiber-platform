@@ -23,6 +23,8 @@
 #include "fileops.h"
 #include "pin.h"
 
+#define UNUSED        __attribute__((unused))
+
 #define DEVMEM                "/dev/mem"
 #define GPIO_OUT_FUNCTION0    0xB
 #define GPIO_OUT_ENABLE       0x0
@@ -131,7 +133,7 @@ static int get_gpio(int pin) {
   return (value >> pin) & 0x1;
 }
 
-static int get_temp1(PinHandle handle) {
+static int get_temp1(UNUSED PinHandle handle) {
   return read_file_long(SYS_TEMP1);
 }
 
@@ -163,13 +165,6 @@ static void set_pinmux(struct Gpio *g) {
   data &= ~(0xFF << (8 * byte_offset));
   data |= 0 << (8 * byte_offset);
   *reg = data;
-}
-
-// Same as time(), but in monotonic clock milliseconds instead.
-static long long msec_now(void) {
-  struct timespec ts;
-  CHECK(clock_gettime(CLOCK_MONOTONIC, &ts));
-  return ((long long)ts.tv_sec) * 1000 + (ts.tv_nsec / 1000000);
 }
 
 static void platform_cleanup(void) {

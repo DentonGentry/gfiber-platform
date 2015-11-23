@@ -11,8 +11,10 @@
 #include "fileops.h"
 #include "pin.h"
 
-#define __stringify_1(x...)	#x
-#define __stringify(x...)	__stringify_1(x)
+#define UNUSED        __attribute__((unused))
+
+#define __stringify_1(x...)     #x
+#define __stringify(x...)       __stringify_1(x)
 
 /* This is the driver that allows gpio-mailbox to control the fan speed and the
  * brightness of the two LEDs on Optimus based platforms which include Optimus,
@@ -171,7 +173,7 @@ static int getGPIO(PinHandle handle, int gpio) {
   return BIT_IS_SET(value, gpio);
 }
 
-static void setGPIO(PinHandle handle, int gpio, int value) {
+UNUSED static void setGPIO(PinHandle handle, int gpio, int value) {
   uint32_t direction = getRegister(handle, REG_GPIO_DIRECTION);
   int reg = BIT_IS_SET(direction, gpio) ? REG_GPIO_OUTPUT : REG_GPIO_INPUT;
   if (!BIT_IS_SET(direction, gpio)) {
@@ -183,7 +185,7 @@ static void setGPIO(PinHandle handle, int gpio, int value) {
   setRegister(handle, reg, newVal);
 }
 
-static int getPWMValue(PinHandle handle, int gpio, int pwm) {
+static int getPWMValue(PinHandle handle, UNUSED int gpio, int pwm) {
   uint32_t divider = getRegister(handle, REG_PWM_DIVIDER);      /* shared among all PWM */
   uint32_t lo = getRegister(handle, REG_PWM_LO(pwm));
   uint32_t hi = getRegister(handle, REG_PWM_HI(pwm));
@@ -315,13 +317,13 @@ PinHandle PinCreate(void) {
   else
           handle->sys_fan_dir = sys_fan_dir2;
   snprintf(handle->sys_temp1_path, sizeof(handle->sys_temp1_path), "%s%s",
-		  handle->sys_fan_dir, SYS_TEMP1);
+                  handle->sys_fan_dir, SYS_TEMP1);
   snprintf(handle->sys_temp2_path, sizeof(handle->sys_temp2_path), "%s%s",
-		  handle->sys_fan_dir, SYS_TEMP2);
+                  handle->sys_fan_dir, SYS_TEMP2);
   snprintf(handle->sys_fan_path, sizeof(handle->sys_fan_path), "%s%s",
-		  handle->sys_fan_dir, SYS_FAN);
+                  handle->sys_fan_dir, SYS_FAN);
   snprintf(handle->sys_rpm_path, sizeof(handle->sys_rpm_path), "%s%s",
-		  handle->sys_fan_dir, SYS_RPM);
+                  handle->sys_fan_dir, SYS_RPM);
   return handle;
 }
 
@@ -340,7 +342,7 @@ void PinDestroy(PinHandle handle) {
   return;
 }
 
-int PinIsPresent(PinHandle handle, PinId id) {
+int PinIsPresent(UNUSED PinHandle handle, PinId id) {
   switch (id) {
     case PIN_LED_RED:
     case PIN_LED_ACTIVITY:

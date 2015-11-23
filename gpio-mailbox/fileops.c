@@ -9,8 +9,7 @@
 // read a file containing a single short integer.
 long read_file_long(const char *filename) {
   char buf[32] = { 0 };
-  long val;
-  size_t got;
+  ssize_t got;
   int fd = open(filename, O_RDONLY);
   if (fd < 0) {
     perror(filename);
