@@ -109,7 +109,7 @@ void print_top(struct proc_list *new_procs, struct proc_list *old_procs,
 {
   struct proc top[new_procs->count];
   int top_count;
-  int i;
+  int i, lim;
 
   top_count = 0;
   for (i = 0; i < new_procs->count; i++) {
@@ -126,7 +126,8 @@ void print_top(struct proc_list *new_procs, struct proc_list *old_procs,
   qsort(top, top_count, sizeof(*top), proc_msec_cmp);
 
   printf("%dsec:", interval);
-  for (i = 0; i < MIN(procs_to_sample, top_count); i++) {
+  lim = (top_count > procs_to_sample) ? (top_count - procs_to_sample) : 0;
+  for (i = top_count - 1; i >= lim; i--) {
     printf(" %s(%.3f)", top[i].cmd, top[i].msec / 1000.0);
   }
   printf("\n");
