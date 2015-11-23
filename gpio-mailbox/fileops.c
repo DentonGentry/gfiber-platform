@@ -53,7 +53,6 @@ int write_file_string_atomic(const char *filename, const char *content) {
   return -1;
 }
 
-
 #define WRITE_TO_FILE(filename, oldv, newv, atomic, format) \
   if (!oldv || *oldv != newv) {                     \
     char buf[128];                                  \
@@ -68,20 +67,43 @@ int write_file_string_atomic(const char *filename, const char *content) {
   }
 
 
-void __write_file_longlong(const char *filename, long long *oldv, long long newv,
-                        int atomic)
-{
+static void __write_file_longlong(const char *filename, long long *oldv,
+                                  long long newv, int atomic) {
   WRITE_TO_FILE(filename, oldv, newv, atomic, "%lld")
 }
 
-void __write_file_int(const char *filename, int *oldv, int newv, int atomic)
-{
+static void __write_file_int(const char *filename, int *oldv, int newv,
+                             int atomic) {
   WRITE_TO_FILE(filename, oldv, newv, atomic, "%d")
 }
 
-void __write_file_double(const char *filename, double *oldv, double newv,
-                        int atomic)
-{
+static void __write_file_double(const char *filename, double *oldv, double newv,
+                                int atomic) {
   WRITE_TO_FILE(filename, oldv, newv, atomic, "%.2f")
 }
 
+void write_file_longlong_atomic(const char *filename, long long *oldv,
+                                long long newv) {
+  __write_file_longlong(filename, oldv, newv, 1);
+}
+
+void write_file_int_atomic(const char *filename, int *oldv, int newv) {
+  __write_file_int(filename, oldv, newv, 1);
+}
+
+void write_file_double_atomic(const char *filename, double *oldv, double newv) {
+  __write_file_double(filename, oldv, newv, 1);
+}
+
+void write_file_longlong(const char *filename, long long *oldv,
+                         long long newv) {
+  __write_file_longlong(filename, oldv, newv, 0);
+}
+
+void write_file_int(const char *filename, int *oldv, int newv) {
+  __write_file_int(filename, oldv, newv, 0);
+}
+
+void write_file_double(const char *filename, double *oldv, double newv) {
+  __write_file_double(filename, oldv, newv, 0);
+}
