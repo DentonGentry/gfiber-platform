@@ -29,7 +29,7 @@ struct platform_info {
 
 struct platform_info platforms[] = {
   {
-    .name = "GFLT200",
+    .name = "GFLT110",          // or GFLT120
     .led_red = {
       .file_path = "/sys/devices/platform/board/leds:sys-red/brightness",
     },
