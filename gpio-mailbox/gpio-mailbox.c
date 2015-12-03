@@ -372,7 +372,9 @@ void run_gpio_mailbox(void) {
     }
 
     int reset_button = 0;
-    (void) PinValue(handle, PIN_BUTTON_RESET, &reset_button);
+    if (has_reset_button) {
+      (void) PinValue(handle, PIN_BUTTON_RESET, &reset_button);
+    }
 
     if (now - last_print_time >= 6000) {
       if (has_fan) {
