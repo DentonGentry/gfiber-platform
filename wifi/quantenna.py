@@ -6,6 +6,8 @@ import os
 import subprocess
 import time
 
+import utils
+
 
 # Detect Quantenna device.
 # qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250.
@@ -50,11 +52,13 @@ def _set(mode, opt):
         break
       time.sleep(1)
     else:
-      raise BinWifiException('startprod timed out')
+      raise utils.BinWifiException('startprod timed out')
 
   if mode == 'ap':
     _qcsapi('set_ssid', 'wifi0', opt.ssid)
     _qcsapi('set_passphrase', 'wifi0', '0', os.environ['WIFI_PSK'])
+    _qcsapi('set_option', 'wifi0', 'ssid_broadcast',
+            '0' if opt.hidden_mode else '1')
     _qcsapi('rfenable', '1')
   else:
     _qcsapi('create_ssid', 'wifi0', opt.ssid)
