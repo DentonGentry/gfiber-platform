@@ -150,6 +150,16 @@ const FanControlParams FanControl::kGFHD200FanCtrlSocDefaults = {
                           temp_overheat : 120,
                         };
 
+const FanControlParams FanControl::kGFHD254FanCtrlSocDefaults = {
+                          temp_setpt    : 90,
+                          temp_max      : 100,
+                          temp_step     : 2,
+                          duty_cycle_min: 12,
+                          duty_cycle_max: 40,
+                          pwm_step      : 1,
+                          temp_overheat : 120,
+                        };
+
 const FanControlParams FanControl::kGFLT110FanCtrlSocDefaults = {
                           temp_setpt    : 0,  /* No fan */
                           temp_max      : 0,
@@ -231,6 +241,10 @@ void FanControl::InitParams() {
       break;
     case BRUNO_GFHD200:
       pfan_ctrl_params_[BRUNO_SOC] = kGFHD200FanCtrlSocDefaults;
+      max = BRUNO_SOC;
+      break;
+    case BRUNO_GFHD254:
+      pfan_ctrl_params_[BRUNO_SOC] = kGFHD254FanCtrlSocDefaults;
       max = BRUNO_SOC;
       break;
     case BRUNO_GFRG200:

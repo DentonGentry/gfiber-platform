@@ -24,10 +24,10 @@ enum BrunoPlatformTypes {
   BRUNO_GFSC100,          /* Spacecast */
   BRUNO_GFHD200,          /* Camaro */
   BRUNO_GFLT110,          /* Fiber Jack */
-  BRUNO_PLATFORM_MAX
+  BRUNO_GFLT120,          /* Fiber Jack */
+  BRUNO_GFHD254,          /* Lockdown */
+  BRUNO_UNKNOWN
 };
-
-#define BRUNO_UNKNOWN   BRUNO_PLATFORM_MAX
 
 class Platform {
 

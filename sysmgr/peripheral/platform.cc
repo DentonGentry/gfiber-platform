@@ -21,6 +21,7 @@ const Platform Platform::kPlatformTable[] = {
   Platform("GFSC100", BRUNO_GFSC100, true,  true),
   Platform("GFLT110", BRUNO_GFLT110, false, false),
   Platform("GFLT120", BRUNO_GFLT110, false, false),
+  Platform("GFHD254", BRUNO_GFHD254, false, true),
   Platform("UNKNOWN PLATFORM", BRUNO_UNKNOWN, false, false),
 };
 
@@ -33,19 +34,20 @@ void Platform::Init(void) {
   GetPlatformType();
 }
 
+#define ARRAYSIZE(a) \
+      ((sizeof(a) / sizeof(*(a))) / \
+          static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
+
 void Platform::GetPlatformType(void) {
   std::string result = GetLine((char *)PLATFORM_FILE, NULL);
 
-  if (result.empty() == false) {
-    for (int i = BRUNO_PLATFORM_FIRST; i < BRUNO_PLATFORM_MAX; i++) {
-      if ((result.size() == kPlatformTable[i].name_.size()) &&
-          (result.compare(0, kPlatformTable[i].name_.size(), kPlatformTable[i].name_) == 0)) {
-        name_ = kPlatformTable[i].name_;
-        type_ = kPlatformTable[i].type_;
-        has_hdd_ = kPlatformTable[i].has_hdd_;
-        has_fan_ = kPlatformTable[i].has_fan_;
-        break;
-      }
+  for (int i = 0; i < ARRAYSIZE(Platform::kPlatformTable); i++) {
+    if (result == kPlatformTable[i].name_) {
+      name_ = kPlatformTable[i].name_;
+      type_ = kPlatformTable[i].type_;
+      has_hdd_ = kPlatformTable[i].has_hdd_;
+      has_fan_ = kPlatformTable[i].has_fan_;
+      break;
     }
   }
 
