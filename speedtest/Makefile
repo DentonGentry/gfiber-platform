@@ -4,8 +4,8 @@ PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
 DEBUG?=-g
 WARNINGS=-Wall -Werror -Wno-unused-result -Wno-unused-but-set-variable
-CXXFLAGS=$(DEBUG) $(WARNINGS) -O3 -DNDEBUG -std=c++11
-LDFLAGS=$(DEBUG)
+CXXFLAGS=$(DEBUG) $(WARNINGS) -O3 -DNDEBUG -std=c++11 $(EXTRACFLAGS)
+LDFLAGS=$(DEBUG) $(EXTRALDFLAGS)
 
 GTEST_DIR=googletest
 GMOCK_DIR=googlemock
@@ -26,7 +26,7 @@ url.o: url.cc url.h
 speedtest.o: speedtest.cc speedtest.h curl_env.h options.h request.h url.h
 speedtest_main.o: speedtest_main.cc options.h speedtest.h
 speedtest: speedtest_main.o $(OBJS)
-	$(CXX) -o $@ $< $(OBJS) $(LFAGS) $(LIBS)
+	$(CXX) -o $@ $< $(OBJS) $(LDFLAGS) $(LIBS)
 
 libgtest.a:
 	g++ -isystem ${GTEST_DIR}/include -I${GTEST_DIR} \
