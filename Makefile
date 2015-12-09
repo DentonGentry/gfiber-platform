@@ -10,7 +10,6 @@ BUILD_WAVEGUIDE?=y
 BUILD_DVBUTILS?=y
 BUILD_SYSMGR?=y
 BUILD_STATUTILS?=y
-BUILD_SPEEDTEST?=y
 BUILD_CRYPTDEV?=    # default off: needs libdevmapper
 BUILD_SIGNING?=     # default off: needs libgtest
 export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
@@ -51,10 +50,6 @@ endif
 
 ifeq ($(BUILD_SIGNING),y)
 DIRS+=signing
-endif
-
-ifeq ($(BUILD_SPEEDTEST),y)
-DIRS+=speedtest
 endif
 
 
