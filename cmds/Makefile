@@ -69,6 +69,10 @@ ifeq ($(BUILD_IBEACON),y)
 ARCH_TARGETS += ibeacon eddystone
 endif
 
+ifeq ($(BUILD_QUANTENNA),y)
+ARCH_TARGETS += quantenna-kmsgd
+endif
+
 ifeq ($(BUILD_STATUTILS),y)
 TARGETS += statpitcher statcatcher
 endif
