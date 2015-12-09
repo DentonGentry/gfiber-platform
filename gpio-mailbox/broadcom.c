@@ -64,6 +64,7 @@ struct Gpio {
 
 struct Fan {
   int is_present;
+  int open_drain;
   unsigned int offset_data;
   unsigned int channel;
   int old_percent;
@@ -182,6 +183,7 @@ struct platform_info platforms[] = {
       .is_present = 1,                  // PWM 1
       .offset_data = 0x6580,            // PWM_CTRL ...
       .channel = 0,
+      .open_drain = 1,
     },
     .temp_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
@@ -252,6 +254,7 @@ struct platform_info platforms[] = {
       .is_present = 1,                  // PWM 1
       .offset_data = 0x6580,            // PWM_CTRL ...
       .channel = 0,
+      .open_drain = 1,
     },
     .temp_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
@@ -373,8 +376,22 @@ struct platform_info platforms[] = {
       .direction_value = 1,
       .old_val = -1,
     },
+    .fan_tick = {
+      .is_present = 1,                  // GPIO 78
+      .offset_direction = 0xa648,       // GIO_IODIR_EXT_HI
+      .offset_data = 0xa644,            // GIO_DATA_EXT_HI
+      .mask = 1<<14,
+      .shift = 14,
+      .off_value = 0,
+      .on_value = 1,
+      .direction_value = 1,
+      .old_val = -1,
+    },
     .fan_control = {
-      .is_present = 0,
+      .is_present = 1,                  // PWM 3
+      .offset_data = 0x9000,            // PWM_CTRL ...
+      .channel = 1,
+      .open_drain = 0,
     },
     .temp_monitor = {
       .is_present = 1,                  // 7252 AVS_RO_REGISTERS_0
@@ -453,6 +470,13 @@ static void init_gfhd254(UNUSED struct platform_info* p) {
   reg = mmap_addr + 0x17010;     // LDK_DUTYOFF, ON
   reg[0] = 0x40;
   reg[1] = 0xc0;                 // 0x40 off ticks then 0xc0 on ticks to dim a bit more.
+
+
+  // The fan is connected to PWM3, the register PWM3_CWORD_LSB is set to 1,
+  // this is the frequency of the PWM, the other pwm register control
+  // the duty cycle.
+  reg = mmap_addr + 0x9014;       // PWM3_CWORD_LSB
+  reg[0] = 1;
 }
 
 // Set the given PWM (pulse width modulator) to the given percent duty cycle.
@@ -468,13 +492,17 @@ static void set_pwm(struct Fan *f, int percent) {
   reg = mmap_addr + f->offset_data;
   if (f->channel == 0) {
     mask0 = 0xf0;       // preserve other channel
-    val0 = 0x09;        // open-drain|start
+    val0 = 0x01;        // open-drain|start
+    if (f->open_drain)
+      val0 |= 0x08;
     mask1 = 0x10;       // preserve
     val1 = 0x01;        // constant-freq
     on = 6;
   } else {
     mask0 = 0x0f;       // see above
-    val0 = 0x90;
+    val0 = 0x10;
+    if (f->open_drain)
+      val0 |= 0x80;
     mask1 = 0x01;
     val1 = 0x10;
     on = 8;
