@@ -121,6 +121,12 @@ wpa_gmk_rekey=0
 wpa_ptk_rekey=0
 """
 
+_WPA_SUPPLICANT_UNSECURED_TPL = """network={{
+\tssid="{ssid}"
+\tkey_mgmt=NONE
+}}
+"""
+
 
 def generate_hostapd_config(
     phy_info, interface, band, channel, width, protocols, psk, opt):
@@ -309,10 +315,13 @@ def generate_hostapd_config(
 def generate_wpa_supplicant_config(ssid, passphrase, opt):
   """Generate a wpa_supplicant config from the provided arguments."""
 
-  network_block = subprocess.check_output(
-      ('wpa_passphrase',
-       utils.sanitize_ssid(ssid),
-       utils.validate_and_sanitize_psk(passphrase)))
+  if passphrase is not None:
+    network_block = subprocess.check_output(
+        ('wpa_passphrase',
+         utils.sanitize_ssid(ssid),
+         utils.validate_and_sanitize_psk(passphrase)))
+  else:
+    network_block = _WPA_SUPPLICANT_UNSECURED_TPL.format(ssid=ssid)
 
   if opt.bssid:
     network_block_lines = network_block.splitlines(True)
