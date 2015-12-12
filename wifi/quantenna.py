@@ -10,18 +10,22 @@ import utils
 
 
 # Detect Quantenna device.
+#
 # qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250.
 # call_qcsapi runs on the LHOST, e.g. GFEX250.
+#
+# When called without arguments, qcsapi_pcie_static checks for a Quantenna
+# device without sending any RPCs. Both programs return 234 only if a Quantenna
+# device is present.
 _QCSAPI = None
 for qcsapi in ['qcsapi_pcie_static', 'call_qcsapi']:
   with open(os.devnull, 'w') as devnull:
     try:
-      subprocess.check_call([qcsapi, 'get_sys_status'],
-                            stdout=devnull, stderr=devnull)
-    except (OSError, subprocess.CalledProcessError):
+      if subprocess.call([qcsapi], stdout=devnull, stderr=devnull) == 234:
+        _QCSAPI = qcsapi
+        break
+    except OSError:
       continue
-  _QCSAPI = qcsapi
-  break
 
 
 def _qcsapi(*args):
