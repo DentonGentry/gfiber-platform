@@ -811,8 +811,7 @@ def set_client_wifi(opt):
   if band not in ('2.4', '5'):
     raise utils.BinWifiException('You must specify band with -b2.4 or -b5')
 
-  if 'WIFI_CLIENT_PSK' not in os.environ:
-    raise utils.BinWifiException('WIFI_CLIENT_PSK must be in the environment')
+  psk = os.environ.get('WIFI_CLIENT_PSK', None)
 
   if band == '5' and quantenna.has_quantenna():
     return quantenna.set_client_wifi(opt)
@@ -845,8 +844,7 @@ def set_client_wifi(opt):
       subprocess.check_call(
           ('ip', 'link', 'set', interface, 'address', mac_address))
 
-  wpa_config = configs.generate_wpa_supplicant_config(
-      opt.ssid, os.environ['WIFI_CLIENT_PSK'], opt)
+  wpa_config = configs.generate_wpa_supplicant_config(opt.ssid, psk, opt)
   if not _maybe_restart_wpa_supplicant(interface, wpa_config, opt):
     return False
 
@@ -924,7 +922,7 @@ def _run(argv):
     opt.band = '2.4'
 
   try:
-    success = {
+    function = {
         'set': set_wifi,
         'stop': stop_wifi,
         'off': stop_wifi,
@@ -933,9 +931,10 @@ def _run(argv):
         'setclient': set_client_wifi,
         'stopclient': stop_client_wifi,
         'stopap': stop_ap_wifi,
-    }[extra[0]](opt)
+    }[extra[0]]
   except KeyError:
     parser.fatal('Unrecognized command %s' % extra[0])
+  success = function(opt)
 
   if success:
     if extra[0] == 'set':

@@ -31,6 +31,18 @@ network={
 }
 """
 
+# pylint: disable=g-backslash-continuation
+_WPA_SUPPLICANT_CONFIG_BSSID_UNSECURED = \
+"""ctrl_interface=/var/run/wpa_supplicant
+ap_scan=1
+autoscan=exponential:1:30
+network={
+\tssid="some ssid"
+\tkey_mgmt=NONE
+\tbssid=12:34:56:78:90:ab
+}
+"""
+
 
 @wvtest.wvtest
 def generate_wpa_supplicant_config_test():
@@ -53,6 +65,10 @@ def generate_wpa_supplicant_config_test():
   config = configs.generate_wpa_supplicant_config(
       'some ssid', 'some passphrase', opt)
   wvtest.WVPASSEQ(_WPA_SUPPLICANT_CONFIG_BSSID, config)
+
+  config = configs.generate_wpa_supplicant_config(
+      'some ssid', None, opt)
+  wvtest.WVPASSEQ(_WPA_SUPPLICANT_CONFIG_BSSID_UNSECURED, config)
 
 
 _PHY_INFO = """Wiphy phy0
