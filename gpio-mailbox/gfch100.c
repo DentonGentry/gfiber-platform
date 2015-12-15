@@ -17,8 +17,9 @@
 
 #define GPIO_OUT                "out"
 
-#define GPIO_RED                "30"
-#define GPIO_ACTIVITY           "31"
+/* GPIO_ACTIVITY LED is blue on Chimera. */
+#define GPIO_ACTIVITY           "30"
+#define GPIO_RED                "31"
 
 #define GPIO_BASE_DIR           "/sys/class/gpio"
 #define GPIO_EXPORT             GPIO_BASE_DIR "/export"
