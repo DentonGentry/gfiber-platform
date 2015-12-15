@@ -26,7 +26,7 @@ typedef enum PinId_e {
   /* pressed = 1, not pressed = 0 */
   PIN_BUTTON_RESET,
 
-  /* milli-degrees celcius */
+  /* milli-degrees celsius */
   PIN_TEMP_CPU,
   PIN_TEMP_EXTERNAL,
 
