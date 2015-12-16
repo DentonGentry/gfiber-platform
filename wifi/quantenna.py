@@ -47,6 +47,9 @@ def _set(mode, opt):
   for param, value in config.iteritems():
     _qcsapi('update_config_param', 'wifi0', param, value)
 
+  mac = subprocess.check_output(['hnvram', '-rq', 'MAC_ADDR_WIFI2']).strip()
+  _qcsapi('set_mac_addr', 'wifi0', mac)
+
   if int(_qcsapi('is_startprod_done')):
     _qcsapi('reload_in_mode', 'wifi0', mode)
   else:
