@@ -9,27 +9,23 @@ import time
 import utils
 
 
-# Detect Quantenna device.
-#
-# qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250.
-# call_qcsapi runs on the LHOST, e.g. GFEX250.
-#
-# When called without arguments, qcsapi_pcie_static checks for a Quantenna
-# device without sending any RPCs. Both programs return 234 only if a Quantenna
-# device is present.
-_QCSAPI = None
-for qcsapi in ['qcsapi_pcie_static', 'call_qcsapi']:
-  with open(os.devnull, 'w') as devnull:
-    try:
-      if subprocess.call([qcsapi], stdout=devnull, stderr=devnull) == 234:
-        _QCSAPI = qcsapi
-        break
-    except OSError:
-      continue
+def _get_qcsapi():
+  """Detect Quantenna device."""
+  if not hasattr(_get_qcsapi, 'qcsapi'):
+    _get_qcsapi.qcsapi = None
+    if (utils.subprocess_quiet(['runnable', 'qcsapi_pcie_static']) == 0 and
+        utils.subprocess_quiet(['modinfo', 'qdpc-host'], no_stdout=True) == 0):
+      # qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250. qdpc-host is only
+      # loaded if a Quantenna device is present.
+      _get_qcsapi.qcsapi = 'qcsapi_pcie_static'
+    elif utils.subprocess_quiet(['runnable', 'call_qcsapi']) == 0:
+      # call_qcsapi runs on the LHOST, e.g. GFEX250.
+      _get_qcsapi.qcsapi = 'call_qcsapi'
+  return _get_qcsapi.qcsapi
 
 
 def _qcsapi(*args):
-  return subprocess.check_output([_QCSAPI] + list(args))
+  return subprocess.check_output([_get_qcsapi()] + list(args))
 
 
 def _set(mode, opt):
@@ -85,7 +81,7 @@ def _stop(_):
 
 
 def has_quantenna():
-  return _QCSAPI is not None
+  return _get_qcsapi() is not None
 
 
 def set_wifi(opt):
