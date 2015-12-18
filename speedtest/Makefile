@@ -43,10 +43,10 @@ libgmock.a:
 	ar -rv libgmock.a gtest-all.o gmock-all.o
 
 %_test.o: %_test.cc %.h
-	$(CXX) -c $< $(CXXFLAGS) $(TFLAGS)
+	$(CXX) -c $< $(TFLAGS) $(CXXFLAGS)
 
 %_test: %_test.o %.o libgmock.a $(TOBJS)
-	$(CXX) -o $@ $(TFLAGS) googlemock/src/gmock_main.cc $< $*.o $(TOBJS) $(LIBS) libgmock.a
+	$(CXX) -o $@ $(TFLAGS) googlemock/src/gmock_main.cc $< $*.o $(TOBJS) $(LDFLAGS) $(LIBS) libgmock.a
 	./$@
 
 test: options_test request_test url_test
