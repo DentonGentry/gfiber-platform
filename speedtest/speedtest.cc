@@ -75,9 +75,9 @@ void Speedtest::RunDownload(int id) {
   http::Request::DownloadFn noop = [](void *, size_t) {};
   while (!end_download_) {
     long downloaded = 0;
-    download->set_param("i", std::to_string(id));
-    download->set_param("size", std::to_string(options_.download_size));
-    download->set_param("time", std::to_string(SystemTimeMicros()));
+    download->set_param("i", speedtest::to_string(id));
+    download->set_param("size", speedtest::to_string(options_.download_size));
+    download->set_param("time", speedtest::to_string(SystemTimeMicros()));
     download->set_progress_fn([&](curl_off_t,
                                   curl_off_t dlnow,
                                   curl_off_t,

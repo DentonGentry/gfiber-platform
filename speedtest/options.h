@@ -8,6 +8,8 @@
 
 namespace speedtest {
 
+extern const char* kDefaultHost;
+
 struct Options {
   std::vector<http::Url> hosts;
   int number;

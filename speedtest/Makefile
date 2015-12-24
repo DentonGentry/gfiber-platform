@@ -12,7 +12,7 @@ GMOCK_DIR=googlemock
 TFLAGS=$(DEBUG) -isystem ${GTEST_DIR}/include -isystem $(GMOCK_DIR)/include -pthread -std=c++11
 
 LIBS=-lcurl -lpthread
-TOBJS=curl_env.o url.o errors.o request.o
+TOBJS=curl_env.o url.o errors.o request.o utils.o
 OBJS=errors.o curl_env.o options.o request.o utils.o speedtest.o url.o
 
 all: speedtest
@@ -42,11 +42,14 @@ libgmock.a:
 		-pthread -c ${GMOCK_DIR}/src/gmock-all.cc
 	ar -rv libgmock.a gtest-all.o gmock-all.o
 
+libspeedtesttest.a: $(TOBJS)
+	ar -rv libspeedtesttest.a $(TOBJS)
+
 %_test.o: %_test.cc %.h
 	$(CXX) -c $< $(TFLAGS) $(CXXFLAGS)
 
-%_test: %_test.o %.o libgmock.a $(TOBJS)
-	$(CXX) -o $@ $(TFLAGS) googlemock/src/gmock_main.cc $< $*.o $(TOBJS) $(LDFLAGS) $(LIBS) libgmock.a
+%_test: %_test.o %.o libgmock.a libspeedtesttest.a
+	$(CXX) -o $@ $(TFLAGS) googlemock/src/gmock_main.cc $< $*.o $(LDFLAGS) $(LIBS) libgmock.a libspeedtesttest.a
 	./$@
 
 test: options_test request_test url_test

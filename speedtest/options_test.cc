@@ -116,7 +116,7 @@ TEST(OptionsTest, FullLong_Valid) {
   EXPECT_EQ(123, options.time_millis);
   EXPECT_EQ(12, options.number);
   EXPECT_EQ(1000, options.progress_millis);
-  EXPECT_THAT(options.hosts, testing::IsEmpty());
+  EXPECT_THAT(options.hosts, testing::ElementsAre(http::Url(kDefaultHost)));
 }
 
 }  // namespace

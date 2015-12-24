@@ -28,7 +28,7 @@ class RequestTest : public testing::Test {
   void VerifyUrl(const char *expected,
                  const char *url,
                  Request::QueryStringParams params) {
-    request->url().Parse(url);
+    request->set_url(Url(url));
     request->params() = params;
     request->UpdateUrl();
     EXPECT_EQ(expected, request->url().url());

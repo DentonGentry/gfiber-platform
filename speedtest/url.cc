@@ -1,4 +1,5 @@
 #include "url.h"
+#include "utils.h"
 
 #include <iostream>
 
@@ -261,7 +262,7 @@ std::string Url::url() const {
         (scheme_ == kSchemeHttps && port_ == kDefaultHttpsPort);
     if (!is_default_port) {
       url.append(":");
-      url.append(std::to_string(port_));
+      url.append(speedtest::to_string(port_));
     }
   }
   url.append(path_);
@@ -394,7 +395,7 @@ bool Url::Port() {
     return false;
   }
   std::string port(start, iter);
-  int portnum = std::stoi(port);
+  int portnum = speedtest::stoi(port);
   if (portnum < 1 || portnum > 65535) {
     return false;
   }

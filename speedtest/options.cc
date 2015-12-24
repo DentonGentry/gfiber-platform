@@ -8,9 +8,10 @@
 #include "url.h"
 
 namespace speedtest {
-namespace {
 
-const char *kDefaultHost = "speedtest.googlefiber.net";
+const char* kDefaultHost = "speedtest.googlefiber.net";
+
+namespace {
 
 bool ParseLong(const char *s, char **endptr, long *size) {
   assert(s != nullptr);
