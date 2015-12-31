@@ -1,3 +1,19 @@
+/*
+ * Copyright 2015 Google Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "options.h"
 
 #include <assert.h>
@@ -42,13 +58,14 @@ bool ParseSize(const char *s, long *size) {
   return true;
 }
 
-const char *kShortOpts = "d:u:t:n:p:vh";
+const char *kShortOpts = "d:u:t:n:p:s:vh";
 struct option kLongOpts[] = {
     {"help", no_argument, nullptr, 'h'},
     {"number", required_argument, nullptr, 'n'},
     {"download_size", required_argument, nullptr, 'd'},
     {"upload_size", required_argument, nullptr, 'u'},
     {"progress", required_argument, nullptr, 'p'},
+    {"serverid", required_argument, nullptr, 's'},  // ignored
     {"time", required_argument, nullptr, 't'},
     {"verbose", no_argument, nullptr, 'v'},
     {nullptr, 0, nullptr, 0},
@@ -131,6 +148,10 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
         options->progress_millis = static_cast<int>(progress);
         break;
       }
+      case 's':
+        // serverid is an argument supported by the older speedtest
+        // implementation. It is ignored here to ease the transition.
+        break;
       default:
         return false;
     }
