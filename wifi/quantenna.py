@@ -43,8 +43,12 @@ def _set(mode, opt):
   for param, value in config.iteritems():
     _qcsapi('update_config_param', 'wifi0', param, value)
 
-  mac = subprocess.check_output(['hnvram', '-rq', 'MAC_ADDR_WIFI2']).strip()
-  _qcsapi('set_mac_addr', 'wifi0', mac)
+  macs = {'wlan0': 'MAC_ADDR_WIFI', 'wlan1': 'MAC_ADDR_WIFI2'}
+  for dev, var in macs.iteritems():
+    if utils.read_or_empty('/sys/class/net/%s/device/vendor' % dev) == '0x1bb5':
+      mac = subprocess.check_output(['hnvram', '-rq', var]).strip()
+      _qcsapi('set_mac_addr', 'wifi0', mac)
+      break
 
   if int(_qcsapi('is_startprod_done')):
     _qcsapi('reload_in_mode', 'wifi0', mode)
