@@ -174,6 +174,7 @@ void accumulate_stats(int s, double delta, const char *interface,
   uint32_t tx_bytes, rx_bytes, tx_pkts, rx_pkts, rx_multipkts;
   uint32_t tx_bytes2, rx_bytes2, tx_pkts2, rx_pkts2, rx_multipkts2;
   uint32_t rx_unipkts;
+  static int max_underflow_log = 10;
 
   sendreq(s, interface);
   recvresp(s, &tx_bytes, &rx_bytes, &tx_pkts, &rx_pkts, &rx_multipkts);
@@ -206,6 +207,15 @@ void accumulate_stats(int s, double delta, const char *interface,
   rx_unipkts = rx_pkts2 - rx_multipkts;
   *rx_uni_pps = (rx_unipkts - old->rx_unipkts) / delta;
   *rx_multi_pps = (rx_multipkts - old->rx_multipkts) / delta;
+
+  if (*rx_uni_pps > (double)0x80000000) {
+    *rx_uni_pps = 0;
+    if (max_underflow_log > 0) {
+      printf("rx_unipkts underflow: pkts2 %u multipkts %u old_unipkts %u\n",
+          rx_pkts2, rx_multipkts, old->rx_unipkts);
+      max_underflow_log--;
+    }
+  }
 
   old->tx_bytes = tx_bytes;
   old->rx_bytes = rx_bytes;
