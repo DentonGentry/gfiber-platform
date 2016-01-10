@@ -25,6 +25,7 @@ TARGETS=\
 	buttonmon \
 	chg_mod_own \
 	cpulog \
+	dhcpvendortax \
 	dhcp-rogue \
 	dir-monitor \
 	diskbench \
@@ -86,10 +87,12 @@ HOST_CC ?= cc
 HOST_CXX ?= g++
 HOST_LD ?= cc
 HOST_PROTOC ?= $(HOSTDIR)/usr/bin/protoc
+GPERF ?= gperf
 CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=c99 -D_GNU_SOURCE $(EXTRACFLAGS)
 CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=gnu++0x -D_GNU_SOURCE $(EXTRACXXFLAGS)
+LDFLAGS += $(EXTRALDFLAGS)
 HOST_INCS=-I$(HOSTDIR)/usr/include
 HOST_LIBS=-L$(HOSTDIR)/usr/lib -Wl,-rpath=$(HOSTDIR)/usr/lib
 INCS=-I../libstacktrace
@@ -212,6 +215,13 @@ wifi_files: wifi_files.o
 wifi_files: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
 host-wifi_files_test: host-wifi_files_test.o
 host-wifi_files_test: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
+dhcpvendortax: dhcpvendortax.o dhcpvendorlookup.o
+dhcpvendorlookup.c: dhcpvendorlookup.gperf
+	$(GPERF) -G -C -t -L ANSI-C -N exact_match -K vendor_class \
+		--includes --output-file=dhcpvendorlookup.c dhcpvendorlookup.gperf
+dhcpvendorlookup.o: CFLAGS += -Wno-missing-field-initializers
+host-dhcpvendorlookup.o: CFLAGS += -Wno-missing-field-initializers
+host-dhcpvendortax: host-dhcpvendortax.o host-dhcpvendorlookup.o
 
 TESTS = $(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
 ifeq ($(RUN_HOST_TESTS),y)
