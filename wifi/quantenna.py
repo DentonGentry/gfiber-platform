@@ -9,23 +9,20 @@ import time
 import utils
 
 
-def _get_qcsapi():
-  """Detect Quantenna device."""
-  if not hasattr(_get_qcsapi, 'qcsapi'):
-    _get_qcsapi.qcsapi = None
-    if (utils.subprocess_quiet(['runnable', 'qcsapi_pcie_static']) == 0 and
-        utils.subprocess_quiet(['modinfo', 'qdpc-host'], no_stdout=True) == 0):
-      # qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250. qdpc-host is only
-      # loaded if a Quantenna device is present.
-      _get_qcsapi.qcsapi = 'qcsapi_pcie_static'
-    elif utils.subprocess_quiet(['runnable', 'call_qcsapi']) == 0:
-      # call_qcsapi runs on the LHOST, e.g. GFEX250.
-      _get_qcsapi.qcsapi = 'call_qcsapi'
-  return _get_qcsapi.qcsapi
+_INTERFACE = subprocess.check_output(['get-quantenna-interface']).strip()
+_QCSAPI = None
+
+
+# qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250.
+# call_qcsapi runs on the LHOST, e.g. GFEX250.
+for qcsapi in ['qcsapi_pcie_static', 'call_qcsapi']:
+  if utils.subprocess_quiet(['runnable', qcsapi]) == 0:
+    _QCSAPI = qcsapi
+    break
 
 
 def _qcsapi(*args):
-  return subprocess.check_output([_get_qcsapi()] + list(args))
+  return subprocess.check_output([_QCSAPI] + list(args))
 
 
 def _set(mode, opt):
@@ -44,11 +41,8 @@ def _set(mode, opt):
     _qcsapi('update_config_param', 'wifi0', param, value)
 
   macs = {'wlan0': 'MAC_ADDR_WIFI', 'wlan1': 'MAC_ADDR_WIFI2'}
-  for dev, var in macs.iteritems():
-    if utils.read_or_empty('/sys/class/net/%s/device/vendor' % dev) == '0x1bb5':
-      mac = subprocess.check_output(['hnvram', '-rq', var]).strip()
-      _qcsapi('set_mac_addr', 'wifi0', mac)
-      break
+  mac = subprocess.check_output(['hnvram', '-rq', macs[_INTERFACE]]).strip()
+  _qcsapi('set_mac_addr', 'wifi0', mac)
 
   if int(_qcsapi('is_startprod_done')):
     _qcsapi('reload_in_mode', 'wifi0', mode)
@@ -85,7 +79,7 @@ def _stop(_):
 
 
 def has_quantenna():
-  return _get_qcsapi() is not None
+  return _INTERFACE and _QCSAPI
 
 
 def set_wifi(opt):
