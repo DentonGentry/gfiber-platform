@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python -S
 
 """Wifi commands for Quantenna using QCSAPI."""
 
@@ -9,27 +9,31 @@ import time
 import utils
 
 
+def _get_interface():
+  return subprocess.check_output(['get-quantenna-interface']).strip() or None
+
+
 def _get_qcsapi():
-  """Detect Quantenna device."""
-  if not hasattr(_get_qcsapi, 'qcsapi'):
-    _get_qcsapi.qcsapi = None
-    if (utils.subprocess_quiet(['runnable', 'qcsapi_pcie_static']) == 0 and
-        utils.subprocess_quiet(['modinfo', 'qdpc-host'], no_stdout=True) == 0):
-      # qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250. qdpc-host is only
-      # loaded if a Quantenna device is present.
-      _get_qcsapi.qcsapi = 'qcsapi_pcie_static'
-    elif utils.subprocess_quiet(['runnable', 'call_qcsapi']) == 0:
-      # call_qcsapi runs on the LHOST, e.g. GFEX250.
-      _get_qcsapi.qcsapi = 'call_qcsapi'
-  return _get_qcsapi.qcsapi
+  # qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250.
+  # call_qcsapi runs on the LHOST, e.g. GFEX250.
+  return next((qcsapi for qcsapi in ['qcsapi_pcie_static', 'call_qcsapi']
+               if utils.subprocess_quiet(['runnable', qcsapi]) == 0), None)
+
+
+def _get_mac_address():
+  var = {'wlan0': 'MAC_ADDR_WIFI', 'wlan1': 'MAC_ADDR_WIFI2'}[_get_interface()]
+  return subprocess.check_output(['hnvram', '-rq', var]).strip()
 
 
 def _qcsapi(*args):
-  return subprocess.check_output([_get_qcsapi()] + list(args))
+  return subprocess.check_output([_get_qcsapi()] + list(args)).strip()
 
 
 def _set(mode, opt):
   """Enable wifi."""
+  if opt.band != '5' or not _get_interface() or not _get_qcsapi():
+    return False
+
   _qcsapi('rfenable', '0')
   _qcsapi('restore_default_config', 'noreboot')
 
@@ -43,12 +47,7 @@ def _set(mode, opt):
   for param, value in config.iteritems():
     _qcsapi('update_config_param', 'wifi0', param, value)
 
-  macs = {'wlan0': 'MAC_ADDR_WIFI', 'wlan1': 'MAC_ADDR_WIFI2'}
-  for dev, var in macs.iteritems():
-    if utils.read_or_empty('/sys/class/net/%s/device/vendor' % dev) == '0x1bb5':
-      mac = subprocess.check_output(['hnvram', '-rq', var]).strip()
-      _qcsapi('set_mac_addr', 'wifi0', mac)
-      break
+  _qcsapi('set_mac_addr', 'wifi0', _get_mac_address())
 
   if int(_qcsapi('is_startprod_done')):
     _qcsapi('reload_in_mode', 'wifi0', mode)
@@ -67,7 +66,7 @@ def _set(mode, opt):
     _qcsapi('set_option', 'wifi0', 'ssid_broadcast',
             '0' if opt.hidden_mode else '1')
     _qcsapi('rfenable', '1')
-  else:
+  elif mode == 'sta':
     _qcsapi('create_ssid', 'wifi0', opt.ssid)
     _qcsapi('ssid_set_passphrase', 'wifi0', opt.ssid, '0',
             os.environ['WIFI_CLIENT_PSK'])
@@ -78,14 +77,13 @@ def _set(mode, opt):
   return True
 
 
-def _stop(_):
+def _stop(opt):
   """Disable wifi."""
+  if opt.band != '5' or not _get_interface() or not _get_qcsapi():
+    return False
+
   _qcsapi('rfenable', '0')
   return True
-
-
-def has_quantenna():
-  return _get_qcsapi() is not None
 
 
 def set_wifi(opt):

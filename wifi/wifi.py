@@ -220,8 +220,8 @@ def set_wifi(opt):
   if opt.encryption == 'WEP' or '_PSK_' in opt.encryption:
     psk = os.environ['WIFI_PSK']
 
-  if band == '5' and quantenna.has_quantenna():
-    return quantenna.set_wifi(opt)
+  if quantenna.set_wifi(opt):
+    return True
 
   if iw.RUNNABLE_WL() and not iw.RUNNABLE_IW():
     _set_wifi_broadcom(opt)
@@ -354,8 +354,8 @@ def stop_ap_wifi(opt):
   for band in opt.band.split():
     utils.log('stopping AP for %s GHz...', band)
 
-    if band == '5' and quantenna.has_quantenna():
-      success &= quantenna.stop_ap_wifi(opt)
+    if quantenna.stop_ap_wifi(opt):
+      success &= True
       continue
 
     interface = iw.find_interface_from_band(
@@ -813,8 +813,8 @@ def set_client_wifi(opt):
 
   psk = os.environ.get('WIFI_CLIENT_PSK', None)
 
-  if band == '5' and quantenna.has_quantenna():
-    return quantenna.set_client_wifi(opt)
+  if quantenna.set_client_wifi(opt):
+    return True
 
   phy = iw.find_phy(band, 'auto')
   if phy is None:
@@ -866,8 +866,8 @@ def stop_client_wifi(opt):
   for band in opt.band.split():
     utils.log('stopping client for %s GHz...', band)
 
-    if band == '5' and quantenna.has_quantenna():
-      success &= quantenna.stop_client_wifi(opt)
+    if quantenna.stop_client_wifi(opt):
+      success &= True
       continue
 
     interface = iw.find_interface_from_band(
