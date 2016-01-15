@@ -74,7 +74,7 @@ JSON_RESPONSE = {
 class FakeJsonPoll(jsonpoll.JsonPoll):
   """Mock JsonPoll."""
 
-  def GetHttpResponse(self, unused_url, unused_postdata, unused_output_file):
+  def GetHttpResponse(self, unused_url):
     self.get_response_called = True
     return json.dumps(JSON_RESPONSE)
 
@@ -83,7 +83,7 @@ class JsonPollTest(unittest.TestCase):
 
   def setUp(self):
     self.CreateTempFile()
-    self.poller = FakeJsonPoll('fakehost.blah', 31337)
+    self.poller = FakeJsonPoll('fakehost.blah', 31337, 1)
 
   def tearDown(self):
     self.DeleteTempFile()

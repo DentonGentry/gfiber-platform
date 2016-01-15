@@ -23,7 +23,6 @@ import socket
 import sys
 import tempfile
 import time
-import urllib
 import urllib2
 import options
 
@@ -31,8 +30,9 @@ import options
 optspec = """
 jsonpoll [options]
 --
-h,host=      host to connect to [localhost]
-p,port=      port to connect to [8000]
+host=            host to connect to [localhost]
+port=            port to connect to [8000]
+i,interval=      poll interval in seconds [15]
 """
 
 
@@ -44,31 +44,28 @@ class JsonPoll(object):
   # os.rename() when moving files into the final destination.
   OUTPUT_DIR = '/tmp/glaukus/'
 
-  # The time to wait between requests.
-  _DURATION_BETWEEN_POLLS_SECS = 15
-
   # The time to wait before giving up on blocking connection operations.
   _SOCKET_TIMEOUT_SECS = 15
 
-  def __init__(self, host, port):
+  def __init__(self, host, port, interval):
     self.hostport = 'http://%s:%d' % (host, port)
+
+    # The time to wait between requests in seconds.
+    self.poll_interval_secs = interval
+
     # TODO(cgibson): Support more request types once Glaukus Manager's JSON spec
     # is more stable.
-    self.report_output_file = os.path.join(self.OUTPUT_DIR, 'report.json')
-    self.paths_to_statfiles = {'info/report': self.report_output_file}
+    self.api_modem_output_file = os.path.join(self.OUTPUT_DIR, 'modem.json')
+    self.paths_to_statfiles = {'api/modem': self.api_modem_output_file}
     self.last_response = None
 
   def RequestStats(self):
-    """Sends a request via HTTP POST to the specified web server."""
+    """Sends a request via HTTP GET to the specified web server."""
     for path, output_file in self.paths_to_statfiles.iteritems():
       url = '%s/%s' % (self.hostport, path)
-      # TODO(cgibson): POST data might need to get folded into the dict somehow
-      # once we know a bit more about the actual Glaukus implementation works
-      # and what real requests will look like.
-      post_data = {'info': None}
       tmpfile = ''
       try:
-        response = self.GetHttpResponse(url, post_data, output_file)
+        response = self.GetHttpResponse(url)
         if not response:
           return False
         elif self.last_response == response:
@@ -96,14 +93,11 @@ class JsonPoll(object):
         if os.path.exists(tmpfile):
           os.unlink(tmpfile)
 
-  def GetHttpResponse(self, url, post_data, output_file):
+  def GetHttpResponse(self, url):
     """Creates a request and retrieves the response from a web server."""
-    print 'Connecting to %s, post_data:%s, output_file:%s' % (url, post_data,
-                                                              output_file)
-    data = urllib.urlencode(post_data)
-    req = urllib2.Request(url, data)
+    print 'Connecting to %s' % url
     try:
-      handle = urllib2.urlopen(req, timeout=self._SOCKET_TIMEOUT_SECS)
+      handle = urllib2.urlopen(url, timeout=self._SOCKET_TIMEOUT_SECS)
       response = handle.read()
     except socket.timeout as ex:
       print ('Connection to %s timed out after %d seconds: %s'
@@ -128,13 +122,13 @@ class JsonPoll(object):
   def RunForever(self):
     while True:
       self.RequestStats()
-      time.sleep(self._DURATION_BETWEEN_POLLS_SECS)
+      time.sleep(self.poll_interval_secs)
 
 
 def main():
   o = options.Options(optspec)
   (opt, unused_flags, unused_extra) = o.parse(sys.argv[1:])
-  poller = JsonPoll(opt.host, opt.port)
+  poller = JsonPoll(opt.host, opt.port, opt.interval)
   poller.RunForever()
 
 
