@@ -32,21 +32,8 @@ def matching_calls_indices(accept):
 
 
 @wvtest.wvtest
-def not_5ghz_test():
-  opt = FakeOptDict()
-  opt.band = '2.4'
-  set_fakes()
-  wvtest.WVFAIL(quantenna.set_wifi(opt))
-  wvtest.WVFAIL(quantenna.set_client_wifi(opt))
-  wvtest.WVFAIL(quantenna.stop_ap_wifi(opt))
-  wvtest.WVFAIL(quantenna.stop_client_wifi(opt))
-  wvtest.WVPASSEQ(calls, [])
-
-
-@wvtest.wvtest
 def not_quantenna_test():
   opt = FakeOptDict()
-  opt.band = '5'
   set_fakes(interface='')
   wvtest.WVFAIL(quantenna.set_wifi(opt))
   wvtest.WVFAIL(quantenna.set_client_wifi(opt))
@@ -70,7 +57,6 @@ def not_quantenna_test():
 @wvtest.wvtest
 def set_wifi_test():
   opt = FakeOptDict()
-  opt.band = '5'
   set_fakes()
 
   # Run set_wifi for the first time.
@@ -156,6 +142,17 @@ def set_wifi_test():
   i = matching_calls_indices(['create_ssid', 'ssid_set_passphrase'])
   wvtest.WVPASSLT(rim, i[0])
   wvtest.WVPASSLT(i[-1], calls.index(['apply_security_config', 'wifi0']))
+
+
+@wvtest.wvtest
+def stop_wifi_test():
+  opt = FakeOptDict()
+  set_fakes()
+  wvtest.WVPASS(quantenna.stop_ap_wifi(opt))
+  wvtest.WVPASS(['rfenable', '0'] in calls)
+  set_fakes()
+  wvtest.WVPASS(quantenna.stop_client_wifi(opt))
+  wvtest.WVPASS(['rfenable', '0'] in calls)
 
 
 if __name__ == '__main__':

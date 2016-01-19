@@ -31,7 +31,7 @@ def _qcsapi(*args):
 
 def _set(mode, opt):
   """Enable wifi."""
-  if opt.band != '5' or not _get_interface() or not _get_qcsapi():
+  if not _get_interface() or not _get_qcsapi():
     return False
 
   _qcsapi('rfenable', '0')
@@ -77,9 +77,9 @@ def _set(mode, opt):
   return True
 
 
-def _stop(opt):
+def _stop(_):
   """Disable wifi."""
-  if opt.band != '5' or not _get_interface() or not _get_qcsapi():
+  if not _get_interface() or not _get_qcsapi():
     return False
 
   _qcsapi('rfenable', '0')
