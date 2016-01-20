@@ -55,6 +55,7 @@ r,rootfs=         rootfs image file name [rootfs.squashfs]
 o,hostdir=        host directory
 b,bindir=         binary directory
 s,sign            sign image with production key
+bolt_sign         sign a bolt image
 t,signing_tool=   tool to call to do the signing [brcm_sign_enc]
 q,quiet           suppress print
 """
@@ -126,8 +127,10 @@ def FakeSign(fname):
     f.write(c)
 
 
-def RealSign(hostdir, key, ifname, ofname, signing_tool):
+def RealSign(bindir, hostdir, key, ifname, ofname, signing_tool):
   """Sign the image with production key."""
+  olddir = os.getcwd()
+  os.chdir(os.path.join(bindir, 'signing'))
   p = subprocess.Popen([os.path.join(hostdir, 'usr/bin', signing_tool)],
                        stdin=subprocess.PIPE, shell=False)
   for cmd in ['sign_kernel_file', ifname, ofname + '-sig.bin', 'l', key,
@@ -135,8 +138,36 @@ def RealSign(hostdir, key, ifname, ofname, signing_tool):
     p.stdin.write(cmd + '\n')
   p.stdin.close()
   retval = p.wait()
+  os.chdir(olddir)
   if retval:
     raise Exception('%s returned exit code %d' % (signing_tool, retval))
+
+
+def RealSignBolt(hostdir, fname):
+  """Sign the kernel image with the bolt signing tool.
+
+  This uses the broadcom signing tool to sign a kerel for
+  secure boot.  The function expects to be called with the
+  current directory equal to out/build/images.
+
+  Args:
+    hostdir: Absoluate path to buildroot's out/host directory.
+    fname: Name of the image to be signed
+
+  Raises:
+    Exception: if the signing tools fails.
+  """
+
+  tool_path = os.path.join(hostdir, 'usr/bin/boltsigning/gfiber')
+  shutil.copy('signing/gfhd254_private.pem', '/dev/shm/gfhd254_private.pem')
+  shutil.copy(fname, os.path.join(tool_path, 'kernel.img'))
+  exit_code = subprocess.call(
+      ['wine', '../imagetool.exe', '-L', 'kernel', '-O', 'kernel.cfg',
+       '-K', 'signing=true'], cwd=tool_path)
+  subprocess.call(['shred', '-fuz', '/dev/shm/gfhd254_private.pem'])
+  if exit_code:
+    raise Exception('bolt signing tool returned exit code %d' % (exit_code,))
+  shutil.copy(os.path.join(tool_path, 'kernel.img.signed'), fname)
 
 
 def PackVerity(kname, vname, info):
@@ -185,14 +216,15 @@ def main():
              os.path.join(opt.bindir, 'hash.bin'),
              verity_table)
   if opt.sign:
-    olddir = os.getcwd()
-    ifname = os.path.join(opt.bindir, 'signing', opt.kernel)
-    ofname = os.path.join(opt.bindir, opt.kernel)
-    shutil.copy(ofname, ifname)
-    os.chdir(os.path.join(opt.bindir, 'signing'))
-    RealSign(opt.hostdir, 'gfiber_private.pem', ifname, ofname,
-             opt.signing_tool)
-    os.chdir(olddir)
+    if opt.bolt_sign:
+      fname = os.path.join(opt.bindir, opt.kernel)
+      RealSignBolt(opt.hostdir, fname)
+    else:
+      ifname = os.path.join(opt.bindir, 'signing', opt.kernel)
+      ofname = os.path.join(opt.bindir, opt.kernel)
+      shutil.copy(ofname, ifname)
+      RealSign(opt.bindir, opt.hostdir, 'gfiber_private.pem', ifname, ofname,
+               opt.signing_tool)
   else:
     FakeSign(os.path.join(opt.bindir, opt.kernel))
 
