@@ -702,6 +702,7 @@ int main(int argc, char **argv) {
         ssize_t linelen = p - start;
         suppress_mac_addresses(start, linelen, ':');
         suppress_mac_addresses(start, linelen, '-');
+        suppress_mac_addresses(start, linelen, '_');
         suppress_media_filenames(start, linelen, "/var/media/pictures/");
         suppress_media_filenames(start, linelen, "/var/media/videos/");
         flush(header, headerlen, start, linelen);
