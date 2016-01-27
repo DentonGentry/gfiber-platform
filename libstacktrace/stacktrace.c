@@ -19,7 +19,7 @@ static int safe_strlen(const char *s) {
 }
 
 #define WRITELEN(s, l) do {if (write(2, s, l)) {}} while (0)
-#define WRITE(s) do {if (write(2, s, sizeof(s))) {}} while (0)
+#define WRITE(s) do {if (write(2, s, safe_strlen(s))) {}} while (0)
 #define WRITEINT(i) { \
     char *str = format_uint(i); \
     WRITELEN(str, safe_strlen(str)); \
