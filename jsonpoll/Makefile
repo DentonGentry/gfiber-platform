@@ -13,8 +13,13 @@ install:
 install-libs:
 	@echo "No libs to install."
 
-test:
-	$(PYTHON) jsonpoll_test.py
+test: lint
+	set -e; \
+	for pytest in $(wildcard *_test.py); do \
+		echo; \
+		echo "Testing $$pytest"; \
+		$(PYTHON) $$pytest; \
+	done
 
 clean:
 	rm -rf *.pyc

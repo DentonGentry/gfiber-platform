@@ -13,9 +13,10 @@ BUILD_STATUTILS?=y
 BUILD_SPEEDTEST?=y
 BUILD_CRYPTDEV?=    # default off: needs libdevmapper
 BUILD_SIGNING?=     # default off: needs libgtest
+BUILD_JSONPOLL?=n
 export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
 	BUILD_IBEACON BUILD_WAVEGUIDE BUILD_DVBUTILS BUILD_SYSMGR \
-	BUILD_STATUTILS BUILD_CRYPTDEV BUILD_SIGNING
+	BUILD_STATUTILS BUILD_CRYPTDEV BUILD_SIGNING BUILD_JSONPOLL
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
@@ -57,6 +58,9 @@ ifeq ($(BUILD_SPEEDTEST),y)
 DIRS+=speedtest
 endif
 
+ifeq ($(BUILD_JSONPOLL),y)
+DIRS+=jsonpoll
+endif
 
 ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfsc100)
 DIRS+=diags
