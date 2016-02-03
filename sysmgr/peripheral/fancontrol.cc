@@ -151,12 +151,12 @@ const FanControlParams FanControl::kGFHD200FanCtrlSocDefaults = {
                         };
 
 const FanControlParams FanControl::kGFHD254FanCtrlSocDefaults = {
-                          temp_setpt    : 90,
-                          temp_max      : 100,
-                          temp_step     : 2,
-                          duty_cycle_min: 12,
-                          duty_cycle_max: 40,
-                          pwm_step      : 1,
+                          temp_setpt    : 88,
+                          temp_max      : 105,
+                          temp_step     : 3,
+                          duty_cycle_min: 25,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2,
                           temp_overheat : 120,
                         };
 

@@ -6,6 +6,3 @@ GFMS100_SOC    90     100   2      25    100   2
 GFMS100_HDD    57     60    2      25    100   2
 
 GFHD100_SOC    90     100   2      12    40    1
-
-# TODO(jnewlin): Need to update with new values after characterization.
-GFHD254_SOC    90     100   2      12    40    1
