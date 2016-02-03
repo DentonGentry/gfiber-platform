@@ -24,7 +24,7 @@ def TaxonomyTest():
   clientinfo.FINGERPRINTS_DIR = 'fake/taxonomy'
   wvtest.WVPASS(';Nexus 6;' in clientinfo.taxonomize('00:00:01:00:00:01'))
   wvtest.WVPASS(';Nexus 6;' in clientinfo.taxonomize('00:00:01:00:00:01\n'))
-  v = ';Moto X;'
+  v = ';MOTO-X 2013 version;'
   wvtest.WVPASS(v in clientinfo.taxonomize('9c:d9:17:00:00:02'))
   wvtest.WVPASSEQ(clientinfo.taxonomize('00:00:22:00:00:22'), None)
 
