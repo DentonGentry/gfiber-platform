@@ -92,6 +92,31 @@ const FanControlParams FanControl::kGFRG210FanCtrlHddDefaults = {
                           pwm_step      : 1,
                           temp_overheat : 105,
                         };
+/*
+ * Defaults of Fan control parameters for GFRG250 (Optimus Prime)
+ * There is no direct SOC temp input, so we use the remote sensor.
+ * Thermal policy can be found at b/23119698
+ */
+
+const FanControlParams FanControl::kGFRG250FanCtrlSocDefaults = {
+                          temp_setpt    : 76,
+                          temp_max      : 88,
+                          temp_step     : 3,
+                          duty_cycle_min: 30,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2,
+                          temp_overheat : 105,
+                        };
+
+const FanControlParams FanControl::kGFRG250FanCtrlHddDefaults = {
+                          temp_setpt    : 55,
+                          temp_max      : 60,
+                          temp_step     : 2,
+                          duty_cycle_min: 30,
+                          duty_cycle_max: 100,
+                          pwm_step      : 1,
+                          temp_overheat : 105,
+                        };
 
 /*
  * Defaults of Fan control parameters for GFSC100 (Spacecast).
@@ -256,6 +281,12 @@ void FanControl::InitParams() {
       /* Set thermal fan policy parameters of GFRG210 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFRG210FanCtrlSocDefaults;
       pfan_ctrl_params_[BRUNO_IS_HDD] = kGFRG210FanCtrlHddDefaults;
+      max = BRUNO_IS_HDD;
+      break;
+    case BRUNO_GFRG250:
+      /* Set thermal fan policy parameters of GFRG250 */
+      pfan_ctrl_params_[BRUNO_SOC] = kGFRG250FanCtrlSocDefaults;
+      pfan_ctrl_params_[BRUNO_IS_HDD] = kGFRG250FanCtrlHddDefaults;
       max = BRUNO_IS_HDD;
       break;
     case BRUNO_GFSC100:

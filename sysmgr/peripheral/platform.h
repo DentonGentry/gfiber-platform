@@ -21,6 +21,7 @@ enum BrunoPlatformTypes {
   BRUNO_GFHD100,          /* Bruno */
   BRUNO_GFRG200,          /* Sideswipe noHDD */
   BRUNO_GFRG210,          /* Optimus HDD */
+  BRUNO_GFRG250,          /* Optimus Prime HDD */
   BRUNO_GFSC100,          /* Spacecast */
   BRUNO_GFHD200,          /* Camaro */
   BRUNO_GFLT110,          /* Fiber Jack */
