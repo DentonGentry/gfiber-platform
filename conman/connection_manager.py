@@ -214,11 +214,11 @@ class ConnectionManager(object):
     # explicitly.
     if os.path.exists(os.path.join(self._interface_status_dir,
                                    self.ETHERNET_STATUS_FILE)):
-      self._ethernet_file_exists = True
       self._process_file(self._interface_status_dir, self.ETHERNET_STATUS_FILE)
     else:
-      self._ethernet_file_exists = False
-      self.bridge.ethernet = self.is_ethernet_up()
+      ethernet_up = self.is_ethernet_up()
+      self.bridge.ethernet = ethernet_up
+      self.ifplugd_action('eth0', ethernet_up)
 
     for path, prefix in ((self._moca_status_dir, self.MOCA_NODE_FILE_PREFIX),
                          (self._status_dir, self.COMMAND_FILE_PREFIX),
@@ -402,11 +402,6 @@ class ConnectionManager(object):
     return self.bridge.internet() or any(wifi.internet() for wifi in self.wifi)
 
   def _update_interfaces_and_routes(self):
-    # If ifplugd has never written an ethernet status file, poll manually before
-    # updating routes.
-    if not self._ethernet_file_exists:
-      self.bridge.ethernet = self.is_ethernet_up()
-
     self.bridge.update_routes()
     for wifi in self.wifi:
       wifi.update_routes()
@@ -457,7 +452,6 @@ class ConnectionManager(object):
       if filename == self.ETHERNET_STATUS_FILE:
         try:
           self.bridge.ethernet = bool(int(contents))
-          self._ethernet_file_exists = True
         except ValueError:
           logging.error('Status file contents should be 0 or 1, not %s',
                         contents)
@@ -502,15 +496,16 @@ class ConnectionManager(object):
           self.bridge.add_moca_station(node)
         has_moca = self.bridge.moca
         if had_moca != has_moca:
-          self.tell_ifplugd_about_moca(has_moca)
+          self.ifplugd_action('moca0', has_moca)
 
   def interface_by_name(self, interface_name):
     for ifc in [self.bridge] + self.wifi:
       if ifc.name == interface_name:
         return ifc
 
-  def tell_ifplugd_about_moca(self, up):
-    subprocess.call(self.IFPLUGD_ACTION + ['moca0', 'up' if up else 'down'])
+  def ifplugd_action(self, interface_name, up):
+    subprocess.call(self.IFPLUGD_ACTION + [interface_name,
+                                           'up' if up else 'down'])
 
   def _wifi_scan(self, wifi):
     """Perform a wifi scan and update wifi.cycler."""

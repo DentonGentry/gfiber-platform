@@ -48,10 +48,13 @@ class Interface(object):
       Whether the connection is working.
     """
     if not self.links:
+      logging.debug('Connection check for %s failed due to no links', self.name)
       return False
 
-    logging.debug('gateway ip for %s is %s', self.name, self._gateway_ip)
+    logging.debug('Gateway ip for %s is %s', self.name, self._gateway_ip)
     if self._gateway_ip is None:
+      logging.debug('Connection check for %s failed due to no gateway IP',
+                    self.name)
       return False
 
     # Temporarily add a route to make sure the connection check can be run.
@@ -65,6 +68,7 @@ class Interface(object):
                      'via', self._gateway_ip,
                      'dev', self.name,
                      'metric', str(METRIC_TEMPORARY_CONNECTION_CHECK))
+      added_temporary_route = True
 
     cmd = [self.CONNECTION_CHECK, '-I', self.name]
     if check_acs:
@@ -72,6 +76,10 @@ class Interface(object):
 
     with open(os.devnull, 'w') as devnull:
       result = subprocess.call(cmd, stdout=devnull, stderr=devnull) == 0
+      logging.debug('Connection check%s for %s %s',
+                    ' (ACS)' if check_acs else '',
+                    self.name,
+                    'passed' if result else 'failed')
 
     # Delete the temporary route.
     if added_temporary_route:
@@ -205,22 +213,27 @@ class Interface(object):
       deciding whether to add or remove routes.
     """
     logging.debug('Updating routes for %s', self.name)
-    # We care about the distinction between None (unknown) and False (known
-    # inaccessible) here.
-    # pylint: disable=g-explicit-bool-comparison
-    maybe_had_acs = self._has_acs != False
-    maybe_had_internet = self._has_internet != False
+    maybe_had_acs = self._has_acs
+    maybe_had_internet = self._has_internet
 
     if expire_cache:
       self.expire_connection_status_cache()
 
     has_acs = self.acs()
     has_internet = self.internet()
-    if ((not maybe_had_acs and has_acs) or
-        (not maybe_had_internet and has_internet)):
+
+    # This is a little confusing:  We want to try adding a route if we _may_
+    # have gone from no access to some access, and we want to try deleting the
+    # route if we _may_ have lost *all* access. So the first condition checks
+    # for truthiness but the elif checks for explicit Falsity (i.e. excluding
+    # the None/unknown case).
+    had_access = maybe_had_acs or maybe_had_internet
+    # pylint: disable=g-explicit-bool-comparison
+    maybe_had_access = maybe_had_acs != False or maybe_had_internet != False
+    has_access = has_acs or has_internet
+    if not had_access and has_access:
       self.add_route()
-    elif ((maybe_had_acs or maybe_had_internet) and not
-          (has_acs or has_internet)):
+    elif maybe_had_access and not has_access:
       self.delete_route()
 
 

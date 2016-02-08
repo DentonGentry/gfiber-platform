@@ -178,6 +178,8 @@ class ConnectionManager(connection_manager.ConnectionManager):
   WIFI_SETCLIENT = ['echo', 'setclient']
   IFUP = ['echo', 'ifup']
   IFPLUGD_ACTION = ['echo', 'ifplugd.action']
+  # This simulates the output of 'ip link' when eth0 is up.
+  IP_LINK = ['echo', 'eth0 LOWER_UP']
 
   def __init__(self, *args, **kwargs):
     super(ConnectionManager, self).__init__(*args, **kwargs)
@@ -216,8 +218,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
       else:
         open(socket, 'w')
       wifi.set_connection_check_result('restricted')
-      self.write_interface_status_file(wifi.name, '1')
-      self.write_gateway_file(wifi.name)
+      self.ifplugd_action(wifi.name, True)
       return True
 
     return False
@@ -251,10 +252,16 @@ class ConnectionManager(connection_manager.ConnectionManager):
     super(ConnectionManager, self)._wifi_scan(wifi)
     wifi.wifi_scan_counter += 1
 
-  def tell_ifplugd_about_moca(self, up):
+  def ifplugd_action(self, interface_name, up):
     # Typically, when moca comes up, conman calls ifplugd.action, which writes
-    # this file.
-    self.write_interface_status_file('moca0', '1' if up else '0')
+    # this file.  Also, when conman starts, it calls ifplugd.action for eth0.
+    self.write_interface_status_file(interface_name, '1' if up else '0')
+
+    # ifplugd calls run-dhclient, which results in a gateway file if the link is
+    # up (and working).
+    if up:
+      self.write_gateway_file('br0' if interface_name in ('eth0', 'moca0')
+                              else interface_name)
 
   # Non-overrides
 
@@ -317,12 +324,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
       f.write(value)
 
   def set_ethernet(self, up):
-    self.write_interface_status_file('eth0', '1' if up else '0')
-
-    if up:
-      # On the real system, ifplugd would run dhclient, which would write a
-      # gateway file.
-      self.write_gateway_file('br0')
+    self.ifplugd_action('eth0', up)
 
   def set_moca(self, up):
     moca_node1_file = os.path.join(self._moca_status_dir,
@@ -330,11 +332,6 @@ class ConnectionManager(connection_manager.ConnectionManager):
     with open(moca_node1_file, 'w') as f:
       f.write(FAKE_MOCA_NODE1_FILE if up else
               FAKE_MOCA_NODE1_FILE_DISCONNECTED)
-
-    if up:
-      # On the real system, ifplugd would run dhclient, which would write a
-      # gateway file.
-      self.write_gateway_file('br0')
 
   def run_until_interface_update(self):
     while self._interface_update_counter == 0:
@@ -407,14 +404,11 @@ def connection_manager_test_radio_independent(c):
     c:  A ConnectionManager set up by @connection_manager_test.
   """
 
-  # Initially, no access.
-  wvtest.WVFAIL(c.acs())
-  wvtest.WVFAIL(c.internet())
+  # Initially, there is ethernet access (via explicit check of ethernet status,
+  # rather than the interface status file).
+  wvtest.WVPASS(c.acs())
+  wvtest.WVPASS(c.internet())
 
-  c.run_once()
-
-  # Bring up ethernet, access.
-  c.set_ethernet(True)
   c.run_once()
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())

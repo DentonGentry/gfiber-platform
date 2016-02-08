@@ -54,6 +54,7 @@ class FakeInterfaceMixin(object):
           if k[0] == key[0]:
             logging.debug('Deleting route for %r (generalized from %s)', k, key)
             del self.routing_table[k]
+            break
 
 
 class Bridge(FakeInterfaceMixin, interface.Bridge):
