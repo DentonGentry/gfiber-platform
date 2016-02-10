@@ -76,7 +76,7 @@ void PeripheralMon::Overheating(float soc_temperature)
 
   if (soc_temperature < overheat_value) {
     overheating_ = 0;
-    Common::ClrLED(Common::OVERHEATING, "");
+    ClrLEDOverheat("");
   }
   else {
     overheating_ ++;
@@ -84,15 +84,15 @@ void PeripheralMon::Overheating(float soc_temperature)
     if (overheating_ >= OVERHEATING_COUNT) {
       message << "System power off: SOC overheating " << overheating_;
       LOG(LS_ERROR) << message.str();
-      Common::ClrLED(Common::OVERHEATING, "");
+      ClrLEDOverheat("");
 
       overheating_ = 0;
-      Common::Poweroff();
+      Poweroff();
     }
     else {
       message << "SOC overheating detected " << overheating_;
       LOG(LS_ERROR) << message.str();
-      Common::SetLED(Common::OVERHEATING, message.str());
+      SetLEDOverheat(message.str());
     }
   }
 }

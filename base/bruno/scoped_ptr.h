@@ -60,6 +60,8 @@ class scoped_ptr {
 
   void reset(T* p = NULL) {
     typedef char type_must_be_complete[sizeof(T)];
+    type_must_be_complete *x;
+    (void)x;
 
     if (ptr != p) {
       T* obj = ptr;
@@ -137,11 +139,15 @@ class scoped_array {
 
   ~scoped_array() {
     typedef char type_must_be_complete[sizeof(T)];
+    type_must_be_complete *x;
+    (void)x;
     delete[] ptr;
   }
 
   void reset(T* p = NULL) {
     typedef char type_must_be_complete[sizeof(T)];
+    type_must_be_complete *x;
+    (void)x;
 
     if (ptr != p) {
       T* arr = ptr;

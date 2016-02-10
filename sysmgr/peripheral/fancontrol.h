@@ -39,7 +39,7 @@ typedef struct FanControlParams {
 }FanControlParams;
 
 
-class FanControl: public Mailbox {
+class FanControl : public Mailbox {
  public:
   enum StateType {
     OFF,

@@ -27,7 +27,7 @@ bool Mailbox::ReadFanSpeed(uint16_t *fan_speed) {
   *fan_speed = 0;
   rtn = ReadValueString(kMailboxFanSpeedFile, &value_str);
   if (rtn == true) {
-    rtn = Common::ConvertStringToUint16(value_str, fan_speed);
+    rtn = ConvertStringToUint16(value_str, fan_speed);
   }
   return rtn;
 }
@@ -44,7 +44,7 @@ bool Mailbox::ReadSocTemperature(float *soc_temperature) {
   *soc_temperature = 0.0;
   rtn = ReadValueString(kMailboxCpuTemperatureFile, &value_str);
   if (rtn == true) {
-    rtn = Common::ConvertStringToFloat(value_str, soc_temperature);
+    rtn = ConvertStringToFloat(value_str, soc_temperature);
   }
   return rtn;
 }
@@ -70,7 +70,7 @@ bool Mailbox::ReadSocVoltage(std::string *soc_voltage) {
 bool Mailbox::WriteFanDutyCycle(uint16_t duty_cycle) {
   std::string value_str;
 
-  Common::ConvertUint16ToString(duty_cycle, &value_str);
+  ConvertUint16ToString(duty_cycle, &value_str);
   return WriteValueString(kMailboxFanPercentFile, value_str);
 }
 
@@ -87,7 +87,7 @@ bool Mailbox::ReadFanDutyCycle(uint16_t *duty_cycle) {
 
   rtn = ReadValueString(kMailboxFanPercentFile, &value_str);
   if (rtn == true) {
-    rtn = Common::ConvertStringToUint16(value_str, duty_cycle);
+    rtn = ConvertStringToUint16(value_str, duty_cycle);
   }
   return rtn;
 }
@@ -128,22 +128,16 @@ bool Mailbox::WriteValueString(const std::string& out_file, const std::string& v
 
 /* Read value string from the text file */
 bool Mailbox::ReadValueString(const std::string& in_file, std::string *value_str) {
-  bool  rtn = false;
-
   std::ifstream file;
-
   file.open(in_file.c_str(), std::ios::in);
   if (file.is_open()) {
     std::getline(file, *value_str);
     file.close();
-    rtn = true;
-  } else {
-    *value_str = Common::kErrorString;         /* Retrun a default error string */
-    LOG(LS_ERROR) << "ReadValueString: Failed to open: " << in_file;
+    return true;
   }
-
-  LOG(LS_VERBOSE) << "rtn=" << rtn;
-  return rtn;
+  *value_str = "ERROR";
+  LOG(LS_ERROR) << "ReadValueString: Failed to open: " << in_file;
+  return false;
 }
 
 } // ce bruno_platform_peripheral

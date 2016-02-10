@@ -10,14 +10,13 @@ PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
 LIBDIR=$(PREFIX)/lib
 INCLUDEDIR=$(PREFIX)/include
-PKG_CONFIG?=pkg-config
 
 CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 RM=rm -f
 INCS=-Iperipheral -I../base -I../libstacktrace
 CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W
-CPPFLAGS=$(subst -Wstrict-prototypes,,$(subst -std=c99,,$(shell $(PKG_CONFIG) --cflags brunobase)))
+CXXFLAGS=
 
 all: $(TARGETS)
 
@@ -41,7 +40,6 @@ sysmgr: \
 install-libs: all
 	mkdir -p $(INCLUDEDIR)/sysmgr $(LIBDIR)/pkgconfig
 	$(INSTALL) -m 0644 platform_peripheral_api.h $(INCLUDEDIR)/sysmgr/
-	$(INSTALL) -m 0644 brunoperipheral.pc $(LIBDIR)/pkgconfig/
 	$(INSTALL) -m 0755 peripheral/libbrunoperipheral.so $(LIBDIR)/
 
 peripheral/libbrunoperipheral.so: peripheral/all
@@ -51,16 +49,12 @@ clean: $(addsuffix /clean,$(DIRS))
 
 %: %.o
 	@echo "LINK $@"
-	$(Q)$(CXX) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(INCS) \
+	$(Q)$(CXX) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(INCS) \
 		-o $@ $^ -lpthread
 
 %.o: %.cc
 	@echo " CXX $@"
-	$(Q)$(CXX) $(CFLAGS) $(CPPFLAGS) $(INCS) -o $@ -c $<
-
-%.o: %.c
-	@echo " CC  $@"
-	$(Q)$(CC) -std=c99 $(CFLAGS) $(CPPFLAGS) $(INCS) -o $@ -c $<
+	$(Q)$(CXX) $(CFLAGS) $(CXXFLAGS) $(INCS) -o $@ -c $<
 
 %/all:
 	$(MAKE) -C $* all

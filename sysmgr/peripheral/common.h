@@ -23,34 +23,13 @@
 
 namespace bruno_platform_peripheral {
 
-class Common {
- public:
-  enum ExecCmdCompareTypes {
-    STRING_COMPARE,
-    STRING_FIND,
-    STRING_RETRUN_ALL_MSGS
-  };
-
-  enum LedControl {
-    OVERHEATING
-  };
-
-  static const std::string kErrorString;
-
-  static std::string ExecCmd(std::string& cmd, std::string *pattern,
-                             enum ExecCmdCompareTypes action);
-  static void Split(const std::string& str,
-              const std::string& delimiters, std::vector<std::string>& tokens);
-  static bool Reboot();
-  static bool Poweroff();
-  static void SetLED(LedControl led, const std::string message);
-  static void ClrLED(LedControl led, const std::string message);
-  static bool ConvertStringToFloat(const std::string& value_str, float *value);
-  static bool ConvertStringToUint16(const std::string& value_str, uint16_t *value);
-  static void ConvertUint16ToString(const uint16_t& value, std::string *value_str);
-
-  DISALLOW_COPY_AND_ASSIGN(Common);
-};
+bool Reboot();
+bool Poweroff();
+void SetLEDOverheat(const std::string& message);
+void ClrLEDOverheat(const std::string& message);
+bool ConvertStringToFloat(const std::string& value_str, float *value);
+bool ConvertStringToUint16(const std::string& value_str, uint16_t *value);
+void ConvertUint16ToString(const uint16_t& value, std::string *value_str);
 
 }  // namespace bruno_platform_peripheral
 

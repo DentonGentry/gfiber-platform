@@ -113,15 +113,19 @@ class AsyncSocketAdapter : public AsyncSocket, public sigslot::has_slots<> {
 
  protected:
   virtual void OnConnectEvent(AsyncSocket* socket) {
+    (void)socket;
     SignalConnectEvent(this);
   }
   virtual void OnReadEvent(AsyncSocket* socket) {
+    (void)socket;
     SignalReadEvent(this);
   }
   virtual void OnWriteEvent(AsyncSocket* socket) {
+    (void)socket;
     SignalWriteEvent(this);
   }
   virtual void OnCloseEvent(AsyncSocket* socket, int err) {
+    (void)socket;
     SignalCloseEvent(this, err);
   }
 

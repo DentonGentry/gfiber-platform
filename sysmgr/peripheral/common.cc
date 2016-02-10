@@ -11,130 +11,32 @@
 
 namespace bruno_platform_peripheral {
 
-const std::string Common::kErrorString = "ERROR";
-
-
-std::string Common::ExecCmd(std::string& cmd, std::string *pattern,
-                           enum ExecCmdCompareTypes action) {
-  char buffer[256];
-  std::string result = "";
-  FILE* pipe = popen(cmd.c_str(), "r");
-
-  LOG(LS_INFO) << "ExecCmd: cmd= " << cmd << " action= " << action << std::endl
-               << "pattern= " << ((pattern == NULL)? "NULL": *pattern) << std::endl;
-  if (!pipe) {
-    LOG(LS_ERROR) << "ExecCmd(): ERROR" << std::endl;
-    return kErrorString;
-  }
-  int is_continue = true;
-  size_t found;
-
-  while((!feof(pipe)) && (is_continue)) {
-    if(fgets(buffer, sizeof(buffer), pipe) != NULL) {
-      /* pattern == NULL, read and return all of lines
-       * pattern != NULL, return the line if found the pattern in the line
-       */
-      if (pattern != NULL) {
-        result = std::string(buffer);
-      }
-      switch (action) {
-        case STRING_COMPARE:
-          /* Compare strings when the pattern is in beginning of the
-           * compared string.
-           */
-          if (result.compare(0, pattern->size(), *pattern) == 0) {
-            is_continue = false;  /* Found the pattern. Exit. */
-            break;
-          }
-          result.clear();
-          break;
-        case STRING_FIND:
-          /* Find in the compared string if the starting position is unknown.
-           * More time consuming.
-           */
-          found = result.find(*pattern);
-          if (found != std::string::npos) {
-            LOG(LS_VERBOSE) << "ExecCmd: FOUND **result= " << result << std::endl;
-            is_continue = false;  /* Found the pattern. Exit. */
-            break;
-          }
-          result.clear();
-          break;
-        case STRING_RETRUN_ALL_MSGS:
-          result += buffer;
-          break;
-      }
-    }
-  }
-
-  pclose(pipe);
-  return result;
-}
-
-void Common::Split(const std::string& str,
-            const std::string& delimiters, std::vector<std::string>& tokens) {
-  /* Skip delimiters at beginning. */
-  LOG(LS_VERBOSE) << "Split: str= " << str
-                  << "delimiters= " << delimiters << std::endl;
-  std::string::size_type lastPos = str.find_first_not_of(delimiters, 0);
-  /* Find first "non-delimiter". */
-  std::string::size_type pos     = str.find_first_of(delimiters, lastPos);
-
-  while (std::string::npos != pos || std::string::npos != lastPos) {
-      // Found a token, add it to the vector.
-      tokens.push_back(str.substr(lastPos, pos - lastPos));
-      // Skip delimiters.
-      lastPos = str.find_first_not_of(delimiters, pos);
-      // Find next "non-delimiter"
-      pos = str.find_first_of(delimiters, lastPos);
-  }
-
-  /* Debug print only. Remove later. */
-  for (size_t i = 0; i < tokens.size(); i++) {
-    LOG(LS_VERBOSE) << "idx= " << i << " token= " << tokens[i] << std::endl;
-  }
-
-  LOG(LS_VERBOSE) << "Split: exit." << std::endl;
-}
-
-
-bool Common::Reboot() {
-  bool  is_ok = true;
-
+bool Reboot() {
   sync();
   int ret = reboot(LINUX_REBOOT_CMD_RESTART);
   if (ret < 0) {
     LOG(LS_ERROR) << "Reboot: failed (ret=" << ret << ")" << std::endl;
-    is_ok = false;
+    return false;
   }
-  return(is_ok);
+  return true;
 }
 
 
-bool Common::Poweroff() {
-  bool  is_ok = true;
-
+bool Poweroff() {
   sync();
   int ret = system("poweroff-with-message 'poweroff requested by sysmgr'");
   if (ret != 0) {
     LOG(LS_ERROR) << "Poweroff: failed (ret=" << ret << ")" << std::endl;
-    is_ok = false;
+    return false;
   }
-  return(is_ok);
+  return true;
 }
 
 
-void Common::SetLED(LedControl led, const std::string message) {
+void SetLEDOverheat(const std::string& message) {
   std::ofstream file;
-  const char *filename = "/dev/null";
-  const char *led_pattern = "0";
-
-  switch(led) {
-    case OVERHEATING:
-      filename = OVERHEATING_LED_FILE;
-      led_pattern = OVERHEATING_LED_ON;
-      break;
-  }
+  const char *filename = OVERHEATING_LED_FILE;
+  const char *led_pattern = OVERHEATING_LED_ON;
 
   /* Set LED by sending string to GPIO mailbox */
   file.open(filename);
@@ -149,14 +51,8 @@ void Common::SetLED(LedControl led, const std::string message) {
   }
 }
 
-void Common::ClrLED(LedControl led, const std::string message) {
-  std::string filename = "/dev/null";
-
-  switch(led) {
-    case OVERHEATING:
-      filename = OVERHEATING_LED_FILE;
-      break;
-  }
+void ClrLEDOverheat(const std::string& message) {
+  std::string filename = OVERHEATING_LED_FILE;
 
   unlink(filename.c_str());
 
@@ -170,34 +66,31 @@ void Common::ClrLED(LedControl led, const std::string message) {
 }
 
 /* Convert from string to floating point number */
-bool Common::ConvertStringToFloat(const std::string& value_str, float *value) {
-  bool  rtn = true;
+bool ConvertStringToFloat(const std::string& value_str, float *value) {
   std::stringstream ss(value_str);
 
   if((ss >> *value).fail()) {
     *value = 0.0;
-    rtn = false;
     LOG(LS_ERROR) << "ConvertStringToFloat: Failed to convert" << std::endl;
+    return false;
   }
-  return rtn;
+  return true;
 }
 
 /* Convert from string to integer */
-bool Common::ConvertStringToUint16(const std::string& value_str, uint16_t *value) {
-  bool  rtn = true;
+bool ConvertStringToUint16(const std::string& value_str, uint16_t *value) {
   std::stringstream ss(value_str);
 
   if((ss >> *value).fail()) {
     *value = 0;
-    rtn = false;
     LOG(LS_ERROR) << "ConvertStringToInt: Failed to convert" << std::endl;
+    return false;
   }
-  return rtn;
+  return true;
 }
 
-
 /* Convert from integer to string */
-void Common::ConvertUint16ToString(const uint16_t& value, std::string *value_str) {
+void ConvertUint16ToString(const uint16_t& value, std::string *value_str) {
   std::stringstream ss;
   ss << value;
   *value_str = ss.str();
