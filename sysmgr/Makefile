@@ -15,7 +15,7 @@ CC=$(CROSS_COMPILE)gcc
 CXX=$(CROSS_COMPILE)g++
 RM=rm -f
 INCS=-Iperipheral -I../base -I../libstacktrace
-CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W
+CFLAGS=-Wall -Wimplicit -Wno-unknown-pragmas -W -DLOGGING=1
 CXXFLAGS=
 
 all: $(TARGETS)

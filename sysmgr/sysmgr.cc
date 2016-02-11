@@ -1,14 +1,20 @@
 // Copyright 2012 Google Inc. All Rights Reserved.
 // Author: kedong@google.com (Ke Dong)
 
-#include "bruno/basictypes.h"
-#include "bruno/criticalsection.h"
-#include "bruno/logging.h"
-#include "bruno/flags.h"
-#include "platform_peripheral_api.h"
+#include <stacktrace.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stacktrace.h>
+#include "bruno/basictypes.h"
+#include "bruno/criticalsection.h"
+#include "bruno/flags.h"
+#include "bruno/logging.h"
+#include "platform_peripheral_api.h"
+#include "peripheral/peripheralmon.h"
+#include "peripheral/platform.h"
+#include "peripheral/fancontrol.h"
+
+using bruno_platform_peripheral::Platform;
+using bruno_platform_peripheral::PeripheralMon;
 
 int main(int argc, char** argv) {
   DEFINE_int(interval, 5000, "Monitor interval in ms (except for HDD-temp)");
@@ -31,20 +37,20 @@ int main(int argc, char** argv) {
 
   stacktrace_setup();
 
+  bruno_base::LogMessage::LogToDebug(bruno_base::LS_INFO);
   if (FLAG_debug) {
     bruno_base::LogMessage::LogToDebug(bruno_base::LS_VERBOSE);
-  } else {
-    bruno_base::LogMessage::LogToDebug(bruno_base::LS_INFO);
   }
 
-  if (0 != platform_peripheral_init((unsigned int)FLAG_interval,
-                                    (unsigned int)FLAG_hdd_temp_interval)) {
-    fprintf(stderr, "Peripherals cannot be initialized!!!\n");
-    return -1;
-  }
+  Platform* platform = new Platform();
+  platform->Init();
+  PeripheralMon* pmon = new PeripheralMon(platform);
+  pmon->Init(FLAG_interval, FLAG_hdd_temp_interval);
 
-  platform_peripheral_run();
-  platform_peripheral_terminate();
+  for (;;) {
+    pmon->Probe();
+    usleep(FLAG_interval * 1000);
+  }
 
   return 0;
 }

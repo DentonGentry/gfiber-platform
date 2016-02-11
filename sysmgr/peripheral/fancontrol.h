@@ -86,7 +86,6 @@ class FanControl : public Mailbox {
         period_(DUTY_CYCLE_PWM_MAX_VALUE-1),
         platform_(BRUNO_GFHD100),
         pfan_ctrl_params_(NULL),
-        allocatedPlatformInstanceLocal_(false),
         platformInstance_(platform) {}
 
   virtual ~FanControl();
@@ -128,7 +127,6 @@ class FanControl : public Mailbox {
    * */
   enum BrunoPlatformTypes platform_;
   FanControlParams *pfan_ctrl_params_;
-  bool allocatedPlatformInstanceLocal_;
   Platform *platformInstance_;
 
   FanControlParams *get_hdd_fan_ctrl_parms();

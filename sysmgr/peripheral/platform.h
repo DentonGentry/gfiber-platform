@@ -25,7 +25,6 @@ enum BrunoPlatformTypes {
   BRUNO_GFSC100,          /* Spacecast */
   BRUNO_GFHD200,          /* Camaro */
   BRUNO_GFLT110,          /* Fiber Jack */
-  BRUNO_GFLT120,          /* Fiber Jack */
   BRUNO_GFHD254,          /* Lockdown */
   BRUNO_UNKNOWN
 };
@@ -33,13 +32,17 @@ enum BrunoPlatformTypes {
 class Platform {
 
  public:
-  Platform(const std::string name, enum BrunoPlatformTypes type,
-           bool has_hdd, bool has_fan)
+  explicit Platform()
+      : name_("Unknown"), type_(BRUNO_UNKNOWN), has_hdd_(false), has_fan_(false) {}
+
+  Platform(const std::string& name, BrunoPlatformTypes type, bool has_hdd,
+           bool has_fan)
       : name_(name), type_(type), has_hdd_(has_hdd), has_fan_(has_fan) {}
+
+  virtual ~Platform() {}
 
   static const Platform kPlatformTable[];
 
-  virtual ~Platform() {}
   void Init(void);
   std::string PlatformName(void) const { return name_; }
   enum BrunoPlatformTypes PlatformType(void) const { return type_; }
@@ -49,7 +52,7 @@ class Platform {
 
  private:
   std::string name_;
-  enum BrunoPlatformTypes type_;
+  BrunoPlatformTypes type_;
   bool has_hdd_;
   bool has_fan_;
 

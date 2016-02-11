@@ -206,14 +206,6 @@ bool FanControl::Init(bool *gpio_mailbox_ready) {
    *    platformperipheral module.
    * 2) If run test_fan test util, the platformperipheral module won't be used.
    */
-  if (platformInstance_ == NULL) {
-    /* The global platform instance is not initialized. Let's handle it. */
-    LOG(LS_VERBOSE) << "Init platformInstance_ in fancontrol";
-    platformInstance_ = new Platform ("Unknown Platform", BRUNO_UNKNOWN,
-                                      false, false);
-    platformInstance_->Init();
-    allocatedPlatformInstanceLocal_ = true;
-  }
 
   InitParams();
 
@@ -241,10 +233,6 @@ void FanControl::Terminate(void) {
   if (pfan_ctrl_params_) {
     delete [] pfan_ctrl_params_;
     pfan_ctrl_params_ = NULL;
-  }
-  if ((allocatedPlatformInstanceLocal_ == true) && (platformInstance_)) {
-    delete platformInstance_;
-    platformInstance_ = NULL;
   }
 }
 
@@ -299,7 +287,7 @@ void FanControl::InitParams() {
       pfan_ctrl_params_[BRUNO_SOC] = kGFLT110FanCtrlSocDefaults;
       max = BRUNO_SOC;
       break;
-    default:
+    case BRUNO_UNKNOWN:
       LOG(LS_ERROR) << "Invalid platform type, ignore ... " << platform_;
       max = BRUNO_SOC;
       break;

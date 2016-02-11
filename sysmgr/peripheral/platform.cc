@@ -7,9 +7,6 @@
 
 namespace bruno_platform_peripheral {
 
-// Global Platform class instance
-Platform* platformInstance_ = NULL;
-
 /* Platform table */
 const Platform Platform::kPlatformTable[] = {
          /* model     type           hdd    fan */
@@ -27,22 +24,17 @@ const Platform Platform::kPlatformTable[] = {
 };
 
 void Platform::Init(void) {
-  /* Default the platform type */
-  name_ = kPlatformTable[BRUNO_UNKNOWN].name_;
-  type_ = kPlatformTable[BRUNO_UNKNOWN].type_;
-  has_hdd_ = kPlatformTable[BRUNO_UNKNOWN].has_hdd_;
-
   GetPlatformType();
 }
 
 #define ARRAYSIZE(a) \
-      ((sizeof(a) / sizeof(*(a))) / \
-          static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
+  (static_cast<size_t>((sizeof(a) / sizeof(*(a)))) /  \
+   static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
 
 void Platform::GetPlatformType(void) {
   std::string result = GetLine((char *)PLATFORM_FILE, NULL);
 
-  for (int i = 0; i < ARRAYSIZE(Platform::kPlatformTable); i++) {
+  for (int i = 0; i < (int)ARRAYSIZE(Platform::kPlatformTable); i++) {
     if (result == kPlatformTable[i].name_) {
       name_ = kPlatformTable[i].name_;
       type_ = kPlatformTable[i].type_;
@@ -55,6 +47,7 @@ void Platform::GetPlatformType(void) {
   if (type_ == BRUNO_UNKNOWN) {
     LOG(LS_ERROR) << "Unsupported Platform - " << result << std::endl;
   }
+  fprintf(stderr, "plat_type=%s\n", name_.c_str());
   return;
 }
 

@@ -10,7 +10,6 @@
 #include <unistd.h>
 
 namespace bruno_platform_peripheral {
-extern Platform* platformInstance_;
 
 PeripheralMon::~PeripheralMon() {
 }
@@ -21,7 +20,7 @@ void PeripheralMon::Probe(void) {
   uint16_t  fan_speed = 0;
   std::string soc_voltage;
 
-  if (platformInstance_->PlatformHasHdd() &&
+  if (platform_->PlatformHasHdd() &&
       bruno_base::TimeIsLaterOrEqual(next_time_hdd_temp_check_, now)) {
     fan_control_->GetHddTemperature(&hdd_temp_);
     LOG(LS_INFO) << "hdd_temperature (new):" << hdd_temp_;
@@ -35,7 +34,7 @@ void PeripheralMon::Probe(void) {
     bool read_soc_temperature = ReadSocTemperature(&soc_temperature);
     ReadSocVoltage(&soc_voltage);
 
-    if (platformInstance_->PlatformHasFan()) {
+    if (platform_->PlatformHasFan()) {
       ReadFanSpeed(&fan_speed);
     }
 
@@ -48,7 +47,7 @@ void PeripheralMon::Probe(void) {
       Overheating(soc_temperature);
     }
 
-    if (platformInstance_->PlatformHasFan()) {
+    if (platform_->PlatformHasFan()) {
       /* If failed to read soc_temperature, don't change PWM */
       if (read_soc_temperature) {
         fan_control_->AdjustSpeed(
@@ -64,7 +63,6 @@ void PeripheralMon::Probe(void) {
   }
 
   last_time_ = now;
-  mgr_thread_->PostDelayed(interval_, this, static_cast<uint32>(EVENT_TIMEOUT));
 }
 
 void PeripheralMon::Overheating(float soc_temperature)
@@ -97,27 +95,14 @@ void PeripheralMon::Overheating(float soc_temperature)
   }
 }
 
-void PeripheralMon::Init(bruno_base::Thread* mgr_thread, unsigned int interval,
-                         unsigned int hdd_temp_interval) {
+void PeripheralMon::Init(int interval, int hdd_temp_interval) {
   interval_ = interval;
   hdd_temp_interval_ = hdd_temp_interval;
   next_time_hdd_temp_check_ = bruno_base::Time(); // = now
   overheating_ = 0;
-  mgr_thread_ = mgr_thread;
   fan_control_->Init(&gpio_mailbox_ready);
   Probe();
 }
 
-void PeripheralMon::OnMessage(bruno_base::Message* msg) {
-  LOG(LS_VERBOSE) << "Received message " << msg->message_id;
-  switch (msg->message_id) {
-    case EVENT_TIMEOUT:
-      Probe();
-      break;
-    default:
-      LOG(LS_WARNING) << "Invalid message type, ignore ... " << msg->message_id;
-      break;
-  }
-}
 
 }  // namespace bruno_platform_peripheral
