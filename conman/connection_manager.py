@@ -50,7 +50,7 @@ class WLANConfiguration(object):
   """Represents a WLAN configuration from cwmpd."""
 
   WIFI_STOPAP = ['wifi', 'stopap']
-  WIFI_SETCLIENT = ['wifi', 'setclient']
+  WIFI_SETCLIENT = ['wifi', 'setclient', '--persist']
   WIFI_STOPCLIENT = ['wifi', 'stopclient']
 
   def __init__(self, band, wifi, command_lines):
@@ -99,6 +99,7 @@ class WLANConfiguration(object):
     try:
       subprocess.check_call(self.command, stderr=subprocess.STDOUT)
       self.access_point_up = True
+      logging.debug('Started %s GHz AP', self.band)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to start access point: %s', e.output)
 
@@ -113,6 +114,7 @@ class WLANConfiguration(object):
     try:
       subprocess.check_call(command, stderr=subprocess.STDOUT)
       self.access_point_up = False
+      logging.debug('Stopped %s GHz AP', self.band)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to stop access point: %s', e.output)
       return
@@ -120,6 +122,7 @@ class WLANConfiguration(object):
   def start_client(self):
     """Join the WLAN as a client."""
     if self.client_up:
+      logging.debug('Wifi client already started on %s GHz', self.band)
       return
 
     self.wifi.detach_wpa_control()
@@ -131,12 +134,13 @@ class WLANConfiguration(object):
     try:
       subprocess.check_call(command, stderr=subprocess.STDOUT, env=env)
       self.client_up = True
-      logging.info('Successfully joined WLAN')
+      logging.info('Started wifi client on %s GHz', self.band)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to start wifi client: %s', e.output)
 
   def stop_client(self):
     if not self.client_up:
+      logging.debug('Wifi client already stopped on %s GHz', self.band)
       return
 
     self.wifi.detach_wpa_control()
@@ -145,6 +149,7 @@ class WLANConfiguration(object):
       subprocess.check_call(self.WIFI_STOPCLIENT + ['-b', self.band],
                             stderr=subprocess.STDOUT)
       self.client_up = False
+      logging.debug('Stopped wifi client on %s GHz', self.band)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to stop wifi client: %s', e.output)
 
@@ -452,6 +457,7 @@ class ConnectionManager(object):
       if filename == self.ETHERNET_STATUS_FILE:
         try:
           self.bridge.ethernet = bool(int(contents))
+          logging.debug('Ethernet %s', 'up' if self.bridge.ethernet else 'down')
         except ValueError:
           logging.error('Status file contents should be 0 or 1, not %s',
                         contents)
@@ -472,13 +478,14 @@ class ConnectionManager(object):
           wifi = next(w for w in self.wifi if band in w.bands)
           if band in self._wlan_configuration:
             self._wlan_configuration[band].access_point = True
+          logging.debug('AP enabled for %s GHz', band)
       elif filename.startswith(self.GATEWAY_FILE_PREFIX):
         interface_name = filename.split(self.GATEWAY_FILE_PREFIX)[-1]
         ifc = self.interface_by_name(interface_name)
         if ifc:
           ifc.set_gateway_ip(contents)
-          logging.info('Received gateway %r for interface %s', contents,
-                       ifc.name)
+          logging.debug('Received gateway %r for interface %s', contents,
+                        ifc.name)
 
     elif path == self._moca_status_dir:
       match = re.match(r'^%s\d+$' % self.MOCA_NODE_FILE_PREFIX, filename)
@@ -573,6 +580,7 @@ class ConnectionManager(object):
              if wlan_configuration.interface_suffix else '') + band)
         wlan_configuration.access_point = os.path.exists(ap_file)
       self._wlan_configuration[band] = wlan_configuration
+      logging.debug('Updated WLAN configuration for %s GHz', band)
       self._update_access_point(wlan_configuration)
 
   def _update_access_point(self, wlan_configuration):
