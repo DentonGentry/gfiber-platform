@@ -17,6 +17,7 @@ PeripheralMon::~PeripheralMon() {
 void PeripheralMon::Probe(void) {
   bruno_base::TimeStamp now = bruno_base::Time();
   float soc_temperature;
+  float aux1_temperature = 0.0;
   uint16_t  fan_speed = 0;
   std::string soc_voltage;
 
@@ -25,6 +26,10 @@ void PeripheralMon::Probe(void) {
     fan_control_->GetHddTemperature(&hdd_temp_);
     LOG(LS_INFO) << "hdd_temperature (new):" << hdd_temp_;
     next_time_hdd_temp_check_ = bruno_base::TimeAfter(hdd_temp_interval_);
+  }
+
+  if (platform_->PlatformHasAux1()) {
+    ReadAux1Temperature(&aux1_temperature);
   }
 
   if (gpio_mailbox_ready == false)
@@ -41,6 +46,7 @@ void PeripheralMon::Probe(void) {
     LOG(LS_INFO) << "voltage:" << soc_voltage
                  << "  soc_temperature:" << soc_temperature
                  << "  hdd_temperature:" << hdd_temp_
+                 << "  aux1_temperature:" << aux1_temperature
                  << "  fanspeed:" << fan_speed;
 
     if (read_soc_temperature) {
@@ -53,6 +59,7 @@ void PeripheralMon::Probe(void) {
         fan_control_->AdjustSpeed(
                       static_cast<uint16_t>(soc_temperature),
                       hdd_temp_,
+                      aux1_temperature,
                       fan_speed);
       } else {
         LOG(LS_INFO) << "Not change PWM due to fail to read soc_temperature";

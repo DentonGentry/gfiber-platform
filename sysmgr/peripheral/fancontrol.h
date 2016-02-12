@@ -50,6 +50,7 @@ class FanControl : public Mailbox {
   enum FanControlParamsTypes {
     BRUNO_SOC = 0,
     BRUNO_IS_HDD,
+    BRUNO_AUX1,
     BRUNO_PARAMS_TYPES
   };
 
@@ -68,6 +69,7 @@ class FanControl : public Mailbox {
 
   static const FanControlParams kGFRG250FanCtrlSocDefaults;
   static const FanControlParams kGFRG250FanCtrlHddDefaults;
+  static const FanControlParams kGFRG250FanCtrlAux1Defaults;
 
   static const FanControlParams kGFSC100FanCtrlSocDefaults;
   static const FanControlParams kGFSC100FanCtrlHddDefaults;
@@ -93,7 +95,7 @@ class FanControl : public Mailbox {
   bool Init(bool *gpio_mailbox_ready);
   void Terminate(void);
   bool DrivePwm(uint16_t duty_cycle);
-  bool AdjustSpeed(uint16_t soc_temp, uint16_t hdd_temp, uint16_t fan_speed);
+  bool AdjustSpeed(uint16_t soc_temp, uint16_t hdd_temp, uint16_t aux1_temp, uint16_t fan_speed);
   void GetHddTemperature(uint16_t *phdd_temp);
   void GetOverheatTemperature(uint16_t *poverheat_temp);
 
@@ -101,7 +103,9 @@ class FanControl : public Mailbox {
 
   void InitParams(void);
   std::string ExecCmd(char* cmd, std::string *pattern);
-  void ComputeDutyCycle(uint16_t soc_temp, uint16_t hdd_temp,
+  uint16_t __ComputeDutyCycle(uint16_t temp, uint16_t fan_speed,
+                  FanControlParams &params);
+  void ComputeDutyCycle(uint16_t soc_temp, uint16_t hdd_temp, uint16_t aux1_temp,
                         uint16_t fan_speed, uint16_t *new_duty_cycle_pwm);
 
   void dbgUpdateFanControlParams(void);
@@ -130,9 +134,7 @@ class FanControl : public Mailbox {
   Platform *platformInstance_;
 
   FanControlParams *get_hdd_fan_ctrl_parms();
-  bool if_hdd_temp_over_temp_max(const uint16_t hdd_temp, const FanControlParams *phdd) const;
-  bool if_hdd_temp_over_temp_setpt(const uint16_t hdd_temp, const FanControlParams *phdd) const;
-  bool if_hdd_temp_lower_than_temp_setpt(const uint16_t hdd_temp, const FanControlParams *phdd) const;
+  FanControlParams *get_aux1_fan_ctrl_parms();
 
   DISALLOW_COPY_AND_ASSIGN(FanControl);
 };

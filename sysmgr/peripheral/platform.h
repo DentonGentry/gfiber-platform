@@ -33,11 +33,13 @@ class Platform {
 
  public:
   explicit Platform()
-      : name_("Unknown"), type_(BRUNO_UNKNOWN), has_hdd_(false), has_fan_(false) {}
+      : name_("Unknown"), type_(BRUNO_UNKNOWN), has_hdd_(false),
+        has_aux1_(false), has_fan_(false) {}
 
   Platform(const std::string& name, BrunoPlatformTypes type, bool has_hdd,
-           bool has_fan)
-      : name_(name), type_(type), has_hdd_(has_hdd), has_fan_(has_fan) {}
+           bool has_aux1, bool has_fan)
+      : name_(name), type_(type), has_hdd_(has_hdd), has_aux1_(has_aux1),
+        has_fan_(has_fan) {}
 
   virtual ~Platform() {}
 
@@ -48,12 +50,14 @@ class Platform {
   enum BrunoPlatformTypes PlatformType(void) const { return type_; }
   bool PlatformHasHdd(void) const { return has_hdd_; }
   bool PlatformHasFan(void) const { return has_fan_; }
+  bool PlatformHasAux1(void) const { return has_aux1_; }
   std::string GetLine(char *file, std::string *pattern);
 
  private:
   std::string name_;
   BrunoPlatformTypes type_;
   bool has_hdd_;
+  bool has_aux1_;
   bool has_fan_;
 
   void GetPlatformType(void);

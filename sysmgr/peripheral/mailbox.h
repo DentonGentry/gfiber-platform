@@ -39,6 +39,7 @@ class Mailbox {
   static const std::string  kMailboxFanPercentFile;
   static const std::string  kMailboxFanSpeedFile;
   static const std::string  kMailboxCpuTemperatureFile;
+  static const std::string  kMailboxAux1TemperatureFile;
   static const std::string  kMailboxCpuVoltageFile;
   static const std::string  kMailboxReadyFile;
 
@@ -47,6 +48,7 @@ class Mailbox {
 
   bool ReadFanSpeed(uint16_t *fan_speed);
   bool ReadSocTemperature(float *soc_temperature);
+  bool ReadAux1Temperature(float *soc_temperature);
   bool ReadSocVoltage(std::string *soc_voltage);
   bool WriteFanDutyCycle(uint16_t duty_cycle);
   bool ReadFanDutyCycle(uint16_t *duty_cycle);

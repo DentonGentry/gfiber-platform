@@ -10,6 +10,7 @@ namespace bruno_platform_peripheral {
 const std::string  Mailbox::kMailboxFanPercentFile = "/tmp/gpio/fanpercent";
 const std::string  Mailbox::kMailboxFanSpeedFile = "/tmp/gpio/fanspeed";
 const std::string  Mailbox::kMailboxCpuTemperatureFile = "/tmp/gpio/cpu_temperature";
+const std::string  Mailbox::kMailboxAux1TemperatureFile = "/tmp/gpio/aux1_temperature";
 const std::string  Mailbox::kMailboxCpuVoltageFile = "/tmp/gpio/cpu_voltage";
 const std::string  Mailbox::kMailboxReadyFile = "/tmp/gpio/ready";
 
@@ -45,6 +46,23 @@ bool Mailbox::ReadSocTemperature(float *soc_temperature) {
   rtn = ReadValueString(kMailboxCpuTemperatureFile, &value_str);
   if (rtn == true) {
     rtn = ConvertStringToFloat(value_str, soc_temperature);
+  }
+  return rtn;
+}
+
+
+/* Read AUX1 temperature
+ * rtn = true, aux1_temperature - current AUX1 temperature
+ *       false aux1_temperature - an invalid value
+ */
+bool Mailbox::ReadAux1Temperature(float *aux1_temperature) {
+  std::string value_str;
+  bool  rtn;
+
+  *aux1_temperature = 0.0;
+  rtn = ReadValueString(kMailboxAux1TemperatureFile, &value_str);
+  if (rtn == true) {
+    rtn = ConvertStringToFloat(value_str, aux1_temperature);
   }
   return rtn;
 }

@@ -20,6 +20,8 @@ int main(int argc, char** argv) {
   DEFINE_int(soc_high, 10, "SOC High temperature");
   DEFINE_int(hdd_low, 1, "HDD Low temperature");
   DEFINE_int(hdd_high, 10, "HDD High temperature");
+  DEFINE_int(aux1_low, 1, "AUX1 Low temperature");
+  DEFINE_int(aux1_high, 10, "AUX1 High temperature");
   DEFINE_int(percent, 0, "Percentage of the maximum speed the fan starts at");
   DEFINE_int(count, 10, "Repeat times");
   DEFINE_int(interval, 1, "Interval");
@@ -45,7 +47,7 @@ int main(int argc, char** argv) {
   }
 
   bruno_platform_peripheral::Platform platform(
-      "Unknown", bruno_platform_peripheral::BRUNO_UNKNOWN, false, false);
+      "Unknown", bruno_platform_peripheral::BRUNO_UNKNOWN, false, false, false);
   platform.Init();
   bruno_platform_peripheral::FanControl fan_control(&platform);
 
@@ -56,38 +58,43 @@ int main(int argc, char** argv) {
   fan_control.DrivePwm(FLAG_percent);
   sleep(2);
 
-  int i, h;
+  int i, h, g;
 
   LOG(LS_VERBOSE) << "soc_low=" << FLAG_soc_low << " soc_high=" << FLAG_soc_high
-                  << " hdd_low=" << FLAG_hdd_low << " hdd_high=" << FLAG_hdd_high;
+                  << " hdd_low=" << FLAG_hdd_low << " hdd_high=" << FLAG_hdd_high
+                  << " aux1_low=" << FLAG_aux1_low << " aux1_high=" << FLAG_aux1_high;
 
-  for (i=FLAG_soc_low, h=FLAG_hdd_low;
-       ((i<FLAG_soc_high) || (h<FLAG_hdd_high)); i++, h++) {
+  for (i=FLAG_soc_low, h=FLAG_hdd_low, g=FLAG_aux1_low;
+       ((i<FLAG_soc_high) || (h<FLAG_hdd_high) || (g<FLAG_aux1_high));
+       i++, h++, g++) {
     for (int j=0; j<FLAG_count; ++j) {
       fan_control.ReadFanSpeed(&fan_speed);
       fan_control.AdjustSpeed(
-                  static_cast<uint16_t>(i), static_cast<uint16_t>(h), fan_speed);
+                  static_cast<uint16_t>(i), static_cast<uint16_t>(h), static_cast<uint16_t>(g), fan_speed);
       fan_control.ReadFanSpeed(&fan_speed);
       fan_control.ReadSocVoltage(&soc_voltage);
       LOG(LS_INFO) << "voltage:" << soc_voltage
                    << "  emu-soc_temperature:" << i
                    << "  emu-hdd_temperature:" << h
+                   << "  emu-aux1_temperature:" << g
                    << "  fanspeed:" << fan_speed;
       sleep(FLAG_interval);
     }
   }
   if (FLAG_dec_temp == true) {
-    for (i=FLAG_soc_high, h=FLAG_hdd_high;
-         ((i>FLAG_soc_low) || (h>FLAG_hdd_low)); i--, h--) {
+    for (i=FLAG_soc_high, h=FLAG_hdd_high, g=FLAG_aux1_high;
+         ((i>FLAG_soc_low) || (h>FLAG_hdd_low) || (g>FLAG_aux1_low));
+          i--, h--, g--) {
       for (int j=0; j<FLAG_count; ++j) {
         fan_control.ReadFanSpeed(&fan_speed);
         fan_control.AdjustSpeed(
-                    static_cast<uint16_t>(i), static_cast<uint16_t>(h), fan_speed);
+                    static_cast<uint16_t>(i), static_cast<uint16_t>(h), static_cast<uint16_t>(g), fan_speed);
         fan_control.ReadFanSpeed(&fan_speed);
         fan_control.ReadSocVoltage(&soc_voltage);
         LOG(LS_INFO) << "voltage:" << soc_voltage
                      << "  emu-soc_temperature:" << i
                      << "  emu-hdd_temperature:" << h
+                     << "  emu-aux1_temperature:" << g
                      << "  fanspeed:" << fan_speed;
         sleep(FLAG_interval);
       }

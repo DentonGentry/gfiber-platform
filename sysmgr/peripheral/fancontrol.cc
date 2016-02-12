@@ -119,6 +119,22 @@ const FanControlParams FanControl::kGFRG250FanCtrlHddDefaults = {
                         };
 
 /*
+ * On Optimus Prime, AUX1 refers to the temperature sensor in the Quantenna SoC
+ * which controls the 11ac wifi interface. The granularity of the temperature
+ * readings are very coarse: increments of 5C.
+ */
+const FanControlParams FanControl::kGFRG250FanCtrlAux1Defaults = {
+                          temp_setpt    : 95,
+                          temp_max      : 109, /* fan speed is set to max when
+                                                  temperatures reaches 110C */
+                          temp_step     : 3,
+                          duty_cycle_min: 30,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2,
+                          temp_overheat : 120,
+                        };
+
+/*
  * Defaults of Fan control parameters for GFSC100 (Spacecast).
  * There is no direct SOC temp input, so we use the remote sensor.
  * Mapping between external temp sensor and actual cpu temp was determined
@@ -275,7 +291,8 @@ void FanControl::InitParams() {
       /* Set thermal fan policy parameters of GFRG250 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFRG250FanCtrlSocDefaults;
       pfan_ctrl_params_[BRUNO_IS_HDD] = kGFRG250FanCtrlHddDefaults;
-      max = BRUNO_IS_HDD;
+      pfan_ctrl_params_[BRUNO_AUX1] = kGFRG250FanCtrlAux1Defaults;
+      max = BRUNO_AUX1;
       break;
     case BRUNO_GFSC100:
       /* Set thermal fan policy parameters of GFSC100 */
@@ -300,8 +317,24 @@ void FanControl::InitParams() {
   uint8_t idx;
   /* Adjust the fan control parameters for calculation. */
   for (idx = 0, pfan_ctrl = pfan_ctrl_params_; idx <= max; idx++, pfan_ctrl++) {
+    const char *suffix;
+    switch(idx) {
+      case BRUNO_SOC:
+        suffix = "_SOC";
+        break;
+      case BRUNO_IS_HDD:
+        suffix = "_HDD";
+        break;
+      case BRUNO_AUX1:
+        suffix = "_AUX1";
+        break;
+      default:
+        suffix = "_UNKNOWN";
+        break;
+    }
+
     LOG(LS_INFO) << platformInstance_->PlatformName()
-                 << ((idx == BRUNO_SOC)? "_SOC" : "_HDD") << std::endl
+                 << suffix << std::endl
                  << " Tsetpt: "    << pfan_ctrl->temp_setpt << std::endl
                  << " Tmax: "      << pfan_ctrl->temp_max << std::endl
                  << " Tstep: "     << pfan_ctrl->temp_step << std::endl
@@ -314,18 +347,21 @@ void FanControl::InitParams() {
 
 
 bool FanControl::AdjustSpeed(
-      uint16_t soc_temp, uint16_t hdd_temp, uint16_t fan_speed) {
+      uint16_t soc_temp, uint16_t hdd_temp, uint16_t aux1_temp,
+      uint16_t fan_speed) {
   bool ret = true;
   uint16_t new_duty_cycle_pwm;
 
   LOG(LS_VERBOSE) << __func__ << ": soc_temp=" << soc_temp
-                  << " hdd_temp=" << hdd_temp << " fan_speed=" << fan_speed;
+                  << " hdd_temp=" << hdd_temp << " aux1_temp=" << aux1_temp
+                  << " fan_speed=" << fan_speed;
 
   do {
     /* Get new SOC PWM per the current SOC and HDD temperatures */
 
     /* Get new duty cycle per SOC and HDD temperatures */
-    ComputeDutyCycle(soc_temp, hdd_temp, fan_speed, &new_duty_cycle_pwm);
+    ComputeDutyCycle(soc_temp, hdd_temp, aux1_temp, fan_speed,
+        &new_duty_cycle_pwm);
 
     LOG(LS_INFO) << __func__ << ": duty_cycle_pwm = " << new_duty_cycle_pwm;
     if (new_duty_cycle_pwm != duty_cycle_pwm_) {
@@ -410,97 +446,86 @@ bool FanControl::DrivePwm(uint16_t duty_cycle) {
   return true;
 }
 
+uint16_t FanControl::__ComputeDutyCycle(
+  uint16_t temp,
+  uint16_t fan_speed,
+  FanControlParams &params) {
+
+  uint16_t  compute_duty_cycle = duty_cycle_pwm_;
+  if (temp > params.temp_max) {
+    compute_duty_cycle = params.duty_cycle_max;
+  }
+  else if (temp > (params.temp_setpt + params.temp_step)) {
+    if (fan_speed == kFanSpeedNotSpinning) {
+      compute_duty_cycle = params.duty_cycle_min;
+    }
+    else if (duty_cycle_pwm_ < params.duty_cycle_max) {
+      /* 1. Possibly, the fan still stops due to duty_cycle_pwm_ is not large
+       *    enough. Continue increase the duty cycle.
+       * 2. Or the fan is running, but it's not fast enough to cool down
+       *    the unit.
+       */
+      compute_duty_cycle = duty_cycle_pwm_ + params.pwm_step;
+      if (compute_duty_cycle > params.duty_cycle_max)
+        compute_duty_cycle = params.duty_cycle_max;
+    }
+  }
+  else if (temp < (params.temp_setpt - params.temp_step)) {
+    if ((fan_speed == kFanSpeedNotSpinning) ||
+        (duty_cycle_pwm_ < params.pwm_step)) {
+      compute_duty_cycle = kPwmMinValue;
+    }
+    else {
+      /* Reduce fan pwm if temp is lower than
+       * the (temp_setpt - temp_step) and plus fan is still spinning
+       */
+      compute_duty_cycle = duty_cycle_pwm_ - params.pwm_step;
+    }
+  }
+  return compute_duty_cycle;
+}
 
 void FanControl::ComputeDutyCycle(
   uint16_t soc_temp,
   uint16_t hdd_temp,
+  uint16_t aux1_temp,
   uint16_t fan_speed,
   uint16_t *new_duty_cycle_pwm) {
 
   uint16_t  soc_compute_duty_cycle = 0;
   uint16_t  hdd_compute_duty_cycle = 0;
+  uint16_t  aux1_compute_duty_cycle = 0;
   FanControlParams  *psoc = &pfan_ctrl_params_[BRUNO_SOC];
   FanControlParams  *phdd = get_hdd_fan_ctrl_parms();
+  FanControlParams  *paux1 = get_aux1_fan_ctrl_parms();
 
   LOG(LS_VERBOSE) << __func__ << " - duty_cycle_pwm_ = " << duty_cycle_pwm_
                << " i/p soc_temp=" << soc_temp
                << " hdd_temp="     << hdd_temp
+               << " aux1_temp="    << aux1_temp
                << " fan_speed="    << fan_speed;
 
   /* check SOC temps */
   if (psoc) {
-    soc_compute_duty_cycle = duty_cycle_pwm_;
-    if (soc_temp > psoc->temp_max) {
-      soc_compute_duty_cycle = psoc->duty_cycle_max;
-    }
-    else if (soc_temp > (psoc->temp_setpt + psoc->temp_step)) {
-      if (fan_speed == kFanSpeedNotSpinning) {
-        soc_compute_duty_cycle = psoc->duty_cycle_min;
-      }
-      else if (duty_cycle_pwm_ < psoc->duty_cycle_max) {
-        /* 1. Possibly, the fan still stops due to duty_cycle_pwm_ is not large
-         *    enough. Continue increase the duty cycle.
-         * 2. Or the fan is running, but it's not fast enough to cool down
-         *    the unit.
-         */
-        soc_compute_duty_cycle = duty_cycle_pwm_ + psoc->pwm_step;
-        if (soc_compute_duty_cycle > psoc->duty_cycle_max)
-          soc_compute_duty_cycle = psoc->duty_cycle_max;
-      }
-    }
-    else if (soc_temp < (psoc->temp_setpt - psoc->temp_step)) {
-      if ((fan_speed == kFanSpeedNotSpinning) ||
-          (duty_cycle_pwm_ < psoc->pwm_step)) {
-        soc_compute_duty_cycle = kPwmMinValue;
-      }
-      else {
-        /* Reduce fan pwm if soc_temp is lower than
-         * the (temp_setpt - temp_step) and plus fan is still spinning
-         */
-        soc_compute_duty_cycle = duty_cycle_pwm_ - psoc->pwm_step;
-      }
-    }
+    soc_compute_duty_cycle = __ComputeDutyCycle(soc_temp, fan_speed, *psoc);
   }
 
   /* check HDD temps */
   if (phdd) {
-    hdd_compute_duty_cycle = duty_cycle_pwm_;
-    if (if_hdd_temp_over_temp_max(hdd_temp, phdd) == true) {
-      hdd_compute_duty_cycle = phdd->duty_cycle_max;
-    }
-    else if (if_hdd_temp_over_temp_setpt(hdd_temp, phdd) == true) {
-      if (fan_speed == kFanSpeedNotSpinning) {
-        hdd_compute_duty_cycle = phdd->duty_cycle_min;
-      }
-      else if (duty_cycle_pwm_ < phdd->duty_cycle_max) {
-        /* 1. Possibly, the fan still stops due to duty_cycle_pwm_ is not large
-         *    enough. Continue increase the duty cycle.
-         * 2. Or the fan is running, but it's not fast enough to cool down
-         *    the unit.
-         */
-        hdd_compute_duty_cycle = duty_cycle_pwm_ + phdd->pwm_step;
-        if (hdd_compute_duty_cycle > phdd->duty_cycle_max)
-          hdd_compute_duty_cycle = phdd->duty_cycle_max;
-      }
-    }
-    else if (if_hdd_temp_lower_than_temp_setpt(hdd_temp, phdd) == true) {
-      if ((fan_speed == kFanSpeedNotSpinning) ||
-          (duty_cycle_pwm_ < phdd->pwm_step)) {
-        hdd_compute_duty_cycle = kPwmMinValue;
-      }
-      else {
-        /* Reduce fan pwm if both soc_temp and hdd_temp are lower than
-         * their (temp_setpt - temp_step) and plus fan is still spinning
-         */
-        hdd_compute_duty_cycle = duty_cycle_pwm_ - phdd->pwm_step;
-      }
-    }
+    hdd_compute_duty_cycle = __ComputeDutyCycle(hdd_temp, fan_speed, *phdd);
+  }
+
+  /* check HDD temps */
+  if (paux1) {
+    aux1_compute_duty_cycle = __ComputeDutyCycle(aux1_temp, fan_speed, *paux1);
   }
 
   LOG(LS_INFO) << "soc_duty_cycle_pwm = " << soc_compute_duty_cycle << " "
-               << "hdd_duty_cycle_pwm = " << hdd_compute_duty_cycle;
+               << "hdd_duty_cycle_pwm = " << hdd_compute_duty_cycle << " "
+               << "aux1_duty_cycle_pwm = " << aux1_compute_duty_cycle;
 
   *new_duty_cycle_pwm = MAX(soc_compute_duty_cycle, hdd_compute_duty_cycle);
+  *new_duty_cycle_pwm = MAX(*new_duty_cycle_pwm, aux1_compute_duty_cycle);
 
   LOG(LS_INFO) << "new_duty_cycle_pwm = " << *new_duty_cycle_pwm;
 
@@ -548,36 +573,12 @@ FanControlParams *FanControl::get_hdd_fan_ctrl_parms() {
   return ptr;
 }
 
-
-bool FanControl::if_hdd_temp_over_temp_max(const uint16_t hdd_temp, const FanControlParams *phdd) const {
-  bool  ret = false;  /* if no hdd params, default is false */
-  if ((phdd != NULL) && (hdd_temp > phdd->temp_max)) {
-    ret = true;
+FanControlParams *FanControl::get_aux1_fan_ctrl_parms() {
+  FanControlParams  *ptr = NULL;
+  if (platformInstance_->PlatformHasAux1() == true) {
+    ptr = &pfan_ctrl_params_[BRUNO_AUX1];
   }
-  return ret;
-}
-
-
-bool FanControl::if_hdd_temp_over_temp_setpt(const uint16_t hdd_temp, const FanControlParams *phdd) const {
-  bool  ret = false;  /* if no hdd params, default is false */
-  if ((phdd != NULL) && (hdd_temp > (phdd->temp_setpt + phdd->temp_step))) {
-    ret = true;
-  }
-  return ret;
-}
-
-
-bool FanControl::if_hdd_temp_lower_than_temp_setpt(const uint16_t hdd_temp, const FanControlParams *phdd) const {
-  bool  ret = true;   /* if no hdd params, default is true */
-  if (phdd != NULL) {
-    if (hdd_temp < (phdd->temp_setpt - phdd->temp_step)) {
-      ret = true;
-    }
-    else {
-      ret = false;
-    }
-  }
-  return ret;
+  return ptr;
 }
 
 
@@ -613,6 +614,9 @@ bool FanControl::dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx) {
       break;
     case BRUNO_IS_HDD:
       buf += "_HDD";
+      break;
+    case BRUNO_AUX1:
+      buf += "_AUX1";
       break;
     default:
       buf += "_UNKNOWN";
