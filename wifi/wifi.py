@@ -4,6 +4,7 @@
 
 from __future__ import print_function
 
+import glob
 import os
 import re
 import subprocess
@@ -506,6 +507,24 @@ def _start_hostapd(interface, config_filename, band, ssid):
   Returns:
     Whether hostapd was started successfully.
   """
+  aggfiles = glob.glob('/sys/kernel/debug/ieee80211/phy*/' +
+                       'netdev:%s/default_agg_timeout' % interface)
+  if not aggfiles:
+    # This can happen on non-mac80211 interfaces.
+    utils.log('agg_timeout: no default_agg_timeout files for %r', interface)
+  else:
+    if experiment.enabled('WifiShortAggTimeout'):
+      utils.log('Using short agg_timeout.')
+      agg = 500
+    elif experiment.enabled('WifiNoAggTimeout'):
+      utils.log('Disabling agg_timeout.')
+      agg = 0
+    else:
+      utils.log('Using default long agg_timeout.')
+      agg = 5000
+    for aggfile in aggfiles:
+      open(aggfile, 'w').write(str(agg))
+
   pid_filename = utils.get_filename(
       'hostapd', utils.FILENAME_KIND.pid, interface, tmp=True)
   alivemonitor_filename = utils.get_filename(

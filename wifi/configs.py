@@ -16,6 +16,8 @@ EXPERIMENTS = [
     'WifiReverseBandsteering',
     'WifiHostapdLogging',
     'WifiHostapdDebug',
+    'WifiShortAggTimeout',
+    'WifiNoAggTimeout',
 ]
 for _i in EXPERIMENTS:
   experiment.register(_i)
