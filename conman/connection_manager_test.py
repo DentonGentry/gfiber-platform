@@ -368,6 +368,9 @@ def connection_manager_test(radio_config):
         moca_status_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
 
+        # Test that missing directories are created by ConnectionManager.
+        shutil.rmtree(status_dir)
+
         c = ConnectionManager(status_dir=status_dir,
                               moca_status_dir=moca_status_dir,
                               wpa_control_interface=wpa_control_interface,

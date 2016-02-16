@@ -214,6 +214,13 @@ class ConnectionManager(object):
 
     self._wlan_configuration = {}
 
+    # Make sure all necessary directories exist.
+    for directory in (self._status_dir, self._interface_status_dir,
+                      self._moca_status_dir):
+      if not os.path.exists(directory):
+        os.makedirs(directory)
+        logging.info('Created monitored directory: %s', directory)
+
     # It is very important that we know whether ethernet is up.  So if the
     # ethernet file doesn't exist for any reason when conman starts, check
     # explicitly.
