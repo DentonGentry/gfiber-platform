@@ -44,7 +44,10 @@ int main(int argc, char** argv) {
     bruno_base::LogMessage::LogToDebug(bruno_base::LS_INFO);
   }
 
-  bruno_platform_peripheral::FanControl fan_control(NULL);
+  bruno_platform_peripheral::Platform platform(
+      "Unknown", bruno_platform_peripheral::BRUNO_UNKNOWN, false, false);
+  platform.Init();
+  bruno_platform_peripheral::FanControl fan_control(&platform);
 
   fan_control.Init(NULL);
   uint16_t fan_speed;
