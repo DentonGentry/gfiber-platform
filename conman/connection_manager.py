@@ -221,23 +221,6 @@ class ConnectionManager(object):
         os.makedirs(directory)
         logging.info('Created monitored directory: %s', directory)
 
-    # It is very important that we know whether ethernet is up.  So if the
-    # ethernet file doesn't exist for any reason when conman starts, check
-    # explicitly.
-    if os.path.exists(os.path.join(self._interface_status_dir,
-                                   self.ETHERNET_STATUS_FILE)):
-      self._process_file(self._interface_status_dir, self.ETHERNET_STATUS_FILE)
-    else:
-      ethernet_up = self.is_ethernet_up()
-      self.bridge.ethernet = ethernet_up
-      self.ifplugd_action('eth0', ethernet_up)
-
-    for path, prefix in ((self._moca_status_dir, self.MOCA_NODE_FILE_PREFIX),
-                         (self._status_dir, self.COMMAND_FILE_PREFIX),
-                         (self._status_dir, self.GATEWAY_FILE_PREFIX)):
-      for filepath in glob.glob(os.path.join(path, prefix + '*')):
-        self._process_file(path, os.path.split(filepath)[-1])
-
     wm = pyinotify.WatchManager()
     wm.add_watch(self._status_dir,
                  pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO |
@@ -247,6 +230,27 @@ class ConnectionManager(object):
     wm.add_watch(self._moca_status_dir,
                  pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO)
     self.notifier = pyinotify.Notifier(wm, FileChangeHandler(self), timeout=0)
+
+    # If the ethernet file doesn't exist for any reason when conman starts,
+    # check explicitly and run ifplugd.action to create the file.
+    if not os.path.exists(os.path.join(self._interface_status_dir,
+                                       self.ETHERNET_STATUS_FILE)):
+      ethernet_up = self.is_ethernet_up()
+      self.bridge.ethernet = ethernet_up
+      self.ifplugd_action('eth0', ethernet_up)
+
+    for path, prefix in ((self._status_dir, self.GATEWAY_FILE_PREFIX),
+                         (self._interface_status_dir, ''),
+                         (self._moca_status_dir, self.MOCA_NODE_FILE_PREFIX),
+                         (self._status_dir, self.COMMAND_FILE_PREFIX)):
+      for filepath in glob.glob(os.path.join(path, prefix + '*')):
+        self._process_file(path, os.path.split(filepath)[-1])
+
+    # Now that we've ready any existing state, it's okay to let interfaces touch
+    # the routing table.
+    for ifc in [self.bridge] + self.wifi:
+      ifc.initialize()
+      logging.debug('%s initialized', ifc.name)
 
     self._interface_update_counter = 0
     self._try_wlan_after = {'5': 0, '2.4': 0}

@@ -30,7 +30,7 @@ class FakeInterfaceMixin(object):
     else:
       raise ValueError('Invalid fake connection_check script.')
 
-  def _ip_route(self, *args):
+  def _really_ip_route(self, *args):
     if not args:
       return '\n'.join(self.routing_table.values() +
                        ['1.2.3.4/24 dev %s proto kernel scope link' % self.name,
@@ -145,6 +145,11 @@ def bridge_test():
 
   b.add_moca_station(0)
   b.set_gateway_ip('192.168.1.1')
+  # Everything should fail because the interface is not initialized.
+  wvtest.WVFAIL(b.acs())
+  wvtest.WVFAIL(b.internet())
+  wvtest.WVFAIL(b.current_route())
+  b.initialize()
   wvtest.WVPASS(b.acs())
   wvtest.WVPASS(b.internet())
   wvtest.WVPASS(b.current_route())
@@ -183,6 +188,7 @@ def wifi_test():
   """Test Wifi."""
   w = Wifi('wcli0', '21')
   w.set_connection_check_result('succeed')
+  w.initialize()
 
   try:
     wpa_path = tempfile.mkdtemp()

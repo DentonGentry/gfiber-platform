@@ -38,6 +38,9 @@ class Interface(object):
     self._gateway_ip = None
     self.metric = metric
 
+    # Until this is set True, the routing table will not be touched.
+    self._initialized = False
+
   def _connection_check(self, check_acs):
     """Check this interface's connection status.
 
@@ -47,11 +50,17 @@ class Interface(object):
     Returns:
       Whether the connection is working.
     """
+    # Until initialized, we want to act as if the interface is down.
+    if not self._initialized:
+      logging.debug('%s not initialized; not running connection_check%s',
+                    self.name, ' (ACS)' if check_acs else '')
+      return None
+
     if not self.links:
       logging.debug('Connection check for %s failed due to no links', self.name)
       return False
 
-    logging.debug('Gateway ip for %s is %s', self.name, self._gateway_ip)
+    logging.debug('Gateway IP for %s is %s', self.name, self._gateway_ip)
     if self._gateway_ip is None:
       logging.debug('Connection check for %s failed due to no gateway IP',
                     self.name)
@@ -160,6 +169,14 @@ class Interface(object):
     return result
 
   def _ip_route(self, *args):
+    if not self._initialized:
+      logging.debug('Not initialized, not running %s %s',
+                    ' '.join(self.IP_ROUTE), ' '.join(args))
+      return ''
+
+    return self._really_ip_route(*args)
+
+  def _really_ip_route(self, *args):
     try:
       logging.debug('%s calling ip route %s', self.name, ' '.join(args))
       return subprocess.check_output(self.IP_ROUTE + list(args))
@@ -235,6 +252,15 @@ class Interface(object):
       self.add_route()
     elif maybe_had_access and not has_access:
       self.delete_route()
+
+  def initialize(self):
+    """Tell the interface it has its initial state.
+
+    Until this is called, the interface won't run connection checks or touch the
+    routing table.
+    """
+    self._initialized = True
+    self.update_routes()
 
 
 class Bridge(Interface):
