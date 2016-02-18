@@ -97,7 +97,7 @@ class WLANConfiguration(object):
     self.stop_client()
 
     try:
-      subprocess.check_call(self.command, stderr=subprocess.STDOUT)
+      subprocess.check_output(self.command, stderr=subprocess.STDOUT)
       self.access_point_up = True
       logging.debug('Started %s GHz AP', self.band)
     except subprocess.CalledProcessError as e:
@@ -112,7 +112,7 @@ class WLANConfiguration(object):
       command += ['--interface_suffix', self.interface_suffix]
 
     try:
-      subprocess.check_call(command, stderr=subprocess.STDOUT)
+      subprocess.check_output(command, stderr=subprocess.STDOUT)
       self.access_point_up = False
       logging.debug('Stopped %s GHz AP', self.band)
     except subprocess.CalledProcessError as e:
@@ -132,7 +132,7 @@ class WLANConfiguration(object):
     if self.passphrase:
       env['WIFI_CLIENT_PSK'] = self.passphrase
     try:
-      subprocess.check_call(command, stderr=subprocess.STDOUT, env=env)
+      subprocess.check_output(command, stderr=subprocess.STDOUT, env=env)
       self.client_up = True
       logging.info('Started wifi client on %s GHz', self.band)
     except subprocess.CalledProcessError as e:
@@ -146,7 +146,7 @@ class WLANConfiguration(object):
     self.wifi.detach_wpa_control()
 
     try:
-      subprocess.check_call(self.WIFI_STOPCLIENT + ['-b', self.band],
+      subprocess.check_output(self.WIFI_STOPCLIENT + ['-b', self.band],
                             stderr=subprocess.STDOUT)
       self.client_up = False
       logging.debug('Stopped wifi client on %s GHz', self.band)
