@@ -937,17 +937,15 @@ def _run(argv):
   success = function(opt)
 
   if success:
-    if extra[0] == 'set':
+    if extra[0] in ('set', 'setclient'):
+      program = 'hostapd' if extra[0] == 'set' else 'wpa_supplicant'
       if opt.persist:
         phy = iw.find_phy(opt.band, opt.channel)
         for band in iw.phy_bands(phy):
           if band != opt.band:
-            persist.delete_options('hostapd', band)
-        persist.save_options('hostapd', opt.band, argv)
-      persist.save_options('hostapd', opt.band, argv, tmp=True)
-
-    if extra[0] == 'setclient' and opt.persist:
-      persist.save_options('wpa_supplicant', opt.band, argv)
+            persist.delete_options(program, band)
+        persist.save_options(program, opt.band, argv)
+      persist.save_options(program, opt.band, argv, tmp=True)
 
   return success
 
