@@ -285,10 +285,10 @@ class ConnectionManager(connection_manager.ConnectionManager):
   # Test methods
 
   def wlan_config_filename(self, band):
-    return os.path.join(self._status_dir, 'command.%s' % band)
+    return os.path.join(self._config_dir, 'command.%s' % band)
 
   def access_point_filename(self, band):
-    return os.path.join(self._status_dir, 'access_point.%s' % band)
+    return os.path.join(self._config_dir, 'access_point.%s' % band)
 
   def delete_wlan_config(self, band):
     os.unlink(self.wlan_config_filename(band))
@@ -364,6 +364,7 @@ def connection_manager_test(radio_config):
       try:
         # No initial state.
         status_dir = tempfile.mkdtemp()
+        config_dir = tempfile.mkdtemp()
         os.mkdir(os.path.join(status_dir, 'interfaces'))
         moca_status_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
@@ -372,6 +373,7 @@ def connection_manager_test(radio_config):
         shutil.rmtree(status_dir)
 
         c = ConnectionManager(status_dir=status_dir,
+                              config_dir=config_dir,
                               moca_status_dir=moca_status_dir,
                               wpa_control_interface=wpa_control_interface,
                               run_duration_s=run_duration_s,
@@ -385,6 +387,7 @@ def connection_manager_test(radio_config):
 
       finally:
         shutil.rmtree(status_dir)
+        shutil.rmtree(config_dir)
         shutil.rmtree(moca_status_dir)
         shutil.rmtree(wpa_control_interface)
         # pylint: disable=protected-access
