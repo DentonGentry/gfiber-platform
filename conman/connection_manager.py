@@ -178,6 +178,7 @@ class ConnectionManager(object):
   def __init__(self,
                bridge_interface='br0',
                status_dir='/tmp/conman',
+               config_dir='/config/conman',
                moca_status_dir='/tmp/cwmp/monitoring/moca2',
                wpa_control_interface='/var/run/wpa_supplicant',
                run_duration_s=1, interface_update_period=5,
@@ -201,6 +202,7 @@ class ConnectionManager(object):
                        key=lambda w: w.metric)
 
     self._status_dir = status_dir
+    self._config_dir = config_dir
     self._interface_status_dir = os.path.join(status_dir, 'interfaces')
     self._moca_status_dir = moca_status_dir
     self._wpa_control_interface = wpa_control_interface
@@ -215,16 +217,18 @@ class ConnectionManager(object):
     self._wlan_configuration = {}
 
     # Make sure all necessary directories exist.
-    for directory in (self._status_dir, self._interface_status_dir,
-                      self._moca_status_dir):
+    for directory in (self._status_dir, self._config_dir,
+                      self._interface_status_dir, self._moca_status_dir):
       if not os.path.exists(directory):
         os.makedirs(directory)
         logging.info('Created monitored directory: %s', directory)
 
     wm = pyinotify.WatchManager()
-    wm.add_watch(self._status_dir,
+    wm.add_watch(self._config_dir,
                  pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO |
                  pyinotify.IN_DELETE | pyinotify.IN_MOVED_FROM)
+    wm.add_watch(self._status_dir,
+                 pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO)
     wm.add_watch(self._interface_status_dir,
                  pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO)
     wm.add_watch(self._moca_status_dir,
@@ -242,7 +246,7 @@ class ConnectionManager(object):
     for path, prefix in ((self._status_dir, self.GATEWAY_FILE_PREFIX),
                          (self._interface_status_dir, ''),
                          (self._moca_status_dir, self.MOCA_NODE_FILE_PREFIX),
-                         (self._status_dir, self.COMMAND_FILE_PREFIX)):
+                         (self._config_dir, self.COMMAND_FILE_PREFIX)):
       for filepath in glob.glob(os.path.join(path, prefix + '*')):
         self._process_file(path, os.path.split(filepath)[-1])
 
@@ -429,7 +433,7 @@ class ConnectionManager(object):
       self._process_file(path, filename)
 
   def _handle_deleted_file(self, path, filename):
-    if path == self._status_dir:
+    if path == self._config_dir:
       match = re.match(self.COMMAND_FILE_REGEXP, filename)
       if match:
         band = match.group('band')
@@ -474,7 +478,7 @@ class ConnectionManager(object):
                         contents)
           return
 
-    if path == self._status_dir:
+    elif path == self._config_dir:
       if filename.startswith(self.COMMAND_FILE_PREFIX):
         match = re.match(self.COMMAND_FILE_REGEXP, filename)
         if match:
@@ -490,7 +494,9 @@ class ConnectionManager(object):
           if band in self._wlan_configuration:
             self._wlan_configuration[band].access_point = True
           logging.debug('AP enabled for %s GHz', band)
-      elif filename.startswith(self.GATEWAY_FILE_PREFIX):
+
+    elif path == self._status_dir:
+      if filename.startswith(self.GATEWAY_FILE_PREFIX):
         interface_name = filename.split(self.GATEWAY_FILE_PREFIX)[-1]
         ifc = self.interface_by_name(interface_name)
         if ifc:
@@ -586,7 +592,7 @@ class ConnectionManager(object):
         wlan_configuration.access_point = current.access_point
       else:
         ap_file = os.path.join(
-            self._status_dir, self.ACCESS_POINT_FILE_PREFIX +
+            self._config_dir, self.ACCESS_POINT_FILE_PREFIX +
             (('%s.' % wlan_configuration.interface_suffix)
              if wlan_configuration.interface_suffix else '') + band)
         wlan_configuration.access_point = os.path.exists(ap_file)
