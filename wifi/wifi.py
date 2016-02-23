@@ -237,34 +237,47 @@ def set_wifi(opt):
     raise utils.BinWifiException(
         'no wifi phy for band=%s channel=%s', band, channel)
 
-  client_interface = iw.find_interface_from_phy(
-      phy, iw.INTERFACE_TYPE.client, opt.interface_suffix)
-  if (client_interface is not None and
-      _is_wpa_supplicant_running(client_interface)):
-    # Wait up to ten seconds for client width and channel to be available (only
-    # relevant if client was started recently).
-    # TODO(rofrankel): Consider shortcutting this loop if wpa_cli shows status
-    # is SCANNING (and other values)?
-    utils.log('Client running on same band; finding its width and channel.')
-    for _ in xrange(50):
-      client_band = _get_wpa_band(client_interface)
-      client_width, client_channel = iw.find_width_and_channel(client_interface)
-      sys.stderr.write('.')
-      if None not in (client_band, client_width, client_channel):
-        band, width, channel = client_band, client_width, client_channel
-        utils.log('Using band=%s, channel=%s, width=%s MHz from client',
-                  band, channel, width)
-        break
-      time.sleep(0.2)
-    else:
-      utils.log("Couldn't find band, width, and channel used by client "
-                "(it may not be connected)")
-
   interface = iw.find_interface_from_phy(
       phy, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
   if interface is None:
     raise utils.BinWifiException(
-        'no wifi interface for band=%s channel=%s', band, channel)
+        'no wifi interface found for band=%s channel=%s suffix=%s',
+        band, channel, opt.interface_suffix)
+
+  found_active_config = False
+  for other_interface in (set(iw.find_all_interfaces_from_phy(phy)) -
+                          set([interface])):
+    if _is_wpa_supplicant_running(other_interface):
+      get_band = _get_wpa_band
+    elif _is_hostapd_running(other_interface):
+      get_band = _get_hostapd_band
+    else:
+      continue
+
+    # Wait up to ten seconds for interface width and channel to be available
+    # (only relevant if hostapd/wpa_supplicant was started recently).
+    # TODO(rofrankel): Consider shortcutting this loop if wpa_cli shows status
+    # is SCANNING (and other values)?
+    utils.log('Interface %s running on same band; finding its width and '
+              'channel.', other_interface)
+    for _ in xrange(50):
+      active_band = get_band(other_interface)
+      active_width, active_channel = iw.find_width_and_channel(other_interface)
+
+      sys.stderr.write('.')
+      if None not in (active_band, active_width, active_channel):
+        band, width, channel = active_band, active_width, active_channel
+        utils.log('Using band=%s, channel=%s, width=%s MHz from interface %s',
+                  band, channel, width, other_interface)
+        found_active_config = True
+        break
+      time.sleep(0.2)
+    else:
+      utils.log("Couldn't find band, width, and channel used by interface %s "
+                "(it may not be connected)", other_interface)
+
+    if found_active_config:
+      break
 
   utils.log('interface: %s', interface)
   utils.log('Configuring cfg80211 wifi.')
@@ -495,6 +508,17 @@ def _hostapd_debug_options():
     return []
 
 
+def _get_hostapd_band(interface):
+  for line in utils.subprocess_lines(
+      ('hostapd_cli', '-i', interface, 'status')):
+    tokens = line.split('=')
+    if tokens and tokens[0] == 'freq':
+      try:
+        return {'5': '5', '2': '2.4'}[tokens[1][0]]
+      except (IndexError, KeyError):
+        return None
+
+
 def _start_hostapd(interface, config_filename, band, ssid):
   """Starts a babysat hostapd.
 
@@ -579,7 +603,7 @@ def _get_wpa_band(interface):
     if tokens and tokens[0] == 'freq':
       try:
         return {'5': '5', '2': '2.4'}[tokens[1][0]]
-      except KeyError:
+      except (IndexError, KeyError):
         return None
 
 
