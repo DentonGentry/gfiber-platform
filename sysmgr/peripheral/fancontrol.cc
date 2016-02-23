@@ -218,7 +218,7 @@ FanControl::~FanControl() {
 bool FanControl::Init(bool *gpio_mailbox_ready) {
 
   /* Check if the platform instance has been initialized
-   * 1) If run sysmgr,  the platformInstance_ would be initalized in
+   * 1) If run sysmgr,  the platform_ would be initalized in
    *    platformperipheral module.
    * 2) If run test_fan test util, the platformperipheral module won't be used.
    */
@@ -253,95 +253,95 @@ void FanControl::Terminate(void) {
 }
 
 void FanControl::InitParams() {
-  pfan_ctrl_params_ = new FanControlParams[BRUNO_PARAMS_TYPES];
+  pfan_ctrl_params_ = new FanControlParams[BRUNO_PARAMS_TYPES_MAX];
 
-  uint8_t max;
-  switch (platform_ = platformInstance_->PlatformType()) {
+  switch (platform_->PlatformType()) {
     case BRUNO_GFMS100:
       /* Set thermal fan policy parameters of GFMS100 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFMS100FanCtrlSocDefaults;
       pfan_ctrl_params_[BRUNO_IS_HDD] = kGFMS100FanCtrlHddDefaults;
-      max = BRUNO_IS_HDD;
       break;
     case BRUNO_GFHD100:
       /* Set thermal fan policy parameters of GFHD100 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFHD100FanCtrlSocDefaults;
-      max = BRUNO_SOC;
       break;
     case BRUNO_GFHD200:
       pfan_ctrl_params_[BRUNO_SOC] = kGFHD200FanCtrlSocDefaults;
-      max = BRUNO_SOC;
       break;
     case BRUNO_GFHD254:
       pfan_ctrl_params_[BRUNO_SOC] = kGFHD254FanCtrlSocDefaults;
-      max = BRUNO_SOC;
       break;
     case BRUNO_GFRG200:
       /* Set thermal fan policy parameters of GFRG200 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFRG200FanCtrlSocDefaults;
-      max = BRUNO_SOC;
       break;
     case BRUNO_GFRG210:
       /* Set thermal fan policy parameters of GFRG210 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFRG210FanCtrlSocDefaults;
       pfan_ctrl_params_[BRUNO_IS_HDD] = kGFRG210FanCtrlHddDefaults;
-      max = BRUNO_IS_HDD;
       break;
     case BRUNO_GFRG250:
       /* Set thermal fan policy parameters of GFRG250 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFRG250FanCtrlSocDefaults;
       pfan_ctrl_params_[BRUNO_IS_HDD] = kGFRG250FanCtrlHddDefaults;
       pfan_ctrl_params_[BRUNO_AUX1] = kGFRG250FanCtrlAux1Defaults;
-      max = BRUNO_AUX1;
       break;
     case BRUNO_GFSC100:
       /* Set thermal fan policy parameters of GFSC100 */
       pfan_ctrl_params_[BRUNO_SOC] = kGFSC100FanCtrlSocDefaults;
       pfan_ctrl_params_[BRUNO_IS_HDD] = kGFSC100FanCtrlHddDefaults;
-      max = BRUNO_IS_HDD;
       break;
     case BRUNO_GFLT110:
       pfan_ctrl_params_[BRUNO_SOC] = kGFLT110FanCtrlSocDefaults;
-      max = BRUNO_SOC;
       break;
     case BRUNO_UNKNOWN:
       LOG(LS_ERROR) << "Invalid platform type, ignore ... " << platform_;
-      max = BRUNO_SOC;
       break;
   }
 
   /* Check if an external fan control parameter table existing */
   dbgUpdateFanControlParams();
 
-  FanControlParams *pfan_ctrl;
-  uint8_t idx;
   /* Adjust the fan control parameters for calculation. */
-  for (idx = 0, pfan_ctrl = pfan_ctrl_params_; idx <= max; idx++, pfan_ctrl++) {
+  for (int i = 0; i < BRUNO_PARAMS_TYPES_MAX; i++) {
     const char *suffix;
-    switch(idx) {
+    switch(i) {
       case BRUNO_SOC:
         suffix = "_SOC";
         break;
+
       case BRUNO_IS_HDD:
         suffix = "_HDD";
+        if (!platform_->has_hdd()) {
+          LOG(LS_INFO) << "platform does not have hdd.";
+          continue;
+        }
         break;
+
       case BRUNO_AUX1:
         suffix = "_AUX1";
+        if (!platform_->has_aux1()) {
+          LOG(LS_INFO) << "platform does not have aux1.";
+          continue;
+        }
         break;
+
       default:
         suffix = "_UNKNOWN";
-        break;
+        LOG(LS_ERROR) << "Unknown type in fan param array";
+        continue;
     }
 
-    LOG(LS_INFO) << platformInstance_->PlatformName()
-                 << suffix << std::endl
-                 << " Tsetpt: "    << pfan_ctrl->temp_setpt << std::endl
-                 << " Tmax: "      << pfan_ctrl->temp_max << std::endl
-                 << " Tstep: "     << pfan_ctrl->temp_step << std::endl
-                 << " Dmin: "      << pfan_ctrl->duty_cycle_min << std::endl
-                 << " Dmax: "      << pfan_ctrl->duty_cycle_max << std::endl
-                 << " PWMstep: "   << pfan_ctrl->pwm_step << std::endl
-                 << " Toverheat: " << pfan_ctrl->temp_overheat << std::endl;
+    LOG(LS_INFO)
+        << platform_->PlatformName()
+        << suffix << std::endl
+        << " Tsetpt: "    << pfan_ctrl_params_[i].temp_setpt << std::endl
+        << " Tmax: "      << pfan_ctrl_params_[i].temp_max << std::endl
+        << " Tstep: "     << pfan_ctrl_params_[i].temp_step << std::endl
+        << " Dmin: "      << pfan_ctrl_params_[i].duty_cycle_min << std::endl
+        << " Dmax: "      << pfan_ctrl_params_[i].duty_cycle_max << std::endl
+        << " PWMstep: "   << pfan_ctrl_params_[i].pwm_step << std::endl
+        << " Toverheat: " << pfan_ctrl_params_[i].temp_overheat << std::endl;
   }
 }
 
@@ -406,7 +406,7 @@ void FanControl::GetHddTemperature(uint16_t *phdd_temp) {
   *phdd_temp = 0;
   uint16_t hdd_temp;
 
-  if (platformInstance_->PlatformHasHdd() == true) {
+  if (platform_->has_hdd() == true) {
     std::string buf = "hdd-temperature /dev/sda";
     /* Create vector to hold hdd temperature words */
     std::vector<std::string> tokens;
@@ -449,7 +449,7 @@ bool FanControl::DrivePwm(uint16_t duty_cycle) {
 uint16_t FanControl::__ComputeDutyCycle(
   uint16_t temp,
   uint16_t fan_speed,
-  FanControlParams &params) {
+  const FanControlParams &params) {
 
   uint16_t  compute_duty_cycle = duty_cycle_pwm_;
   if (temp > params.temp_max) {
@@ -566,19 +566,17 @@ std::string FanControl::ExecCmd(char* cmd, std::string *pattern) {
 }
 
 FanControlParams *FanControl::get_hdd_fan_ctrl_parms() {
-  FanControlParams  *ptr = NULL;
-  if (platformInstance_->PlatformHasHdd() == true) {
-    ptr = &pfan_ctrl_params_[BRUNO_IS_HDD];
+  if (platform_->has_hdd() == true) {
+    return &pfan_ctrl_params_[BRUNO_IS_HDD];
   }
-  return ptr;
+  return NULL;
 }
 
 FanControlParams *FanControl::get_aux1_fan_ctrl_parms() {
-  FanControlParams  *ptr = NULL;
-  if (platformInstance_->PlatformHasAux1() == true) {
-    ptr = &pfan_ctrl_params_[BRUNO_AUX1];
+  if (platform_->has_aux1() == true) {
+    return &pfan_ctrl_params_[BRUNO_AUX1];
   }
-  return ptr;
+  return NULL;
 }
 
 
@@ -588,7 +586,7 @@ void FanControl::dbgUpdateFanControlParams(void) {
   if (params_table_file.is_open()) {
     LOG(LS_INFO) << FAN_CONTROL_PARAMS_FILE << " existing...";
     dbgGetFanControlParamsFromParamsFile(BRUNO_SOC);
-    if (platformInstance_->PlatformHasHdd() == true) {
+    if (platform_->has_hdd() == true) {
       dbgGetFanControlParamsFromParamsFile(BRUNO_IS_HDD);
     }
   }
@@ -607,7 +605,7 @@ bool FanControl::dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx) {
   /* Get the search platform keyword in the table file: GFMS100_SOC,
    * GFMS100_HDD...
    */
-  std::string buf = platformInstance_->PlatformName();
+  std::string buf = platform_->PlatformName();
   switch (fc_idx) {
     case BRUNO_SOC:
       buf += "_SOC";
@@ -626,7 +624,7 @@ bool FanControl::dbgGetFanControlParamsFromParamsFile(uint8_t fc_idx) {
 
   LOG(LS_INFO) << buf << std::endl;
 
-  std::string result = platformInstance_->GetLine((char *)FAN_CONTROL_PARAMS_FILE, &buf);
+  std::string result = platform_->GetLine((char *)FAN_CONTROL_PARAMS_FILE, &buf);
   if (result.empty() == true)
     return false;
 

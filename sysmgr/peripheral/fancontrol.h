@@ -51,7 +51,7 @@ class FanControl : public Mailbox {
     BRUNO_SOC = 0,
     BRUNO_IS_HDD,
     BRUNO_AUX1,
-    BRUNO_PARAMS_TYPES
+    BRUNO_PARAMS_TYPES_MAX
   };
 
   static const unsigned int kPwmDefaultStartup;
@@ -76,6 +76,7 @@ class FanControl : public Mailbox {
 
   static const FanControlParams kGFHD100FanCtrlSocDefaults;
   static const FanControlParams kGFHD200FanCtrlSocDefaults;
+
   static const FanControlParams kGFHD254FanCtrlSocDefaults;
 
   static const FanControlParams kGFLT110FanCtrlSocDefaults;
@@ -86,16 +87,16 @@ class FanControl : public Mailbox {
         duty_cycle_pwm_(kPwmMinValue),
         duty_cycle_startup_(kPwmDefaultStartup),
         period_(DUTY_CYCLE_PWM_MAX_VALUE-1),
-        platform_(BRUNO_GFHD100),
         pfan_ctrl_params_(NULL),
-        platformInstance_(platform) {}
+        platform_(platform) {}
 
   virtual ~FanControl();
 
   bool Init(bool *gpio_mailbox_ready);
   void Terminate(void);
   bool DrivePwm(uint16_t duty_cycle);
-  bool AdjustSpeed(uint16_t soc_temp, uint16_t hdd_temp, uint16_t aux1_temp, uint16_t fan_speed);
+  bool AdjustSpeed(uint16_t soc_temp, uint16_t hdd_temp, uint16_t aux1_temp,
+                   uint16_t fan_speed);
   void GetHddTemperature(uint16_t *phdd_temp);
   void GetOverheatTemperature(uint16_t *poverheat_temp);
 
@@ -104,7 +105,7 @@ class FanControl : public Mailbox {
   void InitParams(void);
   std::string ExecCmd(char* cmd, std::string *pattern);
   uint16_t __ComputeDutyCycle(uint16_t temp, uint16_t fan_speed,
-                  FanControlParams &params);
+                  const FanControlParams &params);
   void ComputeDutyCycle(uint16_t soc_temp, uint16_t hdd_temp, uint16_t aux1_temp,
                         uint16_t fan_speed, uint16_t *new_duty_cycle_pwm);
 
@@ -129,9 +130,8 @@ class FanControl : public Mailbox {
    * idx BRUNO_SOC: depending upon GFMS100 (Bruno-IS) or GFHD100 (Thin Bruno);
    * idx BRUNO_IS_HDD: use by HDD GFMS100
    * */
-  enum BrunoPlatformTypes platform_;
   FanControlParams *pfan_ctrl_params_;
-  Platform *platformInstance_;
+  Platform *platform_;
 
   FanControlParams *get_hdd_fan_ctrl_parms();
   FanControlParams *get_aux1_fan_ctrl_parms();

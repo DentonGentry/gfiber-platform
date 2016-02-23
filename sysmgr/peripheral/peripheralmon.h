@@ -19,24 +19,21 @@ namespace bruno_platform_peripheral {
 class GpIoFanSpeed;
 class PeripheralMon : public Mailbox {
  public:
-  PeripheralMon(Platform *plat, unsigned int interval = 5000,
-                unsigned int hdd_temp_interval = 300000)
-      : platform_(plat), fan_control_(new FanControl(plat)), interval_(interval),
-    hdd_temp_interval_(hdd_temp_interval), hdd_temp_(0),
+  PeripheralMon(Platform *plat)
+      : platform_(plat), fan_control_(new FanControl(plat)),
+        hdd_temp_interval_(300000), hdd_temp_(0),
     last_time_(0), next_time_hdd_temp_check_(0),
     gpio_mailbox_ready(false) {
   }
   virtual ~PeripheralMon();
   void Probe(void);
-
-  void Init(int interval, int hdd_temp_interval);
+  void Init(int hdd_temp_interval);
 
  private:
   void Overheating(float soc_temperature);
 
   Platform* platform_;
   bruno_base::scoped_ptr<FanControl> fan_control_;
-  int interval_;
   int hdd_temp_interval_;
   uint16_t hdd_temp_;
   unsigned int overheating_;
