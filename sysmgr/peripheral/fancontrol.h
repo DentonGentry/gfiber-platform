@@ -78,6 +78,7 @@ class FanControl : public Mailbox {
   static const FanControlParams kGFHD200FanCtrlSocDefaults;
 
   static const FanControlParams kGFHD254FanCtrlSocDefaults;
+  static const FanControlParams kGFHD254FanCtrlAux1Defaults;
 
   static const FanControlParams kGFLT110FanCtrlSocDefaults;
 

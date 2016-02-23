@@ -201,6 +201,21 @@ const FanControlParams FanControl::kGFHD254FanCtrlSocDefaults = {
                           temp_overheat : 120,
                         };
 
+/*
+ * AUX1 refers to the temperature sensor in the Quantenna SoC
+ * which controls the 11ac wifi interface. The granularity of the temperature
+ * readings are very coarse: increments of 5C.
+ */
+const FanControlParams FanControl::kGFHD254FanCtrlAux1Defaults = {
+                          temp_setpt    : 94,
+                          temp_max      : 110,
+                          temp_step     : 3,
+                          duty_cycle_min: 25,
+                          duty_cycle_max: 100,
+                          pwm_step      : 2,
+                          temp_overheat : 120,
+                        };
+
 const FanControlParams FanControl::kGFLT110FanCtrlSocDefaults = {
                           temp_setpt    : 0,  /* No fan */
                           temp_max      : 0,
@@ -270,6 +285,7 @@ void FanControl::InitParams() {
       break;
     case BRUNO_GFHD254:
       pfan_ctrl_params_[BRUNO_SOC] = kGFHD254FanCtrlSocDefaults;
+      pfan_ctrl_params_[BRUNO_AUX1] = kGFHD254FanCtrlAux1Defaults;
       break;
     case BRUNO_GFRG200:
       /* Set thermal fan policy parameters of GFRG200 */
