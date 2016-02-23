@@ -3,6 +3,8 @@
 """Tests for quantenna.py."""
 
 import os
+from subprocess import CalledProcessError
+
 from configs_test import FakeOptDict
 import quantenna
 from wvtest import wvtest
@@ -17,14 +19,40 @@ def fake_qcsapi(*args):
     return '1\n' if ['startprod', 'wifi0'] in calls else '0\n'
 
 
+bridge_interfaces = set()
+
+
+def fake_brctl(*args):
+  bridge = args[-2]
+  wvtest.WVPASS(bridge == 'br0')
+  interface = args[-1]
+  if 'addif' in args:
+    if interface in bridge_interfaces:
+      raise CalledProcessError(
+          returncode=1, cmd=['brctl'] + list(args),
+          output=quantenna.ALREADY_MEMBER_FMT % (interface, bridge))
+    bridge_interfaces.add(interface)
+    return
+
+  if 'delif' in args:
+    if interface not in bridge_interfaces:
+      raise CalledProcessError(
+          returncode=1, cmd=['brctl'] + list(args),
+          output=quantenna.NOT_MEMBER_FMT % (interface, bridge))
+    bridge_interfaces.remove(interface)
+    return
+
+
 def set_fakes(interface='wlan1', qcsapi='qcsapi_pcie_static'):
   del calls[:]
+  bridge_interfaces.clear()
   os.environ['WIFI_PSK'] = 'wifi_psk'
   os.environ['WIFI_CLIENT_PSK'] = 'wifi_client_psk'
   quantenna._get_interface = lambda: interface
   quantenna._get_qcsapi = lambda: qcsapi
   quantenna._get_mac_address = lambda: '00:11:22:33:44:55'
   quantenna._qcsapi = fake_qcsapi
+  quantenna._brctl = fake_brctl
 
 
 def matching_calls_indices(accept):
@@ -57,10 +85,12 @@ def not_quantenna_test():
 @wvtest.wvtest
 def set_wifi_test():
   opt = FakeOptDict()
+  opt.bridge = 'br0'
   set_fakes()
 
   # Run set_wifi for the first time.
   wvtest.WVPASS(quantenna.set_wifi(opt))
+  wvtest.WVPASS('wlan1' in bridge_interfaces)
 
   # 'rfenable 0' must be run first so that a live interface is not being
   # modified.
@@ -104,6 +134,7 @@ def set_wifi_test():
   opt.width = '80'
   new_calls_start = len(calls)
   wvtest.WVPASS(quantenna.set_client_wifi(opt))
+  wvtest.WVFAIL('wlan1' in bridge_interfaces)
 
   # Clear old calls.
   del calls[:new_calls_start]
@@ -142,6 +173,13 @@ def set_wifi_test():
   i = matching_calls_indices(['create_ssid', 'ssid_set_passphrase'])
   wvtest.WVPASSLT(rim, i[0])
   wvtest.WVPASSLT(i[-1], calls.index(['apply_security_config', 'wifi0']))
+
+  # Make sure subsequent equivalent calls don't fail despite the redundant
+  # bridge changes.
+  wvtest.WVPASS(quantenna.set_client_wifi(opt))
+  wvtest.WVPASS(quantenna.set_client_wifi(opt))
+  wvtest.WVPASS(quantenna.set_wifi(opt))
+  wvtest.WVPASS(quantenna.set_wifi(opt))
 
 
 @wvtest.wvtest
