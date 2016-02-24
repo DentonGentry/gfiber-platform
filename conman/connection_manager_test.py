@@ -76,6 +76,21 @@ Client Interface: wcli1  # 5 GHz client
 Client BSSID: f4:f5:e8:81:1b:a1
 """
 
+# See b/27328894.
+WIFI_SHOW_OUTPUT_ONE_RADIO_NO_5GHZ = """Band: 2.4
+RegDomain: 00
+Interface: wlan0  # 2.4 GHz ap
+BSSID: 00:50:43:02:fe:01
+AutoChannel: False
+Station List for band: 2.4
+
+Client Interface: wcli0  # 2.4 GHz client
+Client BSSID: 00:50:43:02:fe:02
+
+Band: 5
+RegDomain: 00
+"""
+
 IW_SCAN_OUTPUT = """BSS 00:11:22:33:44:55(on wcli0)
   SSID: s1
   Vendor specific: OUI f4:f5:e8, data: 01
@@ -264,11 +279,6 @@ class ConnectionManager(connection_manager.ConnectionManager):
                               else interface_name)
 
   # Non-overrides
-
-  def wifi_for_band(self, band):
-    for wifi in self.wifi:
-      if band in wifi.bands:
-        return wifi
 
   def access_point_up(self, band):
     if band not in self._wlan_configuration:
@@ -708,6 +718,43 @@ def connection_manager_test_one_radio(c):
   wvtest.WVFAIL(c.bridge.current_route())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
   wvtest.WVPASS(c.wifi_for_band('5').current_route())
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO_NO_5GHZ)
+def connection_manager_test_one_radio_no_5ghz(c):
+  """Test ConnectionManager for the case documented in b/27328894.
+
+  conman should be able to handle the lack of 5 GHz without actually
+  crashing.  Wired connections should not be affected.
+
+  Args:
+    c:  The ConnectionManager set up by @connection_manager_test.
+  """
+  # Make sure we've correctly set up the test; that there is no 5 GHz wifi
+  # interface.
+  wvtest.WVPASSEQ(c.wifi_for_band('5'), None)
+
+  c.set_ethernet(True)
+  wvtest.WVPASS(c.acs())
+  wvtest.WVPASS(c.internet())
+
+  # Make sure this doesn't crash.
+  c.write_wlan_config('5', 'my ssid', 'my psk')
+  c.run_once()
+  c.enable_access_point('5')
+  c.run_once()
+  c.disable_access_point('5')
+  c.run_once()
+  c.delete_wlan_config('5')
+  c.run_once()
+
+  # Make sure 2.4 still works.
+  c.write_wlan_config('2.4', 'my ssid', 'my psk')
+  c.run_once()
+  wvtest.WVPASS(c.wifi_for_band('2.4').acs())
+  wvtest.WVPASS(c.wifi_for_band('2.4').internet())
+  wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
 
 
 if __name__ == '__main__':
