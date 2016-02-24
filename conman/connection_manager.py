@@ -147,7 +147,7 @@ class WLANConfiguration(object):
 
     try:
       subprocess.check_output(self.WIFI_STOPCLIENT + ['-b', self.band],
-                            stderr=subprocess.STDOUT)
+                              stderr=subprocess.STDOUT)
       self.client_up = False
       logging.debug('Stopped wifi client on %s GHz', self.band)
     except subprocess.CalledProcessError as e:
@@ -483,15 +483,16 @@ class ConnectionManager(object):
         match = re.match(self.COMMAND_FILE_REGEXP, filename)
         if match:
           band = match.group('band')
-          wifi = next(w for w in self.wifi if band in w.bands)
-          self._update_wlan_configuration(
-              self.WLANConfiguration(band, wifi, contents))
+          wifi = self.wifi_for_band(band)
+          if wifi:
+            self._update_wlan_configuration(
+                self.WLANConfiguration(band, wifi, contents))
       elif filename.startswith(self.ACCESS_POINT_FILE_PREFIX):
         match = re.match(self.ACCESS_POINT_FILE_REGEXP, filename)
         if match:
           band = match.group('band')
-          wifi = next(w for w in self.wifi if band in w.bands)
-          if band in self._wlan_configuration:
+          wifi = self.wifi_for_band(band)
+          if wifi and band in self._wlan_configuration:
             self._wlan_configuration[band].access_point = True
           logging.debug('AP enabled for %s GHz', band)
 
@@ -526,6 +527,15 @@ class ConnectionManager(object):
     for ifc in [self.bridge] + self.wifi:
       if ifc.name == interface_name:
         return ifc
+
+  def wifi_for_band(self, band):
+    for wifi in self.wifi:
+      if band in wifi.bands:
+        return wifi
+
+    logging.error('No wifi interface for %s GHz.  wlan interfaces:\n%s',
+                  band, '\n'.join('%s: %r' %
+                                  (w.name, w.bands) for w in self.wifi))
 
   def ifplugd_action(self, interface_name, up):
     subprocess.call(self.IFPLUGD_ACTION + [interface_name,
