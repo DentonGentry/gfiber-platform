@@ -221,6 +221,16 @@ def find_interface_from_phy(phy, interface_type, interface_suffix):
       return interface
 
 
+def find_all_interfaces_from_phy(phy):
+  interfaces = []
+  for interface_type in INTERFACE_TYPE:
+    pattern = re.compile(r'w%s[0-9]\w*\Z' % re.escape(interface_type))
+    interfaces.extend(interface for interface
+                      in dev_parsed()[phy]['interfaces']
+                      if pattern.match(interface))
+  return interfaces
+
+
 def find_interface_from_band(band, interface_type, interface_suffix):
   """Finds the name of an interface on a given band.
 
