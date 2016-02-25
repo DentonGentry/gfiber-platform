@@ -357,5 +357,14 @@ class GinstallTest(unittest.TestCase):
 
     return uloader, uloader_data
 
+  def testGetMemTotal(self):
+    ginstall.F['MEMINFO'] = 'testdata/proc/meminfo1'
+    total = ginstall.GetMemTotal()
+    self.assertTrue(total > 4*1e9)
+    ginstall.F['MEMINFO'] = 'testdata/proc/meminfo2'
+    total = ginstall.GetMemTotal()
+    self.assertTrue(total < 4*1e9)
+
+
 if __name__ == '__main__':
   unittest.main()
