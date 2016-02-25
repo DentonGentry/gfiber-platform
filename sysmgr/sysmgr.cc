@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
   Platform* platform = new Platform();
   platform->Init();
   PeripheralMon* pmon = new PeripheralMon(platform);
-  pmon->Init(FLAG_interval, FLAG_hdd_temp_interval);
+  pmon->Init(FLAG_hdd_temp_interval);
 
   for (;;) {
     pmon->Probe();

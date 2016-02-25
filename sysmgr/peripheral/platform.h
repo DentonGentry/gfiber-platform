@@ -48,9 +48,9 @@ class Platform {
   void Init(void);
   std::string PlatformName(void) const { return name_; }
   enum BrunoPlatformTypes PlatformType(void) const { return type_; }
-  bool PlatformHasHdd(void) const { return has_hdd_; }
-  bool PlatformHasFan(void) const { return has_fan_; }
-  bool PlatformHasAux1(void) const { return has_aux1_; }
+  bool has_hdd(void) const { return has_hdd_; }
+  bool has_fan(void) const { return has_fan_; }
+  bool has_aux1(void) const { return has_aux1_; }
   std::string GetLine(char *file, std::string *pattern);
 
  private:

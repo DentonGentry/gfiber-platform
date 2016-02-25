@@ -21,14 +21,14 @@ void PeripheralMon::Probe(void) {
   uint16_t  fan_speed = 0;
   std::string soc_voltage;
 
-  if (platform_->PlatformHasHdd() &&
+  if (platform_->has_hdd() &&
       bruno_base::TimeIsLaterOrEqual(next_time_hdd_temp_check_, now)) {
     fan_control_->GetHddTemperature(&hdd_temp_);
     LOG(LS_INFO) << "hdd_temperature (new):" << hdd_temp_;
     next_time_hdd_temp_check_ = bruno_base::TimeAfter(hdd_temp_interval_);
   }
 
-  if (platform_->PlatformHasAux1()) {
+  if (platform_->has_aux1()) {
     ReadAux1Temperature(&aux1_temperature);
   }
 
@@ -39,7 +39,7 @@ void PeripheralMon::Probe(void) {
     bool read_soc_temperature = ReadSocTemperature(&soc_temperature);
     ReadSocVoltage(&soc_voltage);
 
-    if (platform_->PlatformHasFan()) {
+    if (platform_->has_fan()) {
       ReadFanSpeed(&fan_speed);
     }
 
@@ -53,7 +53,7 @@ void PeripheralMon::Probe(void) {
       Overheating(soc_temperature);
     }
 
-    if (platform_->PlatformHasFan()) {
+    if (platform_->has_fan()) {
       /* If failed to read soc_temperature, don't change PWM */
       if (read_soc_temperature) {
         fan_control_->AdjustSpeed(
@@ -102,8 +102,7 @@ void PeripheralMon::Overheating(float soc_temperature)
   }
 }
 
-void PeripheralMon::Init(int interval, int hdd_temp_interval) {
-  interval_ = interval;
+void PeripheralMon::Init(int hdd_temp_interval) {
   hdd_temp_interval_ = hdd_temp_interval;
   next_time_hdd_temp_check_ = bruno_base::Time(); // = now
   overheating_ = 0;
