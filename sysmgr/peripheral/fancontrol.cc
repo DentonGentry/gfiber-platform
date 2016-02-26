@@ -124,10 +124,10 @@ const FanControlParams FanControl::kGFRG250FanCtrlHddDefaults = {
  * readings are very coarse: increments of 5C.
  */
 const FanControlParams FanControl::kGFRG250FanCtrlAux1Defaults = {
-                          temp_setpt    : 95,
+                          temp_setpt    : 90,
                           temp_max      : 109, /* fan speed is set to max when
                                                   temperatures reaches 110C */
-                          temp_step     : 3,
+                          temp_step     : 9,
                           duty_cycle_min: 30,
                           duty_cycle_max: 100,
                           pwm_step      : 2,
