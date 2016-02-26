@@ -14,32 +14,20 @@ ALREADY_MEMBER_FMT = ('device %s is already a member of a bridge; '
 NOT_MEMBER_FMT = 'device %s is not a slave of %s'
 
 
-# pylint: disable=protected-access
 def _get_interface():
-  if not hasattr(_get_interface, '_interface'):
-    _get_interface._interface = subprocess.check_output(
-        ['get-quantenna-interface']).strip()
-  return _get_interface._interface
+  return subprocess.check_output(['get-quantenna-interface']).strip()
 
 
-# pylint: disable=protected-access
-def _get_qcsapi():
-  # qcsapi_pcie_static runs on PCIe hosts, e.g. GFRG250.
-  # call_qcsapi runs on the LHOST, e.g. GFEX250.
-  if not hasattr(_get_qcsapi, '_qcsapi'):
-    _get_qcsapi._qcsapi = next(
-        (qcsapi for qcsapi in ['qcsapi_pcie_static', 'call_qcsapi']
-         if utils.subprocess_quiet(['runnable', qcsapi]) == 0), None)
-  return _get_qcsapi._qcsapi
-
-
-def _get_mac_address():
-  var = {'wlan0': 'MAC_ADDR_WIFI', 'wlan1': 'MAC_ADDR_WIFI2'}[_get_interface()]
+def _get_mac_address(interface):
+  try:
+    var = {'wlan0': 'MAC_ADDR_WIFI', 'wlan1': 'MAC_ADDR_WIFI2'}[interface]
+  except KeyError:
+    raise utils.BinWifiException('no MAC address for %s in hnvram' % interface)
   return subprocess.check_output(['hnvram', '-rq', var]).strip()
 
 
 def _qcsapi(*args):
-  return subprocess.check_output([_get_qcsapi()] + list(args)).strip()
+  return subprocess.check_output(['qcsapi'] + list(args)).strip()
 
 
 def _brctl(*args):
@@ -47,7 +35,7 @@ def _brctl(*args):
                                  stderr=subprocess.STDOUT).strip()
 
 
-def _set_interface_in_bridge(bridge, want_in_bridge):
+def _set_interface_in_bridge(bridge, interface, want_in_bridge):
   """Add/remove Quantenna interface from/to the bridge."""
   if want_in_bridge:
     command = 'addif'
@@ -57,15 +45,16 @@ def _set_interface_in_bridge(bridge, want_in_bridge):
     error_fmt = NOT_MEMBER_FMT
 
   try:
-    _brctl(command, bridge, _get_interface())
+    _brctl(command, bridge, interface)
   except subprocess.CalledProcessError as e:
-    if error_fmt % (_get_interface(), bridge) not in e.output:
+    if error_fmt % (interface, bridge) not in e.output:
       raise utils.BinWifiException(e.output)
 
 
 def _set(mode, opt):
   """Enable wifi."""
-  if not _get_interface() or not _get_qcsapi():
+  interface = _get_interface()
+  if not interface:
     return False
 
   _qcsapi('rfenable', '0')
@@ -81,7 +70,7 @@ def _set(mode, opt):
   for param, value in config.iteritems():
     _qcsapi('update_config_param', 'wifi0', param, value)
 
-  _qcsapi('set_mac_addr', 'wifi0', _get_mac_address())
+  _qcsapi('set_mac_addr', 'wifi0', _get_mac_address(interface))
 
   if int(_qcsapi('is_startprod_done')):
     _qcsapi('reload_in_mode', 'wifi0', mode)
@@ -95,14 +84,14 @@ def _set(mode, opt):
       raise utils.BinWifiException('startprod timed out')
 
   if mode == 'ap':
-    _set_interface_in_bridge(opt.bridge, True)
+    _set_interface_in_bridge(opt.bridge, interface, True)
     _qcsapi('set_ssid', 'wifi0', opt.ssid)
     _qcsapi('set_passphrase', 'wifi0', '0', os.environ['WIFI_PSK'])
     _qcsapi('set_option', 'wifi0', 'ssid_broadcast',
             '0' if opt.hidden_mode else '1')
     _qcsapi('rfenable', '1')
   elif mode == 'sta':
-    _set_interface_in_bridge(opt.bridge, False)
+    _set_interface_in_bridge(opt.bridge, interface, False)
     _qcsapi('create_ssid', 'wifi0', opt.ssid)
     _qcsapi('ssid_set_passphrase', 'wifi0', opt.ssid, '0',
             os.environ['WIFI_CLIENT_PSK'])
@@ -115,7 +104,7 @@ def _set(mode, opt):
 
 def _stop(_):
   """Disable wifi."""
-  if not _get_interface() or not _get_qcsapi():
+  if not _get_interface():
     return False
 
   _qcsapi('rfenable', '0')

@@ -43,14 +43,13 @@ def fake_brctl(*args):
     return
 
 
-def set_fakes(interface='wlan1', qcsapi='qcsapi_pcie_static'):
+def set_fakes(interface='wlan1'):
   del calls[:]
   bridge_interfaces.clear()
   os.environ['WIFI_PSK'] = 'wifi_psk'
   os.environ['WIFI_CLIENT_PSK'] = 'wifi_client_psk'
   quantenna._get_interface = lambda: interface
-  quantenna._get_qcsapi = lambda: qcsapi
-  quantenna._get_mac_address = lambda: '00:11:22:33:44:55'
+  quantenna._get_mac_address = lambda _: '00:11:22:33:44:55'
   quantenna._qcsapi = fake_qcsapi
   quantenna._brctl = fake_brctl
 
@@ -68,13 +67,12 @@ def not_quantenna_test():
   wvtest.WVFAIL(quantenna.stop_ap_wifi(opt))
   wvtest.WVFAIL(quantenna.stop_client_wifi(opt))
   wvtest.WVPASSEQ(calls, [])
-  set_fakes(qcsapi='')
   wvtest.WVFAIL(quantenna.set_wifi(opt))
   wvtest.WVFAIL(quantenna.set_client_wifi(opt))
   wvtest.WVFAIL(quantenna.stop_ap_wifi(opt))
   wvtest.WVFAIL(quantenna.stop_client_wifi(opt))
   wvtest.WVPASSEQ(calls, [])
-  set_fakes(interface='', qcsapi='')
+  set_fakes(interface='')
   wvtest.WVFAIL(quantenna.set_wifi(opt))
   wvtest.WVFAIL(quantenna.set_client_wifi(opt))
   wvtest.WVFAIL(quantenna.stop_ap_wifi(opt))
