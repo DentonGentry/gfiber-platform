@@ -72,6 +72,7 @@ F = {
     'SYSBLOCK': '/sys/block',
     'MMCBLK0BOOT0': '/dev/mmcblk0boot0',
     'MMCBLK0BOOT1': '/dev/mmcblk0boot1',
+    'MEMINFO': '/proc/meminfo',
 }
 
 MMC_RO_LOCK = {
@@ -130,6 +131,16 @@ def GetPlatform():
 
 def GetVersion():
   return open(F['ETCVERSION']).read().strip()
+
+
+def GetMemTotal():
+  total = open(F['MEMINFO']).readline()
+  total = total.split(' ')
+  total = filter(None, total)
+  if len(total) != 3:
+    print 'Error parsing /proc/meminfo'
+    return 0
+  return 1024 * int(total[1])
 
 
 def GetInternalHarddisk():
@@ -760,6 +771,9 @@ def InstallLoader(loader):
   Raises:
     Fatal: if install fails
   """
+  if GetPlatform() == 'GFHD254' and GetMemTotal() < 4*1e9:
+    print 'Skipping bootloader on 2GB lockdown.'
+    return
 
   loader_start = loader.filelike.tell()
   installed = False
