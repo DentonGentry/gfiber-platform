@@ -306,6 +306,7 @@ class Wifi(Interface):
     self.bands = kwargs.pop('bands', [])
     super(Wifi, self).__init__(*args, **kwargs)
     self._wpa_control = None
+    self.initial_ssid = None
 
   @property
   def wpa_supplicant(self):
@@ -331,8 +332,14 @@ class Wifi(Interface):
         logging.error('Error attaching to wpa_supplicant: %s', e)
         return
 
-      self.wpa_supplicant = ('wpa_state=COMPLETED' in
-                             self._wpa_control.request('STATUS'))
+      for line in self._wpa_control.request('STATUS').splitlines():
+        if '=' not in line:
+          continue
+        key, value = line.split('=', 1)
+        if key == 'wpa_state':
+          self.wpa_supplicant = value == 'COMPLETED'
+        elif key == 'ssid' and not self._initialized:
+          self.initial_ssid = value
 
   def get_wpa_control(self, socket):
     return wpactrl.WPACtrl(socket)
@@ -367,3 +374,10 @@ class Wifi(Interface):
             break
 
         self.update_routes()
+
+  def initialize(self):
+    """Unset self.initial_ssid, which is only relevant during initialization."""
+
+    self.initial_ssid = None
+    super(Wifi, self).initialize()
+

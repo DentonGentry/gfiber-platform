@@ -193,12 +193,38 @@ class ConnectionManager(connection_manager.ConnectionManager):
   WIFI_SETCLIENT = ['echo', 'setclient']
   IFUP = ['echo', 'ifup']
   IFPLUGD_ACTION = ['echo', 'ifplugd.action']
-  # This simulates the output of 'ip link' when eth0 is up.
-  IP_LINK = ['echo', 'eth0 LOWER_UP']
 
   def __init__(self, *args, **kwargs):
+    self.interfaces_already_up = kwargs.pop('__test_interfaces_already_up',
+                                            ['eth0'])
+
+    wifi_interfaces_already_up = [ifc for ifc in self.interfaces_already_up
+                                  if ifc.startswith('wcli')]
+    for wifi in wifi_interfaces_already_up:
+      # wcli1 is always 5 GHz.  wcli0 always *includes* 2.4.
+      band = '5' if wifi == 'wcli1' else '2.4'
+      # This will happen in the super function, but in order for
+      # write_wlan_config to work we have to do it now.  This has to happen
+      # before the super function so that the files exist before the inotify
+      # registration.
+      self._config_dir = kwargs['config_dir']
+      self.write_wlan_config(band, 'my ssid', 'passphrase')
+
+      # Also create the wpa_supplicant socket to which to attach.
+      open(os.path.join(kwargs['wpa_control_interface'], wifi), 'w')
+
     super(ConnectionManager, self).__init__(*args, **kwargs)
+
+    for wifi in wifi_interfaces_already_up:
+      # pylint: disable=protected-access
+      self.interface_by_name(wifi)._initially_connected = True
+
     self.scan_has_results = False
+
+  @property
+  def IP_LINK(self):
+    return ['echo'] + ['%s LOWER_UP' % ifc
+                       for ifc in self.interfaces_already_up]
 
   def _update_access_point(self, wlan_configuration):
     client_was_up = wlan_configuration.client_up
@@ -356,7 +382,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
       self.run_once()
 
 
-def connection_manager_test(radio_config):
+def connection_manager_test(radio_config, **cm_kwargs):
   """Returns a decorator that does ConnectionManager test boilerplate."""
   def inner(f):
     """The actual decorator."""
@@ -388,7 +414,8 @@ def connection_manager_test(radio_config):
                               wpa_control_interface=wpa_control_interface,
                               run_duration_s=run_duration_s,
                               interface_update_period=interface_update_period,
-                              wifi_scan_period_s=wifi_scan_period_s)
+                              wifi_scan_period_s=wifi_scan_period_s,
+                              **cm_kwargs)
 
         c.test_interface_update_period = interface_update_period
         c.test_wifi_scan_period = wifi_scan_period
@@ -720,6 +747,7 @@ def connection_manager_test_one_radio(c):
   wvtest.WVPASS(c.wifi_for_band('5').current_route())
 
 
+
 @wvtest.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO_NO_5GHZ)
 def connection_manager_test_one_radio_no_5ghz(c):
@@ -755,6 +783,19 @@ def connection_manager_test_one_radio_no_5ghz(c):
   wvtest.WVPASS(c.wifi_for_band('2.4').acs())
   wvtest.WVPASS(c.wifi_for_band('2.4').internet())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO,
+                         __test_interfaces_already_up=['eth0', 'wcli0'])
+def connection_manager_test_wifi_already_up(c):
+  """Test ConnectionManager when wifi is already up.
+
+  Args:
+    c:  The ConnectionManager set up by @connection_manager_test.
+  """
+  wvtest.WVPASS(c._connected_to_wlan(c.wifi_for_band('2.4')))
+  wvtest.WVPASS(c.wifi_for_band('2.4').current_route)
 
 
 if __name__ == '__main__':

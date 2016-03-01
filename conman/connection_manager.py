@@ -85,6 +85,10 @@ class WLANConfiguration(object):
     if self.ssid is None:
       raise ValueError('Command file does not specify SSID')
 
+    if self.wifi.initial_ssid == self.ssid:
+      logging.debug('Connected to WLAN at startup')
+      self.client_up = True
+
   def start_access_point(self):
     """Start an access point."""
 
@@ -237,11 +241,21 @@ class ConnectionManager(object):
 
     # If the ethernet file doesn't exist for any reason when conman starts,
     # check explicitly and run ifplugd.action to create the file.
-    if not os.path.exists(os.path.join(self._interface_status_dir,
-                                       self.ETHERNET_STATUS_FILE)):
-      ethernet_up = self.is_ethernet_up()
-      self.bridge.ethernet = ethernet_up
+    if not os.path.exists(os.path.join(self._interface_status_dir, 'eth0')):
+      ethernet_up = self.is_interface_up('eth0')
       self.ifplugd_action('eth0', ethernet_up)
+      self.bridge.ethernet = ethernet_up
+
+    # Do the same for wifi interfaces , but rather than explicitly setting that
+    # the wpa_supplicant link is up, attempt to attach to the wpa_supplicant
+    # control interface.
+    for wifi in self.wifi:
+      if not os.path.exists(
+          os.path.join(self._interface_status_dir, wifi.name)):
+        wifi_up = self.is_interface_up(wifi.name)
+        self.ifplugd_action(wifi.name, wifi_up)
+        if wifi_up:
+          wifi.attach_wpa_control(self._wpa_control_interface)
 
     for path, prefix in ((self._status_dir, self.GATEWAY_FILE_PREFIX),
                          (self._interface_status_dir, ''),
@@ -259,13 +273,16 @@ class ConnectionManager(object):
     self._interface_update_counter = 0
     self._try_wlan_after = {'5': 0, '2.4': 0}
 
-  def is_ethernet_up(self):
-    """Explicitly check whether ethernet is up.
+  def is_interface_up(self, interface_name):
+    """Explicitly check whether an interface is up.
 
     Only used on startup, and only if ifplugd file is missing.
 
+    Args:
+      interface_name:  The name of the interface to check.
+
     Returns:
-      Whether the ethernet link is up.
+      Whether the interface is up.
     """
     try:
       lines = subprocess.check_output(self.IP_LINK).splitlines()
@@ -273,7 +290,7 @@ class ConnectionManager(object):
       raise EnvironmentError('Failed to call "ip link": %r', e.message)
 
     for line in lines:
-      if 'eth0' in line and 'LOWER_UP' in line:
+      if interface_name in line and 'LOWER_UP' in line:
         return True
 
     return False

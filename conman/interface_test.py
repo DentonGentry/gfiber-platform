@@ -89,7 +89,8 @@ class FakeWPACtrl(object):
 
   def request(self, request_type):
     if request_type == 'STATUS':
-      return 'foo\nwpa_state=COMPLETED\nbar' if self.connected else 'foo'
+      return ('foo\nwpa_state=COMPLETED\nssid=my ssid\nbar' if self.connected
+              else 'foo')
     else:
       raise ValueError('Invalid request_type %s' % request_type)
 
@@ -219,11 +220,15 @@ def wifi_test():
     w.detach_wpa_control()
     # pylint: disable=protected-access
     w._initially_connected = True
+    w._initialized = False
     w.attach_wpa_control(wpa_path)
     wpa_control = w._wpa_control
 
     # wpa_supplicant was already connected when we attached.
     wvtest.WVPASS(w.wpa_supplicant)
+    wvtest.WVPASSEQ(w.initial_ssid, 'my ssid')
+    w.initialize()
+    wvtest.WVPASSEQ(w.initial_ssid, None)
 
     # The wpa_supplicant process disconnects and terminates.
     wpa_control.add_event(Wifi.DISCONNECTED_EVENT)
