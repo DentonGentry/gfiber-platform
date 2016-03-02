@@ -31,7 +31,7 @@ optspec = """
 jsonpoll [options]
 --
 host=            host to connect to [localhost]
-port=            port to connect to [8000]
+port=            port to connect to [8080]
 i,interval=      poll interval in seconds [15]
 """
 
