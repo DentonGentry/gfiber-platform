@@ -419,6 +419,11 @@ def connection_manager_test_radio_independent(c):
   Args:
     c:  A ConnectionManager set up by @connection_manager_test.
   """
+  # This test only checks that this file gets created and deleted once each.
+  # ConnectionManager cares that the file is created *where* expected, but it is
+  # Bridge's responsbility to make sure its creation and deletion are generally
+  # correct; more thorough tests are in bridge_test in interface_test.py.
+  acs_autoprov_filepath = os.path.join(c._status_dir, 'acs_autoprovisioning')
 
   # Initially, there is ethernet access (via explicit check of ethernet status,
   # rather than the interface status file).
@@ -429,6 +434,7 @@ def connection_manager_test_radio_independent(c):
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())
   wvtest.WVPASS(c.bridge.current_route())
+  wvtest.WVPASS(os.path.exists(acs_autoprov_filepath))
   wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
 
@@ -438,6 +444,7 @@ def connection_manager_test_radio_independent(c):
   wvtest.WVFAIL(c.acs())
   wvtest.WVFAIL(c.internet())
   wvtest.WVFAIL(c.bridge.current_route())
+  wvtest.WVFAIL(os.path.exists(acs_autoprov_filepath))
 
   # Bring up moca, access.
   c.set_moca(True)

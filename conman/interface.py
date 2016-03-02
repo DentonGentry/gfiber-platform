@@ -267,6 +267,8 @@ class Bridge(Interface):
   """Represents the wired bridge."""
 
   def __init__(self, *args, **kwargs):
+    self._acs_autoprovisioning_filepath = kwargs.pop(
+        'acs_autoprovisioning_filepath')
     super(Bridge, self).__init__(*args, **kwargs)
     self._moca_stations = set()
 
@@ -295,6 +297,17 @@ class Bridge(Interface):
     if node_id in self._moca_stations:
       self._moca_stations.remove(node_id)
       self.moca = bool(self._moca_stations)
+
+  def add_route(self):
+    """We only want ACS autoprovisioning when we're using a wired route."""
+    super(Bridge, self).add_route()
+    open(self._acs_autoprovisioning_filepath, 'w')
+
+  def delete_route(self):
+    """We only want ACS autoprovisioning when we're using a wired route."""
+    if os.path.exists(self._acs_autoprovisioning_filepath):
+      os.unlink(self._acs_autoprovisioning_filepath)
+    super(Bridge, self).delete_route()
 
 
 class Wifi(Interface):

@@ -184,7 +184,23 @@ class ConnectionManager(object):
                run_duration_s=1, interface_update_period=5,
                wifi_scan_period_s=120, wlan_retry_s=15, acs_update_wait_s=10):
 
-    self.bridge = self.Bridge(bridge_interface, '10')
+    self._status_dir = status_dir
+    self._config_dir = config_dir
+    self._interface_status_dir = os.path.join(status_dir, 'interfaces')
+    self._moca_status_dir = moca_status_dir
+    self._wpa_control_interface = wpa_control_interface
+    self._run_duration_s = run_duration_s
+    self._interface_update_period = interface_update_period
+    self._wifi_scan_period_s = wifi_scan_period_s
+    self._wlan_retry_s = wlan_retry_s
+    self._acs_update_wait_s = acs_update_wait_s
+    self._wlan_configuration = {}
+
+    acs_autoprov_filepath = os.path.join(self._status_dir,
+                                         'acs_autoprovisioning')
+    self.bridge = self.Bridge(
+        bridge_interface, '10',
+        acs_autoprovisioning_filepath=acs_autoprov_filepath)
 
     # If we have multiple wcli interfaces, 5 GHz-only < both < 2.4 GHz-only.
     def metric_for_bands(bands):
@@ -201,20 +217,8 @@ class ConnectionManager(object):
                         in get_client_interfaces().iteritems()],
                        key=lambda w: w.metric)
 
-    self._status_dir = status_dir
-    self._config_dir = config_dir
-    self._interface_status_dir = os.path.join(status_dir, 'interfaces')
-    self._moca_status_dir = moca_status_dir
-    self._wpa_control_interface = wpa_control_interface
-    self._run_duration_s = run_duration_s
-    self._interface_update_period = interface_update_period
-    self._wifi_scan_period_s = wifi_scan_period_s
     for wifi in self.wifi:
       wifi.last_wifi_scan_time = -self._wifi_scan_period_s
-    self._wlan_retry_s = wlan_retry_s
-    self._acs_update_wait_s = acs_update_wait_s
-
-    self._wlan_configuration = {}
 
     # Make sure all necessary directories exist.
     for directory in (self._status_dir, self._config_dir,
