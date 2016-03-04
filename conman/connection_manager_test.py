@@ -10,6 +10,7 @@ import tempfile
 import connection_manager
 import interface_test
 import iw
+import status
 from wvtest import wvtest
 
 logging.basicConfig(level=logging.DEBUG)
@@ -160,7 +161,7 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
     return os.path.join(self._wpa_control_interface, self.wifi.name)
 
   def write_gateway_file(self):
-    gateway_file = os.path.join(self.status_dir,
+    gateway_file = os.path.join(self.tmp_dir,
                                 self.gateway_file_prefix + self.wifi.name)
     with open(gateway_file, 'w') as f:
       # This value doesn't matter to conman, so it's fine to hard code it here.
@@ -280,7 +281,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
   def _update_wlan_configuration(self, wlan_configuration):
     wlan_configuration.command.insert(0, 'echo')
     wlan_configuration._wpa_control_interface = self._wpa_control_interface
-    wlan_configuration.status_dir = self._status_dir
+    wlan_configuration.tmp_dir = self._tmp_dir
     wlan_configuration.interface_status_dir = self._interface_status_dir
     wlan_configuration.gateway_file_prefix = self.GATEWAY_FILE_PREFIX
 
@@ -347,7 +348,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
       os.unlink(ap_filename)
 
   def write_gateway_file(self, interface_name):
-    gateway_file = os.path.join(self._status_dir,
+    gateway_file = os.path.join(self._tmp_dir,
                                 self.GATEWAY_FILE_PREFIX + interface_name)
     with open(gateway_file, 'w') as f:
       # This value doesn't matter to conman, so it's fine to hard code it here.
@@ -363,7 +364,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
     self.ifplugd_action('eth0', up)
 
   def set_moca(self, up):
-    moca_node1_file = os.path.join(self._moca_status_dir,
+    moca_node1_file = os.path.join(self._moca_tmp_dir,
                                    self.MOCA_NODE_FILE_PREFIX + '1')
     with open(moca_node1_file, 'w') as f:
       f.write(FAKE_MOCA_NODE1_FILE if up else
@@ -380,6 +381,9 @@ class ConnectionManager(connection_manager.ConnectionManager):
     wifi_scan_counter = wifi.wifi_scan_counter
     while wifi_scan_counter == wifi.wifi_scan_counter:
       self.run_once()
+
+  def has_status_files(self, files):
+    return not set(files) - set(os.listdir(self._status_dir))
 
 
 def connection_manager_test(radio_config, **cm_kwargs):
@@ -399,18 +403,18 @@ def connection_manager_test(radio_config, **cm_kwargs):
 
       try:
         # No initial state.
-        status_dir = tempfile.mkdtemp()
+        tmp_dir = tempfile.mkdtemp()
         config_dir = tempfile.mkdtemp()
-        os.mkdir(os.path.join(status_dir, 'interfaces'))
-        moca_status_dir = tempfile.mkdtemp()
+        os.mkdir(os.path.join(tmp_dir, 'interfaces'))
+        moca_tmp_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
 
         # Test that missing directories are created by ConnectionManager.
-        shutil.rmtree(status_dir)
+        shutil.rmtree(tmp_dir)
 
-        c = ConnectionManager(status_dir=status_dir,
+        c = ConnectionManager(tmp_dir=tmp_dir,
                               config_dir=config_dir,
-                              moca_status_dir=moca_status_dir,
+                              moca_tmp_dir=moca_tmp_dir,
                               wpa_control_interface=wpa_control_interface,
                               run_duration_s=run_duration_s,
                               interface_update_period=interface_update_period,
@@ -421,11 +425,10 @@ def connection_manager_test(radio_config, **cm_kwargs):
         c.test_wifi_scan_period = wifi_scan_period
 
         f(c)
-
       finally:
-        shutil.rmtree(status_dir)
+        shutil.rmtree(tmp_dir)
         shutil.rmtree(config_dir)
-        shutil.rmtree(moca_status_dir)
+        shutil.rmtree(moca_tmp_dir)
         shutil.rmtree(wpa_control_interface)
         # pylint: disable=protected-access
         connection_manager._wifi_show = original_wifi_show
@@ -450,12 +453,14 @@ def connection_manager_test_radio_independent(c):
   # ConnectionManager cares that the file is created *where* expected, but it is
   # Bridge's responsbility to make sure its creation and deletion are generally
   # correct; more thorough tests are in bridge_test in interface_test.py.
-  acs_autoprov_filepath = os.path.join(c._status_dir, 'acs_autoprovisioning')
+  acs_autoprov_filepath = os.path.join(c._tmp_dir, 'acs_autoprovisioning')
 
   # Initially, there is ethernet access (via explicit check of ethernet status,
   # rather than the interface status file).
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())
+  wvtest.WVPASS(c.has_status_files([status.P.CAN_REACH_ACS,
+                                    status.P.CAN_REACH_INTERNET]))
 
   c.run_once()
   wvtest.WVPASS(c.acs())
@@ -464,6 +469,8 @@ def connection_manager_test_radio_independent(c):
   wvtest.WVPASS(os.path.exists(acs_autoprov_filepath))
   wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
+  wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN,
+                                    status.P.HAVE_CONFIG]))
 
   # Take down ethernet, no access.
   c.set_ethernet(False)
@@ -472,6 +479,8 @@ def connection_manager_test_radio_independent(c):
   wvtest.WVFAIL(c.internet())
   wvtest.WVFAIL(c.bridge.current_route())
   wvtest.WVFAIL(os.path.exists(acs_autoprov_filepath))
+  wvtest.WVFAIL(c.has_status_files([status.P.CAN_REACH_ACS,
+                                    status.P.CAN_REACH_INTERNET]))
 
   # Bring up moca, access.
   c.set_moca(True)
@@ -522,6 +531,7 @@ def connection_manager_test_radio_independent(c):
   c.run_until_scan('2.4')
   for _ in range(3):
     c.run_once()
+    wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
   wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's2')
   wvtest.WVPASSEQ(c.last_provisioning_attempt.bssid, '01:23:45:67:89:ab')
   # Wait for the connection to be processed.
@@ -540,6 +550,7 @@ def connection_manager_test_radio_independent(c):
   c.run_once()
   wvtest.WVPASS(c.client_up('2.4'))
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
+  wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
 
   # Now enable the AP.  Since we have no wired connection, this should have no
   # effect.
@@ -570,6 +581,7 @@ def connection_manager_test_radio_independent(c):
   wvtest.WVFAIL(c.client_up('2.4'))
   wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
   wvtest.WVPASS(c.bridge.current_route())
+  wvtest.WVFAIL(c.has_status_files([status.P.HAVE_CONFIG]))
 
   # Now move it back, and the AP should come back.
   os.rename(other_filename, filename)
@@ -752,7 +764,6 @@ def connection_manager_test_one_radio(c):
   wvtest.WVFAIL(c.bridge.current_route())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
   wvtest.WVPASS(c.wifi_for_band('5').current_route())
-
 
 
 @wvtest.wvtest
