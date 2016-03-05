@@ -18,10 +18,12 @@
 __author__ = 'cgibson@google.com (Chris Gibson)'
 
 import errno
+import json
 import os
 import socket
 import sys
 import tempfile
+import textwrap
 import time
 import urllib2
 import options
@@ -53,11 +55,27 @@ class JsonPoll(object):
     # The time to wait between requests in seconds.
     self.poll_interval_secs = interval
 
-    # TODO(cgibson): Support more request types once Glaukus Manager's JSON spec
-    # is more stable.
     self.api_modem_output_file = os.path.join(self.OUTPUT_DIR, 'modem.json')
-    self.paths_to_statfiles = {'api/modem': self.api_modem_output_file}
+    self.api_radio_output_file = os.path.join(self.OUTPUT_DIR, 'radio.json')
+    self.paths_to_statfiles = {'api/modem': self.api_modem_output_file,
+                               'api/radio': self.api_radio_output_file}
     self.last_response = None
+
+  def WriteToStderr(self, msg, is_json=False):
+    """Write a message to stderr."""
+    if is_json:
+      # Make the json easier to parse from the logs.
+      json_data = json.loads(msg)
+      json_str = json.dumps(json_data, sort_keys=True, indent=2,
+                            separators=(',', ': '))
+      # Logging pretty-printed json is like logging one huge line. Logos is
+      # configured to limit lines to 768 characters. Split the logged output at
+      # half of that to make sure logos doesn't clip our output.
+      sys.stderr.write('\n'.join(textwrap.wrap(json_str, width=384)))
+      sys.stderr.flush()
+    else:
+      sys.stderr.write(msg)
+      sys.stderr.flush()
 
   def RequestStats(self):
     """Sends a request via HTTP GET to the specified web server."""
@@ -67,45 +85,46 @@ class JsonPoll(object):
       try:
         response = self.GetHttpResponse(url)
         if not response:
-          return False
+          self.WriteToStderr('Failed to get response from glaukus: %s', url)
+          continue
         elif self.last_response == response:
-          print 'Skipping file write as content has not changed.'
-          return True
+          self.WriteToStderr('Skipping file write as content has not changed.')
+          continue
         self.last_response = response
         with tempfile.NamedTemporaryFile(delete=False) as fd:
           if not self.CreateDirs(os.path.dirname(output_file)):
-            print ('Failed to create output directory: %s' %
-                   os.path.dirname(output_file))
-            return False
+            self.WriteToStderr('Failed to create output directory: %s' %
+                               os.path.dirname(output_file))
+            continue
           tmpfile = fd.name
           fd.write(response)
           fd.flush()
           os.fsync(fd.fileno())
-          print 'Wrote %d bytes to %s' % (len(response), tmpfile)
           try:
             os.rename(tmpfile, output_file)
           except OSError as ex:
-            print 'Failed to move %s to %s: %s' % (tmpfile, output_file, ex)
-            return False
-          print 'Moved %s to %s' % (tmpfile, output_file)
-        return True
+            self.WriteToStderr('Failed to move %s to %s: %s' % (
+                tmpfile, output_file, ex))
+            continue
       finally:
         if os.path.exists(tmpfile):
           os.unlink(tmpfile)
 
   def GetHttpResponse(self, url):
     """Creates a request and retrieves the response from a web server."""
-    print 'Connecting to %s' % url
     try:
       handle = urllib2.urlopen(url, timeout=self._SOCKET_TIMEOUT_SECS)
       response = handle.read()
     except socket.timeout as ex:
-      print ('Connection to %s timed out after %d seconds: %s'
-             % (url, self._SOCKET_TIMEOUT_SECS, ex))
+      self.WriteToStderr('Connection to %s timed out after %d seconds: %s'
+                         % (url, self._SOCKET_TIMEOUT_SECS, ex))
       return None
     except urllib2.URLError as ex:
-      print 'Connection to %s failed: %s' % (url, ex.reason)
+      self.WriteToStderr('Connection to %s failed: %s' % (url, ex.reason))
       return None
+    # Write the response to stderr so it will be uploaded with the other system
+    # log files. This will allow turbogrinder to alert on the radio subsystem.
+    self.WriteToStderr(response, is_json=True)
     return response
 
   def CreateDirs(self, dir_to_create):
@@ -115,7 +134,7 @@ class JsonPoll(object):
     except os.error as ex:
       if ex.errno == errno.EEXIST:
         return True
-      print 'Failed to create directory: %s' % ex
+      self.WriteToStderr('Failed to create directory: %s' % ex)
       return False
     return True
 

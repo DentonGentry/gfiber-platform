@@ -24,69 +24,42 @@ import unittest
 import jsonpoll
 
 JSON_RESPONSE = {
-    'report': {
-        'abs_mse_db': '-3276.8',
-        'adc_count': '3359',
-        'external_agc_ind': '9.2',
-        'in_power_rssi_dbc': '-12.0',
-        'inband_power_rssi_dbc': '-67.2',
-        'internal_agc_db': '55.2',
-        'msr_pwr_rssi_dbm': '-20.0',
-        'norm_mse_db': '-3270.9',
-        'num_samples': 'Undefined',
-        'rad_mse_db': '-3267.9',
-        'rx_lock_loss_events': 'Undefined',
-        'rx_lock_loss_time_ms': 'Undefined',
-        'rx_locked': '0',
-        'sample_end_tstamp_ms': '1444839743297',
-        'sample_start_tstamp_ms': '1444839743287'
-    },
-    'result': {
-        'err_code': 0,
-        'err_msg': 'None',
-        'status': 'SUCCESS'
-    },
-    'running_config': {
-        'acmb_enable': True,
-        'bgt_tx_vga_gain_ind': 0,
-        'heartbeat_rate': 60,
-        'ip_addr': '10.0.0.40',
-        'ip_gateway': '10.0.0.1',
-        'ip_netmask': '255.255.255.0',
-        'ipv6_addr': 'fe80::7230:d5ff:fe00:1418',
-        'manual_acmb_profile_indx': 0,
-        'modem_cfg_file': 'default.bin',
-        'modem_on': True,
-        'pa_lna_enable': True,
-        'radio_heater_on': False,
-        'radio_on': True,
-        'report_avg_window_ms': 10,
-        'report_dest_ip': '192.168.1.1',
-        'report_dest_port': 4950,
-        'report_enable': True,
-        'report_interval_hz': 1,
-        'rx_khz': 85500000,
-        'tx_khz': 75500000
-    },
+    'firmware': '/foo/bar/modem.fw',
+    'network': {
+        'rxCounters': {
+            'broadcast': 0,
+            'bytes': 0,
+            'crcErrors': 0,
+            'frames': 0,
+            'frames1024_1518': 0,
+            'frames128_255': 0,
+            'frames256_511': 0,
+            'frames512_1023': 0,
+            'frames64': 0,
+            'frames65_127': 0,
+            'framesJumbo': 0,
+            'framesUndersized': 0,
+            'multicast': 0,
+            'unicast': 0
+        },
+    }
 }
 
 
 class FakeJsonPoll(jsonpoll.JsonPoll):
   """Mock JsonPoll."""
 
+  def WriteToStderr(self, unused_msg, unused_is_json=False):
+    self.error_count += 1
+
   def GetHttpResponse(self, unused_url):
     self.get_response_called = True
+    if self.generate_empty_response:
+      return None
     return json.dumps(JSON_RESPONSE)
 
 
 class JsonPollTest(unittest.TestCase):
-
-  def setUp(self):
-    self.CreateTempFile()
-    self.poller = FakeJsonPoll('fakehost.blah', 31337, 1)
-
-  def tearDown(self):
-    self.DeleteTempFile()
 
   def CreateTempFile(self):
     # Create a temp file and have that be the target output file.
@@ -97,11 +70,21 @@ class JsonPollTest(unittest.TestCase):
     if os.path.exists(self.output_file):
       os.unlink(self.output_file)
 
+  def setUp(self):
+    self.CreateTempFile()
+    self.poller = FakeJsonPoll('fakehost.blah', 31337, 1)
+    self.poller.error_count = 0
+    self.poller.generate_empty_response = False
+
+  def tearDown(self):
+    self.DeleteTempFile()
+
   def testRequestStats(self):
     # Create a fake entry in the paths_to_stats map.
     self.poller.paths_to_statfiles = {'fake/url': self.output_file}
     self.poller.RequestStats()
     self.assertEqual(True, self.poller.get_response_called)
+    self.assertEqual(0, self.poller.error_count)
 
     # Read back the contents of the fake output file. It should be the
     # equivalent JSON representation we wrote out from the mock.
@@ -109,10 +92,17 @@ class JsonPollTest(unittest.TestCase):
       output = ''.join(line.rstrip() for line in f)
       self.assertEqual(json.dumps(JSON_RESPONSE), output)
 
-  def testRequestStatsFailureToCreateOutputFile(self):
+  def testRequestStatsFailureToCreateDirOutput(self):
     self.poller.paths_to_statfiles = {'fake/url': '/root/cannotwrite'}
-    result = self.poller.RequestStats()
-    self.assertEqual(False, result)
+    self.poller.RequestStats()
+    self.assertTrue(self.poller.error_count > 0)
+
+  def testRequestStatsFailedToGetResponse(self):
+    self.poller.paths_to_statfiles = {'fake/url': self.output_file}
+    self.poller.generate_empty_response = True
+    self.poller.RequestStats()
+    self.assertEqual(True, self.poller.get_response_called)
+    self.assertTrue(self.poller.error_count > 0)
 
   def testCachedRequestStats(self):
     # Set the "last_response" as our mock output. This should mean we do not
@@ -121,9 +111,9 @@ class JsonPollTest(unittest.TestCase):
 
     # Create a fake entry in the paths_to_stats map.
     self.poller.paths_to_statfiles = {'fake/url': self.output_file}
-    result = self.poller.RequestStats()
+    self.poller.RequestStats()
     self.assertEqual(True, self.poller.get_response_called)
-    self.assertEqual(True, result)
+    self.assertTrue(self.poller.error_count > 0)
 
     # Read back the contents of the fake output file: It should be empty.
     with open(self.output_file, 'r') as f:
