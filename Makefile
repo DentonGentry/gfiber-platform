@@ -20,7 +20,7 @@ export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
-DIRS=libstacktrace ginstall cmds \
+DIRS=libstacktrace libexperiments ginstall cmds \
 	antirollback tvstat gpio-mailbox spectralanalyzer wifi wifiblaster \
 	sysvar py_mtd devcert
 
@@ -98,9 +98,9 @@ install:
 	set -e; for d in $(DIRS); do $(MAKE) -C $$d install; done
 	$(MAKE) install-optionspy
 
-sysmgr/all: base/all libstacktrace/all
-cmds/all: libstacktrace/all
-gpio-mailbox/all: libstacktrace/all
+sysmgr/all: base/all libstacktrace/all libexperiments/all
+cmds/all: libstacktrace/all libexperiments/all
+gpio-mailbox/all: libstacktrace/all libexperiments/all
 
 %/all:
 	$(MAKE) -C $* all
