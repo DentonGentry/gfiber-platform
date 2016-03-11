@@ -51,8 +51,7 @@ LIB_TARGETS=\
 HOST_TEST_TARGETS=\
 	host-asus_hosts_test \
 	host-netusage_test \
-	host-utils_test \
-	host-wifi_files_test
+	host-utils_test
 SCRIPT_TARGETS=\
 	is-secure-boot
 ARCH_TARGETS=\
@@ -76,6 +75,7 @@ endif
 
 ifeq ($(BUILD_WIFIUTILS),y)
 ARCH_TARGETS += wifi_files
+HOST_TEST_TARGETS += host-wifi_files_test
 endif
 
 AS=$(CROSS_COMPILE)as
