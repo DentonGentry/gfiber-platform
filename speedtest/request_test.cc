@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
-
 #include "request.h"
 
+#include <gtest/gtest.h>
 #include <memory>
 #include "curl_env.h"
 
@@ -30,12 +29,12 @@ class RequestTest : public testing::Test {
   std::unique_ptr<Request> request;
 
   void SetUp() override {
-    env = std::make_shared<CurlEnv>();
-    request = env->NewRequest();
+    env = CurlEnv::NewCurlEnv({});
   }
 
   void VerifyQueryString(const char *expected,
                          Request::QueryStringParams params) {
+    request = env->NewRequest(Url());
     request->params() = params;
     request->UpdateUrl();
     EXPECT_EQ(expected, request->url().query_string());
@@ -44,7 +43,7 @@ class RequestTest : public testing::Test {
   void VerifyUrl(const char *expected,
                  const char *url,
                  Request::QueryStringParams params) {
-    request->set_url(Url(url));
+    request = env->NewRequest(Url(url));
     request->params() = params;
     request->UpdateUrl();
     EXPECT_EQ(expected, request->url().url());

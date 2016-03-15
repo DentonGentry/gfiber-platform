@@ -24,6 +24,7 @@ namespace http {
 class Url;
 
 bool operator==(const Url &url1, const Url &url2);
+std::ostream &operator<<(std::ostream &os, const Url &url);
 
 // Partial implementation of a URL parser. This is needed because URLs need
 // to be manipulated for creating URLs for Speedtest, which is otherwise
@@ -43,7 +44,7 @@ class Url {
  public:
   Url();
   Url(const Url &other);
-  explicit Url(const char *url);
+  explicit Url(const std::string &url);
   Url &operator=(const Url &other);
 
   bool Parse(const std::string &url);
@@ -75,6 +76,7 @@ class Url {
   std::string url() const;
 
   friend bool operator==(const Url &url1, const Url &url2);
+  friend std::ostream &operator<<(std::ostream &os, const Url &url);
 
  private:
   using Iter = std::string::const_iterator;

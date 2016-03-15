@@ -17,27 +17,45 @@
 #ifndef HTTP_CURL_ENV_H
 #define HTTP_CURL_ENV_H
 
+#include <curl/curl.h>
 #include <memory>
+#include <mutex>
+#include "url.h"
 
 namespace http {
 
 class Request;
 
-// Curl initialization to cleanup automatically
 class CurlEnv : public std::enable_shared_from_this<CurlEnv> {
  public:
-  CurlEnv();
-  explicit CurlEnv(int init_options);
+  struct Options {
+    int curl_options = CURL_GLOBAL_NOTHING;
+    bool disable_dns_cache = false;
+    int max_connections = 0;
+  };
+
+  static std::shared_ptr<CurlEnv> NewCurlEnv(const Options &options);
   virtual ~CurlEnv();
 
-  std::unique_ptr<Request> NewRequest();
+  std::unique_ptr<Request> NewRequest(const Url &url);
+
+  void Lock(curl_lock_data lock_type);
+  void Unlock(curl_lock_data lock_type);
 
  private:
-  void init(int flags);
+  explicit CurlEnv(const Options &options);
+
+  Options options_;
+
+  // used to lock on curl global state
+  std::mutex curl_mutex_;
+  bool set_max_connections_;
+
+  std::mutex dns_mutex_;
+  CURLSH *share_;  // owned
 
   // disable
   CurlEnv(const CurlEnv &other) = delete;
-
   void operator=(const CurlEnv &other) = delete;
 };
 

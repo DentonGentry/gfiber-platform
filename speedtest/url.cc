@@ -132,6 +132,10 @@ bool operator==(const Url &url1, const Url &url2) {
   return url1.url() == url2.url();
 }
 
+std::ostream &operator<<(std::ostream &os, const Url &url) {
+  return os << (url.ok() ? url.url() : "{invalid URL}");
+}
+
 Url::Url(): parsed_(false), absolute_(false), port_(0) {
 }
 
@@ -150,7 +154,8 @@ Url::Url(const Url &other) {
   fragment_ = other.fragment_;
 }
 
-Url::Url(const char *url): parsed_(false), absolute_(false), port_(0) {
+Url::Url(const std::string &url)
+    : parsed_(false), absolute_(false), port_(0) {
   Parse(url);
 }
 
@@ -411,8 +416,9 @@ bool Url::Port() {
     return false;
   }
   std::string port(start, iter);
-  int portnum = speedtest::stoi(port);
-  if (portnum < 1 || portnum > 65535) {
+  int portnum;
+  if (!speedtest::ParseInt(port, &portnum) ||
+      portnum < 1 || portnum > 65535) {
     return false;
   }
   current_ = iter;
