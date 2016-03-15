@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+#include "options.h"
+
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <mutex>
 #include <string.h>
 #include <vector>
-#include "options.h"
+#include "url.h"
 
 namespace speedtest {
 namespace {
@@ -81,8 +83,22 @@ TEST(OptionsTest, MissingArgs_Invalid) {
 TEST(OptionsTest, Empty_ValidDefault) {
   Options options;
   TestValidOptions({}, &options);
+  EXPECT_TRUE(options.global);
+  EXPECT_EQ(http::Url("any.speed.gfsvc.com"), options.global_host);
   EXPECT_FALSE(options.verbose);
   EXPECT_FALSE(options.usage);
+  EXPECT_FALSE(options.disable_dns_cache);
+  EXPECT_EQ(0, options.max_connections);
+  EXPECT_EQ(0, options.num_downloads);
+  EXPECT_EQ(0, options.download_size);
+  EXPECT_EQ(0, options.num_uploads);
+  EXPECT_EQ(0, options.upload_size);
+  EXPECT_EQ(0, options.progress_millis);
+  EXPECT_EQ(0, options.min_transfer_time);
+  EXPECT_EQ(0, options.max_transfer_time);
+  EXPECT_EQ(0, options.ping_runtime);
+  EXPECT_EQ(0, options.ping_timeout);
+  EXPECT_THAT(options.hosts, testing::IsEmpty());
 }
 
 TEST(OptionsTest, Usage_Valid) {
@@ -104,35 +120,68 @@ TEST(OptionsTest, OneHost_Valid) {
   EXPECT_THAT(options.hosts, testing::ElementsAre(http::Url("efgh")));
 }
 
-TEST(OptionsTest, FullShort_Valid) {
+TEST(OptionsTest, ShortOptions_Valid) {
   Options options;
-  TestValidOptions({"-d", "5122",
-                    "-u", "7653",
-                    "-t", "123",
-                    "-n", "15",
-                    "-p", "500"},
+  TestValidOptions({"-s", "5122",
+                    "-t", "7653",
+                    "-d", "20",
+                    "-u", "15",
+                    "-p", "500",
+                    "-g", "speed.gfsvc.com",
+                    "-a", "CrOS",
+                    "foo.speed.googlefiber.net",
+                    "bar.speed.googlefiber.net"},
                     &options);
   EXPECT_EQ(5122, options.download_size);
   EXPECT_EQ(7653, options.upload_size);
-  EXPECT_EQ(123, options.time_millis);
-  EXPECT_EQ(15, options.number);
+  EXPECT_EQ(20, options.num_downloads);
+  EXPECT_EQ(15, options.num_uploads);
   EXPECT_EQ(500, options.progress_millis);
+  EXPECT_EQ(http::Url("speed.gfsvc.com"), options.global_host);
+  EXPECT_EQ("CrOS", options.user_agent);
+  EXPECT_EQ(0, options.min_transfer_time);
+  EXPECT_EQ(0, options.max_transfer_time);
+  EXPECT_EQ(0, options.ping_runtime);
+  EXPECT_EQ(0, options.ping_timeout);
+  EXPECT_THAT(options.hosts, testing::UnorderedElementsAre(
+      http::Url("foo.speed.googlefiber.net"),
+      http::Url("bar.speed.googlefiber.net")));
 }
 
-TEST(OptionsTest, FullLong_Valid) {
+TEST(OptionsTest, LongOptions_Valid) {
   Options options;
   TestValidOptions({"--download_size", "5122",
                     "--upload_size", "7653",
-                    "--time", "123",
                     "--progress", "1000",
-                    "--number", "12"},
+                    "--num_uploads", "12",
+                    "--num_downloads", "16",
+                    "--global_host", "speed.gfsvc.com",
+                    "--user_agent", "CrOS",
+                    "--disable_dns_cache",
+                    "--max_connections", "23",
+                    "--min_transfer_time", "7500",
+                    "--max_transfer_time", "13500",
+                    "--ping_runtime", "2500",
+                    "--ping_timeout", "300",
+                    "foo.speed.googlefiber.net",
+                    "bar.speed.googlefiber.net"},
                     &options);
+  EXPECT_TRUE(options.disable_dns_cache);
   EXPECT_EQ(5122, options.download_size);
   EXPECT_EQ(7653, options.upload_size);
-  EXPECT_EQ(123, options.time_millis);
-  EXPECT_EQ(12, options.number);
+  EXPECT_EQ(16, options.num_downloads);
+  EXPECT_EQ(23, options.max_connections);
+  EXPECT_EQ(12, options.num_uploads);
   EXPECT_EQ(1000, options.progress_millis);
-  EXPECT_THAT(options.hosts, testing::ElementsAre(http::Url(kDefaultHost)));
+  EXPECT_EQ(http::Url("speed.gfsvc.com"), options.global_host);
+  EXPECT_EQ("CrOS", options.user_agent);
+  EXPECT_EQ(7500, options.min_transfer_time);
+  EXPECT_EQ(13500, options.max_transfer_time);
+  EXPECT_EQ(2500, options.ping_runtime);
+  EXPECT_EQ(300, options.ping_timeout);
+  EXPECT_THAT(options.hosts, testing::UnorderedElementsAre(
+      http::Url("foo.speed.googlefiber.net"),
+      http::Url("bar.speed.googlefiber.net")));
 }
 
 }  // namespace

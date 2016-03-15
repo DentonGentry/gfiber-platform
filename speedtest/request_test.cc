@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
-
 #include "request.h"
 
+#include <gtest/gtest.h>
 #include <memory>
 #include "curl_env.h"
 
