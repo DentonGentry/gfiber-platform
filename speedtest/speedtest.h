@@ -21,13 +21,8 @@
 #include <memory>
 #include <string>
 
-#include "config.h"
 #include "curl_env.h"
-#include "download_test.h"
-#include "generic_test.h"
 #include "options.h"
-#include "ping_test.h"
-#include "upload_test.h"
 #include "url.h"
 #include "request.h"
 
@@ -39,37 +34,27 @@ class Speedtest {
   virtual ~Speedtest();
 
   void Run();
-
- private:
-  void InitUserAgent();
-  void LoadServerList();
-  void FindNearestServer();
-  std::string LoadConfig(const http::Url &url);
-  void RunPingTest();
   void RunDownloadTest();
   void RunUploadTest();
+  bool RunPingTest();
 
-  int NumDownloads() const;
-  int DownloadSize() const;
-  int NumUploads() const;
-  int UploadSize() const;
-  int PingTimeout() const;
-  int PingRunTime() const;
+ private:
+  void RunDownload(int id);
+  void RunUpload(int id);
+  void RunPing(size_t host_index);
 
-  GenericTest::RequestPtr MakeRequest(const http::Url &url);
-  GenericTest::RequestPtr MakeBaseRequest(int id, const std::string &path);
-  GenericTest::RequestPtr MakeTransferRequest(int id, const std::string &path);
+  std::unique_ptr<http::Request> MakeRequest(int id, const std::string &path);
 
-  std::shared_ptr <http::CurlEnv> env_;
+  std::shared_ptr<http::CurlEnv> env_;
   Options options_;
-  Config config_;
-  std::string user_agent_;
-  std::vector<http::Url> servers_;
-  std::unique_ptr<http::Url> server_url_;
-  std::unique_ptr<std::string> send_data_;
-  std::unique_ptr<PingTest> ping_test_;
-  std::unique_ptr<DownloadTest> download_test_;
-  std::unique_ptr<UploadTest> upload_test_;
+  http::Url url_;
+  std::atomic_bool end_ping_;
+  std::atomic_bool end_download_;
+  std::atomic_bool end_upload_;
+  std::atomic_long bytes_downloaded_;
+  std::atomic_long bytes_uploaded_;
+  std::vector<long> min_ping_micros_;
+  const char *send_data_;
 
   // disable
   Speedtest(const Speedtest &) = delete;

@@ -27,26 +27,14 @@ namespace speedtest {
 extern const char* kDefaultHost;
 
 struct Options {
+  std::vector<http::Url> hosts;
+  int number;
+  long download_size;
+  long upload_size;
+  int time_millis;
+  int progress_millis;
   bool verbose;
   bool usage;
-  http::Url global_host;
-  bool global;
-  std::string user_agent;
-  bool disable_dns_cache;
-  int max_connections;
-
-  // A value of 0 means use the speedtest config parameters
-  int num_downloads;
-  long download_size;
-  int num_uploads;
-  long upload_size;
-  int progress_millis;
-  int min_transfer_time;
-  int max_transfer_time;
-  int ping_runtime;
-  int ping_timeout;
-
-  std::vector<http::Url> hosts;
 };
 
 // Parse command line options putting results into 'options'

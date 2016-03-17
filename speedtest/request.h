@@ -22,6 +22,8 @@
 #include <map>
 #include <memory>
 #include <string>
+
+#include "curl_env.h"
 #include "url.h"
 
 namespace http {
@@ -43,10 +45,9 @@ class Request {
                                         curl_off_t,
                                         curl_off_t)>;
 
-  Request(std::shared_ptr<CURL> handle, const Url &url);
+  explicit Request(std::shared_ptr<CurlEnv> env);
   virtual ~Request();
 
-  CURLcode Get();
   CURLcode Get(DownloadFn download_fn);
   CURLcode Post(UploadFn upload_fn);
   CURLcode Post(const char *data, curl_off_t data_len);
@@ -79,25 +80,24 @@ class Request {
   void set_progress_fn(ProgressFn progress_fn) { progress_fn_ = progress_fn; }
   void clear_progress_fn() { progress_fn_ = nullptr; }
 
-  // Request timeout
-  void set_timeout_millis(long millis);
-
   void UpdateUrl();
 
  private:
   void CommonSetup();
-
   CURLcode Execute();
 
   // owned
-  std::shared_ptr<CURL> handle_;
+  CURL *handle_;
   struct curl_slist *curl_headers_;
+
+  // ref-count CURL global config
+  std::shared_ptr<CurlEnv> env_;
   Url url_;
 
   std::string user_agent_;
   Headers headers_;
   QueryStringParams params_;
-  ProgressFn progress_fn_;
+  ProgressFn progress_fn_;  // unowned
 
   // disable
   Request(const Request &) = delete;

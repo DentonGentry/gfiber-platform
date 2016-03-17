@@ -28,28 +28,8 @@ long SystemTimeMicros();
 // Return a string representation of n
 std::string to_string(long n);
 
-// Round a double to a minimum number of significant digits
-std::string round(double d, int digits);
-
-// Convert bytes and time in micros to speed in megabits
-double ToMegabits(long bytes, long micros);
-
-// Parse an int.
-// If successful, write result to result and return true.
-// If result is null or the int can't be parsed, return false.
-bool ParseInt(const std::string &str, int *result);
-
-// Trim from start in place
-// Caller retains ownership
-void LeftTrim(std::string *s);
-
-// Trim from end in place
-// Caller retains ownership
-void RightTrim(std::string *s);
-
-// Trim from both ends in place
-// Caller retains ownership
-void Trim(std::string *s);
+// return an integer value from the string str.
+int stoi(const std::string& str);
 
 }  // namespace speedtst
 

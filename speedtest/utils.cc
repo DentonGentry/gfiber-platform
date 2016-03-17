@@ -16,13 +16,9 @@
 
 #include "utils.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cstdlib>
-#include <functional>
 #include <iostream>
 #include <stdexcept>
-#include <stdio.h>
 #include <string>
 #include <sstream>
 
@@ -37,53 +33,24 @@ long SystemTimeMicros() {
   return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
 
-std::string to_string(long n) {
+std::string to_string(long n)
+{
   std::ostringstream s;
   s << n;
   return s.str();
 }
 
-std::string round(double d, int digits) {
-  char buf[20];
-  sprintf(buf, "%.*f", digits, d);
-  return buf;
-}
-
-double ToMegabits(long bytes, long micros) {
-  return (8.0d * bytes) / micros;
-}
-
-bool ParseInt(const std::string &str, int *result) {
-  if (!result) {
-    return false;
-  }
+int stoi(const std::string& str)
+{
+  int rc;
   std::istringstream n(str);
-  return n >> *result;
-}
 
-// Trim from start in place
-// Caller retains ownership
-void LeftTrim(std::string *s) {
-  s->erase(s->begin(),
-           std::find_if(s->begin(),
-                        s->end(),
-                        std::not1(std::ptr_fun<int, int>(std::isspace))));
-}
+  if (!(n >> rc)) {
+    std::cerr << "Not a number: " << str;
+    std::exit(1);
+  }
 
-// Trim from end in place
-// Caller retains ownership
-void RightTrim(std::string *s) {
-  s->erase(std::find_if(s->rbegin(),
-                        s->rend(),
-                        std::not1(std::ptr_fun<int, int>(std::isspace))).base(),
-           s->end());
-}
-
-// Trim from both ends in place
-// Caller retains ownership
-void Trim(std::string *s) {
-  LeftTrim(s);
-  RightTrim(s);
+  return rc;
 }
 
 }  // namespace speedtest

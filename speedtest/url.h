@@ -43,7 +43,7 @@ class Url {
  public:
   Url();
   Url(const Url &other);
-  explicit Url(const std::string &url);
+  explicit Url(const char *url);
   Url &operator=(const Url &other);
 
   bool Parse(const std::string &url);
@@ -75,7 +75,6 @@ class Url {
   std::string url() const;
 
   friend bool operator==(const Url &url1, const Url &url2);
-  friend std::ostream &operator<<(std::ostream &os, const Url &url);
 
  private:
   using Iter = std::string::const_iterator;
