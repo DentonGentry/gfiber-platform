@@ -170,6 +170,8 @@ int main(int argc, char* const argv[]) {
   snprintf(config.upload_target, sizeof(config.upload_target), "%s",
         DEFAULT_UPLOAD_TARGET);
 
+  default_consensus_key();
+
   if (argc > 1) {
     if (parse_args(&config, argc, argv) < 0) {
       usage(argv[0]);

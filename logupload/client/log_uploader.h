@@ -49,6 +49,13 @@ char* parse_and_consume_log_data(struct log_parse_params* params);
 int logmark_once(const char* output_path, const char* version_path,
     const char* ntp_sync_path);
 
+// Rewrite any MAC addresses of the form 00:11:22:33:44:55 (or similar)
+// as anonids like ABCDEF.
+unsigned long suppress_mac_addresses(char *line, ssize_t len);
+
+// initialize a random key for anonymization.
+void default_consensus_key();
+
 #ifdef __cplusplus
 }
 #endif

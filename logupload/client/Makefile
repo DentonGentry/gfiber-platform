@@ -10,7 +10,7 @@ USRBINDIR=$(DESTDIR)/usr/bin
 
 CFLAGS+=-Wall -Werror $(EXTRACFLAGS)
 LDFLAGS+=$(EXTRALDFLAGS)
-LIBS=-lrt -lcurl -lz -lm
+LIBS=-lrt -lcurl -lz -lm -lcrypto
 
 # Test Flags
 TEST_LDFLAGS=$(LDFLAGS)

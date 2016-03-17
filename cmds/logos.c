@@ -25,7 +25,6 @@
  *  - cleans up control characters (ie. chars < 32).
  *  - makes sure output lines are in "facility: message" format.
  *  - doesn't rely on syslogd.
- *  - suppresses logging of MAC addresses.
  *  - suppresses logging of filenames of personal media.
  */
 #include <assert.h>
@@ -461,52 +460,6 @@ static void flush(uint8_t *header, ssize_t headerlen,
 }
 
 
-static int is_mac_address(const uint8_t *s, char sep) {
-  if ((s[2] == sep) && (s[5] == sep) && (s[8] == sep) &&
-      (s[11] == sep) && (s[14] == sep) &&
-      isxdigit(s[0]) && isxdigit(s[1]) &&
-      isxdigit(s[3]) && isxdigit(s[4]) &&
-      isxdigit(s[6]) && isxdigit(s[7]) &&
-      isxdigit(s[9]) && isxdigit(s[10]) &&
-      isxdigit(s[12]) && isxdigit(s[13]) &&
-      isxdigit(s[15]) && isxdigit(s[16])) {
-    return 1;
-  }
-
-  return 0;
-}
-
-
-static void blot_out_mac_address(uint8_t *s) {
-  s[12] = 'X';
-  s[13] = 'X';
-  s[15] = 'X';
-  s[16] = 'X';
-}
-
-
-/*
- * search for text patterns which look like MAC addresses,
- * and cross out the last two bytes with 'X' characters.
- * Ex: f8:8f:ca:00:00:01 and f8-8f-ca-00-00-01
- */
-#define MAC_ADDR_LEN 17
-static void suppress_mac_addresses(uint8_t *line, ssize_t len, char sep) {
-  uint8_t *s = line;
-
-  while (len >= MAC_ADDR_LEN) {
-    if (is_mac_address(s, sep)) {
-      blot_out_mac_address(s);
-      s += MAC_ADDR_LEN;
-      len -= MAC_ADDR_LEN;
-    } else {
-      s += 1;
-      len -= 1;
-    }
-  }
-}
-
-
 /*
  * Return true for a character which we expect to terminate a
  * media filename.
@@ -700,9 +653,6 @@ int main(int argc, char **argv) {
       uint8_t *start = buf, *next = buf + used, *end = buf + used + got, *p;
       while ((p = memchr(next, '\n', end - next)) != NULL) {
         ssize_t linelen = p - start;
-        suppress_mac_addresses(start, linelen, ':');
-        suppress_mac_addresses(start, linelen, '-');
-        suppress_mac_addresses(start, linelen, '_');
         suppress_media_filenames(start, linelen, "/var/media/pictures/");
         suppress_media_filenames(start, linelen, "/var/media/videos/");
         flush(header, headerlen, start, linelen);

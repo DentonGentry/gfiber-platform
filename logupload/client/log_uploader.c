@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -6,6 +7,10 @@
 #include <time.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <openssl/md5.h>
+#include <openssl/hmac.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "log_uploader.h"
 #include "utils.h"
@@ -108,6 +113,8 @@ char* parse_and_consume_log_data(struct log_parse_params* params) {
       }
     }
 
+    num_read = suppress_mac_addresses(params->line_buffer, num_read);
+
     // Parse the data on the line to get the extra information
     if (parse_line_data(params->line_buffer, &parsed_line)) {
       // We don't want to be fatal if we fail to parse a line for some
@@ -176,4 +183,159 @@ char* parse_and_consume_log_data(struct log_parse_params* params) {
       return last_start_before_end_marker;
   }
   return params->log_buffer;
+}
+
+const char SOFT[] = "AEIOUY" "V";
+const char HARD[] = "BCDFGHJKLMNPQRSTVWXYZ" "AEIOU";
+const char *consensus_key_file = "/tmp/waveguide/consensus_key";
+#define CONSENSUS_KEY_LEN 16
+uint8_t consensus_key[CONSENSUS_KEY_LEN];
+#define MAC_ADDR_LEN 17
+
+void default_consensus_key()
+{
+  int fd;
+
+  if ((fd = open("/dev/urandom", O_RDONLY)) >= 0) {
+    ssize_t siz = sizeof(consensus_key);
+    if (read(fd, consensus_key, siz) != siz) {
+      /* https://xkcd.com/221/ */
+      memset(consensus_key, time(NULL), siz);
+    }
+    close(fd);
+  }
+}
+
+/* Read the waveguide consensus_key, if any */
+static void get_consensus_key()
+{
+  static ino_t ino = 0;
+  static time_t mtime = 0;
+  struct stat statbuf;
+  int fd;
+
+  if (stat(consensus_key_file, &statbuf)) {
+    if ((statbuf.st_ino == ino) && (statbuf.st_mtime == mtime)) {
+      return;
+    }
+  }
+
+  fd = open(consensus_key_file, O_RDONLY);
+  if (fd >= 0) {
+    uint8_t new_key[sizeof(consensus_key)];
+    if (read(fd, new_key, sizeof(new_key)) == sizeof(new_key)) {
+      memcpy(consensus_key, new_key, sizeof(consensus_key));
+      ino = statbuf.st_ino;
+      mtime = statbuf.st_mtime;
+    }
+    close(fd);
+  }
+}
+
+/* Given a value from 0..4095, encode it as a cons+vowel+cons sequence. */
+static void trigraph(int num, char *out)
+{
+  int ns = sizeof(SOFT) - 1;
+  int nh = sizeof(HARD) - 1;
+  int c1, c2, c3;
+
+  c3 = num % nh;
+  c2 = (num / nh) % ns;
+  c1 = num / nh / ns;
+  out[0] = HARD[c1];
+  out[1] = SOFT[c2];
+  out[2] = HARD[c3];
+}
+
+static int hex_chr_to_int(char hex) {
+  switch(hex) {
+    case '0' ... '9':
+      return hex - '0';
+    case 'a' ... 'f':
+      return hex - 'a' + 10;
+    case 'A' ... 'F':
+      return hex - 'A' + 10;
+  }
+
+  return 0;
+}
+
+/*
+ * Convert a string of the form "00:11:22:33:44:55" to
+ * a binary array 001122334455.
+ */
+static void get_binary_mac(const char *mac, uint8_t *out) {
+  int i;
+  for (i = 0; i < MAC_ADDR_LEN; i += 3) {
+    *out = (hex_chr_to_int(mac[i]) << 4) | hex_chr_to_int(mac[i+1]);
+    out++;
+  }
+}
+
+static const char *get_anonid_for_mac(const char *mac, char *out) {
+  unsigned char digest[EVP_MAX_MD_SIZE];
+  unsigned int digest_len = sizeof(digest);
+  uint8_t macbin[6];
+  uint32_t num;
+
+  get_consensus_key();
+  get_binary_mac(mac, macbin);
+  HMAC(EVP_md5(), consensus_key, sizeof(consensus_key), macbin, sizeof(macbin),
+      digest, &digest_len);
+  num = (digest[0] << 16) | (digest[1] << 8) | digest[2];
+  trigraph((num >> 12) & 0x0fff, out);
+  trigraph((num      ) & 0x0fff, out + 3);
+
+  return out;
+}
+
+static ssize_t anonymize_mac_address(char *s, ssize_t len) {
+  char anonid[6];
+  ssize_t offset = MAC_ADDR_LEN - sizeof(anonid);
+
+  get_anonid_for_mac(s, anonid);
+  memcpy(s, anonid, sizeof(anonid));
+  s += sizeof(anonid);
+  len -= offset;
+  memmove(s, s + offset, len);
+  return offset;
+}
+
+static int is_mac_addr(const char *s, char sep) {
+  if ((s[2] == sep) && (s[5] == sep) && (s[8] == sep) &&
+      (s[11] == sep) && (s[14] == sep) &&
+      isxdigit(s[0]) && isxdigit(s[1]) &&
+      isxdigit(s[3]) && isxdigit(s[4]) &&
+      isxdigit(s[6]) && isxdigit(s[7]) &&
+      isxdigit(s[9]) && isxdigit(s[10]) &&
+      isxdigit(s[12]) && isxdigit(s[13]) &&
+      isxdigit(s[15]) && isxdigit(s[16])) {
+    return 1;
+  }
+
+  return 0;
+}
+
+/*
+ * search for text patterns which look like MAC addresses,
+ * and anonymize them.
+ * Ex: f8:8f:ca:00:00:01 to PEEVJB
+ */
+unsigned long suppress_mac_addresses(char *line, ssize_t len) {
+  char *s = line;
+  unsigned long new_len = len;
+  ssize_t reduce;
+
+  while (len >= MAC_ADDR_LEN) {
+    if (is_mac_addr(s, ':') || is_mac_addr(s, '-') || is_mac_addr(s, '_')) {
+      reduce = anonymize_mac_address(s, len);
+      len -= reduce;
+      new_len -= reduce;
+    } else {
+      s += 1;
+      len -= 1;
+    }
+  }
+
+  return new_len;
 }

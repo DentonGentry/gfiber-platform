@@ -315,3 +315,30 @@ TEST(LogUploader, logmark_once_no_ntpsync) {
   remove(test_dev_kmsg_path);
   rmdir(tdir);
 }
+
+
+struct log_data test_MAC_data[] = {
+  { 1, 1000LL, 100LL, "-", "f8:8f:ca:00:00:01\n", NULL },
+  { 4, 1001LL, 101LL, "-", "8:8f:ca:00:00:01\n", NULL },
+  { 2, 1010LL, 102LL, "-", "8:8f:ca:00:00:01:\n", NULL },
+  { 5, 2030000LL, 104LL, "-", ":::semicolons:f8:8f:ca:00:00:01:and:after\n",
+      NULL },
+  { 3, 3030000LL, 105LL, "-", "f8-8f-ca-00-00-01\n", NULL },
+  { 3, 3030000LL, 105LL, "-", "f8_8f_ca_00_00_01\n", NULL },
+};
+int test_MAC_data_size = sizeof(test_MAC_data) / sizeof(struct log_data);
+
+
+TEST(LogUploader, anonymize_mac_addresses) {
+  struct log_parse_params* params = create_log_parse_params(test_MAC_data,
+      test_MAC_data_size);
+  char* res_buffer = parse_and_consume_log_data(params);
+
+  /* Verify that the MAC address has been anonymized. */
+  printf("%s\n", res_buffer);
+  EXPECT_TRUE(strstr(res_buffer, "f8:8f:ca:00:00:01") == NULL);
+  EXPECT_TRUE(strstr(res_buffer, "f8-8f-ca-00-00-01") == NULL);
+  EXPECT_TRUE(strstr(res_buffer, "f8_8f_ca_00_00_01") == NULL);
+
+  free_log_parse_params(params);
+}
