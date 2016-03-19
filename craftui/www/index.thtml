@@ -1,0 +1,272 @@
+<html>
+<head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+  <meta content="utf-8" http-equiv="encoding">
+  <script src="static/jquery-2.1.4.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="static/craft.css">
+  <link rel=icon href=static/favicon.ico>
+  <link rel=stylesheet href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700&amp;lang=en">
+  <link rel=stylesheet href=static/default.css>
+</head>
+<body>
+  <header>
+    <section>
+      <h1><a href=https://fiber.google.com/myfiber/><img src=static/logo.png alt="Google Fiber"></a></h1>
+      <nav>
+        <ul>
+          <li class=active><a href=/>GFCH100</a></li>
+          <li ><a href=craft/config/>Configuration</a></li>
+          <li ><a href={{ peerurl }} target=_blank>Peer</a></li>
+        </ul>
+      </nav>
+    </section>
+  </header>
+  <br>
+  <div class="tabs">
+    <div class="tab">
+      <input type="radio" id="tab-1" name="tab-group-1" checked>
+      <label for="tab-1">Platform</label>
+      <div class="content">
+        <b>Platform:</b><span class="values" id="platform/platform">...</span><br>
+        <b>Software Version:</b><span class="values" id="platform/version">...</span><br>
+        <b>Software Date:</b><span class="values" id="platform/softwaredate">...</span><br>
+        <b>Uptime:</b><span class="values" id="platform/uptime">...</span><br>
+        <b>Status:</b><span class="values" id="platform/ledstate">...</span><br>
+      </div>
+    </div>
+    <div class="tab">
+      <input type="radio" id="tab-2" name="tab-group-1">
+      <label for="tab-2">Network</label>
+      <div class="content">
+        <b>Craft Port IP Address:</b><span class="values" id="platform/craft_ipaddr">...</span><br>
+        <b>Local IP Address:</b><span class="values" id="platform/local_ipaddr">...</span><br>
+        <b>Peer IP Address:</b><span class="values" id="platform/peer_ipaddr">...</span><br>
+        <b>Inband Vlan:</b><span class="values" id="platform/vlan_inband">...</span><br>
+        <b>Peer Vlan:</b><span class="values" id="platform/vlan_peer">...</span><br>
+        <table>
+          <tr>
+            <td><b></b></td>
+            <td colspan=3><b>received</b></td>
+            <td colspan=3><b>transmitted</b></td></tr>
+          <tr>
+            <td><b>interface</b></td>
+            <td><b>bytes (UC BC MC)</b></td>
+            <td><b>frames (<64 <128 <256 <512 <1024 jumbo)</b></td>
+            <td><b>errors</b></td>
+            <td><b>bytes (UC BC MC)</b></td>
+            <td><b>frames</b></td>
+            <td><b>errors</b></td></tr>
+          <tr>
+            <td>modem (from/to switch)</td>
+            <td>
+              <span id="modem/network/rxCounters/bytes">...</span>
+              (<span id="modem/network/rxCounters/unicast">...</span>
+              <span id="modem/network/rxCounters/broadcast">...</span>
+              <span id="modem/network/rxCounters/multicast">...</span>)</td>
+            <td>
+              <span id="modem/network/rxCounters/frames">...</span>
+              (<span id="modem/network/rxCounters/frames64">...</span>
+              <span id="modem/network/rxCounters/frames65_127">...</span>
+              <span id="modem/network/rxCounters/frames128_255">...</span>
+              <span id="modem/network/rxCounters/frames256_511">...</span>
+              <span id="modem/network/rxCounters/frames512_1023">...</span>
+              <span id="modem/network/rxCounters/frames1024_1518">...</span>
+              <span id="modem/network/rxCounters/framesJumbo">...</span>)</td>
+            <td>
+              CRC: <span id="modem/network/rxCounters/crcErrors">...</span>
+              Undersize: <span id="modem/network/rxCounters/framesUndersized">...</span></td>
+            <td>
+              <span id="modem/network/txCounters/bytes">...</span>
+              (<span id="modem/network/txCounters/unicast">...</span>
+              <span id="modem/network/txCounters/broadcast">...</span>
+              <span id="modem/network/txCounters/multicast">...</span>)</td>
+            <td>
+              <span id="modem/network/txCounters/frames">...</span>
+              (<span id="modem/network/txCounters/frames64">...</span>
+              <span id="modem/network/txCounters/frames65_127">...</span>
+              <span id="modem/network/txCounters/frames128_255">...</span>
+              <span id="modem/network/txCounters/frames256_511">...</span>
+              <span id="modem/network/txCounters/frames512_1023">...</span>
+              <span id="modem/network/txCounters/frames1024_1518">...</span>
+              <span id="modem/network/txCounters/framesJumbo">...</span>)</td>
+            <td>
+              CRC: <span id="modem/network/txCounters/crcErrors">...</span>
+              Undersize: <span id="modem/network/txCounters/framesUndersized">...</span></td></tr>
+          <tr>
+            <td>SOC (from/to switch)</td>
+          <tr>
+            <td>SOC (port 0)</td>
+          <tr>
+            <td>POE (port 0)</td>
+          <tr>
+            <td>POE (port 0)</td>
+        </table>
+      </div>
+    </div>
+    <div class="tab">
+      <input type="radio" id="tab-3" name="tab-group-1">
+      <label for="tab-3">Modem</label>
+      <div class="content">
+        <b>Chip:</b><span class="values" id="modem/version/chipType">...</span><br>
+        <b>Firmware:</b><span class="values" id="modem/firmware">...</span><br>
+        <b>Version:</b><span class="values">
+          <span id="modem/version/major">...</span>.<span id="modem/version/minor">?</span>.<span id="modem/version/build">?</span>
+        </span><br>
+        <b>Profile:</b><span class="values" id="modem/profile">...</span><br>
+        <b>Temperature:</b><span class="values" id="modem/temperature">...</span><br>
+        <b>Network Status:</b><span class="values">
+          <span id="modem/network/statusStr">...</span>
+          (Code: <span id="modem/network/status">...</span>)
+        </span><br>
+        <b>Acquire Status:</b><span class="values">
+          <span id="modem/status/acquireStatusStr">...</span>
+          (Code: <span id="modem/status/acquireStatus">...</span>)
+        </span><br>
+        <b>Transmitter Mode:</b><span class="values">
+          <span id="modem/transmitter/modeStr">...</span>
+          (Code: <span id="modem/transmitter/mode">...</span>)
+        </span><br>
+        <b>Last Acquire Error:</b><span class="values">
+          <span id="modem/status/lastAcquireErrorStr">...</span>
+          (Code: <span id="modem/status/lastAcquireError">...</span>)
+        </span><br>
+        <b>Carrier Offset:</b><span class="values" id="modem/status/carrierOffset">...</span><br>
+        <b>ResPhNoise:</b><span class="values" id="modem/status/resPhNoiseVal">...</span><br>
+        <b>DebugIndications:</b><span class="values" id="modem/status/debugIndications">...</span><br>
+        <b>MSE:</b><span class="values">
+          Normalized: <span id="modem/status/normalizedMse">...</span>&nbsp;&nbsp;
+          Absolute: <span id="modem/status/absoluteMse">...</span>&nbsp;&nbsp;
+          Radial: <span id="modem/status/radialMse">...</span>&nbsp;&nbsp;
+        </span><br>
+        <b>ACM Profile:</b><span class="values">
+          rx: <span id="modem/status/rxAcmProfile">...</span>&nbsp;&nbsp;
+          tx: <span id="modem/status/txAcmProfile">...</span>&nbsp;&nbsp;
+        </span><br>
+        <b>Symbol Rate:</b><span class="values">
+          rx: <span id="modem/status/rxSymbolRate">...</span>&nbsp;&nbsp;
+          tx: <span id="modem/status/txSymbolRate">...</span>&nbsp;&nbsp;
+        </span><br>
+        <b>AGC:</b><span class="values">
+          external: <span id="modem/status/externalAgc">...</span>&nbsp;&nbsp;
+          internal: <span id="modem/status/internalAgc">...</span>&nbsp;&nbsp;
+        </span><br>
+        <b>ACM Engine:</b><span class="values">
+          rx sensors enabled: <span id="modem/status/acmEngineRxSensorsEnabled">...</span>&nbsp;&nbsp;
+          tx switch enabled: <span id="modem/status/acmEngineTxSwitchEnabled">...</span>&nbsp;&nbsp;
+        </span><br>
+        <b>Transmitter DC Leakage:</b><span class="values">
+          I: <span id="modem/transmitter/dcLeakageI">...</span>&nbsp;&nbsp;
+          Q: <span id="modem/transmitter/dcLeakageQ">...</span>&nbsp;&nbsp;
+        </span><br>
+        <b>Transmitter:</b><span class="values">
+          sweep time: <span id="modem/transmitter/sweepTime">...</span>&nbsp;&nbsp;
+          tone freq: <span id="modem/transmitter/toneFreq">...</span>&nbsp;&nbsp;
+          tone sec freq: <span id="modem/transmitter/toneSecFreq">...</span>&nbsp;&nbsp;
+        </span><br>
+      </div>
+    </div>
+    <div class="tab">
+      <input type="radio" id="tab-4" name="tab-group-1">
+      <label for="tab-4">Radio</label>
+      <div class="content">
+        <b>Hardware Version:</b><span class="values">
+          <span id="radio/version/hardware/type">...</span>&nbsp;
+          (<span id="radio/version/hardware/major">?</span>.<span id="radio/version/hardware/minor">?</span>)
+        </span><br>
+        <b>Software Version:</b><span class="values">
+          <span id="radio/version/software/major">?</span>.<span id="radio/version/software/minor">?</span>.<span id="radio/version/software/build">?</span>
+        </span><br>
+        <b>RSSI:</b><span class="values" id="radio/rx/rssi">...</span><br>
+        <b>PA Temp:</b><span class="values" id="radio/tx/paTemp">...</span><br>
+        <b>MCU Temp:</b><span class="values" id="radio/mcuTemp">...</span><br>
+        <b>Heater Enabled:</b><span class="values" id="radio/heaterEnabled">...</span><br>
+        <b>PA LNA:</b><span class="values">
+          Power Enabled: <span id="radio/paLnaPowerEnabled">...</span>&nbsp;&nbsp;&nbsp;
+          Status: <span id="radio/paLnaPowerStatus">...</span>&nbsp;&nbsp;&nbsp;
+        </span><br>
+        <b>Transceivers Power Enabled:</b><span class="values" id="radio/transceiversPowerEnabled">...</span><br>
+        <table>
+        <tr>
+          <td><b>Transceiver</b></td>
+          <td><b>Model</b></td>
+          <td><b>Mode</b></td>
+          <td><b>Temp</b></td>
+          <td><b>PLL (freq, locked, lockCount)</b></td>
+          <td><b>EPOT (control, driver, lna, pa)</b></td></tr>
+        <tr>
+          <td><b>High</b>
+          <td><span id="radio/hiTransceiver/icModel">...</span></td>
+          <td><span id="radio/hiTransceiver/mode">...</span></td>
+          <td><span id="radio/hiTransceiver/temp">...</span></td>
+          <td>
+            <span id="radio/hiTransceiver/pll/frequency">...</span>
+            <span id="radio/hiTransceiver/pll/locked">...</span>
+            <span id="radio/hiTransceiver/pll/lockCounts">...</span></td>
+          <td>
+            <span id="radio/hiTransceiver/epot/control">...</span>
+            <span id="radio/hiTransceiver/epot/driver">...</span>
+            <span id="radio/hiTransceiver/epot/lna">...</span>
+            <span id="radio/hiTransceiver/epot/pa">...</span></td></tr>
+        <tr>
+          <td><b>Low</b>
+          <td><span id="radio/loTransceiver/icModel">...</span></td>
+          <td><span id="radio/loTransceiver/mode">...</span></td>
+          <td><span id="radio/loTransceiver/temp">...</span></td>
+          <td>
+            <span id="radio/loTransceiver/pll/frequency">...</span>
+            <span id="radio/loTransceiver/pll/locked">...</span>
+            <span id="radio/loTransceiver/pll/lockCounts">...</span></td>
+          <td>
+            <span id="radio/loTransceiver/epot/control">...</span>
+            <span id="radio/loTransceiver/epot/driver">...</span>
+            <span id="radio/loTransceiver/epot/lna">...</span>
+            <span id="radio/loTransceiver/epot/pa">...</span></td></tr>
+        </table>
+        <b>Digital AGC Gain:</b><span class="values">
+          <span id="radio/rx/agcDigitalGain">...</span>&nbsp;&nbsp;&nbsp;
+          (Index <span id="radio/rx/agcDigitalGainIndex">...</span>)
+        </span><br>
+        <b>LNA Current:</b><span class="values">
+          Meas: <span id="radio/rx/lnaCurrentMeas">...</span>&nbsp;&nbsp;&nbsp;
+          Set: <span id="radio/rx/lnaCurrentSet">...</span>
+        </span><br>
+        <b>Driver Current:</b><span class="values">
+          Meas: <span id="radio/tx/driverCurrentMeas">...</span>&nbsp;&nbsp;&nbsp;
+          Set: <span id="radio/tx/driverCurrentSet">...</span>
+        </span><br>
+        <b>PA Current:</b><span class="values">
+          Meas: <span id="radio/tx/paCurrentMeas">...</span>&nbsp;&nbsp;&nbsp;
+          Set: <span id="radio/tx/paCurrentSet">...</span>
+        </span><br>
+        <b>PA Power:</b><span class="values">
+          Meas: <span id="radio/tx/paPowerMeas">...</span>&nbsp;&nbsp;&nbsp;
+          Set: <span id="radio/tx/paPowerSet">...</span>
+        </span><br>
+        <b>TX Power:</b><span class="values">
+          Meas: <span id="radio/tx/txPowerMeas">...</span>&nbsp;&nbsp;&nbsp;
+          Set: <span id="radio/tx/txPowerSet">...</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          Control: <span id="radio/tx/txPowerControl">...</span>
+        </span><br>
+        <b>DC:</b><span class="values">
+          I: <span id="radio/tx/dcI">...</span>&nbsp;&nbsp;&nbsp;
+          Q: <span id="radio/tx/dcQ">...</span>&nbsp;&nbsp;&nbsp;
+        </span><br>
+        <b>VGA Gain:</b><span class="values" id="radio/tx/vgaGain">...</span><br>
+      </div>
+    </div>
+    <div class="tab">
+      <input type="radio" id="tab-5" name="tab-group-1">
+      <label for="tab-5">Debug</label>
+      <div class="content">
+        <form action=/startisostream method=post>
+          {% module xsrf_form_html() %}
+          <button id="isostream_button">Run Test</button>
+        </form>
+        <b>refreshCount:</b><span class="values" id="platform/refreshCount">...</span><br>
+        <b>unhandled xml:</b><span class="values" id="unhandled"></span>
+      </div>
+    </div>
+  </div>
+  <script src="static/craft.js"></script>
+</body>
+</html>

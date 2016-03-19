@@ -1,0 +1,33 @@
+#! /bin/sh
+
+# developer tool to restart server when file source changes
+
+pid=
+
+restart() {
+  [ -n "$pid" ] && kill $pid
+  echo "# starting craftui"
+  ./craftui &
+  pid=$!
+  touch started
+}
+
+onExit() {
+  [ -n "$pid" ] && kill $pid
+  exit 1
+}
+
+trap onExit 1 2 3
+restart
+
+while sleep 1; do
+  if ! kill -0 $pid; then
+    restart
+    continue
+  fi
+  f=$(find . -type f -newer started)
+  if [ -n "$f" ]; then
+    restart
+    continue
+  fi
+done
