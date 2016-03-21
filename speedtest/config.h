@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace speedtest {
 struct Config {
   int download_size = 0;
   int upload_size = 0;
-  int interval_size = 0;
+  int interval_millis = 0;
   std::string location_name;
   int min_transfer_intervals = 0;
   int max_transfer_intervals = 0;

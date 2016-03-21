@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,17 +18,17 @@
 #define SPEEDTEST_TRANSFER_TEST_H
 
 #include <atomic>
-#include "generic_test.h"
+#include "http_task.h"
 
 namespace speedtest {
 
-class TransferTest : public GenericTest {
+class TransferTask : public HttpTask {
  public:
-  struct Options : GenericTest::Options {
-    int num_transfers;
+  struct Options : HttpTask::Options {
+    int num_transfers = 0;
   };
 
-  explicit TransferTest(const Options &options);
+  explicit TransferTask(const Options &options);
 
   long bytes_transferred() const { return bytes_transferred_; }
   long requests_started() const { return requests_started_; }
@@ -46,8 +46,8 @@ class TransferTest : public GenericTest {
   std::atomic_int requests_ended_;
 
   // disallowed
-  TransferTest(const TransferTest &) = delete;
-  void operator=(const TransferTest &) = delete;
+  TransferTask(const TransferTask &) = delete;
+  void operator=(const TransferTask &) = delete;
 };
 
 }  // namespace speedtest

@@ -14,15 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef HTTP_ERRORS_H
-#define HTTP_ERRORS_H
+#include "timed_runner.h"
 
-#include <curl/curl.h>
+#include <cassert>
+#include <thread>
 
-namespace http {
+namespace speedtest {
 
-const char *ErrorString(CURLcode error_code);
+void RunTimed(Task *task, long millis) {
+  assert(task);
+  task->Run();
+  std::thread timer([=] {
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(millis));
+    task->Stop();
+  });
+  timer.join();
+}
 
-}  // namespace http
-
-#endif  // HTTP_ERRORS_H
+}  // namespace speedtest

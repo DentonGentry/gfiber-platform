@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,36 +14,11 @@
  * limitations under the License.
  */
 
-#include "transfer_test.h"
-
-#include <cassert>
+#include "http_task.h"
 
 namespace speedtest {
 
-TransferTest::TransferTest(const Options &options)
-    : GenericTest(options),
-      bytes_transferred_(0),
-      requests_started_(0),
-      requests_ended_(0) {
-  assert(options.num_transfers > 0);
-}
-
-void TransferTest::ResetCounters() {
-  bytes_transferred_ = 0;
-  requests_started_ = 0;
-  requests_ended_ = 0;
-}
-
-void TransferTest::StartRequest() {
-  requests_started_++;
-}
-
-void TransferTest::EndRequest() {
-  requests_ended_++;
-}
-
-void TransferTest::TransferBytes(long bytes) {
-  bytes_transferred_ += bytes;
+HttpTask::HttpTask(const Options &options): Task(options) {
 }
 
 }  // namespace speedtest

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,42 +14,42 @@
  * limitations under the License.
  */
 
-#ifndef SPEEDTEST_GENERIC_TEST_H
-#define SPEEDTEST_GENERIC_TEST_H
+#ifndef SPEEDTEST_TASK_H
+#define SPEEDTEST_TASK_H
 
 #include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include "request.h"
+#include <thread>
 
 namespace speedtest {
 
-enum class TestStatus {
+enum class TaskStatus {
   NOT_STARTED,
   RUNNING,
   STOPPING,
   STOPPED
 };
 
-const char *AsString(TestStatus status);
+const char *AsString(TaskStatus status);
 
-class GenericTest {
+class Task {
  public:
-  using RequestPtr = std::unique_ptr<http::Request>;
-
   struct Options {
     bool verbose = false;
-    std::function<RequestPtr(int)> request_factory;
   };
 
-  explicit GenericTest(const Options &options);
+  explicit Task(const Options &options);
+  virtual ~Task();
 
   void Run();
   void Stop();
 
-  TestStatus GetStatus() const;
-  long GetRunningTime() const;
+  TaskStatus GetStatus() const;
+  long GetStartTime() const;
+  long GetEndTime() const;
+  long GetRunningTimeMicros() const;
   void WaitForEnd();
 
  protected:
@@ -57,19 +57,24 @@ class GenericTest {
   virtual void StopInternal() {}
 
  private:
+  // Only call with mutex_
+  void UpdateStatusLocked(TaskStatus status);
+
+  void WaitFor(TaskStatus status);
+
   mutable std::mutex mutex_;
-  std::condition_variable condition_;
-  TestStatus status_;
-  bool running_ = false;
+  std::thread runner_;
+  std::thread stopper_;
+  std::condition_variable status_cond_;
+  TaskStatus status_;
   long start_time_;
   long end_time_;
 
   // disallowed
-  GenericTest(const GenericTest &) = delete;
-
-  void operator=(const GenericTest &) = delete;
+  Task(const Task &) = delete;
+  void operator=(const Task &) = delete;
 };
 
 }  // namespace speedtest
 
-#endif  //SPEEDTEST_GENERIC_TEST_H
+#endif  //SPEEDTEST_TASK_H

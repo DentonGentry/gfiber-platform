@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,24 @@
  * limitations under the License.
  */
 
-#include "download_test.h"
+#include "download_task.h"
 
 #include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <thread>
-#include "generic_test.h"
 #include "utils.h"
 
 namespace speedtest {
 
-DownloadTest::DownloadTest(const Options &options)
-    : TransferTest(options_),
+DownloadTask::DownloadTask(const Options &options)
+    : TransferTask(options_),
       options_(options) {
   assert(options_.num_transfers > 0);
   assert(options_.download_size > 0);
 }
 
-void DownloadTest::RunInternal() {
+void DownloadTask::RunInternal() {
   ResetCounters();
   threads_.clear();
   if (options_.verbose) {
@@ -46,15 +45,15 @@ void DownloadTest::RunInternal() {
   }
 }
 
-void DownloadTest::StopInternal() {
+void DownloadTask::StopInternal() {
   std::for_each(threads_.begin(), threads_.end(), [](std::thread &t) {
     t.join();
   });
 }
 
-void DownloadTest::RunDownload(int id) {
-  GenericTest::RequestPtr download = options_.request_factory(id);
-  while (GetStatus() == TestStatus::RUNNING) {
+void DownloadTask::RunDownload(int id) {
+  http::Request::Ptr download = options_.request_factory(id);
+  while (GetStatus() == TaskStatus::RUNNING) {
     long downloaded = 0;
     download->set_param("i", to_string(id));
     download->set_param("size", to_string(options_.download_size));
@@ -67,7 +66,7 @@ void DownloadTest::RunDownload(int id) {
         TransferBytes(dlnow - downloaded);
         downloaded = dlnow;
       }
-      return GetStatus() != TestStatus::RUNNING;
+      return GetStatus() != TaskStatus::RUNNING;
     });
     StartRequest();
     download->Get();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,38 +14,40 @@
  * limitations under the License.
  */
 
-#ifndef SPEEDTEST_DOWNLOAD_TEST_H
-#define SPEEDTEST_DOWNLOAD_TEST_H
+#ifndef SPEEDTEST_UPLOAD_TASK_H
+#define SPEEDTEST_UPLOAD_TASK_H
 
+#include <memory>
+#include <string>
 #include <thread>
 #include <vector>
-#include "transfer_test.h"
+#include "transfer_task.h"
 
 namespace speedtest {
 
-class DownloadTest : public TransferTest {
+class UploadTask : public TransferTask {
  public:
-  struct Options : TransferTest::Options {
-    int download_size = 0;
+  struct Options : TransferTask::Options {
+    std::shared_ptr<std::string> payload;
   };
 
-  explicit DownloadTest(const Options &options);
+  explicit UploadTask(const Options &options);
 
  protected:
   void RunInternal() override;
   void StopInternal() override;
 
  private:
-  void RunDownload(int id);
+  void RunUpload(int id);
 
   Options options_;
   std::vector<std::thread> threads_;
 
   // disallowed
-  DownloadTest(const DownloadTest &) = delete;
-  void operator=(const DownloadTest &) = delete;
+  UploadTask(const UploadTask &) = delete;
+  void operator=(const UploadTask &) = delete;
 };
 
 }  // namespace speedtest
 
-#endif  // SPEEDTEST_DOWNLOAD_TEST_H
+#endif  // SPEEDTEST_UPLOAD_TASK_H

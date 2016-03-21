@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,11 +23,10 @@
 
 #include "config.h"
 #include "curl_env.h"
-#include "download_test.h"
-#include "generic_test.h"
+#include "download_task.h"
 #include "options.h"
-#include "ping_test.h"
-#include "upload_test.h"
+#include "ping_task.h"
+#include "upload_task.h"
 #include "url.h"
 #include "request.h"
 
@@ -55,10 +54,16 @@ class Speedtest {
   int UploadSize() const;
   int PingTimeout() const;
   int PingRunTime() const;
+  int MinTransferRuntime() const;
+  int MaxTransferRuntime() const;
+  int MinTransferIntervals() const;
+  int MaxTransferIntervals() const;
+  double MaxTransferVariance() const;
+  int IntervalMillis() const;
 
-  GenericTest::RequestPtr MakeRequest(const http::Url &url);
-  GenericTest::RequestPtr MakeBaseRequest(int id, const std::string &path);
-  GenericTest::RequestPtr MakeTransferRequest(int id, const std::string &path);
+  http::Request::Ptr MakeRequest(const http::Url &url);
+  http::Request::Ptr MakeBaseRequest(int id, const std::string &path);
+  http::Request::Ptr MakeTransferRequest(int id, const std::string &path);
 
   std::shared_ptr <http::CurlEnv> env_;
   Options options_;
@@ -67,9 +72,6 @@ class Speedtest {
   std::vector<http::Url> servers_;
   std::unique_ptr<http::Url> server_url_;
   std::unique_ptr<std::string> send_data_;
-  std::unique_ptr<PingTest> ping_test_;
-  std::unique_ptr<DownloadTest> download_test_;
-  std::unique_ptr<UploadTest> upload_test_;
 
   // disable
   Speedtest(const Speedtest &) = delete;

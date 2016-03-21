@@ -4,7 +4,8 @@ PREFIX=$(DESTDIR)/usr
 BINDIR=$(PREFIX)/bin
 DEBUG?=-g
 WARNINGS=-Wall -Werror -Wno-unused-result -Wno-unused-but-set-variable
-CXXFLAGS=$(DEBUG) $(WARNINGS) -O3 -DNDEBUG -std=c++11 $(EXTRACFLAGS)
+CXXFLAGS=$(DEBUG) $(WARNINGS) -DNDEBUG -std=c++11 $(EXTRACFLAGS)
+#CXXFLAGS=$(DEBUG) $(WARNINGS) -O3 -DNDEBUG -std=c++11 $(EXTRACFLAGS)
 LDFLAGS=$(DEBUG) $(EXTRALDFLAGS)
 
 GTEST_DIR=googletest
@@ -15,16 +16,18 @@ LIBS=-lcurl -lpthread -ljsoncpp
 TOBJS=curl_env.o url.o errors.o request.o utils.o
 OBJS=config.o \
      curl_env.o \
-     download_test.o \
+     download_task.o \
      errors.o \
-     generic_test.o \
+     http_task.o \
      options.o \
-     ping_test.o \
+     ping_task.o \
      request.o \
-     runner.o \
      speedtest.o \
-     transfer_test.o \
-     upload_test.o \
+     task.o \
+     timed_runner.o \
+     transfer_runner.o \
+     transfer_task.o \
+     upload_task.o \
      url.o \
      utils.o
 
@@ -33,27 +36,30 @@ all: speedtest
 config.o: config.cc config.h url.h
 errors.o: errors.cc errors.h
 curl_env.o: curl_env.cc curl_env.h errors.h request.h
-download_test.o: download_test.cc download_test.h generic_test.h transfer_test.h utils.h
-generic_test.o: generic_test.cc generic_test.h request.h utils.h
+download_task.o: download_task.cc download_task.h transfer_task.h utils.h
+http_task.o: http_task.cc http_task.h
 options.o: options.cc options.h url.h
-ping_test.o: ping_test.cc ping_test.h generic_test.h request.h url.h utils.h
+ping_task.o: ping_task.cc ping_task.h http_task.h request.h url.h utils.h
 request.o: request.cc request.h url.h
-runner.o: runner.cc runner.h generic_test.h transfer_test.h
 speedtest.o: speedtest.cc \
              speedtest.h \
              config.h \
              curl_env.h \
-             download_test.h \
-             generic_test.h \
+             download_task.h \
              options.h \
-             ping_test.h \
+             ping_task.h \
              request.h \
-             runner.h \
-             upload_test.h \
+             task.h \
+             timed_runner.h \
+             transfer_runner.h \
+             upload_task.h \
              url.h
 speedtest_main.o: speedtest_main.cc options.h speedtest.h
-transfer_test.o: transfer_test.cc transfer_test.h generic_test.h
-upload_test.o: upload_test.cc upload_test.h generic_test.h transfer_test.h utils.h
+task.o: task.cc task.h utils.h
+timed_runner.o: timed_runner.cc timed_runner.h task.h
+transfer_runner.o: transfer_runner.cc transfer_runner.h transfer_task.h utils.h
+transfer_task.o: transfer_task.cc transfer_task.h http_task.h
+upload_task.o: upload_task.cc upload_task.h transfer_task.h utils.h
 utils.o: utils.cc options.h
 url.o: url.cc url.h utils.h
 

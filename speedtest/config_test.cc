@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ TEST(ParseConfigTest, FullConfig_Valid) {
   EXPECT_EQ(20000000, config.upload_size);
   EXPECT_EQ(20, config.num_downloads);
   EXPECT_EQ(15, config.num_uploads);
-  EXPECT_EQ(200, config.interval_size);
+  EXPECT_EQ(200, config.interval_millis);
   EXPECT_EQ("Kansas City", config.location_name);
   EXPECT_EQ(10, config.min_transfer_intervals);
   EXPECT_EQ(25, config.max_transfer_intervals);

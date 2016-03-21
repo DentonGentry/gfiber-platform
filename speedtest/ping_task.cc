@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,23 @@
  * limitations under the License.
  */
 
-#include "ping_test.h"
+#include "ping_task.h"
 
 #include <algorithm>
 #include <cassert>
 #include <iomanip>
 #include <iostream>
-#include "generic_test.h"
 #include "utils.h"
 
 namespace speedtest {
 
-PingTest::PingTest(const Options &options)
-    : GenericTest(options),
+PingTask::PingTask(const Options &options)
+    : HttpTask(options),
       options_(options) {
   assert(options_.num_pings > 0);
 }
 
-void PingTest::RunInternal() {
+void PingTask::RunInternal() {
   ResetCounters();
   success_ = false;
   threads_.clear();
@@ -42,7 +41,7 @@ void PingTest::RunInternal() {
   }
 }
 
-void PingTest::StopInternal() {
+void PingTask::StopInternal() {
   std::for_each(threads_.begin(), threads_.end(), [](std::thread &t) {
     t.join();
   });
@@ -76,17 +75,16 @@ void PingTest::StopInternal() {
   if (!min_stats) {
     // no servers respondeded
     success_ = false;
-    return;
   } else {
     fastest_ = *min_stats;
     success_ = true;
   }
 }
 
-void PingTest::RunPing(size_t index) {
-  GenericTest::RequestPtr ping = options_.request_factory(index);
+void PingTask::RunPing(size_t index) {
+  http::Request::Ptr ping = options_.request_factory(index);
   stats_[index].url = ping->url();
-  while (GetStatus() == TestStatus::RUNNING) {
+  while (GetStatus() == TaskStatus::RUNNING) {
     long req_start = SystemTimeMicros();
     if (ping->Get() == CURLE_OK) {
       long req_end = SystemTimeMicros();
@@ -100,16 +98,16 @@ void PingTest::RunPing(size_t index) {
   }
 }
 
-bool PingTest::IsSucceeded() const {
+bool PingTask::IsSucceeded() const {
   return success_;
 }
 
-PingStats PingTest::GetFastest() const {
+PingStats PingTask::GetFastest() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return fastest_;
 }
 
-void PingTest::ResetCounters() {
+void PingTask::ResetCounters() {
   stats_.clear();
   stats_.resize(options_.num_pings);
 }

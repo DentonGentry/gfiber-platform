@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,30 @@
  * limitations under the License.
  */
 
-#ifndef SPEEDTEST_RUNNER_H
-#define SPEEDTEST_RUNNER_H
+#ifndef SPEEDTEST_HTTP_TASK_H
+#define SPEEDTEST_HTTP_TASK_H
 
-#include "generic_test.h"
+#include "task.h"
+
+#include "request.h"
 
 namespace speedtest {
 
-void TimedRun(GenericTest *test, long millis);
+class HttpTask : public Task {
+ public:
+  struct Options : Task::Options {
+    bool verbose = false;
+    std::function<http::Request::Ptr(int)> request_factory;
+  };
+
+  explicit HttpTask(const Options &options);
+
+ private:
+  // disallowed
+  HttpTask(const Task &) = delete;
+  void operator=(const HttpTask &) = delete;
+};
 
 }  // namespace speedtest
 
-#endif  // SPEEDTEST_RUNNER_H
+#endif  // SPEEDTEST_HTTP_TASK_H

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,9 @@ std::string to_string(long n);
 
 // Round a double to a minimum number of significant digits
 std::string round(double d, int digits);
+
+// Return 1 - (shorter / larger)
+double variance(double d1, double d2);
 
 // Convert bytes and time in micros to speed in megabits
 double ToMegabits(long bytes, long micros);

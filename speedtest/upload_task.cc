@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,23 @@
  * limitations under the License.
  */
 
-#include "upload_test.h"
+#include "upload_task.h"
 
 #include <algorithm>
 #include <cassert>
 #include <iostream>
-#include "generic_test.h"
 #include "utils.h"
 
 namespace speedtest {
 
-UploadTest::UploadTest(const Options &options)
-    : TransferTest(options),
+UploadTask::UploadTask(const Options &options)
+    : TransferTask(options),
       options_(options) {
   assert(options_.payload);
   assert(options_.payload->size() > 0);
 }
 
-void UploadTest::RunInternal() {
+void UploadTask::RunInternal() {
   ResetCounters();
   threads_.clear();
   if (options_.verbose) {
@@ -45,15 +44,15 @@ void UploadTest::RunInternal() {
   }
 }
 
-void UploadTest::StopInternal() {
+void UploadTask::StopInternal() {
   std::for_each(threads_.begin(), threads_.end(), [](std::thread &t) {
     t.join();
   });
 }
 
-void UploadTest::RunUpload(int id) {
-  GenericTest::RequestPtr upload = options_.request_factory(id);
-  while (GetStatus() == TestStatus::RUNNING) {
+void UploadTask::RunUpload(int id) {
+  http::Request::Ptr upload = options_.request_factory(id);
+  while (GetStatus() == TaskStatus::RUNNING) {
     long uploaded = 0;
     upload->set_param("i", to_string(id));
     upload->set_param("time", to_string(SystemTimeMicros()));
@@ -65,7 +64,7 @@ void UploadTest::RunUpload(int id) {
         TransferBytes(ulnow - uploaded);
         uploaded = ulnow;
       }
-      return GetStatus() != TestStatus::RUNNING;
+      return GetStatus() != TaskStatus::RUNNING;
     });
 
     // disable the Expect header as the server isn't expecting it (perhaps

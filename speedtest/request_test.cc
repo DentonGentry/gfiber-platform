@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,11 +30,11 @@ class RequestTest : public testing::Test {
 
   void SetUp() override {
     env = CurlEnv::NewCurlEnv({});
+    request = env->NewRequest(http::Url("http://example.com/foo"));
   }
 
   void VerifyQueryString(const char *expected,
                          Request::QueryStringParams params) {
-    request = env->NewRequest(Url());
     request->params() = params;
     request->UpdateUrl();
     EXPECT_EQ(expected, request->url().query_string());
@@ -43,7 +43,7 @@ class RequestTest : public testing::Test {
   void VerifyUrl(const char *expected,
                  const char *url,
                  Request::QueryStringParams params) {
-    request = env->NewRequest(Url(url));
+    request->set_url(Url(url));
     request->params() = params;
     request->UpdateUrl();
     EXPECT_EQ(expected, request->url().url());
@@ -91,9 +91,9 @@ TEST_F(RequestTest, Url_TwoParams_Ok) {
 }
 
 TEST_F(RequestTest, Url_OneParamTwoValues_Ok) {
-  VerifyUrl("http://example.com/?abc=def&abc=ghi",
+  VerifyUrl("http://example.com/?abc=def&abc=def",
             "http://example.com",
-            {{"abc", "def"}, {"abc", "ghi"}});
+            {{"abc", "def"}, {"abc", "def"}});
 }
 
 TEST_F(RequestTest, Url_EscapeParam_Ok) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,22 +14,16 @@
  * limitations under the License.
  */
 
-#include "runner.h"
+#ifndef SPEEDTEST_RUNNER_H
+#define SPEEDTEST_RUNNER_H
 
-#include <cassert>
-#include <thread>
+#include "task.h"
 
 namespace speedtest {
 
-void TimedRun(GenericTest *test, long millis) {
-  assert(test);
-  test->Run();
-  std::thread timer([=] {
-    std::this_thread::sleep_for(
-        std::chrono::milliseconds(millis));
-    test->Stop();
-  });
-  timer.join();
-}
+// Run a task for a set duration
+void RunTimed(Task *task, long millis);
 
 }  // namespace speedtest
+
+#endif  // SPEEDTEST_RUNNER_H

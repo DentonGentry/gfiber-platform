@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,19 +83,25 @@ TEST(OptionsTest, MissingArgs_Invalid) {
 TEST(OptionsTest, Empty_ValidDefault) {
   Options options;
   TestValidOptions({}, &options);
+  EXPECT_FALSE(options.usage);
+  EXPECT_FALSE(options.verbose);
   EXPECT_TRUE(options.global);
   EXPECT_EQ(http::Url("any.speed.gfsvc.com"), options.global_host);
-  EXPECT_FALSE(options.verbose);
-  EXPECT_FALSE(options.usage);
   EXPECT_FALSE(options.disable_dns_cache);
   EXPECT_EQ(0, options.max_connections);
+  EXPECT_EQ(0, options.progress_millis);
+  EXPECT_FALSE(options.exponential_moving_average);
+
   EXPECT_EQ(0, options.num_downloads);
   EXPECT_EQ(0, options.download_size);
   EXPECT_EQ(0, options.num_uploads);
   EXPECT_EQ(0, options.upload_size);
-  EXPECT_EQ(0, options.progress_millis);
-  EXPECT_EQ(0, options.min_transfer_time);
-  EXPECT_EQ(0, options.max_transfer_time);
+  EXPECT_EQ(0, options.min_transfer_runtime);
+  EXPECT_EQ(0, options.max_transfer_runtime);
+  EXPECT_EQ(0, options.min_transfer_intervals);
+  EXPECT_EQ(0, options.max_transfer_intervals);
+  EXPECT_EQ(0, options.max_transfer_variance);
+  EXPECT_EQ(0, options.interval_millis);
   EXPECT_EQ(0, options.ping_runtime);
   EXPECT_EQ(0, options.ping_timeout);
   EXPECT_THAT(options.hosts, testing::IsEmpty());
@@ -122,7 +128,8 @@ TEST(OptionsTest, OneHost_Valid) {
 
 TEST(OptionsTest, ShortOptions_Valid) {
   Options options;
-  TestValidOptions({"-s", "5122",
+  TestValidOptions({"-v",
+                    "-s", "5122",
                     "-t", "7653",
                     "-d", "20",
                     "-u", "15",
@@ -132,17 +139,28 @@ TEST(OptionsTest, ShortOptions_Valid) {
                     "foo.speed.googlefiber.net",
                     "bar.speed.googlefiber.net"},
                     &options);
-  EXPECT_EQ(5122, options.download_size);
-  EXPECT_EQ(7653, options.upload_size);
+  EXPECT_TRUE(options.verbose);
   EXPECT_EQ(20, options.num_downloads);
+  EXPECT_EQ(5122, options.download_size);
   EXPECT_EQ(15, options.num_uploads);
+  EXPECT_EQ(7653, options.upload_size);
   EXPECT_EQ(500, options.progress_millis);
+  EXPECT_FALSE(options.global);
   EXPECT_EQ(http::Url("speed.gfsvc.com"), options.global_host);
   EXPECT_EQ("CrOS", options.user_agent);
-  EXPECT_EQ(0, options.min_transfer_time);
-  EXPECT_EQ(0, options.max_transfer_time);
+
+  EXPECT_EQ(0, options.max_connections);
+  EXPECT_FALSE(options.disable_dns_cache);
+  EXPECT_FALSE(options.exponential_moving_average);
+  EXPECT_EQ(0, options.min_transfer_runtime);
+  EXPECT_EQ(0, options.max_transfer_runtime);
+  EXPECT_EQ(0, options.min_transfer_intervals);
+  EXPECT_EQ(0, options.max_transfer_intervals);
+  EXPECT_EQ(0, options.max_transfer_variance);
+  EXPECT_EQ(0, options.interval_millis);
   EXPECT_EQ(0, options.ping_runtime);
   EXPECT_EQ(0, options.ping_timeout);
+
   EXPECT_THAT(options.hosts, testing::UnorderedElementsAre(
       http::Url("foo.speed.googlefiber.net"),
       http::Url("bar.speed.googlefiber.net")));
@@ -150,33 +168,47 @@ TEST(OptionsTest, ShortOptions_Valid) {
 
 TEST(OptionsTest, LongOptions_Valid) {
   Options options;
-  TestValidOptions({"--download_size", "5122",
-                    "--upload_size", "7653",
-                    "--progress", "1000",
-                    "--num_uploads", "12",
-                    "--num_downloads", "16",
+  TestValidOptions({"--verbose",
                     "--global_host", "speed.gfsvc.com",
                     "--user_agent", "CrOS",
+                    "--progress_millis", "1000",
                     "--disable_dns_cache",
                     "--max_connections", "23",
-                    "--min_transfer_time", "7500",
-                    "--max_transfer_time", "13500",
+                    "--exponential_moving_average",
+                    "--num_downloads", "16",
+                    "--download_size", "5122",
+                    "--num_uploads", "12",
+                    "--upload_size", "7653",
+                    "--min_transfer_runtime", "7500",
+                    "--max_transfer_runtime", "13500",
+                    "--min_transfer_intervals", "13",
+                    "--max_transfer_intervals", "22",
+                    "--max_transfer_variance", "0.12",
+                    "--interval_millis", "250",
                     "--ping_runtime", "2500",
                     "--ping_timeout", "300",
                     "foo.speed.googlefiber.net",
                     "bar.speed.googlefiber.net"},
                     &options);
-  EXPECT_TRUE(options.disable_dns_cache);
-  EXPECT_EQ(5122, options.download_size);
-  EXPECT_EQ(7653, options.upload_size);
-  EXPECT_EQ(16, options.num_downloads);
-  EXPECT_EQ(23, options.max_connections);
-  EXPECT_EQ(12, options.num_uploads);
-  EXPECT_EQ(1000, options.progress_millis);
+  EXPECT_TRUE(options.verbose);
+  EXPECT_FALSE(options.global);
   EXPECT_EQ(http::Url("speed.gfsvc.com"), options.global_host);
   EXPECT_EQ("CrOS", options.user_agent);
-  EXPECT_EQ(7500, options.min_transfer_time);
-  EXPECT_EQ(13500, options.max_transfer_time);
+  EXPECT_EQ(1000, options.progress_millis);
+  EXPECT_TRUE(options.disable_dns_cache);
+  EXPECT_EQ(23, options.max_connections);
+  EXPECT_TRUE(options.exponential_moving_average);
+  EXPECT_EQ(16, options.num_downloads);
+  EXPECT_EQ(5122, options.download_size);
+  EXPECT_EQ(12, options.num_uploads);
+  EXPECT_EQ(7653, options.upload_size);
+  EXPECT_EQ("CrOS", options.user_agent);
+  EXPECT_EQ(7500, options.min_transfer_runtime);
+  EXPECT_EQ(13500, options.max_transfer_runtime);
+  EXPECT_EQ(13, options.min_transfer_intervals);
+  EXPECT_EQ(22, options.max_transfer_intervals);
+  EXPECT_EQ(0.12, options.max_transfer_variance);
+  EXPECT_EQ(250, options.interval_millis);
   EXPECT_EQ(2500, options.ping_runtime);
   EXPECT_EQ(300, options.ping_timeout);
   EXPECT_THAT(options.hosts, testing::UnorderedElementsAre(

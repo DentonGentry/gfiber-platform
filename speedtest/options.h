@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,24 +27,29 @@ namespace speedtest {
 extern const char* kDefaultHost;
 
 struct Options {
-  bool verbose;
-  bool usage;
+  bool usage = false;
+  bool verbose = false;
   http::Url global_host;
-  bool global;
+  bool global = false;
   std::string user_agent;
-  bool disable_dns_cache;
-  int max_connections;
+  bool disable_dns_cache = false;
+  int max_connections = 0;
+  int progress_millis = 0;
+  bool exponential_moving_average = false;
 
   // A value of 0 means use the speedtest config parameters
-  int num_downloads;
-  long download_size;
-  int num_uploads;
-  long upload_size;
-  int progress_millis;
-  int min_transfer_time;
-  int max_transfer_time;
-  int ping_runtime;
-  int ping_timeout;
+  int num_downloads = 0;
+  long download_size = 0;
+  int num_uploads = 0;
+  long upload_size = 0;
+  int min_transfer_runtime = 0;
+  int max_transfer_runtime = 0;
+  int min_transfer_intervals = 0;
+  int max_transfer_intervals = 0;
+  double max_transfer_variance = 0.0;
+  int interval_millis = 0;
+  int ping_runtime = 0;
+  int ping_timeout = 0;
 
   std::vector<http::Url> hosts;
 };

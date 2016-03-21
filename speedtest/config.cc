@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ bool ParseConfig(const std::string &json, Config *config) {
 
   config->download_size = root["downloadSize"].asInt();
   config->upload_size = root["uploadSize"].asInt();
-  config->interval_size = root["intervalSize"].asInt();
+  config->interval_millis = root["intervalSize"].asInt();
   config->location_name = root["locationName"].asString();
   config->min_transfer_intervals = root["minTransferIntervals"].asInt();
   config->max_transfer_intervals = root["maxTransferIntervals"].asInt();
@@ -79,7 +79,7 @@ void PrintConfig(const Config &config) {
 void PrintConfig(std::ostream &out, const Config &config) {
   out << "Download size: " << config.download_size << " bytes\n"
       << "Upload size: " << config.upload_size << " bytes\n"
-      << "Interval size: " << config.interval_size << " ms\n"
+      << "Interval size: " << config.interval_millis << " ms\n"
       << "Location name: " << config.location_name << "\n"
       << "Min transfer intervals: " << config.min_transfer_intervals << "\n"
       << "Max transfer intervals: " << config.max_transfer_intervals << "\n"

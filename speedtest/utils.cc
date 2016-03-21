@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,15 @@ std::string round(double d, int digits) {
   char buf[20];
   sprintf(buf, "%.*f", digits, d);
   return buf;
+}
+
+double variance(double d1, double d2) {
+  if (d2 == 0) {
+    return 0.0;
+  }
+  double smaller = std::min(d1, d2);
+  double larger = std::max(d1, d2);
+  return 1.0 - smaller / larger;
 }
 
 double ToMegabits(long bytes, long micros) {

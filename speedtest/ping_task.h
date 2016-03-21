@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef PING_TEST_H
-#define PING_TEST_H
+#ifndef SPEEDTEST_PING_TASK_H
+#define SPEEDTEST_PING_TASK_H
 
 #include <atomic>
 #include <functional>
@@ -24,7 +24,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-#include "generic_test.h"
+#include "http_task.h"
 #include "request.h"
 #include "url.h"
 
@@ -37,15 +37,14 @@ struct PingStats {
   http::Url url;
 };
 
-class PingTest : public GenericTest {
+class PingTask : public HttpTask {
  public:
-  struct Options : GenericTest::Options {
+  struct Options : HttpTask::Options {
     int timeout = 0;
     int num_pings = 0;
-    std::function<RequestPtr(int)> request_factory;
   };
 
-  explicit PingTest(const Options &options);
+  explicit PingTask(const Options &options);
 
   bool IsSucceeded() const;
 
@@ -69,10 +68,10 @@ class PingTest : public GenericTest {
   PingStats fastest_;
 
   // disallowed
-  PingTest(const PingTest &) = delete;
-  void operator=(const PingTest &) = delete;
+  PingTask(const PingTask &) = delete;
+  void operator=(const PingTask &) = delete;
 };
 
 }  // namespace speedtest
 
-#endif  // PING_TEST_H
+#endif  // SPEEDTEST_PING_TASK_H

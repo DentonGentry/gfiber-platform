@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Google Inc. All rights reserved.
+ * Copyright 2016 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,10 +29,19 @@ const char* kDefaultHost = "any.speed.gfsvc.com";
 
 namespace {
 
-bool ParseLong(const char *s, char **endptr, long *size) {
-  assert(s != nullptr);
-  assert(size != nullptr);
-  *size = strtol(s, endptr, 10);
+bool ParseLong(const char *s, char **endptr, long *number) {
+  assert(s);
+  assert(endptr);
+  assert(number != nullptr);
+  *number = strtol(s, endptr, 10);
+  return !**endptr;
+}
+
+bool ParseDouble(const char *s, char **endptr, double *number) {
+  assert(s);
+  assert(endptr);
+  assert(number != nullptr);
+  *number = strtod(s, endptr);
   return !**endptr;
 }
 
@@ -58,29 +67,47 @@ bool ParseSize(const char *s, long *size) {
   return true;
 }
 
-const int kOptMinTransferTime = 1000;
-const int kOptMaxTransferTime = 1001;
-const int kOptPingRuntime = 1002;
-const int kOptPingTimeout = 1003;
-const int kOptDisableDnsCache = 1004;
-const int kOptMaxConnections = 1005;
+const int kOptDisableDnsCache = 1000;
+const int kOptMaxConnections = 1001;
+const int kOptExponentialMovingAverage = 1002;
+
+const int kOptMinTransferTime = 1100;
+const int kOptMaxTransferTime = 1101;
+const int kOptMinTransferIntervals = 1102;
+const int kOptMaxTransferIntervals = 1103;
+const int kOptMaxTransferVariance = 1104;
+const int kOptIntervalMillis = 1105;
+const int kOptPingRuntime = 1106;
+const int kOptPingTimeout = 1107;
+
 const char *kShortOpts = "hvg:a:d:s:t:u:p:";
+
 struct option kLongOpts[] = {
     {"help", no_argument, nullptr, 'h'},
     {"verbose", no_argument, nullptr, 'v'},
     {"global_host", required_argument, nullptr, 'g'},
     {"user_agent", required_argument, nullptr, 'a'},
+    {"disable_dns_cache", no_argument, nullptr, kOptDisableDnsCache},
+    {"max_connections", required_argument, nullptr, kOptMaxConnections},
+    {"progress_millis", required_argument, nullptr, 'p'},
+    {"exponential_moving_average", no_argument, nullptr,
+        kOptExponentialMovingAverage},
+
     {"num_downloads", required_argument, nullptr, 'd'},
     {"download_size", required_argument, nullptr, 's'},
     {"num_uploads", required_argument, nullptr, 'u'},
     {"upload_size", required_argument, nullptr, 't'},
-    {"progress", required_argument, nullptr, 'p'},
-    {"min_transfer_time", required_argument, nullptr, kOptMinTransferTime},
-    {"max_transfer_time", required_argument, nullptr, kOptMaxTransferTime},
+    {"min_transfer_runtime", required_argument, nullptr, kOptMinTransferTime},
+    {"max_transfer_runtime", required_argument, nullptr, kOptMaxTransferTime},
+    {"min_transfer_intervals", required_argument, nullptr,
+        kOptMinTransferIntervals},
+    {"max_transfer_intervals", required_argument, nullptr,
+        kOptMaxTransferIntervals},
+    {"max_transfer_variance", required_argument, nullptr,
+        kOptMaxTransferVariance},
+    {"interval_millis", required_argument, nullptr, kOptIntervalMillis},
     {"ping_runtime", required_argument, nullptr, kOptPingRuntime},
     {"ping_timeout", required_argument, nullptr, kOptPingTimeout},
-    {"disable_dns_cache", no_argument, nullptr, kOptDisableDnsCache},
-    {"max_connections", required_argument, nullptr, kOptMaxConnections},
     {nullptr, 0, nullptr, 0},
 };
 const int kMaxNumber = 1000;
@@ -95,23 +122,28 @@ lowest ping time will be used. If only one host is supplied, it
 will be used without pinging.
 
 Usage: speedtest [options] [host ...]
- -h, --help                This help text
- -v, --verbose             Verbose output
- -g, --global_host URL     Global host URL
- -a, --user_agent AGENT    User agent string for HTTP requests
- --disable_dns_cache       Disable global DNS cache
- --max_connections NUM     Maximum number of parallel connections
+ -h, --help                    This help text
+ -v, --verbose                 Verbose output
+ -g, --global_host URL         Global host URL
+ -a, --user_agent AGENT        User agent string for HTTP requests
+ -p, --progress_millis NUM     Delay in milliseconds between updates
+ --disable_dns_cache           Disable global DNS cache
+ --max_connections NUM         Maximum number of parallel connections
+ --exponential_moving_average  Use exponential instead of simple moving average
 
 These options override the speedtest config parameters:
- -d, --num_downloads NUM   Number of simultaneous downloads
- -p, --progress TIME       Progress intervals in milliseconds
- -s, --download_size SIZE  Download size in bytes
- -t, --upload_size SIZE    Upload size in bytes
- -u, --num_uploads NUM     Number of simultaneous uploads
- --min_transfer_time TIME  Minimum transfer time in milliseconds
- --max_transfer_time TIME  Maximum transfer time in milliseconds
- --ping_time TIME          Ping time in milliseconds
- --ping_timeout TIME       Ping timeout in milliseconds;
+ -d, --num_downloads NUM       Number of simultaneous downloads
+ -s, --download_size SIZE      Download size in bytes
+ -t, --upload_size SIZE        Upload size in bytes
+ -u, --num_uploads NUM         Number of simultaneous uploads
+ --min_transfer_runtime TIME   Minimum transfer time in milliseconds
+ --max_transfer_runtime TIME   Maximum transfer time in milliseconds
+ --min_transfer_intervals NUM  Short moving average intervals
+ --max_transfer_intervals NUM  Long moving average intervals
+ --max_transfer_variance NUM   Max difference between moving averages
+ --interval_millis TIME        Interval size in milliseconds
+ --ping_runtime TIME           Ping runtime in milliseconds
+ --ping_timeout TIME           Ping timeout in milliseconds
 )USAGE";
 
 }  // namespace
@@ -122,17 +154,25 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
   options->verbose = false;
   options->global_host = http::Url(kDefaultHost);
   options->global = false;
+  options->user_agent = "";
+  options->progress_millis = 0;
   options->disable_dns_cache = false;
   options->max_connections = 0;
+  options->exponential_moving_average = false;
+
   options->num_downloads = 0;
   options->download_size = 0;
   options->num_uploads = 0;
   options->upload_size = 0;
-  options->progress_millis = 0;
-  options->min_transfer_time = 0;
-  options->max_transfer_time = 0;
+  options->min_transfer_runtime = 0;
+  options->max_transfer_runtime = 0;
+  options->min_transfer_intervals = 0;
+  options->max_transfer_intervals = 0;
+  options->max_transfer_variance = 0.0;
+  options->interval_millis = 0;
   options->ping_runtime = 0;
   options->ping_timeout = 0;
+
   options->hosts.clear();
 
   if (!options->global_host.ok()) {
@@ -221,6 +261,27 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
       case 'v':
         options->verbose = true;
         break;
+      case kOptDisableDnsCache:
+        options->disable_dns_cache = true;
+        break;
+      case kOptMaxConnections: {
+        long max_connections;
+        char *endptr;
+        if (!ParseLong(optarg, &endptr, &max_connections)) {
+          std::cerr << "Could not parse max connections '" << optarg << "'\n";
+          return false;
+        }
+        if (max_connections < 0) {
+          std::cerr << "Max connections must be nonnegative, got "
+          << optarg << "'\n";
+          return false;
+        }
+        options->max_connections = static_cast<int>(max_connections);
+        break;
+      }
+      case kOptExponentialMovingAverage:
+        options->exponential_moving_average = true;
+        break;
       case kOptMinTransferTime: {
         long transfer_time;
         char *endptr;
@@ -230,11 +291,11 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
           return false;
         }
         if (transfer_time < 0) {
-          std::cerr << "Minimum transfer time must be nonnegative, got "
+          std::cerr << "Minimum transfer runtime must be nonnegative, got "
                     << optarg << "'\n";
           return false;
         }
-        options->min_transfer_time = static_cast<int>(transfer_time);
+        options->min_transfer_runtime = static_cast<int>(transfer_time);
         break;
       }
       case kOptMaxTransferTime: {
@@ -246,11 +307,72 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
           return false;
         }
         if (transfer_time < 0) {
-          std::cerr << "Maximum transfer must be nonnegative, got "
+          std::cerr << "Maximum transfer runtime must be nonnegative, got "
                     << optarg << "'\n";
           return false;
         }
-        options->max_transfer_time = static_cast<int>(transfer_time);
+        options->max_transfer_runtime = static_cast<int>(transfer_time);
+        break;
+      }
+      case kOptMinTransferIntervals: {
+        long intervals;
+        char *endptr;
+        if (!ParseLong(optarg, &endptr, &intervals)) {
+          std::cerr << "Could not parse minimum transfer intervals '"
+                    << optarg << "'\n";
+          return false;
+        }
+        if (intervals < 0) {
+          std::cerr << "Minimum transfer intervals must be nonnegative, got "
+                    << optarg << "'\n";
+          return false;
+        }
+        options->min_transfer_intervals = static_cast<int>(intervals);
+        break;
+      }
+      case kOptMaxTransferIntervals: {
+        long intervals;
+        char *endptr;
+        if (!ParseLong(optarg, &endptr, &intervals)) {
+          std::cerr << "Could not parse maximum transfer intervals '"
+                    << optarg << "'\n";
+          return false;
+        }
+        if (intervals < 0) {
+          std::cerr << "Maximum transfer intervals must be nonnegative, got "
+                    << optarg << "'\n";
+          return false;
+        }
+        options->max_transfer_intervals = static_cast<int>(intervals);
+        break;
+      }
+      case kOptMaxTransferVariance: {
+        double variance;
+        char *endptr;
+        if (!ParseDouble(optarg, &endptr, &variance)) {
+          std::cerr << "Could not parse variance '" << optarg << "'\n";
+          return false;
+        }
+        if (variance < 0) {
+          std::cerr << "Variances must be nonnegative, got " << optarg << "'\n";
+          return false;
+        }
+        options->max_transfer_variance = variance;
+        break;
+      }
+      case kOptIntervalMillis: {
+        long interval_millis;
+        char *endptr;
+        if (!ParseLong(optarg, &endptr, &interval_millis)) {
+          std::cerr << "Could not parse interval time '" << optarg << "'\n";
+          return false;
+        }
+        if (interval_millis < 0) {
+          std::cerr << "Interval time must be nonnegative, got "
+                    << optarg << "'\n";
+          return false;
+        }
+        options->interval_millis = static_cast<int>(interval_millis);
         break;
       }
       case kOptPingRuntime: {
@@ -281,24 +403,6 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
           return false;
         }
         options->ping_timeout = static_cast<int>(ping_timeout);
-        break;
-      }
-      case kOptDisableDnsCache:
-        options->disable_dns_cache = true;
-        break;
-      case kOptMaxConnections: {
-        long max_connections;
-        char *endptr;
-        if (!ParseLong(optarg, &endptr, &max_connections)) {
-          std::cerr << "Could not parse max connections '" << optarg << "'\n";
-          return false;
-        }
-        if (max_connections < 0) {
-          std::cerr << "Max connections must be nonnegative, got "
-                    << optarg << "'\n";
-          return false;
-        }
-        options->max_connections = static_cast<int>(max_connections);
         break;
       }
       default:
@@ -338,18 +442,24 @@ void PrintOptions(std::ostream &out, const Options &options) {
       << "Global host: " << options.global_host.url() << "\n"
       << "Global: " << (options.global ? "true" : "false") << "\n"
       << "User agent: " << options.user_agent << "\n"
+      << "Progress interval: " << options.progress_millis << " ms\n"
       << "Disable DNS cache: "
       << (options.disable_dns_cache ? "true" : "false") << "\n"
       << "Max connections: " << options.max_connections << "\n"
+      << "Exponential moving average: "
+      << (options.exponential_moving_average ? "true" : "false") << "\n"
       << "Number of downloads: " << options.num_downloads << "\n"
       << "Download size: " << options.download_size << " bytes\n"
       << "Number of uploads: " << options.num_uploads << "\n"
       << "Upload size: " << options.upload_size << " bytes\n"
-      << "Min transfer time: " << options.min_transfer_time << " ms\n"
-      << "Max transfer time: " << options.max_transfer_time << " ms\n"
+      << "Min transfer runtime: " << options.min_transfer_runtime << " ms\n"
+      << "Max transfer runtime: " << options.max_transfer_runtime << " ms\n"
+      << "Min transfer intervals: " << options.min_transfer_intervals << "\n"
+      << "Max transfer intervals: " << options.max_transfer_intervals << "\n"
+      << "Max transfer variance: " << options.max_transfer_variance << "\n"
+      << "Interval size: " << options.interval_millis << " ms\n"
       << "Ping runtime: " << options.ping_runtime << " ms\n"
       << "Ping timeout: " << options.ping_timeout << " ms\n"
-      << "Progress interval: " << options.progress_millis << " ms\n"
       << "Hosts:\n";
   for (const http::Url &host : options.hosts) {
     out << "  " << host.url() << "\n";
