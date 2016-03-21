@@ -887,12 +887,21 @@ static void print_ssid_escaped(FILE *f, int len, const uint8_t *data)
   int i;
 
   for (i = 0; i < len; i++) {
-    if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\')
-      fprintf(f, "%c", data[i]);
-    else if (data[i] == ' ' && (i != 0 && i != len -1))
-      fprintf(f, " ");
-    else
-      fprintf(f, "\\x%.2x", data[i]);
+    switch(data[i]) {
+      case '\\': fprintf(f, "\\\\"); break;
+      case '"': fprintf(f, "\\\""); break;
+      case '\b': fprintf(f, "\\b"); break;
+      case '\f': fprintf(f, "\\f"); break;
+      case '\n': fprintf(f, "\\n"); break;
+      case '\r': fprintf(f, "\\r"); break;
+      case '\t': fprintf(f, "\\t"); break;
+      default:
+        if ((data[i] <= 0x1f) || !isprint(data[i])) {
+          fprintf(f, "\\u00%02x", data[i]);
+        } else {
+          fprintf(f, "%c", data[i]); break;
+        }
+    }
   }
 }
 
