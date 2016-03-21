@@ -30,6 +30,7 @@ _OPTSPEC_FORMAT = """
 {bin} stopclient    Disable wifi clients.  Takes -b, -P, -S.
 {bin} restore       Restore saved client and access point options.  Takes -b, -S.
 {bin} show          Print all known parameters.  Takes -b, -S.
+{bin} scan          Print 'iw scan' results for a single band.  Takes -b, -S.
 --
 b,band=                           Wifi band(s) to use (5 GHz and/or 2.4 GHz).  set commands have a default of 2.4 and cannot take multiple-band values.  [2.4 5]
 c,channel=                        Channel to use [auto]
@@ -487,6 +488,27 @@ def show_wifi(opt):
           print(station_dump)
 
       print()
+
+  return True
+
+
+@iw.requires_iw
+def scan_wifi(opt):
+  """Prints 'iw scan' results.
+
+  Args:
+    opt: The OptDict parsed from command line options.
+
+  Returns:
+    True.
+  """
+  band = opt.band.split()[0]
+  interface = iw.find_interface_from_band(
+      band, iw.INTERFACE_TYPE.client, opt.interface_suffix)
+  if interface is None:
+    raise BinWifiException('No client interface for band %s', band)
+
+  print(iw.scan(interface))
 
   return True
 
@@ -974,6 +996,7 @@ def _run(argv):
         'setclient': set_client_wifi,
         'stopclient': stop_client_wifi,
         'stopap': stop_ap_wifi,
+        'scan': scan_wifi,
     }[extra[0]]
   except KeyError:
     parser.fatal('Unrecognized command %s' % extra[0])
