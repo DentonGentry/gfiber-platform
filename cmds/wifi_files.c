@@ -777,26 +777,6 @@ static void ClientStateToJson(gpointer key, gpointer value, gpointer user_data)
 }
 
 
-static void TouchUpdateFile()
-{
-  char filename[PATH_MAX];
-  int fd;
-
-  snprintf(filename, sizeof(filename), "%s/updated.new", STATIONS_DIR);
-  if ((fd = open(filename, O_CREAT | O_WRONLY, 0666)) < 0) {
-    perror("TouchUpdatedFile open");
-    exit(1);
-  }
-
-  if (write(fd, "updated", 7) < 7) {
-    perror("TouchUpdatedFile write");
-    exit(1);
-  }
-
-  close(fd);
-} /* TouchUpdateFile */
-
-
 static void ClientStateToLog(gpointer key, gpointer value, gpointer user_data)
 {
   const client_state_t *state = (const client_state_t *)value;
@@ -850,7 +830,6 @@ void ConsolidateAssociatedDevices()
 void UpdateAssociatedDevices()
 {
   g_hash_table_foreach(clients, ClientStateToJson, NULL);
-  TouchUpdateFile();
 }
 
 
@@ -1036,6 +1015,26 @@ void UpdateWifiShow(struct nl_sock *nlsk, int nl80211_id, int n)
 }
 
 #ifndef UNIT_TESTS
+static void TouchUpdateFile()
+{
+  char filename[PATH_MAX];
+  int fd;
+
+  snprintf(filename, sizeof(filename), "%s/updated.new", STATIONS_DIR);
+  if ((fd = open(filename, O_CREAT | O_WRONLY, 0666)) < 0) {
+    perror("TouchUpdatedFile open");
+    exit(1);
+  }
+
+  if (write(fd, "updated", 7) < 7) {
+    perror("TouchUpdatedFile write");
+    exit(1);
+  }
+
+  close(fd);
+} /* TouchUpdateFile */
+
+
 int main(int argc, char **argv)
 {
   int done = 0;
