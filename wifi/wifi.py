@@ -501,12 +501,15 @@ def scan_wifi(opt):
 
   Returns:
     True.
+
+  Raises:
+    BinWifiException: If an expected interface is not found.
   """
   band = opt.band.split()[0]
   interface = iw.find_interface_from_band(
       band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
   if interface is None:
-    raise BinWifiException('No client interface for band %s', band)
+    raise utils.BinWifiException('No client interface for band %s', band)
 
   print(iw.scan(interface))
 
