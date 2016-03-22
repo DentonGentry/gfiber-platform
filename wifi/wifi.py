@@ -32,7 +32,7 @@ _OPTSPEC_FORMAT = """
 {bin} show          Print all known parameters.  Takes -b, -S.
 {bin} scan          Print 'iw scan' results for a single band.  Takes -b, -S.
 --
-b,band=                           Wifi band(s) to use (5 GHz and/or 2.4 GHz).  set commands have a default of 2.4 and cannot take multiple-band values.  [2.4 5]
+b,band=                           Wifi band(s) to use (5 GHz and/or 2.4 GHz).  set, setclient, and scan have a default of 2.4 and cannot take multiple-band values.  [2.4 5]
 c,channel=                        Channel to use [auto]
 a,autotype=                       Autochannel method to use (LOW, HIGH, DFS, NONDFS, ANY,OVERLAP) [NONDFS]
 s,ssid=                           SSID to use [{ssid}]
@@ -504,7 +504,7 @@ def scan_wifi(opt):
   """
   band = opt.band.split()[0]
   interface = iw.find_interface_from_band(
-      band, iw.INTERFACE_TYPE.client, opt.interface_suffix)
+      band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
   if interface is None:
     raise BinWifiException('No client interface for band %s', band)
 

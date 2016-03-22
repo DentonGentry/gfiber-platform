@@ -46,15 +46,15 @@ def _dev(**kwargs):
 
 
 def _info(interface, **kwargs):
-  return subprocess.check_output(('iw', interface, 'info'), **kwargs)
+  return subprocess.check_output(('iw', 'dev', interface, 'info'), **kwargs)
 
 
 def _link(interface, **kwargs):
-  return subprocess.check_output(('iw', interface, 'link'), **kwargs)
+  return subprocess.check_output(('iw', 'dev', interface, 'link'), **kwargs)
 
 
 def _scan(interface, **kwargs):
-  return subprocess.check_output(('iw', interface, 'scan'), **kwargs)
+  return subprocess.check_output(('iw', 'dev', interface, 'scan'), **kwargs)
 
 
 _WIPHY_RE = re.compile(r'Wiphy (?P<phy>\S+)')
