@@ -34,8 +34,8 @@ void testPrintSsidEscaped()
 {
   FILE *f = tmpfile();
   char buf[32];
-  const uint8_t ssid[] = {'a', 'b', 0x86, ' ', 'c'};  /* not NUL terminated. */
-  const uint8_t expected[] = {'a', 'b', '\\', 'x', '8', '6', ' ', 'c'};
+  const uint8_t ssid[] = {'b', 0x86, ' ', 'c'};  /* not NUL terminated. */
+  const uint8_t expected[] = {'b', '\\', 'u', '0', '0', '8', '6', ' ', 'c'};
 
   printf("Testing \"%s\" in %s:\n", __FUNCTION__, __FILE__);
   memset(buf, 0, sizeof(buf));

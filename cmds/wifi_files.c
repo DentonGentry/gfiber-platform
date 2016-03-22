@@ -777,26 +777,6 @@ static void ClientStateToJson(gpointer key, gpointer value, gpointer user_data)
 }
 
 
-static void TouchUpdateFile()
-{
-  char filename[PATH_MAX];
-  int fd;
-
-  snprintf(filename, sizeof(filename), "%s/updated.new", STATIONS_DIR);
-  if ((fd = open(filename, O_CREAT | O_WRONLY, 0666)) < 0) {
-    perror("TouchUpdatedFile open");
-    exit(1);
-  }
-
-  if (write(fd, "updated", 7) < 7) {
-    perror("TouchUpdatedFile write");
-    exit(1);
-  }
-
-  close(fd);
-} /* TouchUpdateFile */
-
-
 static void ClientStateToLog(gpointer key, gpointer value, gpointer user_data)
 {
   const client_state_t *state = (const client_state_t *)value;
@@ -850,7 +830,6 @@ void ConsolidateAssociatedDevices()
 void UpdateAssociatedDevices()
 {
   g_hash_table_foreach(clients, ClientStateToJson, NULL);
-  TouchUpdateFile();
 }
 
 
@@ -887,12 +866,21 @@ static void print_ssid_escaped(FILE *f, int len, const uint8_t *data)
   int i;
 
   for (i = 0; i < len; i++) {
-    if (isprint(data[i]) && data[i] != ' ' && data[i] != '\\')
-      fprintf(f, "%c", data[i]);
-    else if (data[i] == ' ' && (i != 0 && i != len -1))
-      fprintf(f, " ");
-    else
-      fprintf(f, "\\x%.2x", data[i]);
+    switch(data[i]) {
+      case '\\': fprintf(f, "\\\\"); break;
+      case '"': fprintf(f, "\\\""); break;
+      case '\b': fprintf(f, "\\b"); break;
+      case '\f': fprintf(f, "\\f"); break;
+      case '\n': fprintf(f, "\\n"); break;
+      case '\r': fprintf(f, "\\r"); break;
+      case '\t': fprintf(f, "\\t"); break;
+      default:
+        if ((data[i] <= 0x1f) || !isprint(data[i])) {
+          fprintf(f, "\\u00%02x", data[i]);
+        } else {
+          fprintf(f, "%c", data[i]); break;
+        }
+    }
   }
 }
 
@@ -1027,6 +1015,26 @@ void UpdateWifiShow(struct nl_sock *nlsk, int nl80211_id, int n)
 }
 
 #ifndef UNIT_TESTS
+static void TouchUpdateFile()
+{
+  char filename[PATH_MAX];
+  int fd;
+
+  snprintf(filename, sizeof(filename), "%s/updated.new", STATIONS_DIR);
+  if ((fd = open(filename, O_CREAT | O_WRONLY, 0666)) < 0) {
+    perror("TouchUpdatedFile open");
+    exit(1);
+  }
+
+  if (write(fd, "updated", 7) < 7) {
+    perror("TouchUpdatedFile write");
+    exit(1);
+  }
+
+  close(fd);
+} /* TouchUpdateFile */
+
+
 int main(int argc, char **argv)
 {
   int done = 0;
