@@ -1,0 +1,26 @@
+#! /bin/sh
+
+bin=/bin
+cw=/usr/catawampus
+devcw=../../../../vendor/google/catawampus
+localwww=./www
+
+# in developer environment if vendor/google/catawapus is above us
+if [ -d "$devcw" ]; then
+  isdev=1
+fi
+
+# if running from developer desktop, use simulated data
+if [ "$isdev" = 1 ]; then
+  cw="$devcw"
+  args="$args --port=8888 --sim=./sim"
+  bin=.
+fi
+
+# for debugging on the device, use the local (/tmp/www?) web tree
+if [ -d "$localwww" ]; then
+  args="$args --www=$localwww"
+fi
+
+export PYTHONPATH="$cw/tr/vendor/tornado:$PYTHONPATH"
+exec python $bin/craftui.py $args

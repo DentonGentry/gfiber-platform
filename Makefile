@@ -62,6 +62,10 @@ ifeq ($(BUILD_JSONPOLL),y)
 DIRS+=jsonpoll
 endif
 
+ifeq ($(BUILD_CRAFTUI),y)
+DIRS+=craftui
+endif
+
 ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfsc100)
 DIRS+=diags
 endif
