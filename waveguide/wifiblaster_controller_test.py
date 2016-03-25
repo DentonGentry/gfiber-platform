@@ -125,9 +125,11 @@ def PollTest():
       for f in glob.glob(os.path.join(d, '*')):
         os.remove(f)
 
-      manager = waveguide.WlanManager(**flags)
+      managers = []
+      wc = waveguide.WifiblasterController(managers, d)
+      manager = waveguide.WlanManager(wifiblaster_controller=wc, **flags)
+      managers.append(manager)
       manager.UpdateStationInfo()
-      wc = waveguide.WifiblasterController([manager], d)
 
       def WriteConfig(k, v):
         open(os.path.join(d, 'wifiblaster.%s' % k), 'w').write(v)
@@ -136,10 +138,10 @@ def PollTest():
       WriteConfig('enable', 'False')
       WriteConfig('fraction', '10')
       WriteConfig('interval', '10')
-      WriteConfig('rapidpolling', '10')
+      WriteConfig('measureall', '0')
       WriteConfig('size', '1470')
 
-      # Disabled. No packet blasts should be run.
+      # Disabled. No measurements should be run.
       print manager.GetState()
       for t in xrange(0, 100):
         wc.Poll(t)
@@ -156,19 +158,19 @@ def PollTest():
       CountRuns()  # get rid of any leftovers
       wvtest.WVPASSEQ(CountRuns(), 0)
 
-      # The first packet blast should be one
-      # cycle later than the start time. This is not an implementation detail:
-      # it prevents multiple APs from running simultaneous packet blasts if
-      # packet blasts are enabled at the same time.
+      # The first measurement should be one cycle later than the start time.
+      # This is not an implementation detail: it prevents multiple APs from
+      # running simultaneous measurements if measurements are enabled at the
+      # same time.
       WriteConfig('enable', 'True')
       wc.Poll(100)
-      wvtest.WVPASSGE(wc.NextBlast(), 100)
+      wvtest.WVPASSGE(wc.NextMeasurement(), 100)
       for t in xrange(101, 200):
         wc.Poll(t)
       wvtest.WVPASSGE(CountRuns(), 1)
 
       # Invalid parameter.
-      # Disabled. No packet blasts should be run.
+      # Disabled. No measurements should be run.
       WriteConfig('duration', '-1')
       for t in xrange(200, 300):
         wc.Poll(t)
@@ -181,7 +183,7 @@ def PollTest():
         wc.Poll(t)
       wvtest.WVPASSGE(CountRuns(), 1)
 
-      # Run the packet blast at t=400 to restart the timer.
+      # Run the measurement at t=400 to restart the timer.
       wc.Poll(400)
       wvtest.WVPASSGE(CountRuns(), 0)
 
@@ -191,9 +193,9 @@ def PollTest():
       # Enabled with longer average interval.  The change in interval should
       # trigger a change in next poll timeout.
       WriteConfig('interval', '0.5')
-      old_to = wc.NextBlast()
+      old_to = wc.NextMeasurement()
       wc.Poll(401)
-      wvtest.WVPASSNE(old_to, wc.NextBlast())
+      wvtest.WVPASSNE(old_to, wc.NextMeasurement())
       for t in xrange(402, 410):
         wc.Poll(t)
       wvtest.WVPASSGE(CountRuns(), 1)
@@ -203,26 +205,18 @@ def PollTest():
       ok = False
       for t in xrange(410, 600):
         wc.Poll(t)
-        if wc.NextBlast() > t + 200:
+        if wc.NextMeasurement() > t + 200:
           ok = True
       wvtest.WVPASS(ok)
 
-      # And then try rapid polling for a limited time
-      WriteConfig('rapidpolling', '800')
-      ok = False
-      for t in xrange(600, 700):
-        wc.Poll(t)
-        if wc.NextBlast() < t + 20:
-          ok = True
-      wvtest.WVPASS(ok)
-
-      # Make sure rapid polling auto-disables
-      ok = False
-      for t in xrange(700, 900):
-        wc.Poll(t)
-        if wc.NextBlast() > t + 200:
-          ok = True
-      wvtest.WVPASS(ok)
+      # And then request all clients to be measured and make sure it only
+      # happens once. Disable automated measurement so they are not counted.
+      WriteConfig('interval', '0')
+      WriteConfig('measureall', str(faketime[0]))
+      wc.Poll(600)
+      wvtest.WVPASSEQ(CountRuns(), 1)
+      wc.Poll(601)
+      wvtest.WVPASSEQ(CountRuns(), 0)
   finally:
     time.time = oldtime
     shutil.rmtree(d)

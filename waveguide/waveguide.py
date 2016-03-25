@@ -198,7 +198,8 @@ def WriteFileIfMissing(filename, content):
 class WlanManager(object):
   """A class representing one wifi interface on the local host."""
 
-  def __init__(self, phyname, vdevname, high_power, tv_box):
+  def __init__(self, phyname, vdevname, high_power, tv_box,
+               wifiblaster_controller):
     self.phyname = phyname
     self.vdevname = vdevname
     self.mac = '\0\0\0\0\0\0'
@@ -224,6 +225,7 @@ class WlanManager(object):
     self.ap_signals = {}
     self.auto_disabled = None
     self.autochan_2g = self.autochan_5g = self.autochan_free = 0
+    self.wifiblaster_controller = wifiblaster_controller
     helpers.Unlink(self.Filename('disabled'))
 
   def Filename(self, suffix):
@@ -753,7 +755,7 @@ class WlanManager(object):
     self.Debug('assoc err:%r stdout:%r stderr:%r', errcode, stdout[:70], stderr)
     if errcode: return
     now = time.time()
-    self.assoc_list = {}
+    assoc_list = {}
     mac = None
     rssi = 0
     last_seen = now
@@ -764,7 +766,8 @@ class WlanManager(object):
         a = wgdata.Assoc(mac=mac, rssi=rssi, last_seen=last_seen, can5G=can5G)
         if mac not in self.assoc_list:
           self.Debug('Added: %r', a)
-        self.assoc_list[mac] = a
+          self.wifiblaster_controller.Measure(self.vdevname, mac)
+        assoc_list[mac] = a
 
     for line in stdout.split('\n'):
       line = line.strip()
@@ -783,6 +786,7 @@ class WlanManager(object):
       if g:
         rssi = float(g.group(1))
     AddEntry()
+    self.assoc_list = assoc_list
 
   def _AssocCan5G(self, mac):
     """Check whether a station supports 5GHz.
@@ -811,7 +815,7 @@ class WlanManager(object):
     return False
 
 
-def CreateManagers(managers, high_power, tv_box):
+def CreateManagers(managers, high_power, tv_box, wifiblaster_controller):
   """Create WlanManager() objects, one per wifi interface."""
 
   def ParseDevList(errcode, stdout, stderr):
@@ -858,31 +862,41 @@ def CreateManagers(managers, high_power, tv_box):
     for phy, dev in phy_devs.iteritems():
       if dev not in existing_devs:
         log.Debug('Creating wlan manager for (%r, %r)', phy, dev)
-        managers.append(WlanManager(phy, dev, high_power=high_power,
-                                    tv_box=tv_box))
+        managers.append(
+            WlanManager(phy, dev, high_power=high_power, tv_box=tv_box,
+                        wifiblaster_controller=wifiblaster_controller))
 
   RunProc(callback=ParseDevList, args=['iw', 'dev'])
 
 
 class WifiblasterController(object):
-  """State machine and scheduler for packet blast testing.
+  """WiFi performance measurement using wifiblaster.
+
+  There are two modes: automated and triggered.
+
+  In automated mode, WifiblasterController measures random clients at random
+  times as governed by a Poisson process with rate = 1 / interval. Thus,
+  measurements are distributed uniformly over time, and every point in time is
+  equally likely to be measured. The average number of measurements in any given
+  window of W seconds is W / interval.
+
+  In triggered mode, WifiblasterController immediately measures the requested
+  client.
 
   WifiblasterController reads parameters from files:
 
-    wifiblaster.duration  Packet blast duration in seconds.
-    wifiblaster.enable    Enable packet blast testing.
-    wifiblaster.fraction  Number of samples per duration.
-    wifiblaster.interval  Average time between packet blasts.
-    wifiblaster.size      Packet size in bytes.
+  - Scheduling parameters
 
-  When enabled, WifiblasterController runs packet blasts at random times as
-  governed by a Poisson process with rate = 1 / interval. Thus, packet blasts
-  are distributed uniformly over time, and every point in time is equally likely
-  to be measured by a packet blast. The average number of packet blasts in any
-  given window of W seconds is W / interval.
+    wifiblaster.enable      Enable WiFi performance measurement.
+    wifiblaster.interval    Average time between automated measurements in
+                            seconds, or 0 to disable automated measurements.
+    wifiblaster.measureall  Unix time at which to measure all clients.
 
-  Each packet blast tests a random associated client. The results output by
-  wifiblaster are anonymized and written directly to the log.
+  - Measurement parameters
+
+    wifiblaster.duration    Measurement duration in seconds.
+    wifiblaster.fraction    Number of samples per measurement.
+    wifiblaster.size        Packet size in bytes.
   """
 
   def __init__(self, managers, basedir):
@@ -890,7 +904,8 @@ class WifiblasterController(object):
     self._managers = managers
     self._basedir = basedir
     self._interval = 0  # Disabled.
-    self._next_packet_blast_time = float('inf')
+    self._next_measurement_time = float('inf')
+    self._last_measureall_time = 0
     self._next_timeout = 0
 
   def _ReadParameter(self, name, typecast):
@@ -928,64 +943,71 @@ class WifiblasterController(object):
     """Returns True if a string expresses a true value."""
     return s.rstrip().lower() in ('true', '1')
 
+  def _GetAllClients(self):
+    """Returns all associated clients."""
+    return [(manager.vdevname, assoc.mac)
+            for manager in self._managers for assoc in manager.GetState().assoc]
+
   def NextTimeout(self):
     """Returns the time of the next event."""
     return self._next_timeout
 
-  def NextBlast(self):
-    """Return the time of the next packet blast event."""
-    return self._next_packet_blast_time
+  def NextMeasurement(self):
+    """Return the time of the next measurement event."""
+    return self._next_measurement_time
+
+  def Measure(self, interface, client):
+    """Measures the performance of a client."""
+    enable = self._ReadParameter('enable', self._StrToBool)
+    duration = self._ReadParameter('duration', float)
+    fraction = self._ReadParameter('fraction', int)
+    size = self._ReadParameter('size', int)
+    if enable and duration > 0 and fraction > 0 and size > 0:
+      RunProc(callback=self._HandleResults,
+              args=[WIFIBLASTER_BIN, '-i', interface, '-d', str(duration),
+                    '-f', str(fraction), '-s', str(size),
+                    helpers.DecodeMAC(client)])
 
   def Poll(self, now):
     """Polls the state machine."""
 
     def Disable():
       self._interval = 0
-      self._next_packet_blast_time = float('inf')
+      self._next_measurement_time = float('inf')
 
-    def StartPacketBlastTimer(interval):
+    def StartMeasurementTimer(interval):
       self._interval = interval
       # Inter-arrival times in a Poisson process are exponentially distributed.
-      # The timebase slip prevents a burst of packet blasts in case we fall
+      # The timebase slip prevents a burst of measurements in case we fall
       # behind.
-      self._next_packet_blast_time = now + random.expovariate(1 / interval)
+      self._next_measurement_time = now + random.expovariate(1 / interval)
 
-    # Read parameters.
-    duration = self._ReadParameter('duration', float)
-    enable = self._ReadParameter('enable', self._StrToBool)
-    fraction = self._ReadParameter('fraction', int)
     interval = self._ReadParameter('interval', float)
-    rapidpolling = self._ReadParameter('rapidpolling', int)
-    size = self._ReadParameter('size', int)
-
-    if rapidpolling > time.time():
-      interval = 10.0
-
-    if (not enable or duration <= 0 or fraction <= 0 or interval <= 0 or
-        size <= 0):
+    if interval <= 0:
       Disable()
     elif self._interval != interval:
       # Enable or change interval.
-      StartPacketBlastTimer(interval)
-    elif now >= self._next_packet_blast_time:
-      # Packet blast.
-      StartPacketBlastTimer(interval)
-      clients = [
-          (manager.vdevname, assoc.mac)
-          for manager in self._managers for assoc in manager.GetState().assoc
-      ]
-      if clients:
-        (interface, client) = random.choice(clients)
-        RunProc(
-            callback=self._HandleResults,
-            args=[WIFIBLASTER_BIN, '-i', interface, '-d', str(duration),
-                  '-f', str(fraction), '-s', str(size),
-                  helpers.DecodeMAC(client)])
+      StartMeasurementTimer(interval)
+    elif now >= self._next_measurement_time:
+      # Measure a random client.
+      StartMeasurementTimer(interval)
+      try:
+        (interface, client) = random.choice(self._GetAllClients())
+      except IndexError:
+        pass
+      else:
+        self.Measure(interface, client)
+
+    measureall = self._ReadParameter('measureall', float)
+    if time.time() >= measureall and measureall > self._last_measureall_time:
+      self._last_measureall_time = measureall
+      for (interface, client) in self._GetAllClients():
+        self.Measure(interface, client)
 
     # Poll again in at most one second. This allows parameter changes (e.g. a
-    # long interval to a short interval) to take effect sooner than the next
-    # scheduled packet blast.
-    self._next_timeout = min(now + 1, self._next_packet_blast_time)
+    # measureall request or a long interval to a short interval) to take effect
+    # sooner than the next scheduled measurement.
+    self._next_timeout = min(now + 1, self._next_measurement_time)
 
 
 def do_ssids_match(managers):
@@ -1050,6 +1072,7 @@ def main():
   # Seed the consensus key with random data.
   UpdateConsensus(0, os.urandom(16))
   managers = []
+  wifiblaster_controller = WifiblasterController(managers, opt.status_dir)
   if opt.fake:
     for k, fakemac in flags:
       if k == '--fake':
@@ -1060,16 +1083,16 @@ def main():
         wlm = WlanManager(phyname='phy-%s' % fakemac[12:],
                           vdevname='wlan-%s' % fakemac[12:],
                           high_power=opt.high_power,
-                          tv_box=opt.tv_box)
+                          tv_box=opt.tv_box,
+                          wifiblaster_controller=wifiblaster_controller)
         wlm.mac = helpers.EncodeMAC(fakemac)
         managers.append(wlm)
   else:
     # The list of managers is also refreshed occasionally in the main loop
-    CreateManagers(managers, high_power=opt.high_power, tv_box=opt.tv_box)
+    CreateManagers(managers, high_power=opt.high_power, tv_box=opt.tv_box,
+                   wifiblaster_controller=wifiblaster_controller)
   if not managers:
     raise Exception('no wifi AP-mode devices found.  Try --fake.')
-
-  wifiblaster_controller = WifiblasterController(managers, opt.status_dir)
 
   last_sent = last_autochan = last_print = 0
   while 1:
@@ -1123,7 +1146,8 @@ def main():
     if ((opt.tx_interval and now - last_sent > opt.tx_interval) or (
         opt.autochan_interval and now - last_autochan > opt.autochan_interval)):
       if not opt.fake:
-        CreateManagers(managers, high_power=opt.high_power, tv_box=opt.tv_box)
+        CreateManagers(managers, high_power=opt.high_power, tv_box=opt.tv_box,
+                       wifiblaster_controller=wifiblaster_controller)
       for m in managers:
         m.UpdateStationInfo()
     if opt.tx_interval and now - last_sent > opt.tx_interval:
