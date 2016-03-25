@@ -3,11 +3,7 @@
 """Tests for utils.py."""
 
 import collections
-import multiprocessing
 import os
-import shutil
-import tempfile
-import time
 
 import utils
 from wvtest import wvtest
@@ -125,68 +121,6 @@ def validate_and_sanitize_psk_test():
   wvtest.WVPASSEQ('foobarba', utils.validate_and_sanitize_psk('foobarba\n\0'))
   wvtest.WVPASSEQ('0' * 64, utils.validate_and_sanitize_psk('0' * 64))
   wvtest.WVPASSEQ('g' * 63, utils.validate_and_sanitize_psk('g' * 63))
-
-
-@wvtest.wvtest
-def lock_and_unlock_test():
-  """Test utils.lock and utils.unlock."""
-  try:
-    temp_dir = tempfile.mkdtemp()
-    lockfile = open(os.path.join(temp_dir, 'test.lock'), 'w')
-
-    def lock_until_queue_nonempty(q, timeout_sec):
-      try:
-        utils.lock(lockfile, timeout_sec)
-      except utils.BinWifiException:
-        q.put('timed out')
-        return
-      q.get()
-      q.put('releasing')
-      utils.unlock(lockfile)
-
-    q1 = multiprocessing.Queue()
-    p1 = multiprocessing.Process(target=lock_until_queue_nonempty, args=(q1, 1))
-
-    q2 = multiprocessing.Queue()
-    p2 = multiprocessing.Process(target=lock_until_queue_nonempty, args=(q2, 3))
-
-    p1.start()
-    p2.start()
-
-    wvtest.WVPASS(q1.empty())
-    wvtest.WVPASS(q2.empty())
-
-    q1.put('release')
-    # Wait for p1 to take this off the queue and relase the lock.
-    time.sleep(0.5)
-    wvtest.WVFAIL(q1.empty())
-    wvtest.WVPASSEQ(q1.get(), 'releasing')
-    wvtest.WVPASS(q2.empty())
-
-    q2.put('release')
-    # Wait for p2 to take this off the queue and relase the lock.
-    time.sleep(0.5)
-    wvtest.WVPASS(q1.empty())
-    wvtest.WVFAIL(q2.empty())
-    wvtest.WVPASSEQ(q2.get(), 'releasing')
-
-    # Now test that the timeout works.
-    q3 = multiprocessing.Queue()
-    p3 = multiprocessing.Process(target=lock_until_queue_nonempty, args=(q3, 1))
-
-    q4 = multiprocessing.Queue()
-    p4 = multiprocessing.Process(target=lock_until_queue_nonempty, args=(q4, 1))
-
-    p3.start()
-    p4.start()
-    wvtest.WVPASSEQ(q4.get(), 'timed out')
-
-    q3.put('release')
-
-  finally:
-    for p in [p1, p2, p3, p4]:
-      p.join()
-    shutil.rmtree(temp_dir)
 
 
 if __name__ == '__main__':
