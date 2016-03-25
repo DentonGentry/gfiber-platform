@@ -49,9 +49,11 @@ X,extra-short-timeouts            Use shorter key rotations; 1=rotate PTK, 2=rot
 Y,yottasecond-timeouts            Don't rotate any keys: PTK, GTK, or GMK
 P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
 S,interface-suffix=               Interface suffix []
+lock-timeout=                     How long, in seconds, to wait for another /bin/wifi process to finish before giving up. [60]
 """
 
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
+_LOCKFILE = '/tmp/wifi/wifi.lock'
 
 
 # pylint: disable=protected-access
@@ -990,31 +992,37 @@ def _run(argv):
     opt.band = '2.4'
 
   try:
-    function = {
-        'set': set_wifi,
-        'stop': stop_wifi,
-        'off': stop_wifi,
-        'restore': restore_wifi,
-        'show': show_wifi,
-        'setclient': set_client_wifi,
-        'stopclient': stop_client_wifi,
-        'stopap': stop_ap_wifi,
-        'scan': scan_wifi,
-    }[extra[0]]
-  except KeyError:
-    parser.fatal('Unrecognized command %s' % extra[0])
-  success = function(opt)
+    lockfile = open(_LOCKFILE, 'w')
+    try:
+      utils.lock(lockfile, int(opt.lock_timeout))
+      function = {
+          'set': set_wifi,
+          'stop': stop_wifi,
+          'off': stop_wifi,
+          'restore': restore_wifi,
+          'show': show_wifi,
+          'setclient': set_client_wifi,
+          'stopclient': stop_client_wifi,
+          'stopap': stop_ap_wifi,
+          'scan': scan_wifi,
+      }[extra[0]]
+    except KeyError:
+      parser.fatal('Unrecognized command %s' % extra[0])
 
-  if success:
-    if extra[0] in ('set', 'setclient'):
-      program = 'hostapd' if extra[0] == 'set' else 'wpa_supplicant'
-      if opt.persist:
-        phy = iw.find_phy(opt.band, opt.channel)
-        for band in iw.phy_bands(phy):
-          if band != opt.band:
-            persist.delete_options(program, band)
-        persist.save_options(program, opt.band, argv)
-      persist.save_options(program, opt.band, argv, tmp=True)
+    success = function(opt)
+
+    if success:
+      if extra[0] in ('set', 'setclient'):
+        program = 'hostapd' if extra[0] == 'set' else 'wpa_supplicant'
+        if opt.persist:
+          phy = iw.find_phy(opt.band, opt.channel)
+          for band in iw.phy_bands(phy):
+            if band != opt.band:
+              persist.delete_options(program, band)
+          persist.save_options(program, opt.band, argv)
+        persist.save_options(program, opt.band, argv, tmp=True)
+  finally:
+    utils.unlock(lockfile)
 
   return success
 
