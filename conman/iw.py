@@ -6,9 +6,9 @@ import re
 import subprocess
 
 
-def _scan(interface, **kwargs):
+def _scan(band, **kwargs):
   try:
-    return subprocess.check_output(('iw', 'dev', interface, 'scan'), **kwargs)
+    return subprocess.check_output(('wifi', 'scan', '-b', band), **kwargs)
   except subprocess.CalledProcessError:
     return ''
 
@@ -47,11 +47,11 @@ class BssInfo(object):
 
 # TODO(rofrankel): waveguide also scans. Can we find a way to avoid two programs
 # scanning in parallel?
-def scan_parsed(interface, **kwargs):
+def scan_parsed(band, **kwargs):
   """Return the parsed results of 'iw scan'."""
   result = []
   bss_info = None
-  for line in _scan(interface, **kwargs).splitlines():
+  for line in _scan(band, **kwargs).splitlines():
     line = line.strip()
     match = re.match(_BSSID_RE, line)
     if match:
@@ -81,11 +81,11 @@ def scan_parsed(interface, **kwargs):
   return result
 
 
-def find_bssids(interface, vendor_ie_function, include_secure):
+def find_bssids(band, vendor_ie_function, include_secure):
   """Return information about interesting access points.
 
   Args:
-    interface:  The wireless interface with which to scan.
+    band:  The band on which to scan.
     vendor_ie_function:  A function that takes a vendor IE and returns a bool.
     include_secure:  Whether to exclude secure networks.
 
@@ -94,7 +94,7 @@ def find_bssids(interface, vendor_ie_function, include_secure):
     BSSIDs which have a vendor IE accepted by vendor_ie_function, and the second
     list has those which don't.
   """
-  parsed = scan_parsed(interface)
+  parsed = scan_parsed(band)
   result_with_ie = set()
   result_without_ie = set()
 

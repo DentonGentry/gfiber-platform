@@ -592,20 +592,22 @@ class ConnectionManager(object):
     logging.info('Scanning on %s...', wifi.name)
     wifi.last_wifi_scan_time = time.time()
     subprocess.call(self.IFUP + [wifi.name])
-    with_ie, without_ie = self._find_bssids(wifi.name)
+    # /bin/wifi takes a --band option but then finds the right interface for it,
+    # so it's okay to just pick the first band here.
+    with_ie, without_ie = self._find_bssids(wifi.bands[0])
     logging.info('Done scanning on %s', wifi.name)
     items = [(bss_info, 3) for bss_info in with_ie]
     items += [(bss_info, 1) for bss_info in without_ie]
     wifi.cycler = cycler.AgingPriorityCycler(cycle_length_s=30, items=items)
 
-  def _find_bssids(self, wcli):
+  def _find_bssids(self, band):
     def supports_autoprovisioning(oui, vendor_ie):
       if oui not in GFIBER_OUIS:
         return False
 
       return vendor_ie.startswith(VENDOR_IE_FEATURE_ID_AUTOPROVISIONING)
 
-    return iw.find_bssids(wcli, supports_autoprovisioning, False)
+    return iw.find_bssids(band, supports_autoprovisioning, False)
 
   def _try_next_bssid(self, wifi):
     """Attempt to connect to the next BSSID in wifi's BSSID cycler.

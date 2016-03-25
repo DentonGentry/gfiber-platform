@@ -270,13 +270,13 @@ class ConnectionManager(connection_manager.ConnectionManager):
     self.wifi_for_band(band).add_terminating_event()
 
   # pylint: disable=unused-argument,protected-access
-  def _find_bssids(self, wcli):
-    # Only the 5 GHz scan finds anything.
-    if wcli == 'wcli0' and self.scan_has_results:
+  def _find_bssids(self, band):
+    # Only wcli0 finds anything.
+    if band in self.interface_by_name('wcli0').bands and self.scan_has_results:
       iw._scan = lambda interface: IW_SCAN_OUTPUT
     else:
       iw._scan = lambda interface: ''
-    return super(ConnectionManager, self)._find_bssids(wcli)
+    return super(ConnectionManager, self)._find_bssids(band)
 
   def _update_wlan_configuration(self, wlan_configuration):
     wlan_configuration.command.insert(0, 'echo')
