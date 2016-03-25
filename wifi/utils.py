@@ -5,7 +5,6 @@
 from __future__ import print_function
 
 import collections
-import fcntl
 import os
 import re
 import subprocess
@@ -301,20 +300,3 @@ def validate_and_sanitize_psk(psk):
     raise BinWifiException('PSK is not of a valid length: %d', len(psk))
 
   return psk
-
-
-def lock(lockfile, timeout_sec):
-  for i in range(timeout_sec):
-    try:
-      fcntl.lockf(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-      return
-    except IOError:
-      time.sleep(1)
-      log('Trying to obtain lock %s for %s seconds', lockfile.name, i + 1)
-
-  raise BinWifiException('Failed to obtain lock %s after %d seconds',
-                         lockfile.name, timeout_sec)
-
-
-def unlock(lockfile):
-  fcntl.lockf(lockfile, fcntl.LOCK_UN)
