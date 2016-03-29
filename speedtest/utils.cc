@@ -67,7 +67,7 @@ bool ParseInt(const std::string &str, int *result) {
     return false;
   }
   std::istringstream n(str);
-  return n >> *result;
+  return !(n >> *result).fail();
 }
 
 // Trim from start in place
