@@ -196,26 +196,17 @@ def PollTest():
       old_to = wc.NextMeasurement()
       wc.Poll(401)
       wvtest.WVPASSNE(old_to, wc.NextMeasurement())
-      for t in xrange(402, 410):
+      for t in xrange(402, 500):
         wc.Poll(t)
       wvtest.WVPASSGE(CountRuns(), 1)
 
-      # Switch back to a longer poll interval.
-      WriteConfig('interval', '36000')
-      ok = False
-      for t in xrange(410, 600):
-        wc.Poll(t)
-        if wc.NextMeasurement() > t + 200:
-          ok = True
-      wvtest.WVPASS(ok)
-
-      # And then request all clients to be measured and make sure it only
-      # happens once. Disable automated measurement so they are not counted.
+      # Request all clients to be measured and make sure it only happens once.
+      # Disable automated measurement so they are not counted.
       WriteConfig('interval', '0')
       WriteConfig('measureall', str(faketime[0]))
-      wc.Poll(600)
+      wc.Poll(500)
       wvtest.WVPASSEQ(CountRuns(), 1)
-      wc.Poll(601)
+      wc.Poll(501)
       wvtest.WVPASSEQ(CountRuns(), 0)
   finally:
     time.time = oldtime
