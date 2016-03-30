@@ -49,9 +49,11 @@ X,extra-short-timeouts            Use shorter key rotations; 1=rotate PTK, 2=rot
 Y,yottasecond-timeouts            Don't rotate any keys: PTK, GTK, or GMK
 P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
 S,interface-suffix=               Interface suffix []
+lock-timeout=                     How long, in seconds, to wait for another /bin/wifi process to finish before giving up. [60]
 """
 
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
+_LOCKFILE = '/tmp/wifi/wifi'
 
 
 # pylint: disable=protected-access
@@ -981,6 +983,8 @@ def _run(argv):
   opt, _, extra = parser.parse(argv)
   stringify_options(opt)
 
+  utils.lock(_LOCKFILE, int(opt.lock_timeout))
+
   if not extra:
     parser.fatal('Must specify a command (see usage for details).')
     return 1
@@ -1003,6 +1007,7 @@ def _run(argv):
     }[extra[0]]
   except KeyError:
     parser.fatal('Unrecognized command %s' % extra[0])
+
   success = function(opt)
 
   if success:
