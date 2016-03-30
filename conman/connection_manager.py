@@ -422,7 +422,7 @@ class ConnectionManager(object):
         logging.debug('Unable to join WLAN on %s', wifi.name)
         self._status.connected_to_wlan = False
         if self.acs():
-          logging.debug('Connected to ACS on %s', wifi.name)
+          logging.debug('Connected to ACS')
           now = time.time()
           if (self._wlan_configuration and
               hasattr(wifi, 'waiting_for_acs_since')):
