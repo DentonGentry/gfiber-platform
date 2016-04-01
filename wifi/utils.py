@@ -355,3 +355,7 @@ def lock(lockfile, timeout_sec):
   subprocess.call(['lockfile-create', '--use-pid', '--retry', str(retries),
                    lockfile])
   signal.alarm(0)
+
+
+def unlock(lockfile):
+  subprocess.call(['lockfile-remove', lockfile])

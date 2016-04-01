@@ -93,6 +93,15 @@ consensus_key = None
 consensus_start = None
 
 
+def BandForFreq(freq):
+  if freq / 100 == 24:
+    return '2.4'
+  elif freq / 1000 == 5:
+    return '5'
+  else:
+    raise ValueError('Frequency %d is not in any known band', freq)
+
+
 def UpdateConsensus(new_uptime_ms, new_consensus_key):
   """Update the consensus key based on received multicast packets."""
   global consensus_key, consensus_start
@@ -324,9 +333,15 @@ class WlanManager(object):
               args=['iw', 'dev', self.vdevname, 'info'])
       # channel scan more than once in case we miss hearing a beacon
       for _ in range(opt.initial_scans):
+        if self.flags & wgdata.ApFlags.Can2G:
+          band = '2.4'
+        elif self.flags & wgdata.ApFlags.Can5G:
+          band = '5'
+
         RunProc(
             callback=self._ScanResults,
-            args=['iw', 'dev', self.vdevname, 'scan', 'ap-force', 'passive'])
+            args=['wifi', 'scan', '-b', band, '--scan-ap-force',
+                  '--scan-passive'])
         self.UpdateStationInfo()
       self.next_scan_time = now
       self.did_initial_scan = True
@@ -338,8 +353,9 @@ class WlanManager(object):
       self.Log('scanning %d MHz (%d/%d)', scan_freq, self.scan_idx + 1,
                len(self.allowed_freqs))
       RunProc(callback=self._ScanResults,
-              args=['iw', 'dev', self.vdevname, 'scan', 'freq', str(scan_freq),
-                    'ap-force', 'passive'])
+              args=['wifi', 'scan', '-b', BandForFreq(scan_freq),
+                    '--scan-freq', str(scan_freq), '--scan-ap-force',
+                    '--scan-passive'])
       chan_interval = opt.scan_interval / len(self.allowed_freqs)
       # Randomly fiddle with the timing to avoid permanent alignment with
       # other nodes also doing scans.  If we're perfectly aligned with
@@ -586,9 +602,10 @@ class WlanManager(object):
         disabled = (g.group(3) == 'disabled')
         self.Debug('phy freq=%d chan=%d disabled=%d', freq, chan, disabled)
         if not disabled:
-          if freq / 100 == 24:
+          band = BandForFreq(freq)
+          if band == '2.4':
             self.flags |= wgdata.ApFlags.Can2G
-          if freq / 1000 == 5:
+          elif band == '5':
             self.flags |= wgdata.ApFlags.Can5G
           self.allowed_freqs.add(freq)
           freq_to_chan[freq] = chan

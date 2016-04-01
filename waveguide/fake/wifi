@@ -1,0 +1,28 @@
+#!/bin/sh
+echo "fake/wifi:" "$@" >&2
+cd "$(dirname "$0")"
+
+if [ "$1" = "scan" ]; then
+  # TODO(willangley): pass the dev in an env var for tests, since looking it up
+  #   from the platform cannot be expected to work.
+  iw_scan="./iw dev wlan-22:22 scan"
+  while [ -n "$2" ]; do
+    shift
+    case "$1" in
+      -b)
+        shift
+        ;;
+      --scan-freq)
+        shift
+        iw_scan="$iw_scan freq $1"
+        ;;
+      --scan-*)
+        iw_scan="$iw_scan ${1#--scan-}"
+        ;;
+    esac
+  done
+  exec $iw_scan
+else
+  echo "fake/wifi: first arg ('$1') must be 'scan'" >&2
+  exit 99
+fi
