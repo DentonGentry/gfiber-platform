@@ -53,8 +53,9 @@ def _link(interface, **kwargs):
   return subprocess.check_output(('iw', 'dev', interface, 'link'), **kwargs)
 
 
-def _scan(interface, **kwargs):
-  return subprocess.check_output(('iw', 'dev', interface, 'scan'), **kwargs)
+def _scan(interface, scan_args, **kwargs):
+  return subprocess.check_output(['iw', 'dev', interface, 'scan'] + scan_args,
+                                 **kwargs)
 
 
 _WIPHY_RE = re.compile(r'Wiphy (?P<phy>\S+)')
@@ -362,6 +363,6 @@ def phy_bands(which_phy):
   return result
 
 
-def scan(interface):
+def scan(interface, scan_args):
   """Return 'iw scan' output for printing."""
-  return _scan(interface)
+  return _scan(interface, scan_args)

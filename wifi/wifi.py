@@ -4,6 +4,7 @@
 
 from __future__ import print_function
 
+import atexit
 import glob
 import os
 import re
@@ -50,10 +51,14 @@ Y,yottasecond-timeouts            Don't rotate any keys: PTK, GTK, or GMK
 P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
 S,interface-suffix=               Interface suffix []
 lock-timeout=                     How long, in seconds, to wait for another /bin/wifi process to finish before giving up. [60]
+scan-ap-force                     (Scan only) scan when in AP mode
+scan-passive                      (Scan only) do not probe, scan passively
+scan-freq=                        (Scan only) limit scan to specific frequencies.
 """
 
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
 _LOCKFILE = '/tmp/wifi/wifi'
+lockfile_taken = False
 
 
 # pylint: disable=protected-access
@@ -513,7 +518,15 @@ def scan_wifi(opt):
   if interface is None:
     raise utils.BinWifiException('No client interface for band %s', band)
 
-  print(iw.scan(interface))
+  scan_args = []
+  if opt.scan_ap_force:
+    scan_args += ['ap-force']
+  if opt.scan_passive:
+    scan_args += ['passive']
+  if opt.scan_freq:
+    scan_args += ['freq', opt.scan_freq]
+
+  print(iw.scan(interface, scan_args))
 
   return True
 
@@ -976,14 +989,14 @@ def _run(argv):
   Raises:
     BinWifiException: On file write failures.
   """
+  global lockfile_taken
+
   optspec = _OPTSPEC_FORMAT.format(
       bin=__file__.split('/')[-1],
       ssid='%s_TestWifi' % subprocess.check_output(('serial')).strip())
   parser = options.Options(optspec)
   opt, _, extra = parser.parse(argv)
   stringify_options(opt)
-
-  utils.lock(_LOCKFILE, int(opt.lock_timeout))
 
   if not extra:
     parser.fatal('Must specify a command (see usage for details).')
@@ -1007,6 +1020,11 @@ def _run(argv):
     }[extra[0]]
   except KeyError:
     parser.fatal('Unrecognized command %s' % extra[0])
+
+  if not lockfile_taken:
+    utils.lock(_LOCKFILE, int(opt.lock_timeout))
+    atexit.register(utils.unlock, _LOCKFILE)
+    lockfile_taken = True
 
   success = function(opt)
 
