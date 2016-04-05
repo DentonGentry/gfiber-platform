@@ -5,8 +5,10 @@
 from __future__ import print_function
 
 import collections
+import math
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -300,3 +302,60 @@ def validate_and_sanitize_psk(psk):
     raise BinWifiException('PSK is not of a valid length: %d', len(psk))
 
   return psk
+
+
+def _lockfile_create_retries(timeout_sec):
+  """Invert the lockfile-create --retry option.
+
+  The --retry option specifies how many times to retry.  Each retry takes an
+  additional five seconds, starting at 0, so --retry 1 takes 5 seconds,
+  --retry 2 takes 15 (5 + 10), and so on.  So:
+
+    timeout_sec = 5 * (retries * (retries + 1)) / 2 =>
+    2.5retries^2 + 2.5retries + -timeout_sec = 0 =>
+    retries = (-2.5 +/- sqrt(2.5^2 - 4*2.5*-timeout_sec)) / (2*2.5)
+    retries = (-2.5 +/- sqrt(6.25 + 10*timeout_sec)) / 5
+
+  We want to ceil this to make sure we have more than enough time, and we can
+  even also add 1 to timeout_sec in case we'd otherwise get a whole number and
+  don't want it to be close.  We can also reduce the +/- to a + because we
+  don't care about negative solutions.
+
+  (Alternatively, we could remove the signal.alarm and
+  expose /bin/wifi callers to this logic by letting them specify the retry
+  count directly, but that would be even worse than this.)
+
+  Args:
+    timeout_sec: The number of seconds the timeout must exceed.
+
+  Returns:
+    A value for lockfile-create --retry.
+  """
+  return math.ceil((-2.5 + math.sqrt(6.25 + 10.0 * (timeout_sec + 1))) / 5.0)
+
+
+def lock(lockfile, timeout_sec):
+  """Attempt to lock lockfile for up to timeout_sec.
+
+  Args:
+    lockfile:  The file to lock.
+    timeout_sec:  How long to try before giving up.
+
+  Raises:
+    BinWifiException:  If the timeout is exceeded.
+  """
+  def time_out(*_):
+    raise BinWifiException('Failed to obtain lock %s after %d seconds',
+                           lockfile, timeout_sec)
+
+  retries = _lockfile_create_retries(timeout_sec)
+
+  signal.signal(signal.SIGALRM, time_out)
+  signal.alarm(timeout_sec)
+  subprocess.call(['lockfile-create', '--use-pid', '--retry', str(retries),
+                   lockfile])
+  signal.alarm(0)
+
+
+def unlock(lockfile):
+  subprocess.call(['lockfile-remove', lockfile])
