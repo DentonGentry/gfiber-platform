@@ -208,6 +208,15 @@ def PollTest():
       wvtest.WVPASSEQ(CountRuns(), 1)
       wc.Poll(501)
       wvtest.WVPASSEQ(CountRuns(), 0)
+
+      # Measure on association only if enabled.
+      wc.MeasureOnAssociation(manager.vdevname,
+                              manager.GetState().assoc[0].mac)
+      wvtest.WVPASSEQ(CountRuns(), 0)
+      WriteConfig('onassociation', 'True')
+      wc.MeasureOnAssociation(manager.vdevname,
+                              manager.GetState().assoc[0].mac)
+      wvtest.WVPASSEQ(CountRuns(), 1)
   finally:
     time.time = oldtime
     shutil.rmtree(d)

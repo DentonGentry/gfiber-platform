@@ -766,7 +766,7 @@ class WlanManager(object):
         a = wgdata.Assoc(mac=mac, rssi=rssi, last_seen=last_seen, can5G=can5G)
         if mac not in self.assoc_list:
           self.Debug('Added: %r', a)
-          self.wifiblaster_controller.Measure(self.vdevname, mac)
+          self.wifiblaster_controller.MeasureOnAssociation(self.vdevname, mac)
         assoc_list[mac] = a
 
     for line in stdout.split('\n'):
@@ -887,16 +887,18 @@ class WifiblasterController(object):
 
   - Scheduling parameters
 
-    wifiblaster.enable      Enable WiFi performance measurement.
-    wifiblaster.interval    Average time between automated measurements in
-                            seconds, or 0 to disable automated measurements.
-    wifiblaster.measureall  Unix time at which to measure all clients.
+    wifiblaster.enable         Enable WiFi performance measurement.
+    wifiblaster.interval       Average time between automated measurements in
+                               seconds, or 0 to disable automated measurements.
+    wifiblaster.measureall     Unix time at which to measure all clients.
+    wifiblaster.onassociation  Enable WiFi performance measurement after clients
+                               associate.
 
   - Measurement parameters
 
-    wifiblaster.duration    Measurement duration in seconds.
-    wifiblaster.fraction    Number of samples per measurement.
-    wifiblaster.size        Packet size in bytes.
+    wifiblaster.duration       Measurement duration in seconds.
+    wifiblaster.fraction       Number of samples per measurement.
+    wifiblaster.size           Packet size in bytes.
   """
 
   def __init__(self, managers, basedir):
@@ -967,6 +969,12 @@ class WifiblasterController(object):
               args=[WIFIBLASTER_BIN, '-i', interface, '-d', str(duration),
                     '-f', str(fraction), '-s', str(size),
                     helpers.DecodeMAC(client)])
+
+  def MeasureOnAssociation(self, interface, client):
+    """Measures the performance of a client after association."""
+    onassociation = self._ReadParameter('onassociation', self._StrToBool)
+    if onassociation:
+      self.Measure(interface, client)
 
   def Poll(self, now):
     """Polls the state machine."""
