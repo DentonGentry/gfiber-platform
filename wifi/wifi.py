@@ -40,6 +40,7 @@ s,ssid=                           SSID to use [{ssid}]
 bssid=                            BSSID to use []
 e,encryption=                     Encryption type to use (WPA_PSK_AES, WPA2_PSK_AES, WPA12_PSK_AES, WPA_PSK_TKIP, WPA2_PSK_TKIP, WPA12_PSK_TKIP, WEP, or NONE) [WPA2_PSK_AES]
 f,force-restart                   Force restart even if already running with these options
+C,client-isolation                Enable client isolation, preventing bridging of frames between associated stations.
 H,hidden-mode                     Enable hidden mode (disable SSID advertisements)
 M,enable-wmm                      Enable wmm extensions (needed for block acks)
 G,short-guard-interval            Enable short guard interval

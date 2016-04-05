@@ -77,6 +77,7 @@ ieee80211h=1
 {require_ht}
 {require_vht}
 {hidden}
+{ap_isolate}
 
 ht_capab={ht20}{ht40}{guard_interval}{ht_rxstbc}
 {vht_settings}
@@ -275,6 +276,7 @@ def generate_hostapd_config(
   enable_wmm = 'wmm_enabled=1' if opt.enable_wmm else ''
   hidden = 'ignore_broadcast_ssid=1' if opt.hidden_mode else ''
   bridge = 'bridge=%s' % opt.bridge if opt.bridge else ''
+  ap_isolate = 'ap_isolate=1' if opt.client_isolation else ''
   hostapd_conf_parts = [_HOSTCONF_TPL.format(
       interface=interface, band=band, channel=channel, width=width,
       protocols=protocols, hostapd_band=hostapd_band,
@@ -282,7 +284,8 @@ def generate_hostapd_config(
       require_ht=require_ht, require_vht=require_vht, ht20=ht20, ht40=ht40,
       ht_rxstbc=ht_rxstbc, vht_settings=vht_settings,
       guard_interval=guard_interval, enable_wmm=enable_wmm, hidden=hidden,
-      auth_algs=auth_algs, bridge=bridge, ssid=utils.sanitize_ssid(opt.ssid))]
+      ap_isolate=ap_isolate, auth_algs=auth_algs, bridge=bridge,
+      ssid=utils.sanitize_ssid(opt.ssid))]
 
   if opt.encryption != 'NONE':
     hostapd_conf_parts.append(_HOSTCONF_WPA_TPL.format(
