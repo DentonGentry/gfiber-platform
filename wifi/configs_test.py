@@ -309,6 +309,7 @@ ieee80211n=1
 
 
 
+
 ht_capab=[HT20][RX-STBC1]
 
 """
@@ -325,6 +326,7 @@ country_code=US
 ieee80211d=1
 ieee80211h=1
 ieee80211n=1
+
 
 
 
@@ -363,6 +365,7 @@ class FakeOptDict(object):
     self.yottasecond_timeouts = False
     self.persist = False
     self.interface_suffix = ''
+    self.client_isolation = False
 
 
 # pylint: disable=protected-access
