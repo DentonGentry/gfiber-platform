@@ -81,6 +81,7 @@ class FanControl : public Mailbox {
   static const FanControlParams kGFHD254FanCtrlAux1Defaults;
 
   static const FanControlParams kGFLT110FanCtrlSocDefaults;
+  static const FanControlParams kGFLT300FanCtrlSocDefaults;
 
   explicit FanControl(Platform *platform)
       : state_(OFF),

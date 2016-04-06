@@ -20,6 +20,7 @@ const Platform Platform::kPlatformTable[] = {
   Platform("GFLT110", BRUNO_GFLT110, false, false, false),
   Platform("GFLT120", BRUNO_GFLT110, false, false, false),
   Platform("GFHD254", BRUNO_GFHD254, false, true, true),
+  Platform("GFLT300", BRUNO_GFLT300, false, false, false),
   Platform("UNKNOWN PLATFORM", BRUNO_UNKNOWN, false, false,  false),
 };
 
