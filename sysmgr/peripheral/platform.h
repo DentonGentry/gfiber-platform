@@ -26,6 +26,7 @@ enum BrunoPlatformTypes {
   BRUNO_GFHD200,          /* Camaro */
   BRUNO_GFLT110,          /* Fiber Jack */
   BRUNO_GFHD254,          /* Lockdown */
+  BRUNO_GFLT300,          /* Go-Long FiberJack */
   BRUNO_UNKNOWN
 };
 
