@@ -418,9 +418,8 @@ void receive_dhcp_offers(int s)
 
 void usage(const char *progname)
 {
-  fprintf(stderr, "usage: %s [-i br0] [-l]\n", progname);
+  fprintf(stderr, "usage: %s [-i br0]\n", progname);
   fprintf(stderr, "\t-i: name of the interface to probe for DHCP servers.\n");
-  fprintf(stderr, "\t-l: show a response from localhost\n");
   exit(1);
 }
 
