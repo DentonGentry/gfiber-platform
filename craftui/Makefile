@@ -17,10 +17,10 @@ install-libs:
 
 test: lint
 	set -e; \
-	for pytest in $(wildcard *_test.py); do \
+	for n in $(wildcard ./*_test.*); do \
 		echo; \
-		echo "Testing $$pytest"; \
-		$(PYTHON) $$pytest; \
+		echo "Testing $$n"; \
+		$$n; \
 	done
 
 clean:

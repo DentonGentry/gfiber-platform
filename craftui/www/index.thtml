@@ -11,11 +11,11 @@
 <body>
   <header>
     <section>
-      <h1><a href=https://fiber.google.com/myfiber/><img src=static/logo.png alt="Google Fiber"></a></h1>
+      <h1><img src=static/logo.png alt="Google Fiber"></h1>
       <nav>
         <ul>
           <li class=active><a href=/>GFCH100</a></li>
-          <li ><a href=craft/config/>Configuration</a></li>
+          <li ><a href=/config>Configuration</a></li>
           <li ><a href={{ peerurl }} target=_blank>Peer</a></li>
         </ul>
       </nav>
@@ -27,6 +27,7 @@
       <input type="radio" id="tab-1" name="tab-group-1" checked>
       <label for="tab-1">Platform</label>
       <div class="content">
+        <b>Serial Number:</b><span class="values" id="platform/serialno">...</span><br>
         <b>Platform:</b><span class="values" id="platform/platform">...</span><br>
         <b>Software Version:</b><span class="values" id="platform/version">...</span><br>
         <b>Software Date:</b><span class="values" id="platform/softwaredate">...</span><br>
@@ -38,68 +39,227 @@
       <input type="radio" id="tab-2" name="tab-group-1">
       <label for="tab-2">Network</label>
       <div class="content">
-        <b>Craft Port IP Address:</b><span class="values" id="platform/craft_ipaddr">...</span><br>
-        <b>Local IP Address:</b><span class="values" id="platform/local_ipaddr">...</span><br>
-        <b>Peer IP Address:</b><span class="values" id="platform/peer_ipaddr">...</span><br>
-        <b>Inband Vlan:</b><span class="values" id="platform/vlan_inband">...</span><br>
-        <b>Peer Vlan:</b><span class="values" id="platform/vlan_peer">...</span><br>
+        <b>IP Addresses:</b>
+	<table>
+	  <tr>
+            <td align=center><b>Port</b></td>
+            <td align=center><b>IPv4</b></td>
+            <td align=center><b>IPv6</b></td></tr>
+	  <tr>
+            <td><b>Craft</b></td>
+	    <td align=right><span id="platform/active_craft_inet">...</span></td>
+	    <td align=right><span id="platform/active_craft_inet6">...</span></td></tr>
+	  <tr>
+            <td><b>Out-of-Band (PoE)</b></td>
+	    <td align=right><span id="platform/active_poe_inet">...</span></td>
+	    <td align=right><span id="platform/active_poe_inet6">...</span></td></tr>
+	  <tr>
+            <td><b>In-Band</b></td>
+	    <td align=right><span id="platform/active_inband_inet">...</span></td>
+	    <td align=right><span id="platform/active_inband_inet6">...</span></td></tr>
+	  <tr>
+            <td><b>Link (to peer)</b></td>
+	    <td align=right><span id="platform/active_link_inet">...</span></td>
+	    <td align=right><span id="platform/active_link_inet6">...</span></td></tr>
+	</table>
+        <b>Packet Counters:</b>
         <table>
           <tr>
             <td><b></b></td>
-            <td colspan=3><b>received</b></td>
-            <td colspan=3><b>transmitted</b></td></tr>
+            <td colspan=3 align=center><b>received</b></td>
+            <td colspan=3 align=center><b>transmitted</b></td>
+            <td colspan=9 align=center><b>errors</b></td></tr>
           <tr>
-            <td><b>interface</b></td>
-            <td><b>bytes (UC BC MC)</b></td>
-            <td><b>frames (<64 <128 <256 <512 <1024 jumbo)</b></td>
-            <td><b>errors</b></td>
-            <td><b>bytes (UC BC MC)</b></td>
-            <td><b>frames</b></td>
-            <td><b>errors</b></td></tr>
+            <td align=center><b>interface</b></td>
+
+            <td align=center><b>bytes</b></td>
+            <td align=center><b>frames</b></td>
+            <td align=center><b>multicast</b></td>
+
+            <td align=center><b>bytes</b></td>
+            <td align=center><b>frames</b></td>
+            <td align=center><b>multicast</b></td>
+
+            <td align=center><b>rx errors</b></td>
+            <td align=center><b>rx dropped</b></td>
+            <td align=center><b>rx CRC</b></td>
+            <td align=center><b>rx Undersize</b></td>
+            <td align=center><b>tx errors</b></td>
+            <td align=center><b>tx dropped</b></td>
+            <td align=center><b>tx CRC</b></td>
+            <td align=center><b>tx Undersize</b></td>
+            <td align=center><b>collisions</b></td>
           <tr>
-            <td>modem (from/to switch)</td>
-            <td>
-              <span id="modem/network/rxCounters/bytes">...</span>
-              (<span id="modem/network/rxCounters/unicast">...</span>
-              <span id="modem/network/rxCounters/broadcast">...</span>
-              <span id="modem/network/rxCounters/multicast">...</span>)</td>
-            <td>
-              <span id="modem/network/rxCounters/frames">...</span>
-              (<span id="modem/network/rxCounters/frames64">...</span>
-              <span id="modem/network/rxCounters/frames65_127">...</span>
-              <span id="modem/network/rxCounters/frames128_255">...</span>
-              <span id="modem/network/rxCounters/frames256_511">...</span>
-              <span id="modem/network/rxCounters/frames512_1023">...</span>
-              <span id="modem/network/rxCounters/frames1024_1518">...</span>
-              <span id="modem/network/rxCounters/framesJumbo">...</span>)</td>
-            <td>
-              CRC: <span id="modem/network/rxCounters/crcErrors">...</span>
-              Undersize: <span id="modem/network/rxCounters/framesUndersized">...</span></td>
-            <td>
-              <span id="modem/network/txCounters/bytes">...</span>
-              (<span id="modem/network/txCounters/unicast">...</span>
-              <span id="modem/network/txCounters/broadcast">...</span>
-              <span id="modem/network/txCounters/multicast">...</span>)</td>
-            <td>
-              <span id="modem/network/txCounters/frames">...</span>
-              (<span id="modem/network/txCounters/frames64">...</span>
-              <span id="modem/network/txCounters/frames65_127">...</span>
-              <span id="modem/network/txCounters/frames128_255">...</span>
-              <span id="modem/network/txCounters/frames256_511">...</span>
-              <span id="modem/network/txCounters/frames512_1023">...</span>
-              <span id="modem/network/txCounters/frames1024_1518">...</span>
-              <span id="modem/network/txCounters/framesJumbo">...</span>)</td>
-            <td>
-              CRC: <span id="modem/network/txCounters/crcErrors">...</span>
-              Undersize: <span id="modem/network/txCounters/framesUndersized">...</span></td></tr>
+            <td><b>Modem (from/to switch)<b></td>
+            <td align=right><span id="modem/network/rxCounters/bytes">...</span></td>
+            <td align=right><span id="modem/network/rxCounters/frames">...</span></td>
+	    <td align=right><span id="modem/network/rxCounters/multicast">...</span></td>
+
+            <td align=right><span id="modem/network/txCounters/bytes">...</span></td>
+            <td align=right><span id="modem/network/txCounters/frames">...</span></td>
+	    <td align=right><span id="modem/network/txCounters/multicast">...</span></td>
+
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="modem/network/rxCounters/crcErrors">...</span></td>
+            <td align=right><span id="modem/network/rxCounters/framesUndersized">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="modem/network/txCounters/crcErrors">...</span></td>
+            <td align=right><span id="modem/network/txCounters/framesUndersized">...</span></td>
+            <td align=right>-</td></tr>
+
+	  <tr>
+            <td><b>Craft<b></td>
+            <td align=right><span id="platform/craft_rx_bytes">...</span></td>
+            <td align=right><span id="platform/craft_rx_packets">...</span></td>
+            <td align=right><span id="platform/craft_multicast">...</span></td>
+
+            <td align=right><span id="platform/craft_tx_bytes">...</span></td>
+            <td align=right><span id="platform/craft_tx_packets">...</span></td>
+            <td align=right>-</td>
+
+            <td align=right><span id="platform/craft_rx_errors">...</span></td>
+            <td align=right><span id="platform/craft_rx_dropped">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/craft_tx_errors">...</span></td>
+            <td align=right><span id="platform/craft_tx_dropped">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/craft_collisions">...</span></td>
+
+	  <tr>
+            <td><b>Out-of-Band (PoE)<b></td>
+            <td align=right><span id="platform/poe_rx_bytes">...</span></td>
+            <td align=right><span id="platform/poe_rx_packets">...</span></td>
+            <td align=right><span id="platform/poe_multicast">...</span></td>
+
+            <td align=right><span id="platform/poe_tx_bytes">...</span></td>
+            <td align=right><span id="platform/poe_tx_packets">...</span></td>
+            <td align=right>-</td>
+
+            <td align=right><span id="platform/poe_rx_errors">...</span></td>
+            <td align=right><span id="platform/poe_rx_dropped">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/poe_tx_errors">...</span></td>
+            <td align=right><span id="platform/poe_tx_dropped">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/poe_collisions">...</span></td>
+
+	  <tr>
+            <td><b>In-Band<b></td>
+            <td align=right><span id="platform/inband_rx_bytes">...</span></td>
+            <td align=right><span id="platform/inband_rx_packets">...</span></td>
+            <td align=right><span id="platform/inband_multicast">...</span></td>
+
+            <td align=right><span id="platform/inband_tx_bytes">...</span></td>
+            <td align=right><span id="platform/inband_tx_packets">...</span></td>
+            <td align=right>-</td>
+
+            <td align=right><span id="platform/inband_rx_errors">...</span></td>
+            <td align=right><span id="platform/inband_rx_dropped">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/inband_tx_errors">...</span></td>
+            <td align=right><span id="platform/inband_tx_dropped">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/inband_collisions">...</span></td>
+
+	  <tr>
+            <td><b>Link (to peer)<b></td>
+            <td align=right><span id="platform/link_rx_bytes">...</span></td>
+            <td align=right><span id="platform/link_rx_packets">...</span></td>
+            <td align=right><span id="platform/link_multicast">...</span></td>
+
+            <td align=right><span id="platform/link_tx_bytes">...</span></td>
+            <td align=right><span id="platform/link_tx_packets">...</span></td>
+            <td align=right>-</td>
+
+            <td align=right><span id="platform/link_rx_errors">...</span></td>
+            <td align=right><span id="platform/link_rx_dropped">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/link_tx_errors">...</span></td>
+            <td align=right><span id="platform/link_tx_dropped">...</span></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/link_collisions">...</span></td>
+
           <tr>
-            <td>SOC (from/to switch)</td>
+            <td><b>Switch Port 0/0 (PoE)</b></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+
           <tr>
-            <td>SOC (port 0)</td>
+            <td><b>Switch Port 0/4 (SOC)</b></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+
           <tr>
-            <td>POE (port 0)</td>
+            <td><b>Switch Port 0/24 (modem)</b></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+
           <tr>
-            <td>POE (port 0)</td>
+            <td><b>Switch Port 0/25 (SFP+)</b></td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
+            <td align=right>-</td>
         </table>
       </div>
     </div>

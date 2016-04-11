@@ -1,0 +1,167 @@
+<html>
+<head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+  <meta content="utf-8" http-equiv="encoding">
+  <script src="static/jquery-2.1.4.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="static/craft.css">
+  <link rel=icon href=static/favicon.ico>
+  <link rel=stylesheet href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700&amp;lang=en">
+  <link rel=stylesheet href=static/default.css>
+</head>
+<body>
+  <header>
+    <section>
+      <h1><img src=static/logo.png alt="Google Fiber"></h1>
+      <nav>
+        <ul>
+          <li ><a href=/>GFCH100</a></li>
+          <li class=active><a href=/config>Configuration</a></li>
+          <li ><a href={{ peerurl }} target=_blank>Peer</a></li>
+        </ul>
+      </nav>
+    </section>
+  </header>
+  <br>
+  <div class="tabs">
+    <div class="tab">
+      <input type="radio" id="tab-1" name="tab-group-1" checked>
+      <label for="tab-1">Site Configuration</label>
+      <div class="content">
+	<b>Platfrom Parameters:</b>
+	<table>
+	  <tr>
+	    <td align=center><b>Parameter
+	    <td align=center><b>Active Value
+	    <td align=center><b>Last Configured
+	    <td align=center><b>Configure
+	    <td align=center><b>Status
+
+	  <tr>
+	    <td><b>Craft IP Address
+	    <td align=right><span id="platform/active_craft_inet">...</span>
+	    <td align=right>
+	      <span id="platform/craft_ipaddr">...</span>
+	      <input type=submit value="Apply Now" onclick="CraftUI.config('craft_ipaddr', 1)">
+	    <td>
+	      <input id=craft_ipaddr type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('craft_ipaddr')">
+	    <td>
+	      <span id=craft_ipaddr_result>...</span>
+
+	  <tr>
+	    <td><b>Link IP Address
+	    <td align=right><span id="platform/active_link_inet">...</span>
+	    <td align=right>
+	      <span id="platform/link_ipaddr">...</span>
+	      <input type=submit value="Apply Now" onclick="CraftUI.config('link_ipaddr', 1)">
+	    <td>
+	      <input id=link_ipaddr type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('link_ipaddr')">
+	    <td>
+	      <span id=link_ipaddr_result>...</span>
+
+	  <tr>
+	    <td><b>Peer IP Address
+	    <td align=right>N/A
+	    <td align=right>
+	      <span id="platform/peer_ipaddr">...</span>
+	      <input type=submit value="Apply Now" onclick="CraftUI.config('peer_ipaddr', 1)">
+	    <td>
+	      <input id=peer_ipaddr type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('peer_ipaddr')">
+	    <td>
+	      <span id=peer_ipaddr_result>...</span>
+
+	  <tr>
+	    <td><b>Link VLAN (to peer)
+	    <td align=right><span id="platform/active_link_vlan">...</span>
+	    <td align=right>
+	      <span id="platform/vlan_link">...</span>
+	      <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_peer', 1)">
+	    <td>
+	      <input id=vlan_peer type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('vlan_peer')">
+	    <td>
+	      <span id=vlan_peer_result>...</span>
+
+	  <tr>
+	    <td><b>In-band Management VLAN
+	    <td align=right><span id="platform/active_inband_vlan">...</span>
+	    <td align=right>
+	      <span id="platform/vlan_inband">...</span>
+	      <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_inband', 1)">
+	    <td>
+	      <input id=vlan_inband type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('vlan_inband')">
+	    <td>
+	      <span id=vlan_inband_result>...</span>
+
+	</table>
+	<b>Radio Parameters:</b>
+	<table>
+	  <tr>
+	    <td align=center><b>Parameter
+	    <td align=center><b>Active Value
+	    <td align=center><b>Configure and Apply
+	    <td align=center><b>Status
+
+	  <tr>
+	    <td><b>High Frequency
+	    <td align=right><span id="radio/hiTransceiver/pll/frequency">...</span>
+	    <td>
+	      <input id=freq_hi type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('freq_hi')">
+	    <td>
+	      <span id=freq_hi_result>...</span>
+
+	  <tr>
+	    <td><b>Low Frequency
+	    <td align=right><span id="radio/loTransceiver/pll/frequency">...</span>
+	    <td>
+	      <input id=freq_lo type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('freq_lo')">
+	    <td>
+	      <span id=freq_lo_result>...</span>
+
+	  <tr>
+	    <td><b>High Frequency Mode
+	    <td align=right><span id="radio/hiTransceiver/mode">...</span>
+	    <td>
+	      <input id=mode_hi type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('mode_hi')">
+	    <td>
+	      <span id=mode_hi_result>...</span>
+
+	  <tr>
+	    <td><b>Power Level
+	    <td align=right><span id="radio/tx/paPowerSet">...</span>
+	    <td>
+	      <input id=tx_powerlevel type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('tx_powerlevel')">
+	    <td>
+	      <span id=tx_powerlevel_result>...</span>
+
+	  <tr>
+	    <td><b>Power Enabled
+	    <td align=right><span id="radio/paLnaPowerEnabled">...</span>
+	    <td>
+	      <input id=tx_on type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('tx_on')">
+	    <td>
+	      <span id=tx_on_result>...</span>
+
+	</table>
+      </div>
+    </div>
+    <div class="tab">
+      <input type="radio" id="tab-2" name="tab-group-1">
+      <label for="tab-2">Debug</label>
+      <div class="content">
+        <b>refreshCount:</b><span class="values" id="platform/refreshCount">...</span><br>
+        <b>unhandled xml:</b><span class="values" id="unhandled"></span>
+      </div>
+    </div>
+  </div>
+  <script src="static/craft.js"></script>
+</body>
+</html>

@@ -68,15 +68,43 @@ CraftUI.getInfo = function() {
       CraftUI.flattenAndUpdateFields(list, '');
     }
     CraftUI.updateField('unhandled', self.unhandled);
-    if (self.unhandled.length > 0) {
-      console.log(self.unhandled);
-    }
   };
   var payload = [];
   payload.push('checksum=' + encodeURIComponent(CraftUI.info.checksum));
   payload.push('_=' + encodeURIComponent((new Date()).getTime()));
   xhr.open('get', 'content.json?' + payload.join('&'), true);
   xhr.send();
+};
+
+CraftUI.config = function(key, activate) {
+  // POST as json
+  var el = document.getElementById(key);
+  var value = el.value;
+  var xhr = new XMLHttpRequest();
+  xhr.open('post', 'content.json');
+  xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+  var data;
+  if (activate) {
+    data = { config: [ { [key + "_activate"]: "true" } ] };
+  } else {
+    data = { config: [ { [key]: value } ] };
+  }
+  var txt = JSON.stringify(data);
+  var resultid = key + "_result"
+  var el = document.getElementById(resultid);
+  xhr.onload = function(e) {
+    var json = JSON.parse(xhr.responseText);
+    if (json.error == 0) {
+      el.innerHTML = "Success!";
+    } else {
+      el.innerHTML = "Error: " + json.errorstring;
+    }
+    CraftUI.getInfo();
+  }
+  xhr.onerror = function(e) {
+    el.innerHTML = xhr.statusText + xhr.responseText;
+  }
+  xhr.send(txt);
 };
 
 new CraftUI();

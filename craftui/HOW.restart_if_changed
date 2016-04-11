@@ -6,10 +6,13 @@ pid=
 
 restart() {
   [ -n "$pid" ] && kill $pid
+  echo "######################################################################"
   echo "# starting craftui"
+  gpylint *.py
+  make test
   ./craftui &
   pid=$!
-  touch started
+  touch .started
 }
 
 onExit() {
@@ -25,7 +28,7 @@ while sleep 1; do
     restart
     continue
   fi
-  f=$(find . -type f -newer started)
+  f=$(find . -name '*.swp' -prune -o -type f -newer .started -print)
   if [ -n "$f" ]; then
     restart
     continue

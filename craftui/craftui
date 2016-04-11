@@ -1,6 +1,6 @@
 #! /bin/sh
 
-bin=/bin
+pycode=/bin/craftui.py
 cw=/usr/catawampus
 devcw=../../../../vendor/google/catawampus
 localwww=./www
@@ -14,7 +14,8 @@ fi
 if [ "$isdev" = 1 ]; then
   cw="$devcw"
   args="$args --port=8888 --sim=./sim"
-  bin=.
+  pycode=./craftui_fortesting.py
+  export PATH="$PWD/sim/bin:$PATH"
 fi
 
 # for debugging on the device, use the local (/tmp/www?) web tree
@@ -22,5 +23,10 @@ if [ -d "$localwww" ]; then
   args="$args --www=$localwww"
 fi
 
+# enable debugger
+if [ "$1" = -d ]; then
+  debug="-m pdb"
+fi
+
 export PYTHONPATH="$cw/tr/vendor/tornado:$PYTHONPATH"
-exec python $bin/craftui.py $args
+exec python -u $debug $pycode $args

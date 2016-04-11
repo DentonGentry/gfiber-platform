@@ -17,6 +17,14 @@
 
 __author__ = 'edjames@google.com (Ed James)'
 
+import traceback
+import craftui
 
 if __name__ == '__main__':
-  print 'TODO(edjames)'
+  try:
+    craftui.main()
+  # pylint: disable=broad-except
+  except Exception as e:
+    traceback.print_exc()
+    # exit cleanly to close the socket so next listen doesn't fail with in-use
+    exit(1)
