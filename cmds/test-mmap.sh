@@ -18,7 +18,14 @@ for n in tests.mmap/*.test; do
     $PREFIX ../host-mmap $ARGS < INPUT > GOT 2>&1
     status=$?
     if [ -n "$PREFIX" ]; then
-      sleep .5      # script mysteriously delays output
+      # /usr/bin/script mysteriously delays output (child writes cached?)
+      # sleep up to 4 seconds waiting for the output
+      for n in $(seq 1 40); do
+        if [ -s GOT ]; then
+          break
+        fi
+        sleep .1
+      done
     fi
     if [ "$status" != "$EXIT" ]; then
       echo "exit code: expected '$EXIT', got '$status'"
