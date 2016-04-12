@@ -65,7 +65,7 @@ uint32 StartTime() {
 }
 
 // Make sure someone calls it so that it gets initialized
-static uint32 ignore = StartTime();
+static uint32 __attribute__((used)) ignore = StartTime();
 
 uint32 TimeAfter(int32 elapsed) {
   ASSERT(elapsed >= 0);
