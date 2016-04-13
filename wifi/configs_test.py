@@ -310,6 +310,7 @@ ieee80211n=1
 
 
 
+
 ht_capab=[HT20][RX-STBC1]
 
 """
@@ -332,6 +333,55 @@ ieee80211n=1
 
 
 
+
+
+ht_capab=[HT20][RX-STBC1]
+
+"""
+
+_HOSTAPD_CONFIG_SUPPORTS_PROVISIONING = """ctrl_interface=/var/run/hostapd
+interface=wlan0
+
+ssid=TEST_SSID
+utf8_ssid=1
+auth_algs=1
+hw_mode=g
+channel=1
+country_code=US
+ieee80211d=1
+ieee80211h=1
+ieee80211n=1
+
+
+
+
+
+
+vendor_elements=dd04f4f5e801
+
+ht_capab=[HT20][RX-STBC1]
+
+"""
+
+_HOSTAPD_CONFIG_PROVISION_VIA = """ctrl_interface=/var/run/hostapd
+interface=wlan0
+
+ssid=TEST_SSID
+utf8_ssid=1
+auth_algs=1
+hw_mode=g
+channel=1
+country_code=US
+ieee80211d=1
+ieee80211h=1
+ieee80211n=1
+
+
+
+
+
+
+vendor_elements=dd19f4f5e80247466962657253657475704175746f6d6174696f6edd1af4f5e80347466962657253657475704175746f6d6174696f6e35
 
 ht_capab=[HT20][RX-STBC1]
 
@@ -366,6 +416,9 @@ class FakeOptDict(object):
     self.persist = False
     self.interface_suffix = ''
     self.client_isolation = False
+    self.supports_provisioning = False
+    self.provision_via_2g = ''
+    self.provision_via_5g = ''
 
 
 # pylint: disable=protected-access
@@ -392,6 +445,30 @@ def generate_hostapd_config_test():
                              '# Experiments: ()\n')),
                   config)
   opt.bridge = default_bridge
+
+  # Test provisioning IE.
+  opt.supports_provisioning = True
+  config = configs.generate_hostapd_config(
+      _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
+      'asdfqwer', opt)
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG_SUPPORTS_PROVISIONING,
+                             _HOSTAPD_CONFIG_WPA,
+                             '# Experiments: ()\n')),
+                  config)
+  opt.supports_provisioning = False
+
+  # Test provision via IEs.
+  opt.provision_via_2g = 'GFiberSetupAutomation'
+  opt.provision_via_5g = 'GFiberSetupAutomation5'
+  config = configs.generate_hostapd_config(
+      _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
+      'asdfqwer', opt)
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG_PROVISION_VIA,
+                             _HOSTAPD_CONFIG_WPA,
+                             '# Experiments: ()\n')),
+                  config)
+  opt.provision_via_2g = ''
+  opt.provision_via_5g = ''
 
   # Test with no encryption.
   default_encryption, opt.encryption = opt.encryption, 'NONE'
@@ -442,6 +519,13 @@ def generate_hostapd_config_test():
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', opt)
   wvtest.WVPASSEQ(new_config, config)
+
+
+@wvtest.wvtest
+def create_vendor_ie_test():
+  wvtest.WVPASSEQ(configs.create_vendor_ie('01'), 'dd04f4f5e801')
+  wvtest.WVPASSEQ(configs.create_vendor_ie('02', 'GFiberSetupAutomation'),
+                  'dd19f4f5e80247466962657253657475704175746f6d6174696f6e')
 
 
 if __name__ == '__main__':

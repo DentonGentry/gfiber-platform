@@ -55,6 +55,9 @@ lock-timeout=                     How long, in seconds, to wait for another /bin
 scan-ap-force                     (Scan only) scan when in AP mode
 scan-passive                      (Scan only) do not probe, scan passively
 scan-freq=                        (Scan only) limit scan to specific frequencies.
+supports-provisioning             Indicate via vendor IE that this AP supports provisioning.  Corresponds to feature ID 01 of OUI f4f5e8 at go/alphabet-ie-registry.
+provision-via-2g=                 The SSID of the 2.4 GHz open provisioning network supporting the user's wireless devices, to be exposed as a vendor IE.  Corresponds to feature ID 02 of OUI f4f5e8 at go/alphabet-ie-registry. []
+provision-via-5g=                 The SSID of the 5 GHz open provisioning network supporting the user's wireless devices, to be exposed as a vendor IE.  Corresponds to feature ID 03 of OUI f4f5e8 at go/alphabet-ie-registry. []
 """
 
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
