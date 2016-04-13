@@ -389,6 +389,7 @@ class ConnectionManager(object):
       # This interface is not connected to the WLAN, so scan for potential
       # routes to the ACS for provisioning.
       if (not self.acs() and
+          not getattr(wifi, 'last_successful_bss_info', None) and
           time.time() > wifi.last_wifi_scan_time + self._wifi_scan_period_s):
         logging.debug('Performing scan on %s.', wifi.name)
         self._wifi_scan(wifi)
@@ -423,6 +424,9 @@ class ConnectionManager(object):
         self._status.connected_to_wlan = False
         if self.acs():
           logging.debug('Connected to ACS on %s', wifi.name)
+          wifi.last_successful_bss_info = getattr(wifi,
+                                                  'last_attempted_bss_info',
+                                                  None)
           now = time.time()
           if (self._wlan_configuration and
               hasattr(wifi, 'waiting_for_acs_since')):
@@ -461,9 +465,23 @@ class ConnectionManager(object):
     return result
 
   def _update_interfaces_and_routes(self):
+    """Touch each interface via update_routes."""
+
     self.bridge.update_routes()
     for wifi in self.wifi:
       wifi.update_routes()
+      # If wifi is connected to something that's not the WLAN, it must be a
+      # provisioning attempt, and in particular that attempt must be via
+      # last_attempted_bss_info.  If that is the same as the
+      # last_successful_bss_info (i.e. the last attempt was successful) and we
+      # aren't connected to the ACS after calling update_routes (which expires
+      # the connection status cache), then this BSS is no longer successful.
+      if (wifi.wpa_supplicant and
+          not self._connected_to_wlan(wifi) and
+          (getattr(wifi, 'last_successful_bss_info', None) ==
+           getattr(wifi, 'last_attempted_bss_info', None)) and
+          not wifi.acs()):
+        wifi.last_successful_bss_info = None
 
     # Make sure these get called semi-regularly so that exported status is up-
     # to-date.
@@ -619,19 +637,22 @@ class ConnectionManager(object):
     if not hasattr(wifi, 'cycler'):
       return False
 
-    bss_info = wifi.cycler.next()
+    last_successful_bss_info = getattr(wifi, 'last_successful_bss_info', None)
+    bss_info = last_successful_bss_info or wifi.cycler.next()
     if bss_info is not None:
+      logging.debug('Attempting to connect to SSID %s for provisioning',
+                    bss_info.ssid)
       self._status.trying_open = True
-      connected = subprocess.call(self.WIFI_SETCLIENT +
-                                  ['--ssid', bss_info.ssid,
-                                   '--band', wifi.bands[0],
-                                   '--bssid', bss_info.bssid]) == 0
+      connected = self._try_bssid(wifi, bss_info)
       if connected:
         self._status.connected_to_open = True
         now = time.time()
         wifi.waiting_for_acs_since = now
         wifi.complain_about_acs_at = now + 5
         logging.info('Attempting to provision via SSID %s', bss_info.ssid)
+      # If we can no longer connect to this, it's no longer successful.
+      elif bss_info == last_successful_bss_info:
+        wifi.last_successful_bss_info = None
       return connected
     else:
       # TODO(rofrankel):  There are probably more cases in which this should be
@@ -642,6 +663,13 @@ class ConnectionManager(object):
       self._status.provisioning_failed = True
 
     return False
+
+  def _try_bssid(self, wifi, bss_info):
+    wifi.last_attempted_bss_info = bss_info
+    return subprocess.call(self.WIFI_SETCLIENT +
+                           ['--ssid', bss_info.ssid,
+                            '--band', wifi.bands[0],
+                            '--bssid', bss_info.bssid]) == 0
 
   def _connected_to_wlan(self, wifi):
     return (wifi.wpa_supplicant and

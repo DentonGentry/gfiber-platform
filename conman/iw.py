@@ -34,7 +34,7 @@ class BssInfo(object):
 
   def __eq__(self, other):
     # pylint: disable=protected-access
-    return self.__attrs() == other.__attrs()
+    return isinstance(other, BssInfo) and self.__attrs() == other.__attrs()
 
   def __hash__(self):
     return hash(self.__attrs())

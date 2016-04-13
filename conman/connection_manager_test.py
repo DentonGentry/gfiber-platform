@@ -221,6 +221,10 @@ class ConnectionManager(connection_manager.ConnectionManager):
       self.interface_by_name(wifi)._initially_connected = True
 
     self.scan_has_results = False
+    # Should we be able to connect to open network s2?
+    self.s2_connect = True
+    # Will s2 fail rather than providing ACS access?
+    self.s2_fail = False
 
   @property
   def IP_LINK(self):
@@ -235,13 +239,8 @@ class ConnectionManager(connection_manager.ConnectionManager):
         wifi = self.wifi_for_band(wlan_configuration.band)
         wifi.add_terminating_event()
 
-  def _try_next_bssid(self, wifi):
-    if hasattr(wifi, 'cycler'):
-      bss_info = wifi.cycler.peek()
-      if bss_info:
-        self.last_provisioning_attempt = bss_info
-
-    super(ConnectionManager, self)._try_next_bssid(wifi)
+  def _try_bssid(self, wifi, bss_info):
+    super(ConnectionManager, self)._try_bssid(wifi, bss_info)
 
     socket = os.path.join(self._wpa_control_interface, wifi.name)
 
@@ -255,13 +254,21 @@ class ConnectionManager(connection_manager.ConnectionManager):
       return True
 
     if bss_info and bss_info.ssid == 's2':
-      if wifi.attached():
-        wifi.add_connected_event()
+      if self.s2_connect:
+        if wifi.attached():
+          wifi.add_connected_event()
+        else:
+          open(socket, 'w')
+        if self.s2_fail:
+          connection_check_result = 'fail'
+          logging.debug('s2 configured to have no ACS access')
+        else:
+          connection_check_result = 'restricted'
+        wifi.set_connection_check_result(connection_check_result)
+        self.ifplugd_action(wifi.name, True)
+        return True
       else:
-        open(socket, 'w')
-      wifi.set_connection_check_result('restricted')
-      self.ifplugd_action(wifi.name, True)
-      return True
+        logging.debug('s2 configured not to connect')
 
     return False
 
@@ -532,8 +539,11 @@ def connection_manager_test_radio_independent(c):
   for _ in range(3):
     c.run_once()
     wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
-  wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's2')
-  wvtest.WVPASSEQ(c.last_provisioning_attempt.bssid, '01:23:45:67:89:ab')
+
+  last_bss_info = c.wifi_for_band('2.4').last_attempted_bss_info
+  wvtest.WVPASSEQ(last_bss_info.ssid, 's2')
+  wvtest.WVPASSEQ(last_bss_info.bssid, '01:23:45:67:89:ab')
+
   # Wait for the connection to be processed.
   c.run_once()
   wvtest.WVPASS(c.acs())
@@ -590,6 +600,75 @@ def connection_manager_test_radio_independent(c):
   wvtest.WVFAIL(c.client_up('2.4'))
   wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
   wvtest.WVPASS(c.bridge.current_route())
+
+  # Now delete the config and bring down the bridge and make sure we reprovision
+  # via the last working BSS.
+  c.delete_wlan_config('2.4')
+  c.bridge.set_connection_check_result('fail')
+  scan_count_2_4 = c.wifi_for_band('2.4').wifi_scan_counter
+  c.run_until_interface_update()
+  wvtest.WVFAIL(c.acs())
+  wvtest.WVFAIL(c.internet())
+  # s2 is not what the cycler would suggest trying next.
+  wvtest.WVPASSNE('s2', c.wifi_for_band('2.4').cycler.peek())
+  # Run only once, so that only one BSS can be tried.  It should be the s2 one,
+  # since that worked previously.
+  c.run_once()
+  wvtest.WVPASS(c.acs())
+  # Make sure we didn't scan on 2.4.
+  wvtest.WVPASSEQ(scan_count_2_4, c.wifi_for_band('2.4').wifi_scan_counter)
+
+  # Now re-create the WLAN config, connect to the WLAN, and make sure that s2 is
+  # unset as last_successful_bss_info if it is no longer available.
+  c.write_wlan_config('2.4', ssid, psk)
+  c.run_once()
+  wvtest.WVPASS(c.acs())
+  wvtest.WVPASS(c.internet())
+
+  c.s2_connect = False
+  c.delete_wlan_config('2.4')
+  c.run_once()
+  wvtest.WVPASSEQ(c.wifi_for_band('2.4').last_successful_bss_info, None)
+
+  # Now do the same, except this time s2 is connected to but doesn't provide ACS
+  # access.  This requires first re-establishing s2 as successful, so there are
+  # four steps:
+  #
+  # 1) Connect to WLAN.
+  # 2) Disconnect, reprovision via s2 (establishing it as successful).
+  # 3) Reconnect to WLAN so that we can trigger re-provisioning by
+  #    disconnecting.
+  # 4) Connect to s2 but get no ACS access; see that last_successful_bss_info is
+  #    unset.
+  c.write_wlan_config('2.4', ssid, psk)
+  c.run_once()
+  wvtest.WVPASS(c.acs())
+  wvtest.WVPASS(c.internet())
+
+  c.delete_wlan_config('2.4')
+  c.run_once()
+  wvtest.WVFAIL(c.wifi_for_band('2.4').acs())
+
+  c.s2_connect = True
+  # Give it time to try all BSSIDs.
+  for _ in range(3):
+    c.run_once()
+  s2_bss = iw.BssInfo('01:23:45:67:89:ab', 's2')
+  wvtest.WVPASSEQ(c.wifi_for_band('2.4').last_successful_bss_info, s2_bss)
+
+  c.s2_fail = True
+  c.write_wlan_config('2.4', ssid, psk)
+  c.run_once()
+  wvtest.WVPASS(c.acs())
+  wvtest.WVPASS(c.internet())
+
+  wvtest.WVPASSEQ(c.wifi_for_band('2.4').last_successful_bss_info, s2_bss)
+  c.delete_wlan_config('2.4')
+  # Run once so that c will reconnect to s2.
+  c.run_once()
+  # Now run until it sees the lack of ACS access.
+  c.run_until_interface_update()
+  wvtest.WVPASSEQ(c.wifi_for_band('2.4').last_successful_bss_info, None)
 
 
 @wvtest.wvtest
