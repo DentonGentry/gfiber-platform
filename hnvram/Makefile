@@ -29,7 +29,7 @@ hnvram_test: hnvram_test.cc hnvram_main.c $(INCS)
 
 install:
 	mkdir -p $(BINDIR)
-	cp hnvram $(BINDIR)/hnvram_binary
+	cp hnvram $(BINDIR)
 
 install-libs:
 	@echo "No libs to install."
