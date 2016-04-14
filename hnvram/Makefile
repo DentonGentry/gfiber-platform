@@ -7,7 +7,8 @@ LD:=$(CROSS_COMPILE)ld
 AR:=$(CROSS_COMPILE)ar
 RANLIB:=$(CROSS_COMPILE)ranlib
 STRIP:=$(CROSS_COMPILE)strip
-BINDIR=$(DESTDIR)/bin
+PREFIX=/usr
+BINDIR=$(DESTDIR)$(PREFIX)/bin
 
 HUMAX_UPGRADE_DIR ?= ../../../humax/misc/libupgrade
 CFLAGS += -g -Os -I$(HUMAX_UPGRADE_DIR) $(EXTRACFLAGS)
@@ -29,7 +30,7 @@ hnvram_test: hnvram_test.cc hnvram_main.c $(INCS)
 
 install:
 	mkdir -p $(BINDIR)
-	cp hnvram $(BINDIR)
+	cp hnvram $(BINDIR)/hnvram_binary
 
 install-libs:
 	@echo "No libs to install."
