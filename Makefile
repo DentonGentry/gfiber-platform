@@ -78,10 +78,7 @@ ifeq ($(BUILD_CONMAN),y)
 DIRS+=conman
 endif
 
-PREFIX=/usr
-BINDIR=$(DESTDIR)$(PREFIX)/bin
-LIBDIR=$(DESTDIR)$(PREFIX)/lib
-
+BINDIR=$(DESTDIR)/bin
 
 all:     $(addsuffix /all,$(DIRS)) build-optionspy
 test:    $(addsuffix /test,$(DIRS))
@@ -97,6 +94,15 @@ install-libs: $(addsuffix /install-libs,$(DIRS))
 install:
 	set -e; for d in $(DIRS); do $(MAKE) -C $$d install; done
 	$(MAKE) install-optionspy
+	mkdir -p $(BINDIR)
+	rm -fv $(BINDIR)/hnvram
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME), gfmn110)
+	ln -s /bin/hnvram_wrapper $(BINDIR)/hnvram
+else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME), gflt110)
+	ln -s /bin/hnvram_wrapper $(BINDIR)/hnvram
+else
+	ln -s /bin/hnvram_binary $(BINDIR)/hnvram
+endif
 
 sysmgr/all: base/all libstacktrace/all libexperiments/all
 cmds/all: libstacktrace/all libexperiments/all
