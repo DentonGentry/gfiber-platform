@@ -13,6 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# One version of gpylint wants to see clientinfo first and taxonomy last.
+# Another wants to see the reverse. Cannot satisfy both, so tell both of them
+# to shove the error so far up their stdin that it should never trouble us
+# again.
+# pylint:disable=g-bad-import-order
 import taxonomy
 import clientinfo
 from wvtest import wvtest
