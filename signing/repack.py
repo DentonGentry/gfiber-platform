@@ -146,7 +146,7 @@ def RealSign(bindir, hostdir, key, ifname, ofname, signing_tool):
 def RealSignBolt(hostdir, fname):
   """Sign the kernel image with the bolt signing tool.
 
-  This uses the broadcom signing tool to sign a kerel for
+  This uses the broadcom signing tool to sign a kernel for
   secure boot.  The function expects to be called with the
   current directory equal to out/build/images.
 
@@ -159,12 +159,15 @@ def RealSignBolt(hostdir, fname):
   """
 
   tool_path = os.path.join(hostdir, 'usr/bin/boltsigning/gfiber')
-  shutil.copy('signing/gfhd254_private.pem', '/dev/shm/gfhd254_private.pem')
+  # Remove any existing file before trying to copy the key over.
+  key_path = '/dev/shm/gfhd254_private.pem'
+  subprocess.call(['shred', '-fuz', key_path])
+  shutil.copy('signing/gfhd254_private.pem', key_path)
   shutil.copy(fname, os.path.join(tool_path, 'kernel.img'))
   exit_code = subprocess.call(
       ['wine', '../imagetool.exe', '-L', 'kernel', '-O', 'kernel.cfg',
        '-K', 'signing=true'], cwd=tool_path)
-  subprocess.call(['shred', '-fuz', '/dev/shm/gfhd254_private.pem'])
+  subprocess.call(['shred', '-fuz', key_path])
   if exit_code:
     raise Exception('bolt signing tool returned exit code %d' % (exit_code,))
   shutil.copy(os.path.join(tool_path, 'kernel.img.signed'), fname)
