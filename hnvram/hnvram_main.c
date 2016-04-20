@@ -79,7 +79,10 @@ const hnvram_field_t nvram_fields[] = {
   {"PAIRED_DISK",          NVRAM_FIELD_PAIRED_DISK,       HNVRAM_STRING},
   {"PARTITION_VER",        NVRAM_FIELD_PARTITION_VER,     HNVRAM_STRING},
   {"HW_VER",               NVRAM_FIELD_HW_VER,            HNVRAM_UINT8},
-  {"UITYPE",               NVRAM_FIELD_UITYPE,            HNVRAM_STRING}
+  {"UITYPE",               NVRAM_FIELD_UITYPE,            HNVRAM_STRING},
+  {"LASER_CHANNEL",        NVRAM_FIELD_LASER_CHANNEL,     HNVRAM_STRING},
+  {"MAC_ADDR_PON",         NVRAM_FIELD_MAC_ADDR_PON,      HNVRAM_MAC},
+  {"PRODUCTION_UNIT",      NVRAM_FIELD_PRODUCTION_UNIT,   HNVRAM_STRING},
 };
 
 const hnvram_field_t* get_nvram_field(const char* name) {
