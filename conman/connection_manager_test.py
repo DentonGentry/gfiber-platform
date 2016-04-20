@@ -92,14 +92,17 @@ Band: 5
 RegDomain: 00
 """
 
-IW_SCAN_OUTPUT = """BSS 00:11:22:33:44:55(on wcli0)
+IW_SCAN_DEFAULT_OUTPUT = """BSS 00:11:22:33:44:55(on wcli0)
   SSID: s1
-  Vendor specific: OUI f4:f5:e8, data: 01
 BSS 66:77:88:99:aa:bb(on wcli0)
   SSID: s1
-  Vendor specific: OUI f4:f5:e8, data: 01
 BSS 01:23:45:67:89:ab(on wcli0)
   SSID: s2
+"""
+
+IW_SCAN_HIDDEN_OUTPUT = """BSS ff:ee:dd:cc:bb:aa(on wcli0)
+  Vendor specific: OUI f4:f5:e8, data: 01
+  Vendor specific: OUI f4:f5:e8, data: 03 73 33
 """
 
 
@@ -221,6 +224,8 @@ class ConnectionManager(connection_manager.ConnectionManager):
       self.interface_by_name(wifi)._initially_connected = True
 
     self.scan_has_results = False
+    self.scan_results_include_hidden = False
+    self.can_connect_to_s2 = True
 
   @property
   def IP_LINK(self):
@@ -245,37 +250,37 @@ class ConnectionManager(connection_manager.ConnectionManager):
 
     socket = os.path.join(self._wpa_control_interface, wifi.name)
 
-    if bss_info and bss_info.ssid == 's1':
+    def connect(connection_check_result):
       if wifi.attached():
         wifi.add_connected_event()
       else:
         open(socket, 'w')
-      wifi.set_connection_check_result('fail')
-      self.write_interface_status_file(wifi.name, '1')
+      wifi.set_connection_check_result(connection_check_result)
+      self.ifplugd_action(wifi.name, True)
+
+    if bss_info and bss_info.ssid == 's1':
+      connect('fail')
       return True
 
-    if bss_info and bss_info.ssid == 's2':
-      if wifi.attached():
-        wifi.add_connected_event()
-      else:
-        open(socket, 'w')
-      wifi.set_connection_check_result('restricted')
-      self.ifplugd_action(wifi.name, True)
+    if bss_info and bss_info.ssid == 's2' and self.can_connect_to_s2:
+      connect('succeed')
+      return True
+
+    if bss_info and bss_info.ssid == 's3':
+      connect('restricted')
       return True
 
     return False
 
-  def _wifi_stopclient(self, band):
-    super(ConnectionManager, self)._wifi_stopclient(band)
-    self.wifi_for_band(band).add_terminating_event()
-
   # pylint: disable=unused-argument,protected-access
   def _find_bssids(self, band):
     # Only wcli0 finds anything.
+    scan_output = ''
     if band in self.interface_by_name('wcli0').bands and self.scan_has_results:
-      iw._scan = lambda interface: IW_SCAN_OUTPUT
-    else:
-      iw._scan = lambda interface: ''
+      scan_output = IW_SCAN_DEFAULT_OUTPUT
+      if self.scan_results_include_hidden:
+        scan_output += IW_SCAN_HIDDEN_OUTPUT
+    iw._scan = lambda interface: scan_output
     return super(ConnectionManager, self)._find_bssids(band)
 
   def _update_wlan_configuration(self, wlan_configuration):
@@ -394,7 +399,7 @@ def connection_manager_test(radio_config, **cm_kwargs):
       """The actual test function."""
       run_duration_s = .01
       interface_update_period = 5
-      wifi_scan_period = 5
+      wifi_scan_period = 15
       wifi_scan_period_s = run_duration_s * wifi_scan_period
 
       # pylint: disable=protected-access
@@ -537,12 +542,39 @@ def connection_manager_test_radio_independent(c):
   # Wait for the connection to be processed.
   c.run_once()
   wvtest.WVPASS(c.acs())
-  wvtest.WVFAIL(c.internet())
+  wvtest.WVPASS(c.internet())
   wvtest.WVFAIL(c.client_up('2.4'))
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
 
-  # Now, create a WLAN configuration which should be connected to.  Also, test
-  # that atomic writes/renames work.
+  # Now, create a WLAN configuration which should be connected to.
+  ssid = 'wlan'
+  psk = 'password'
+  c.write_wlan_config('2.4', ssid, psk)
+  c.disable_access_point('2.4')
+  c.run_once()
+  wvtest.WVPASS(c.client_up('2.4'))
+  wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
+  wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
+
+  # Now, remove the WLAN configuration and make sure we are disconnected.  Then
+  # disable the previously used ACS connection via s2, add the user's WLAN to
+  # the scan results, and scan again.  This time, the first SSID tried should be
+  # 's3', which is not present in the scan results but *is* advertised by the
+  # secure AP running the user's WLAN.
+  c.can_connect_to_s2 = False
+  c.scan_results_include_hidden = True
+  c.delete_wlan_config('2.4')
+  c.run_once()
+  wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
+  c.run_until_interface_update()
+  c.run_until_scan('2.4')
+  c.run_until_interface_update()
+  wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
+  wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's3')
+  wvtest.WVPASSEQ(c.last_provisioning_attempt.bssid, 'ff:ee:dd:cc:bb:aa')
+
+  # Now, recreate the same WLAN configuration, which should be connected to.
+  # Also, test that atomic writes/renames work.
   ssid = 'wlan'
   psk = 'password'
   c.write_wlan_config('2.4', ssid, psk, atomic=True)

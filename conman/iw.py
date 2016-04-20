@@ -6,6 +6,9 @@ import re
 import subprocess
 
 
+FIBER_OUI = 'f4:f5:e8'
+
+
 def _scan(band, **kwargs):
   try:
     return subprocess.check_output(('wifi', 'scan', '-b', band), **kwargs)
@@ -35,6 +38,9 @@ class BssInfo(object):
   def __eq__(self, other):
     # pylint: disable=protected-access
     return self.__attrs() == other.__attrs()
+
+  def __ne__(self, other):
+    return not self.__eq__(other)
 
   def __hash__(self):
     return hash(self.__attrs())
@@ -101,6 +107,14 @@ def find_bssids(band, vendor_ie_function, include_secure):
   for bss_info in parsed:
     if bss_info.security and not include_secure:
       continue
+
+    for oui, data in bss_info.vendor_ies:
+      if oui == FIBER_OUI:
+        octets = data.split()
+        if octets[0] == '03' and not bss_info.ssid:
+          bss_info.ssid = ''.join(octets[1:]).decode('hex')
+          continue
+
     for oui, data in bss_info.vendor_ies:
       if vendor_ie_function(oui, data):
         result_with_ie.add(bss_info)

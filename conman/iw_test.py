@@ -486,6 +486,72 @@ BSS 94:b4:0f:f1:36:40(on wcli0)
      * BK: CW 15-1023, AIFSN 7
      * VI: CW 7-15, AIFSN 2, TXOP 3008 usec
      * VO: CW 3-7, AIFSN 2, TXOP 1504 usec
+BSS 94:b4:0f:f1:36:41(on wcli0)
+  TSF: 12499150000 usec (0d, 03:28:19)
+  freq: 2437
+  beacon interval: 100 TUs
+  capability: ESS Privacy ShortPreamble SpectrumMgmt ShortSlotTime RadioMeasure (0x1531)
+  signal: -66.00 dBm
+  last seen: 2350 ms ago
+  Information elements from Probe Response frame:
+  SSID:
+  Supported rates: 36.0* 48.0 54.0
+  DS Parameter set: channel 6
+  TIM: DTIM Count 0 DTIM Period 1 Bitmap Control 0x0 Bitmap[0] 0x0
+  Country: US Environment: Indoor/Outdoor
+    Channels [1 - 11] @ 36 dBm
+  Power constraint: 0 dB
+  TPC report: TX power: 3 dBm
+  ERP: <no flags>
+  BSS Load:
+     * station count: 0
+     * channel utilisation: 28/255
+     * available admission capacity: 27500 [*32us]
+  HT capabilities:
+    Capabilities: 0x19ad
+      RX LDPC
+      HT20
+      SM Power Save disabled
+      RX HT20 SGI
+      TX STBC
+      RX STBC 1-stream
+      Max AMSDU length: 7935 bytes
+      DSSS/CCK HT40
+    Maximum RX AMPDU length 65535 bytes (exponent: 0x003)
+    Minimum RX AMPDU time spacing: 4 usec (0x05)
+    HT RX MCS rate indexes supported: 0-23
+    HT TX MCS rate indexes are undefined
+  HT operation:
+     * primary channel: 6
+     * secondary channel offset: no secondary
+     * STA channel width: 20 MHz
+     * RIFS: 1
+     * HT protection: nonmember
+     * non-GF present: 1
+     * OBSS non-GF present: 1
+     * dual beacon: 0
+     * dual CTS protection: 0
+     * STBC beacon: 0
+     * L-SIG TXOP Prot: 0
+     * PCO active: 0
+     * PCO phase: 0
+  Overlapping BSS scan params:
+     * passive dwell: 20 TUs
+     * active dwell: 10 TUs
+     * channel width trigger scan interval: 300 s
+     * scan passive total per channel: 200 TUs
+     * scan active total per channel: 20 TUs
+     * BSS width channel transition delay factor: 5
+     * OBSS Scan Activity Threshold: 0.25 %
+  Extended capabilities: HT Information Exchange Supported, Extended Channel Switching, BSS Transition, 6
+  WMM:   * Parameter version 1
+     * u-APSD
+     * BE: CW 15-1023, AIFSN 3
+     * BK: CW 15-1023, AIFSN 7
+     * VI: CW 7-15, AIFSN 2, TXOP 3008 usec
+     * VO: CW 3-7, AIFSN 2, TXOP 1504 usec
+  Vendor specific: OUI 00:11:22, data: 01 23 45 67
+  Vendor specific: OUI f4:f5:e8, data: 03 47 46 69 62 65 72 53 65 74 75 70 41 75 74 6f 6d 61 74 69 6f 6e
 """
 
 
@@ -498,15 +564,23 @@ iw._scan = fake_scan
 @wvtest.wvtest
 def find_bssids_test():
   """Test iw.find_bssids."""
+  test_ie = ('00:11:22', '01 23 45 67')
+  ssid_ie = (
+      'f4:f5:e8',
+      '03 47 46 69 62 65 72 53 65 74 75 70 41 75 74 6f 6d 61 74 69 6f 6e',
+  )
   short_scan_result = iw.BssInfo(ssid='short scan result',
                                  bssid='00:23:97:57:f4:d8',
                                  security=['WEP'],
-                                 vendor_ies=[('00:11:22', '01 23 45 67')])
+                                 vendor_ies=[test_ie])
+  provisioning_bss_info = iw.BssInfo(ssid='GFiberSetupAutomation',
+                                     bssid='94:b4:0f:f1:36:41',
+                                     vendor_ies=[test_ie, ssid_ie])
 
   with_ie, without_ie = iw.find_bssids('wcli0', lambda o, d: o == '00:11:22',
                                        True)
 
-  wvtest.WVPASSEQ(with_ie, set([short_scan_result]))
+  wvtest.WVPASSEQ(with_ie, set([short_scan_result, provisioning_bss_info]))
 
   wvtest.WVPASSEQ(
       without_ie,
@@ -524,7 +598,7 @@ def find_bssids_test():
 
   with_ie, without_ie = iw.find_bssids('wcli0', lambda o, d: o == '00:11:22',
                                        False)
-  wvtest.WVPASSEQ(with_ie, set())
+  wvtest.WVPASSEQ(with_ie, set([provisioning_bss_info]))
   wvtest.WVPASSEQ(
       without_ie,
       set([iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:36:41'),
