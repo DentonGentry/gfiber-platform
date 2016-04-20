@@ -28,8 +28,7 @@ for _i in EXPERIMENTS:
 # pylint: disable=invalid-name
 class VENDOR_IE_FEATURE_ID(object):
   SUPPORTS_PROVISIONING = '01'
-  PROVISION_VIA_2G = '02'
-  PROVISION_VIA_5G = '03'
+  PROVISIONING_SSID = '03'
 
 
 # Recommended HT40/VHT80 settings for given primary channels.
@@ -389,15 +388,9 @@ def get_vendor_elements(opt):
     vendor_ies.append(
         create_vendor_ie(VENDOR_IE_FEATURE_ID.SUPPORTS_PROVISIONING))
 
-  if opt.provision_via_2g:
+  if opt.hidden_mode:
     vendor_ies.append(
-        create_vendor_ie(VENDOR_IE_FEATURE_ID.PROVISION_VIA_2G,
-                         opt.provision_via_2g))
-
-  if opt.provision_via_5g:
-    vendor_ies.append(
-        create_vendor_ie(VENDOR_IE_FEATURE_ID.PROVISION_VIA_5G,
-                         opt.provision_via_5g))
+        create_vendor_ie(VENDOR_IE_FEATURE_ID.PROVISIONING_SSID, opt.ssid))
 
   if vendor_ies:
     return 'vendor_elements=%s' % ''.join(vendor_ies)
