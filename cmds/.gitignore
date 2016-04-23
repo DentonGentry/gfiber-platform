@@ -17,14 +17,17 @@ freemegs
 gsetsid
 gstatic
 host-*
+http_bouncer
 ionice
 isoping
 isostream
 logos
 mcastreceive
 memwatcher
+mmap
 multicast_join
 netusage
+randint
 randomdata
 readubootver
 realtime
