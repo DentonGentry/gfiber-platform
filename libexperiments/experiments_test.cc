@@ -131,6 +131,7 @@ TEST_F(ExperimentsTest, Register) {
   ASSERT_TRUE(e.Initialize(test_folder_path_, 0, &DummyExperimentsRegisterFunc,
                            {"exp1"}));
   EXPECT_TRUE(e.IsRegistered("exp1"));
+  EXPECT_EQ(1, e.GetNumOfRegisteredExperiments());
 
   // add one more
   EXPECT_FALSE(e.IsRegistered("exp2"));
@@ -160,6 +161,7 @@ TEST_F(ExperimentsTest, Single) {
   ASSERT_TRUE(e.Initialize(test_folder_path_, 0, &DummyExperimentsRegisterFunc,
                            {"exp1"}));
   EXPECT_FALSE(e.IsEnabled("exp1"));
+  EXPECT_EQ(1, e.GetNumOfRegisteredExperiments());
 
   EXPECT_TRUE(SetActive(&e, "exp1"));
   EXPECT_TRUE(e.IsEnabled("exp1"));
@@ -178,6 +180,7 @@ TEST_F(ExperimentsTest, Multiple) {
   Experiments e;
   ASSERT_TRUE(e.Initialize(test_folder_path_, 0, &DummyExperimentsRegisterFunc,
                            {"exp1", "exp2", "exp3"}));
+  EXPECT_EQ(3, e.GetNumOfRegisteredExperiments());
   EXPECT_FALSE(e.IsEnabled("exp1"));
   EXPECT_FALSE(e.IsEnabled("exp2"));
   EXPECT_FALSE(e.IsEnabled("exp3"));
@@ -233,6 +236,7 @@ TEST_F(ExperimentsTest, TimeBetweenRefresh) {
   Experiments e;
   ASSERT_TRUE(e.Initialize(test_folder_path_, kMinTimeBetweenRefresh,
                            &DummyExperimentsRegisterFunc, {"exp1"}));
+  EXPECT_EQ(1, e.GetNumOfRegisteredExperiments());
   EXPECT_FALSE(e.IsEnabled("exp1"));
   EXPECT_TRUE(SetActive(&e, "exp1"));
 
@@ -263,9 +267,11 @@ TEST_F(ExperimentsTest, C_API_Test) {
   // initialize
   EXPECT_TRUE(test_experiments_initialize(test_folder_path_));
   EXPECT_TRUE(test_experiments_is_initialized());
+  EXPECT_EQ(0, experiments_get_num_of_registered_experiments());
 
   EXPECT_TRUE(test_experiments_register("exp1"));
   EXPECT_TRUE(test_experiments_is_registered("exp1"));
+  EXPECT_EQ(1, experiments_get_num_of_registered_experiments());
 
   EXPECT_FALSE(test_experiments_is_enabled("exp1"));
   EXPECT_TRUE(SetActive(experiments, "exp1"));

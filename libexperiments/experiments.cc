@@ -64,13 +64,17 @@ bool Experiments::Initialize(
   register_func_ = register_func;
   min_time_between_refresh_usec_ = min_time_between_refresh_usec;
 
-  if (!Register_Locked(names_to_register))
-    return false;
+  initialized_ = true;  // initialization part succeeded at this point
 
-  // initial read of registered experiments states
-  Refresh();
+  // register any provided experiments
+  if (!names_to_register.empty()) {
+    if (!Register_Locked(names_to_register))
+      return false;
 
-  initialized_ = true;
+    // initial read of registered experiments states
+    Refresh();
+  }
+
   return true;
 }
 
@@ -156,7 +160,7 @@ int experiments_initialize(const char *config_dir,
 
   experiments = new Experiments();
   return experiments->Initialize(config_dir, min_time_between_refresh_usec,
-                                 register_func, {""});
+                                 register_func, {});
 }
 
 int experiments_is_initialized() {
@@ -169,6 +173,10 @@ int experiments_register(const char *name) {
 
 int experiments_is_registered(const char *name) {
   return experiments ? experiments->IsRegistered(name) : false;
+}
+
+int experiments_get_num_of_registered_experiments() {
+  return experiments ? experiments->GetNumOfRegisteredExperiments() : 0;
 }
 
 int experiments_is_enabled(const char *name) {

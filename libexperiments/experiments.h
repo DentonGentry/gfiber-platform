@@ -84,8 +84,10 @@ class Experiments {
         last_time_refreshed_usec_(0) {}
   virtual ~Experiments() {}
 
-  // Initializes the instance:
-  // * Sets the provided experiments config directory and register function.
+  // Initializes the instance and registers any provided experiments. In detail:
+  // * Sets the provided experiments config directory and register function and
+  //   makes sure they are valid. If successful the instance is marked as
+  //   initialized.
   // * Calls the register function for the provided experiment names.
   // * Scans the config folder to determine initial state of all registered
   //   experiments.
@@ -111,6 +113,10 @@ class Experiments {
   bool Register(const std::string &name) {
     std::vector<std::string> names{name};
     return Register(names);
+  }
+
+  int GetNumOfRegisteredExperiments() const {
+    return registered_experiments_.size();
   }
 
   // Returns true if the given experiment is registered.
@@ -204,6 +210,9 @@ int experiments_register(const char *name);
 // Returns non-zero (boolean true) if the given experiment name is registered,
 // else 0 (boolean false).
 int experiments_is_registered(const char *name);
+
+// Returns the number of experiments registered.
+int experiments_get_num_of_registered_experiments();
 
 // Returns non-zero (boolean true) if the given experiment is active, else 0
 // (boolean false). If the minimum time between refreshes has passed, re-scans
