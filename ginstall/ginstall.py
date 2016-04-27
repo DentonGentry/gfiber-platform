@@ -771,10 +771,6 @@ def InstallLoader(loader):
   Raises:
     Fatal: if install fails
   """
-  if GetPlatform() == 'GFHD254' and GetMemTotal() < 4*1e9:
-    print 'Skipping bootloader on 2GB lockdown.'
-    return
-
   loader_start = loader.filelike.tell()
   installed = False
   for i in ['cfe', 'loader', 'loader0', 'loader1', 'flash0.bolt']:
