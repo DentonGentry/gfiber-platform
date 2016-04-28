@@ -18,7 +18,7 @@ ifplugd_action_calls = []
 
 
 def fake_qcsapi(*args):
-  calls.append(list(args))
+  calls.append([str(x) for x in args])
   if args[0] == 'is_startprod_done':
     return '1' if ['startprod', 'wifi0'] in calls else '0'
   if args[0] == 'get_bssid':
@@ -232,6 +232,14 @@ def info_parsed_test():
     })
   finally:
     shutil.rmtree(quantenna.WIFIINFO_PATH)
+
+
+@wvtest.wvtest
+def parse_scan_result_test():
+  result = '  " ssid with "quotes" " 00:11:22:33:44:55 40 25 0 0 0 0 0 1 40  '
+  wvtest.WVPASSEQ(quantenna._parse_scan_result(result),
+                  (' ssid with "quotes" ', '00:11:22:33:44:55', 40, 25, 0, 0))
+
 
 if __name__ == '__main__':
   wvtest.wvtest_main()

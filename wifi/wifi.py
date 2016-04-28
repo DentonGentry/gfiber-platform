@@ -532,6 +532,10 @@ def scan_wifi(opt):
     BinWifiException: If an expected interface is not found.
   """
   band = opt.band.split()[0]
+
+  if band == '5' and quantenna.scan_wifi(opt):
+    return True
+
   interface = iw.find_interface_from_band(
       band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
   if interface is None:
