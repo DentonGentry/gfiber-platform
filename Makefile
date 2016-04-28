@@ -14,9 +14,11 @@ BUILD_SPEEDTEST?=y
 BUILD_CRYPTDEV?=    # default off: needs libdevmapper
 BUILD_SIGNING?=     # default off: needs libgtest
 BUILD_JSONPOLL?=n
+BUILD_PRESTERASTATS?=n
 export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
 	BUILD_IBEACON BUILD_WAVEGUIDE BUILD_DVBUTILS BUILD_SYSMGR \
-	BUILD_STATUTILS BUILD_CRYPTDEV BUILD_SIGNING BUILD_JSONPOLL
+	BUILD_STATUTILS BUILD_CRYPTDEV BUILD_SIGNING BUILD_JSONPOLL \
+	BUILD_PRESTERASTATS
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
@@ -76,6 +78,10 @@ endif
 
 ifeq ($(BUILD_CONMAN),y)
 DIRS+=conman
+endif
+
+ifeq ($(BUILD_PRESTERASTATS),y)
+DIRS+=presterastats
 endif
 
 PREFIX=/usr
