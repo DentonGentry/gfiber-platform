@@ -62,7 +62,7 @@
 
 	  <tr>
 	    <td><b>Peer IP Address
-	    <td align=right>N/A
+	    <td align=right>See Peer
 	    <td align=right>
 	      <span id="platform/peer_ipaddr">...</span>
 	      <input type=submit value="Apply Now" onclick="CraftUI.config('peer_ipaddr', 1)">
@@ -71,18 +71,6 @@
 	      <input type=submit value=Configure onclick="CraftUI.config('peer_ipaddr')">
 	    <td>
 	      <span id=peer_ipaddr_result>...</span>
-
-	  <tr>
-	    <td><b>Link VLAN (to peer)
-	    <td align=right><span id="platform/active_link_vlan">...</span>
-	    <td align=right>
-	      <span id="platform/vlan_link">...</span>
-	      <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_peer', 1)">
-	    <td>
-	      <input id=vlan_peer type=text value="">
-	      <input type=submit value=Configure onclick="CraftUI.config('vlan_peer')">
-	    <td>
-	      <span id=vlan_peer_result>...</span>
 
 	  <tr>
 	    <td><b>In-band Management VLAN
@@ -95,6 +83,30 @@
 	      <input type=submit value=Configure onclick="CraftUI.config('vlan_inband')">
 	    <td>
 	      <span id=vlan_inband_result>...</span>
+
+	  <tr>
+	    <td><b>Out-of-band Management VLAN
+	    <td align=right><span id="platform/active_outofband_vlan">...</span>
+	    <td align=right>
+	      <span id="platform/vlan_outofband">...</span>
+	      <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_outofband', 1)">
+	    <td>
+	      <input id=vlan_outofband type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('vlan_outofband')">
+	    <td>
+	      <span id=vlan_outofband_result>...</span>
+
+	  <tr>
+	    <td><b>Link VLAN (to peer)
+	    <td align=right><span id="platform/active_link_vlan">...</span>
+	    <td align=right>
+	      <span id="platform/vlan_link">...</span>
+	      <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_peer', 1)">
+	    <td>
+	      <input id=vlan_peer type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('vlan_peer')">
+	    <td>
+	      <span id=vlan_peer_result>...</span>
 
 	</table>
 	<b>Radio Parameters:</b>

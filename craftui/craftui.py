@@ -257,11 +257,13 @@ class CraftUI(object):
   }
   ifmap = {
       'craft0': 'craft',
+      'br0': 'bridge',
+      'eth1.outofband': 'outofband',
       'eth1.inband': 'inband',
       'eth1.peer': 'link',
-      'br0': 'poe'
   }
   ifvlan = [
+      'eth1.outofband',
       'eth1.inband',
       'eth1.peer'
   ]
@@ -337,10 +339,17 @@ class CraftUI(object):
     v = {}
     for line in ipaddr.splitlines():
       f = line.split()
+      ifname = re.sub(r'[@:].*', '', f[1])
       m = re.search(r'scope (global|link)', line)
       scope = m.group(1) if m else 'noscope'
-      v[f[1] + ':' + f[2] + ':' + scope] = f[3]
+      v[ifname + ':' + f[2] + ':' + scope] = f[3]
+      m = re.search(r'link/ether (\S+)', line)
+      if m:
+        mac = m.group(1)
+        v[ifname + ':' + 'mac'] = mac
     for ifname, uiname in self.ifmap.items():
+      mac = v.get(ifname + ':mac')
+      data[uiname + '_mac'] = mac if mac else 'unknown'
       for inet in ('inet', 'inet6'):
         kglobal = ifname + ':' + inet + ':' + 'global'
         vdata = v.get(kglobal, 'unknown')
@@ -354,6 +363,15 @@ class CraftUI(object):
       for stat in self.stats:
         k = uiname + '_' + stat
         data[k] = self.ReadFile(d + stat)
+
+  def AddSwitchStats(self, data):
+    """Run presterastats and send json."""
+    stats = ''
+    try:
+      stats = subprocess.check_output(['presterastats'])
+    except subprocess.CalledProcessError as e:
+      print 'warning: "presterastats" failed: ', e
+    data['switch'] = json.loads(stats)['port-interface-statistics']
 
   def AddVlans(self, data):
     """Run ip -d link and parse results for vlans."""
@@ -391,9 +409,11 @@ class CraftUI(object):
     data['link_ipaddr'] = self.ReadFile(sim + cs + 'local_ipaddr')
     data['peer_ipaddr'] = self.ReadFile(sim + cs + 'peer_ipaddr')
     data['vlan_inband'] = self.ReadFile(sim + cs + 'vlan_inband')
+    data['vlan_outofband'] = self.ReadFile(sim + cs + 'vlan_outofband')
     data['vlan_link'] = self.ReadFile(sim + cs + 'vlan_peer')
     self.AddIpAddr(data)
     self.AddInterfaceStats(data)
+    self.AddSwitchStats(data)
     self.AddVlans(data)
     return json.dumps(data)
 

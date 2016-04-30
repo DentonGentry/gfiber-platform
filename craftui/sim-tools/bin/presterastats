@@ -1,0 +1,4 @@
+#! /bin/sh
+
+dir=$(dirname $0)
+cat $dir/../tmp/sim/presterastats.json

@@ -1,0 +1,26 @@
+#! /bin/sh
+
+ssh chimera '
+	rm -rf /tmp/sim;
+	mkdir -p /tmp/sim/proc && cat /proc/uptime > /tmp/sim/proc/uptime;
+	for n in /sys/class/net/*/statistics/*; do
+		mkdir -p /tmp/sim/$(dirname $n);
+		test ! -d $n && cat $n > /tmp/sim/$n;
+	done;
+	ip -o -d link > /tmp/sim/ip.link.txt;
+	ip -o addr > /tmp/sim/ip.addr.txt;
+	presterastats > /tmp/sim/presterastats.json;
+	'
+
+ssh chimera cd / "&&" tar czf - -C / \
+	config/settings \
+	etc/platform \
+	etc/serial \
+	etc/softwaredate \
+	etc/version \
+	tmp/glaukus \
+	tmp/serial \
+	tmp/platform \
+	tmp/gpio/ledstate \
+	tmp/sim \
+	> sim.tgz
