@@ -1,0 +1,9 @@
+#! /bin/sh
+
+dir=$(dirname $0)
+
+if [ "$3" = link ]; then
+  cat $dir/../tmp/sim/ip.link.txt
+else
+  cat $dir/../tmp/sim/ip.addr.txt
+fi

@@ -1,0 +1,34 @@
+HOW.restart_if_changed
+	Use this script during development.  It runs the craftui in the
+	desktop, restarting on writes to the files, for quick development.
+	Use a browser pointed to localhost:8888 to see UI and reload when
+	it restarts.
+
+HOW.updatesim
+	This script creates the sim.tgz from a real device. Use it to
+	snapshot a new sim when tools like presterastats or glaukusd change
+	files formats.
+
+sim.tgz
+	This is a tar file screated by HOW.updatesim containing snapshots
+	of various files used in the craftui simulation for unit tests
+
+craftui_test.sh
+	starts the craftui and does simple sanity tests
+
+craftui
+	This is the wrapper that launches the craftui, used in both
+	testing and device runtime.  If tun on the desktop, it starts
+	craftui_fortesting.py instead of craftui.py, to catch exceptions.
+
+craftui_fortesting.py
+	wrapped to start the craftui with all exceptions caught.
+
+craftui.py
+	The craftui python script.
+
+sim-tools
+	tools used to simulate a real device
+
+www
+	the www tree with html and javascript for the UI

@@ -1,2 +1,4 @@
 *.swp
 .started
+.sim.extracted
+sim
