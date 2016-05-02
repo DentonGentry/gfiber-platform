@@ -124,7 +124,21 @@ class VPower(VRange):
   """Validate as PA power level."""
 
   def __init__(self):
-    super(VPower, self).__init__(0, 2000000)       # TODO(edjames)
+    super(VPower, self).__init__(0, 2000)
+
+
+class VGain(VRange):
+  """Validate as gain level."""
+
+  def __init__(self):
+    super(VGain, self).__init__(0, 63)
+
+
+class VGainIndex(VRange):
+  """Validate as gain index."""
+
+  def __init__(self):
+    super(VGainIndex, self).__init__(0, 5)
 
 
 class VDict(Validator):
@@ -206,7 +220,6 @@ class Glaukus(Config):
     """Handle a JSON request to glaukusd."""
     url = 'http://localhost:8080' + self.api
     payload = self.fmt % self.validator.config
-    # TODO(edjames)
     print 'Glaukus: ', url, payload
     try:
       fd = urllib2.urlopen(url, payload)
@@ -251,7 +264,12 @@ class CraftUI(object):
       'freq_lo': Glaukus(VFreqLo, '/api/radio/frequency', '{"loFrequency":%s}'),
       'mode_hi': Glaukus(VTx, '/api/radio/hiTransceiver/mode', '%s'),
       'tx_powerlevel': Glaukus(VPower, '/api/radio/tx/paPowerSet', '%s'),
-      'tx_on': Glaukus(VTrueFalse, '/api/radio/paLnaPowerEnabled', '%s'),
+      'tx_gain': Glaukus(VGain, '/api/radio/tx/vgaGain', '%s'),
+      'rx_gainindex': Glaukus(VGainIndex, '/api/radio/rx/agcDigitalGainIndex',
+                              '%s'),
+      'palna_on': Glaukus(VTrueFalse, '/api/radio/paLnaPowerEnabled', '%s'),
+      'transceivers_on': Glaukus(VTrueFalse,
+                                 '/api/radio/transceiversPowerEnabled', '%s'),
 
       'reboot': Reboot(VTrueFalse)
   }
