@@ -9,6 +9,7 @@ all:
 install:
 	mkdir -p $(BINDIR)
 	cp presterastats.py $(BINDIR)/presterastats
+	cp prestera_periodic.py $(BINDIR)/prestera_periodic
 
 install-libs:
 	@echo "No libs to install."
