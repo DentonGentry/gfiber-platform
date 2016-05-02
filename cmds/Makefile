@@ -58,7 +58,8 @@ SCRIPT_TARGETS=\
 ARCH_TARGETS=\
 
 ifeq ($(BUILD_SSDP),y)
-TARGETS += ssdp_poll
+TARGETS += ssdptax
+HOST_TEST_TARGETS += host-test-ssdptax.sh
 endif
 
 ifeq ($(BUILD_DNSSD),y)
@@ -191,7 +192,10 @@ buttonmon: buttonmon.o
 http_bouncer: LIBS+=-lcurl $(RT)
 http_bouncer: http_bouncer.o
 host-utils_test: host-utils_test.o host-utils.o
-ssdp_poll: ssdp_poll.o
+ssdptax: ssdptax.o l2utils.o
+ssdptax: LIBS += -lcurl -lnl-3 -lstdc++ -lm
+host-ssdptax: host-ssdptax.o host-l2utils.o
+host-ssdptax: LIBS += $(HOST_LIBS) -lcurl -lnl-3 -lstdc++ -lm
 statpitcher.o: device_stats.pb.o
 statpitcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread -lstdc++
 statpitcher: device_stats.pb.o statpitcher.o
