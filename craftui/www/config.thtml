@@ -145,22 +145,40 @@
 	      <span id=mode_hi_result>...</span>
 
 	  <tr>
-	    <td><b>Power Level
-	    <td align=right><span id="radio/tx/paPowerSet">...</span>
+	    <td><b>Transmit VGA Gain
+	    <td align=right><span id="radio/tx/vgaGain">...</span>
 	    <td>
-	      <input id=tx_powerlevel type=text value="">
-	      <input type=submit value=Configure onclick="CraftUI.config('tx_powerlevel')">
+	      <input id=tx_gain type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('tx_gain')">
 	    <td>
-	      <span id=tx_powerlevel_result>...</span>
+	      <span id=tx_gain_result>...</span>
 
 	  <tr>
-	    <td><b>Power Enabled
+	    <td><b>Receiver AGC Digital Gain Index
+	    <td align=right><span id="radio/rx/agcDigitalGainIndex">...</span>
+	    <td>
+	      <input id=rx_gainindex type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('rx_gainindex')">
+	    <td>
+	      <span id=rx_gainindex_result>...</span>
+
+	  <tr>
+	    <td><b>Receiver PA/LNA Power Enabled
 	    <td align=right><span id="radio/paLnaPowerEnabled">...</span>
 	    <td>
-	      <input id=tx_on type=text value="">
-	      <input type=submit value=Configure onclick="CraftUI.config('tx_on')">
+	      <input id=palna_on type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('palna_on')">
 	    <td>
-	      <span id=tx_on_result>...</span>
+	      <span id=palna_on_result>...</span>
+
+	  <tr>
+	    <td><b>Transceivers Power Enabled
+	    <td align=right><span id="radio/transceiversPowerEnabled">...</span>
+	    <td>
+	      <input id=transceivers_on type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('transceivers_on')">
+	    <td>
+	      <span id=transceivers_on_result>...</span>
 
 	</table>
       </div>
