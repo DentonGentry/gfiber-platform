@@ -27,7 +27,7 @@
       <input type="radio" id="tab-1" name="tab-group-1" checked>
       <label for="tab-1">Site Configuration</label>
       <div class="content">
-	<b>Platfrom Parameters:</b>
+	<b>Platform Parameters:</b>
 	<table>
 	  <tr>
 	    <td align=center><b>Parameter
