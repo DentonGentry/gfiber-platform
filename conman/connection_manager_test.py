@@ -197,8 +197,11 @@ class ConnectionManager(connection_manager.ConnectionManager):
   WIFI_SETCLIENT = ['echo', 'setclient']
   IFUP = ['echo', 'ifup']
   IFPLUGD_ACTION = ['echo', 'ifplugd.action']
+  BINWIFI = ['echo', 'wifi']
 
   def __init__(self, *args, **kwargs):
+    self._binwifi_commands = []
+
     self.interfaces_already_up = kwargs.pop('__test_interfaces_already_up',
                                             ['eth0'])
 
@@ -310,6 +313,10 @@ class ConnectionManager(connection_manager.ConnectionManager):
       self.write_gateway_file('br0' if interface_name in ('eth0', 'moca0')
                               else interface_name)
 
+  def _binwifi(self, *command):
+    super(ConnectionManager, self)._binwifi(*command)
+    self._binwifi_commands.append(command)
+
   # Non-overrides
 
   def access_point_up(self, band):
@@ -326,31 +333,17 @@ class ConnectionManager(connection_manager.ConnectionManager):
 
   # Test methods
 
-  def wlan_config_filename(self, band):
-    return os.path.join(self._config_dir, 'command.%s' % band)
-
-  def access_point_filename(self, band):
-    return os.path.join(self._config_dir, 'access_point.%s' % band)
-
   def delete_wlan_config(self, band):
-    os.unlink(self.wlan_config_filename(band))
+    delete_wlan_config(self._config_dir, band)
 
-  def write_wlan_config(self, band, ssid, psk, atomic=False):
-    final_filename = self.wlan_config_filename(band)
-    filename = final_filename + ('.tmp' if atomic else '')
-    with open(filename, 'w') as f:
-      f.write('\n'.join(['env', 'WIFI_PSK=%s' % psk,
-                         'wifi', 'set', '-b', band, '--ssid', ssid]))
-    if atomic:
-      os.rename(filename, final_filename)
+  def write_wlan_config(self, *args, **kwargs):
+    write_wlan_config(self._config_dir, *args, **kwargs)
 
   def enable_access_point(self, band):
-    open(self.access_point_filename(band), 'w')
+    enable_access_point(self._config_dir, band)
 
   def disable_access_point(self, band):
-    ap_filename = self.access_point_filename(band)
-    if os.path.isfile(ap_filename):
-      os.unlink(ap_filename)
+    disable_access_point(self._config_dir, band)
 
   def write_gateway_file(self, interface_name):
     gateway_file = os.path.join(self._tmp_dir,
@@ -391,8 +384,39 @@ class ConnectionManager(connection_manager.ConnectionManager):
     return not set(files) - set(os.listdir(self._status_dir))
 
 
-def connection_manager_test(radio_config, **cm_kwargs):
+def wlan_config_filename(path, band):
+  return os.path.join(path, 'command.%s' % band)
+
+def access_point_filename(path, band):
+  return os.path.join(path, 'access_point.%s' % band)
+
+def write_wlan_config(path, band, ssid, psk, atomic=False):
+  final_filename = wlan_config_filename(path, band)
+  filename = final_filename + ('.tmp' if atomic else '')
+  with open(filename, 'w') as f:
+    f.write('\n'.join(['env', 'WIFI_PSK=%s' % psk,
+                       'wifi', 'set', '-b', band, '--ssid', ssid]))
+  if atomic:
+    os.rename(filename, final_filename)
+
+def delete_wlan_config(path, band):
+  os.unlink(wlan_config_filename(path, band))
+
+def enable_access_point(path, band):
+  open(access_point_filename(path, band), 'w')
+
+def disable_access_point(path, band):
+  ap_filename = access_point_filename(path, band)
+  if os.path.isfile(ap_filename):
+    os.unlink(ap_filename)
+
+
+
+def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
   """Returns a decorator that does ConnectionManager test boilerplate."""
+  if wlan_configs is None:
+    wlan_configs = {}
+
   def inner(f):
     """The actual decorator."""
     def actual_test():
@@ -413,6 +437,11 @@ def connection_manager_test(radio_config, **cm_kwargs):
         os.mkdir(os.path.join(tmp_dir, 'interfaces'))
         moca_tmp_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
+
+        for band, access_point in wlan_configs.iteritems():
+          write_wlan_config(config_dir, band, 'initial ssid', 'initial psk')
+          if access_point:
+            open(os.path.join(config_dir, 'access_point.%s' % band), 'w')
 
         # Test that missing directories are created by ConnectionManager.
         shutil.rmtree(tmp_dir)
@@ -605,7 +634,7 @@ def connection_manager_test_radio_independent(c):
   # Now move (rather than delete) the configuration file.  The AP should go
   # away, and we should not be able to join the WLAN.  Routes should not be
   # affected.
-  filename = c.wlan_config_filename('2.4')
+  filename = wlan_config_filename(c._config_dir, '2.4')
   other_filename = filename + '.bak'
   os.rename(filename, other_filename)
   c.run_once()
@@ -646,6 +675,10 @@ def connection_manager_test_two_radios(c):
   Args:
     c:  The ConnectionManager set up by @connection_manager_test.
   """
+  wvtest.WVPASSEQ(len(c._binwifi_commands), 2)
+  for band in ['2.4', '5']:
+    wvtest.WVPASS(('stop', '--band', band, '--persist') in c._binwifi_commands)
+
   # Bring up ethernet, access.
   c.set_ethernet(True)
   c.run_once()
@@ -732,6 +765,9 @@ def connection_manager_test_one_radio(c):
   Args:
     c:  The ConnectionManager set up by @connection_manager_test.
   """
+  wvtest.WVPASSEQ(len(c._binwifi_commands), 1)
+  wvtest.WVPASSEQ(('stop', '--band', '5', '--persist'), c._binwifi_commands[0])
+
   # Bring up ethernet, access.
   c.set_ethernet(True)
   c.run_once()
@@ -846,6 +882,32 @@ def connection_manager_test_wifi_already_up(c):
   """
   wvtest.WVPASS(c._connected_to_wlan(c.wifi_for_band('2.4')))
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route)
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO, wlan_configs={'5': True})
+def connection_manager_one_radio_existing_config_5g_ap(c):
+  wvtest.WVPASSEQ(len(c._binwifi_commands), 1)
+  wvtest.WVPASSEQ(('stopclient', '--band', '5', '--persist'),
+                  c._binwifi_commands[0])
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO, wlan_configs={'5': False})
+def connection_manager_one_radio_existing_config_5g_no_ap(c):
+  wvtest.WVPASSEQ(len(c._binwifi_commands), 1)
+  wvtest.WVPASSEQ(('stopap', '--band', '5', '--persist'),
+                  c._binwifi_commands[0])
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_TWO_RADIOS,
+                         wlan_configs={'5': True})
+def connection_manager_two_radios_existing_config_5g_ap(c):
+  wvtest.WVPASSEQ(len(c._binwifi_commands), 2)
+  wvtest.WVPASS(('stop', '--band', '2.4', '--persist') in c._binwifi_commands)
+  wvtest.WVPASS(('stopclient', '--band', '5', '--persist')
+                in c._binwifi_commands)
 
 
 if __name__ == '__main__':
