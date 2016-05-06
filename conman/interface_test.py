@@ -7,6 +7,9 @@ import os
 import shutil
 import tempfile
 
+# This is in site-packages on the device, but not when running tests, and so
+# raises lint errors.
+# pylint: disable=g-bad-import-order
 import wpactrl
 
 import interface
