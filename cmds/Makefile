@@ -19,7 +19,6 @@ PORTABLE_TARGETS=\
 TARGETS=\
 	$(PORTABLE_TARGETS) \
 	alivemonitor \
-	asus_hosts \
 	bsa2bluez \
 	burnin-flash \
 	buttonmon \
@@ -50,12 +49,16 @@ HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
 	stdoutline.so
 HOST_TEST_TARGETS=\
-	host-asus_hosts_test \
 	host-netusage_test \
 	host-utils_test
 SCRIPT_TARGETS=\
 	is-secure-boot
 ARCH_TARGETS=\
+
+ifeq ($(BUILD_ASUS),y)
+TARGETS += asustax
+HOST_TEST_TARGETS += host-asustax_test
+endif
 
 ifeq ($(BUILD_SSDP),y)
 TARGETS += ssdptax
@@ -192,6 +195,12 @@ buttonmon: buttonmon.o
 http_bouncer: LIBS+=-lcurl $(RT)
 http_bouncer: http_bouncer.o
 host-utils_test: host-utils_test.o host-utils.o
+asustax: asustax.o l2utils.o
+asustax: LIBS += -lnl-3 -lstdc++ -lm
+host-asustax: host-asustax.o host-l2utils.o
+host-asustax: LIBS += $(HOST_LIBS) -lnl-3 -lstdc++ -lm
+host-asustax_test: host-asustax_test.o
+host-asustax_test: LIBS += $(HOST_LIBS) -lstdc++ -lm
 ssdptax: ssdptax.o l2utils.o
 ssdptax: LIBS += -lcurl -lnl-3 -lstdc++ -lm
 host-ssdptax: host-ssdptax.o host-l2utils.o

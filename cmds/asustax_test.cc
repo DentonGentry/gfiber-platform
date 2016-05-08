@@ -18,7 +18,7 @@
 #include <sys/socket.h>
 
 #define UNIT_TESTS
-#include "asus_hosts.c"
+#include "asustax.cc"
 
 /* Taken from a packet capture from an ASUS RT-68U */
 static const unsigned char asus_pkt_normal[] = {
@@ -233,8 +233,9 @@ int main(int argc, char** argv)
 {
   int sv[2];
   char response[256];
-  char *expected;
+  const char *expected;
   ssize_t len;
+  L2Map l2map;
 
   if (socketpair(AF_UNIX, SOCK_DGRAM, 0, sv)) {
     perror("socketpair");
@@ -249,7 +250,7 @@ int main(int argc, char** argv)
   }
 
   response[0] = '\0';
-  if (receive_response(sv[1], response, sizeof(response)) != 0) {
+  if (receive_response(sv[1], &l2map, response, sizeof(response)) != 0) {
     fprintf(stderr, "receive_response could not parse packet\n");
     exit(1);
   }
@@ -268,7 +269,7 @@ int main(int argc, char** argv)
   }
 
   response[0] = '\0';
-  if (receive_response(sv[1], response, sizeof(response)) == 0) {
+  if (receive_response(sv[1], &l2map, response, sizeof(response)) == 0) {
     fprintf(stderr, "receive_response should not parse packet\n");
     exit(1);
   }
@@ -286,7 +287,7 @@ int main(int argc, char** argv)
   }
 
   response[0] = '\0';
-  if (receive_response(sv[1], response, sizeof(response)) == 0) {
+  if (receive_response(sv[1], &l2map, response, sizeof(response)) == 0) {
     fprintf(stderr, "receive_response should not parse packet\n");
     exit(1);
   }
@@ -304,7 +305,7 @@ int main(int argc, char** argv)
   }
 
   response[0] = '\0';
-  if (receive_response(sv[1], response, sizeof(response)) != 0) {
+  if (receive_response(sv[1], &l2map, response, sizeof(response)) != 0) {
     fprintf(stderr, "receive_response could not parse packet\n");
     exit(1);
   }
@@ -314,7 +315,6 @@ int main(int argc, char** argv)
     printf("Incorrect response %s != %s\n", response, expected);
     exit(1);
   }
-
 
   exit(0);
 }

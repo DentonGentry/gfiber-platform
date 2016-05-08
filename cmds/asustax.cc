@@ -24,6 +24,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "l2utils.h"
+
 #define ASUS_DISCOVERY_PORT 9999
 #define PACKET_LENGTH       512
 
@@ -129,10 +131,16 @@ static const char *replace_newlines(const uint8_t *src, int srclen,
   return dst;
 }
 
-int receive_response(int s, char *response, int responselen)
+int receive_response(int s, L2Map *l2map, char *response, int responselen)
 {
   struct timeval tv;
   fd_set rfds;
+
+  if (l2map == NULL || response == NULL) {
+    fprintf(stderr, "%s: l2map=%p response=%p\n", __FUNCTION__,
+        l2map, response);
+    exit(1);
+  }
 
   memset(&tv, 0, sizeof(tv));
   tv.tv_sec = 1;
@@ -146,7 +154,8 @@ int receive_response(int s, char *response, int responselen)
   }
   if (FD_ISSET(s, &rfds)) {
     uint8_t buf[PACKET_LENGTH + 64];
-    char addrbuf[16], namebuf[80];
+    char addrbuf[INET_ADDRSTRLEN], namebuf[80];
+    const char *mac;
     struct sockaddr_in from;
     socklen_t fromlen = sizeof(from);
     asus_discovery_packet_t *discovery = (asus_discovery_packet_t *)buf;
@@ -174,7 +183,13 @@ int receive_response(int s, char *response, int responselen)
     id_len = strnlen((char *)discovery->product_id,
                      sizeof(discovery->product_id));
     replace_newlines(discovery->product_id, id_len, namebuf, sizeof(namebuf));
-    snprintf(response, responselen, "%s|%s", addrbuf, namebuf);
+    L2Map::iterator ii = l2map->find(std::string(addrbuf));
+    if (ii != l2map->end()) {
+      mac = ii->second.c_str();
+    } else {
+      mac = "00:00:00:00:00:00";
+    }
+    snprintf(response, responselen, "asus %s %s", mac, namebuf);
 
     return 0;
   } else {
@@ -193,7 +208,7 @@ static void usage(char *progname)
 int main(int argc, char **argv)
 {
   int s, opt, i;
-  char *ifname = "br0";
+  const char *ifname = "br0";
 
   while ((opt = getopt(argc, argv, "i:")) != -1) {
     switch (opt) {
@@ -213,7 +228,9 @@ int main(int argc, char **argv)
   send_discovery(s);
   for (i = 0; i < 128; i++) {
     char response[128];
-    int rc = receive_response(s, response, sizeof(response));
+    L2Map l2map;
+    get_l2_map(&l2map);
+    int rc = receive_response(s, &l2map, response, sizeof(response));
     if (rc < 0) {
       break;
     } else if (rc == 0) {
