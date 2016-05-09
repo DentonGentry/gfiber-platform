@@ -737,9 +737,15 @@ def _wifi_show():
     return subprocess.check_output(['wifi', 'show'])
   except subprocess.CalledProcessError as e:
     logging.error('Failed to call "wifi show": %s', e)
+    return ''
 
 
 def get_client_interfaces():
+  """Find all client interfaces on the device.
+
+  Returns:
+    A dict mapping wireless client interfaces to their supported bands.
+  """
   current_band = None
   result = collections.defaultdict(set)
   for line in _wifi_show().splitlines():
@@ -749,4 +755,3 @@ def get_client_interfaces():
       result[line.split()[2]].add(current_band)
 
   return result
-

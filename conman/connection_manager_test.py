@@ -27,7 +27,7 @@ FAKE_MOCA_NODE1_FILE_DISCONNECTED = """{
 }
 """
 
-WIFI_SHOW_OUTPUT_ONE_RADIO = """Band: 2.4
+WIFI_SHOW_OUTPUT_MARVELL8897 = """Band: 2.4
 RegDomain: US
 Interface: wlan0  # 2.4 GHz ap
 Channel: 149
@@ -52,7 +52,7 @@ Client Interface: wcli0  # 5 GHz client
 Client BSSID: f4:f5:e8:81:1b:a1
 """
 
-WIFI_SHOW_OUTPUT_TWO_RADIOS = """Band: 2.4
+WIFI_SHOW_OUTPUT_ATH9K_ATH10K = """Band: 2.4
 RegDomain: US
 Interface: wlan0  # 2.4 GHz ap
 Channel: 149
@@ -78,7 +78,7 @@ Client BSSID: f4:f5:e8:81:1b:a1
 """
 
 # See b/27328894.
-WIFI_SHOW_OUTPUT_ONE_RADIO_NO_5GHZ = """Band: 2.4
+WIFI_SHOW_OUTPUT_MARVELL8897_NO_5GHZ = """Band: 2.4
 RegDomain: 00
 Interface: wlan0  # 2.4 GHz ap
 BSSID: 00:50:43:02:fe:01
@@ -90,6 +90,38 @@ Client BSSID: 00:50:43:02:fe:02
 
 Band: 5
 RegDomain: 00
+"""
+
+WIFI_SHOW_OUTPUT_ATH9K_FRENZY = """Band: 2.4
+RegDomain: US
+Interface: wlan0  # 2.4 GHz ap
+Channel: 149
+BSSID: f4:f5:e8:81:1b:a0
+AutoChannel: True
+AutoType: NONDFS
+Station List for band: 2.4
+
+Client Interface: wcli0  # 2.4 GHz client
+Client BSSID: f4:f5:e8:81:1b:a1
+
+Band: 5
+RegDomain: 00
+Interface: wlan0  # 5 GHz ap
+AutoChannel: False
+Station List for band: 5
+
+Client Interface: wlan1  # 5 GHz client
+"""
+
+WIFI_SHOW_OUTPUT_FRENZY = """Band: 2.4
+RegDomain: 00
+Band: 5
+RegDomain: 00
+Interface: wlan0  # 5 GHz ap
+AutoChannel: False
+Station List for band: 5
+
+Client Interface: wlan0  # 5 GHz client
 """
 
 IW_SCAN_DEFAULT_OUTPUT = """BSS 00:11:22:33:44:55(on wcli0)
@@ -111,12 +143,25 @@ def get_client_interfaces_test():
   """Test get_client_interfaces."""
   # pylint: disable=protected-access
   original_wifi_show = connection_manager._wifi_show
-  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_ONE_RADIO
+  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_MARVELL8897
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
                   {'wcli0': set(['2.4', '5'])})
-  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_TWO_RADIOS
+  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_ATH9K_ATH10K
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
                   {'wcli0': set(['2.4']), 'wcli1': set(['5'])})
+
+  # Test Quantenna devices.
+
+  # 2.4 GHz cfg80211 radio + 5 GHz Frenzy (Optimus Prime).
+  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_ATH9K_FRENZY
+  wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
+                  {'wcli0': set(['2.4']), 'wlan1': set(['5'])})
+
+  # Only Frenzy (e.g. Lockdown).
+  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_FRENZY
+  wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
+                  {'wlan0': set(['5'])})
+
   connection_manager._wifi_show = original_wifi_show
 
 
@@ -660,20 +705,20 @@ def connection_manager_test_radio_independent(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO)
-def connection_manager_test_radio_independent_one_radio(c):
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
+def connection_manager_test_radio_independent_marvell8897(c):
   connection_manager_test_radio_independent(c)
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_TWO_RADIOS)
-def connection_manager_test_radio_independent_two_radios(c):
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
+def connection_manager_test_radio_independent_ath9k_ath10k(c):
   connection_manager_test_radio_independent(c)
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_TWO_RADIOS)
-def connection_manager_test_two_radios(c):
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
+def connection_manager_test_ath9k_ath10k(c):
   """Test ConnectionManager for devices with two radios.
 
   This test should be kept roughly parallel to the one-radio test.
@@ -762,8 +807,8 @@ def connection_manager_test_two_radios(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO)
-def connection_manager_test_one_radio(c):
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
+def connection_manager_test_marvell8897(c):
   """Test ConnectionManager for devices with one radio.
 
   This test should be kept roughly parallel to the two-radio test.
@@ -841,8 +886,8 @@ def connection_manager_test_one_radio(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO_NO_5GHZ)
-def connection_manager_test_one_radio_no_5ghz(c):
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897_NO_5GHZ)
+def connection_manager_test_marvell8897_no_5ghz(c):
   """Test ConnectionManager for the case documented in b/27328894.
 
   conman should be able to handle the lack of 5 GHz without actually
@@ -878,7 +923,7 @@ def connection_manager_test_one_radio_no_5ghz(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO,
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897,
                          __test_interfaces_already_up=['eth0', 'wcli0'])
 def connection_manager_test_wifi_already_up(c):
   """Test ConnectionManager when wifi is already up.
@@ -891,25 +936,27 @@ def connection_manager_test_wifi_already_up(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO, wlan_configs={'5': True})
-def connection_manager_one_radio_existing_config_5g_ap(c):
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897,
+                         wlan_configs={'5': True})
+def connection_manager_one_radio_marvell8897_existing_config_5g_ap(c):
   wvtest.WVPASSEQ(len(c._binwifi_commands), 1)
   wvtest.WVPASSEQ(('stopclient', '--band', '5', '--persist'),
                   c._binwifi_commands[0])
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ONE_RADIO, wlan_configs={'5': False})
-def connection_manager_one_radio_existing_config_5g_no_ap(c):
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897,
+                         wlan_configs={'5': False})
+def connection_manager_one_radio_marvell8897_existing_config_5g_no_ap(c):
   wvtest.WVPASSEQ(len(c._binwifi_commands), 1)
   wvtest.WVPASSEQ(('stopap', '--band', '5', '--persist'),
                   c._binwifi_commands[0])
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_TWO_RADIOS,
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K,
                          wlan_configs={'5': True})
-def connection_manager_two_radios_existing_config_5g_ap(c):
+def connection_manager_two_radios_ath9k_ath10k_existing_config_5g_ap(c):
   wvtest.WVPASSEQ(len(c._binwifi_commands), 2)
   wvtest.WVPASS(('stop', '--band', '2.4', '--persist') in c._binwifi_commands)
   wvtest.WVPASS(('stopclient', '--band', '5', '--persist')
