@@ -252,12 +252,15 @@ class CraftUI(object):
       'peer_ipaddr': PtpConfig(VSlash, 'peer_ipaddr'),
 
       'vlan_inband': PtpConfig(VVlan, 'vlan_inband'),
+      'vlan_ooband': PtpConfig(VVlan, 'vlan_ooband'),
       'vlan_peer': PtpConfig(VVlan, 'vlan_peer'),
 
       'craft_ipaddr_activate': PtpActivate(VTrueFalse, 'craft_ipaddr'),
       'link_ipaddr_activate': PtpActivate(VTrueFalse, 'local_ipaddr'),
       'peer_ipaddr_activate': PtpActivate(VTrueFalse, 'peer_ipaddr'),
+
       'vlan_inband_activate': PtpActivate(VTrueFalse, 'vlan_inband'),
+      'vlan_ooband_activate': PtpActivate(VTrueFalse, 'vlan_ooband'),
       'vlan_peer_activate': PtpActivate(VTrueFalse, 'vlan_peer'),
 
       'freq_hi': Glaukus(VFreqHi, '/api/radio/frequency', '{"hiFrequency":%s}'),
@@ -276,14 +279,14 @@ class CraftUI(object):
   ifmap = {
       'craft0': 'craft',
       'br0': 'bridge',
-      'eth1.outofband': 'outofband',
-      'eth1.inband': 'inband',
-      'eth1.peer': 'link',
+      'sw0.ooband': 'ooband',
+      'sw0.inband': 'inband',
+      'sw0.peer': 'link',
   }
   ifvlan = [
-      'eth1.outofband',
-      'eth1.inband',
-      'eth1.peer'
+      'sw0.ooband',
+      'sw0.inband',
+      'sw0.peer'
   ]
   stats = [
       'multicast',
@@ -427,7 +430,7 @@ class CraftUI(object):
     data['link_ipaddr'] = self.ReadFile(sim + cs + 'local_ipaddr')
     data['peer_ipaddr'] = self.ReadFile(sim + cs + 'peer_ipaddr')
     data['vlan_inband'] = self.ReadFile(sim + cs + 'vlan_inband')
-    data['vlan_outofband'] = self.ReadFile(sim + cs + 'vlan_outofband')
+    data['vlan_ooband'] = self.ReadFile(sim + cs + 'vlan_ooband')
     data['vlan_link'] = self.ReadFile(sim + cs + 'vlan_peer')
     self.AddIpAddr(data)
     self.AddInterfaceStats(data)

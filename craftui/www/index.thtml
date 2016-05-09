@@ -61,10 +61,10 @@
 	    <td align=right><span id="platform/active_bridge_inet6">...</span></td></tr>
 	  <tr>
             <td><b>Out-of-Band (PoE)</b></td>
-	    <td align=right><span id="platform/outofband_mac">...</span></td>
-	    <td align=right><span id="platform/active_outofband_vlan">...</span></td>
-	    <td align=right><span id="platform/active_outofband_inet">...</span></td>
-	    <td align=right><span id="platform/active_outofband_inet6">...</span></td></tr>
+	    <td align=right><span id="platform/ooband_mac">...</span></td>
+	    <td align=right><span id="platform/active_ooband_vlan">...</span></td>
+	    <td align=right><span id="platform/active_ooband_inet">...</span></td>
+	    <td align=right><span id="platform/active_ooband_inet6">...</span></td></tr>
 	  <tr>
             <td><b>Link (to peer)</b></td>
 	    <td align=right><span id="platform/link_mac">...</span></td>
@@ -177,27 +177,27 @@
 
 	  <tr>
             <td><b>Out-of-Band (PoE)<b></td>
-            <td align=right><span id="platform/outofband_rx_bytes">...</span></td>
-            <td align=right><span id="platform/outofband_rx_packets">...</span></td>
-            <td align=right><span id="platform/outofband_multicast">...</span></td>
-            <td align=right><span id="platform/outofband_broadcast">...</span></td>
-            <td align=right><span id="platform/outofband_unicast">...</span></td>
+            <td align=right><span id="platform/ooband_rx_bytes">...</span></td>
+            <td align=right><span id="platform/ooband_rx_packets">...</span></td>
+            <td align=right><span id="platform/ooband_multicast">...</span></td>
+            <td align=right><span id="platform/ooband_broadcast">...</span></td>
+            <td align=right><span id="platform/ooband_unicast">...</span></td>
 
-            <td align=right><span id="platform/outofband_tx_bytes">...</span></td>
-            <td align=right><span id="platform/outofband_tx_packets">...</span></td>
+            <td align=right><span id="platform/ooband_tx_bytes">...</span></td>
+            <td align=right><span id="platform/ooband_tx_packets">...</span></td>
             <td align=right>-</td>
             <td align=right>-</td>
             <td align=right>-</td>
 
-            <td align=right><span id="platform/outofband_rx_errors">...</span></td>
-            <td align=right><span id="platform/outofband_rx_dropped">...</span></td>
+            <td align=right><span id="platform/ooband_rx_errors">...</span></td>
+            <td align=right><span id="platform/ooband_rx_dropped">...</span></td>
             <td align=right>-</td>
             <td align=right>-</td>
-            <td align=right><span id="platform/outofband_tx_errors">...</span></td>
-            <td align=right><span id="platform/outofband_tx_dropped">...</span></td>
+            <td align=right><span id="platform/ooband_tx_errors">...</span></td>
+            <td align=right><span id="platform/ooband_tx_dropped">...</span></td>
             <td align=right>-</td>
             <td align=right>-</td>
-            <td align=right><span id="platform/outofband_collisions">...</span></td>
+            <td align=right><span id="platform/ooband_collisions">...</span></td>
 
 	  <tr>
             <td><b>Link (to peer)<b></td>
