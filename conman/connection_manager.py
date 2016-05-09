@@ -53,9 +53,9 @@ class FileChangeHandler(pyinotify.ProcessEvent):
 class WLANConfiguration(object):
   """Represents a WLAN configuration from cwmpd."""
 
-  WIFI_STOPAP = ['wifi', 'stopap']
+  WIFI_STOPAP = ['wifi', 'stopap', '--persist']
   WIFI_SETCLIENT = ['wifi', 'setclient', '--persist']
-  WIFI_STOPCLIENT = ['wifi', 'stopclient']
+  WIFI_STOPCLIENT = ['wifi', 'stopclient', '--persist']
 
   def __init__(self, band, wifi, command_lines, _status):
     self.band = band
@@ -187,6 +187,7 @@ class ConnectionManager(object):
   IFUP = ['ifup']
   IP_LINK = ['ip', 'link']
   IFPLUGD_ACTION = ['/etc/ifplugd/ifplugd.action']
+  BINWIFI = ['wifi']
 
   def __init__(self,
                bridge_interface='br0',
@@ -280,7 +281,25 @@ class ConnectionManager(object):
       for filepath in glob.glob(os.path.join(path, prefix + '*')):
         self._process_file(path, os.path.split(filepath)[-1])
 
-    # Now that we've ready any existing state, it's okay to let interfaces touch
+    # Make sure no unwanted APs or clients are running.
+    for wifi in self.wifi:
+      for band in wifi.bands:
+        config = self._wlan_configuration.get(band, None)
+        if config:
+          if config.access_point:
+            # If we have a config and want an AP, we don't want a client.
+            self._stop_wifi(band, False, True)
+          else:
+            # If we have a config but don't want an AP, make sure we aren't
+            # running one.
+            self._stop_wifi(band, True, False)
+          break
+      else:
+        # If we have no config for this radio, neither a client nor an AP should
+        # be running.
+        self._stop_wifi(wifi.bands[0], True, True)
+
+    # Now that we've read any existing state, it's okay to let interfaces touch
     # the routing table.
     for ifc in [self.bridge] + self.wifi:
       ifc.initialize()
@@ -677,6 +696,38 @@ class ConnectionManager(object):
     else:
       wlan_configuration.stop_access_point()
       wlan_configuration.start_client()
+
+  def _stop_wifi(self, band, stopap, stopclient):
+    if stopap and stopclient:
+      command = 'stop'
+    elif stopap:
+      command = 'stopap'
+    elif stopclient:
+      command = 'stopclient'
+    else:
+      raise ValueError('Called _stop_wifi without specifying AP or client.')
+
+    full_command = [command, '--band', band, '--persist']
+
+    try:
+      self._binwifi(*full_command)
+    except subprocess.CalledProcessError as e:
+      logging.error('wifi %s failed: "%s"', ' '.join(full_command), e.output)
+
+  def _binwifi(self, *command):
+    """Test seam for calls to /bin/wifi.
+
+    Only used by _stop_wifi, and probably shouldn't be used by anything else.
+
+    Args:
+      *command:  A command for /bin/wifi
+
+    Raises:
+      subprocess.CalledProcessError:  If the command fails.  Deliberately not
+      handled here to make future authors think twice before using this.
+    """
+    subprocess.check_output(self.BINWIFI + list(command),
+                            stderr=subprocess.STDOUT)
 
 
 def _wifi_show():
