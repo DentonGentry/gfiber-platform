@@ -2,6 +2,7 @@
 
 """Models wired and wireless interfaces."""
 
+import json
 import logging
 import os
 import re
@@ -311,9 +312,11 @@ class Bridge(Interface):
 
 
 class Wifi(Interface):
-  """Represents the wireless interface."""
+  """Represents a wireless interface."""
 
   WPA_EVENT_RE = re.compile(r'<\d+>CTRL-EVENT-(?P<event>[A-Z\-]+).*')
+  # pylint: disable=invalid-name
+  WPACtrl = wpactrl.WPACtrl
 
   def __init__(self, *args, **kwargs):
     self.bands = kwargs.pop('bands', [])
@@ -345,30 +348,26 @@ class Wifi(Interface):
       return True
 
     socket = os.path.join(path, self.name)
-    if os.path.exists(socket):
-      try:
-        self._wpa_control = self.get_wpa_control(socket)
-        self._wpa_control.attach()
-      except wpactrl.error as e:
-        logging.error('Error attaching to wpa_supplicant: %s', e)
-        return False
-
-      for line in self._wpa_control.request('STATUS').splitlines():
-        if '=' not in line:
-          continue
-        key, value = line.split('=', 1)
-        if key == 'wpa_state':
-          self.wpa_supplicant = value == 'COMPLETED'
-        elif key == 'ssid' and not self._initialized:
-          self.initial_ssid = value
-    else:
-      logging.error('wpa control socket does not exist: %s', socket)
+    try:
+      self._wpa_control = self.get_wpa_control(socket)
+      self._wpa_control.attach()
+    except wpactrl.error as e:
+      logging.error('Error attaching to wpa_supplicant: %s', e)
       return False
+
+    for line in self._wpa_control.request('STATUS').splitlines():
+      if '=' not in line:
+        continue
+      key, value = line.split('=', 1)
+      if key == 'wpa_state':
+        self.wpa_supplicant = value == 'COMPLETED'
+      elif key == 'ssid' and not self._initialized:
+        self.initial_ssid = value
 
     return True
 
   def get_wpa_control(self, socket):
-    return wpactrl.WPACtrl(socket)
+    return self.WPACtrl(socket)
 
   def detach_wpa_control(self):
     if self.attached():
@@ -407,3 +406,107 @@ class Wifi(Interface):
     self.initial_ssid = None
     super(Wifi, self).initialize()
 
+
+class FrenzyWPACtrl(object):
+  """A fake WPACtrl for Frenzy devices.
+
+  Implements the same functions used on the normal WPACtrl, using a combination
+  of the QCSAPI and wifi_files.  Keeps state in order to generate fake events by
+  diffing saved state with current system state.
+  """
+
+  WIFIINFO_PATH = '/tmp/wifi/wifiinfo'
+
+  def __init__(self, socket):
+    self._interface = os.path.split(socket)[-1]
+
+    # State from QCSAPI and wifi_files.
+    self._client_mode = False
+    self._ssid = None
+    self._status = None
+
+    self._events = []
+
+  def _qcsapi(self, *command):
+    try:
+      return subprocess.check_output(['qcsapi'] + list(command)).strip()
+    except subprocess.CalledProcessError:
+      return None
+
+  def _wifiinfo_filename(self):
+    return os.path.join(self.WIFIINFO_PATH, self._interface)
+
+  def _get_wifiinfo(self):
+    try:
+      return json.load(open(self._wifiinfo_filename()))
+    except IOError:
+      return None
+
+  def _get_ssid(self):
+    wifiinfo = self._get_wifiinfo()
+    if wifiinfo:
+      return wifiinfo.get('SSID')
+
+  def _check_client_mode(self):
+    return self._qcsapi('get_mode', 'wifi0') == 'Station'
+
+  def attach(self):
+    self._update()
+
+  def attached(self):
+    return self._client_mode and self._ssid
+
+  def detach(self):
+    raise wpactrl.error('Real WPACtrl always raises this when detaching.')
+
+  def pending(self):
+    self._update()
+    return bool(self._events)
+
+  def _update(self):
+    """Generate and cache events, update state."""
+    client_mode = self._check_client_mode()
+    ssid = self._get_ssid()
+    status = self._qcsapi('get_status', 'wifi0')
+
+    # If we have an SSID and are in client mode, and at least one of those is
+    # new, then we have just connected.
+    if client_mode and ssid and (not self._client_mode or ssid != self._ssid):
+      self._events.append('<2>CTRL-EVENT-CONNECTED')
+
+    # If we are in client mode but lost SSID, we disconnected.
+    if client_mode and self._ssid and not ssid:
+      self._events.append('<2>CTRL-EVENT-DISCONNECTED')
+
+    # If there is an auth/assoc failure, then status (above) is 'Error'.  We
+    # really want the converse of this implication (i.e. that 'Error' implies an
+    # auth/assoc failure), but due to limited documentation this will have to
+    # do.  It should be good enough:  if something else causes get_status to
+    # return 'Error', we are probably not connected, and we don't do anything
+    # special with auth/assoc failures specifically.
+    if client_mode and status == 'Error' and self._status != 'Error':
+      self._events.append('<2>CTRL-EVENT-AUTH-REJECT')
+
+    # If we left client mode, wpa_supplicant has terminated.
+    if self._client_mode and not client_mode:
+      self._events.append('<2>CTRL-EVENT-TERMINATING')
+
+    self._client_mode = client_mode
+    self._ssid = ssid
+    self._status = status
+
+  def recv(self):
+    return self._events.pop(0)
+
+  def request(self, request_type):
+    if request_type == 'STATUS' and self.attached():
+      return 'wpa_state=COMPLETED\nssid=%s\n' % self._ssid
+
+    return ''
+
+
+class FrenzyWifi(Wifi):
+  """Represents a Frenzy wireless interface."""
+
+  # pylint: disable=invalid-name
+  WPACtrl = FrenzyWPACtrl

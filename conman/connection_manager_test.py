@@ -197,7 +197,6 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
   def stop_client(self):
     if self.client_up:
       self.wifi.add_terminating_event()
-      os.unlink(self._socket())
       self.wifi.set_connection_check_result('fail')
 
     # See comments in start_client.
