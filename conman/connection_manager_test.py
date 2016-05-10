@@ -387,6 +387,13 @@ class ConnectionManager(connection_manager.ConnectionManager):
     while wifi_scan_counter == wifi.wifi_scan_counter:
       self.run_once()
 
+  def run_until_interface_update_and_scan(self, band):
+    wifi = self.wifi_for_band(band)
+    wifi_scan_counter = wifi.wifi_scan_counter
+    self.run_until_interface_update()
+    while wifi_scan_counter == wifi.wifi_scan_counter:
+      self.run_once()
+
   def has_status_files(self, files):
     return not set(files) - set(os.listdir(self._status_dir))
 
@@ -566,8 +573,7 @@ def connection_manager_test_radio_independent(c):
   c.delete_wlan_config('2.4')
   c.run_once()
   wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
-  c.run_until_interface_update()
-  c.run_until_scan('2.4')
+  c.run_until_interface_update_and_scan('2.4')
   c.run_until_interface_update()
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
   wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's3')
