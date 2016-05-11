@@ -99,6 +99,13 @@ def _set(mode, opt):
     # 'apply_security_config' must be called instead.
     _qcsapi('apply_security_config', 'wifi0')
 
+    for _ in xrange(10):
+      if _qcsapi('get_status', 'wifi0') == 'Up':
+        break
+      time.sleep(1)
+    else:
+      raise utils.BinWifiException('wpa_supplicant failed to connect')
+
   return True
 
 
