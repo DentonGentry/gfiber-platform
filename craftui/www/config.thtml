@@ -145,6 +145,15 @@
 	      <span id=mode_hi_result>...</span>
 
 	  <tr>
+	    <td><b>Transmit Power (dB x 100)
+	    <td align=right><span id="radio/tx/paPowerSet">...</span>
+	    <td>
+	      <input id=tx_powerlevel type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('tx_powerlevel')">
+	    <td>
+	      <span id=tx_powerlevel_result>...</span>
+
+	  <tr>
 	    <td><b>Transmit VGA Gain
 	    <td align=right><span id="radio/tx/vgaGain">...</span>
 	    <td>
