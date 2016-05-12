@@ -14,6 +14,7 @@ from wvtest import wvtest
 
 
 calls = []
+ifplugd_action_calls = []
 
 
 def fake_qcsapi(*args):
@@ -50,6 +51,7 @@ def fake_brctl(*args):
 
 def set_fakes(interface='wlan1'):
   del calls[:]
+  del ifplugd_action_calls[:]
   bridge_interfaces.clear()
   os.environ['WIFI_PSK'] = 'wifi_psk'
   os.environ['WIFI_CLIENT_PSK'] = 'wifi_client_psk'
@@ -57,6 +59,7 @@ def set_fakes(interface='wlan1'):
   quantenna._get_mac_address = lambda _: '00:11:22:33:44:55'
   quantenna._qcsapi = fake_qcsapi
   quantenna._brctl = fake_brctl
+  quantenna._ifplugd_action = lambda *args: ifplugd_action_calls.append(args)
 
 
 def matching_calls_indices(accept):
@@ -131,6 +134,9 @@ def set_wifi_test():
   wvtest.WVPASSLT(sp, i[0])
   wvtest.WVPASSLT(i[-1], calls.index(['rfenable', '1']))
 
+  # We shouldn't touch ifplugd in AP mode.
+  wvtest.WVPASSEQ(len(ifplugd_action_calls), 0)
+
   # Run set_wifi again in client mode with new options.
   opt.channel = '147'
   opt.ssid = 'TEST_SSID2'
@@ -176,6 +182,10 @@ def set_wifi_test():
   i = matching_calls_indices(['create_ssid', 'ssid_set_passphrase'])
   wvtest.WVPASSLT(rim, i[0])
   wvtest.WVPASSLT(i[-1], calls.index(['apply_security_config', 'wifi0']))
+
+  # We should have called ipflugd.action after setclient.
+  wvtest.WVPASSEQ(len(ifplugd_action_calls), 1)
+  wvtest.WVPASSEQ(ifplugd_action_calls[0], ('wlan1', 'up'))
 
   # Make sure subsequent equivalent calls don't fail despite the redundant
   # bridge changes.
