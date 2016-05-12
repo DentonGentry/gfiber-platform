@@ -18,64 +18,69 @@
 #define SPEEDTEST_SPEEDTEST_H
 
 #include <atomic>
-#include <memory>
 #include <string>
-
 #include "config.h"
-#include "curl_env.h"
-#include "download_task.h"
+#include "init.h"
 #include "options.h"
-#include "ping_task.h"
-#include "upload_task.h"
-#include "url.h"
+#include "ping.h"
+#include "region.h"
 #include "request.h"
+#include "status.h"
+#include "transfer_runner.h"
+#include "url.h"
+#include "utils.h"
 
 namespace speedtest {
 
 class Speedtest {
  public:
-  explicit Speedtest(const Options &options);
-  virtual ~Speedtest();
+  struct Result {
+    long start_time;
+    long end_time;
+    Status status;
+    Init::Result init_result;
 
-  void Run();
+    bool download_run;
+    TransferResult download_result;
+
+    bool upload_run;
+    TransferResult upload_result;
+
+    bool ping_run;
+    Ping::Result ping_result;
+  };
+
+  explicit Speedtest(const Options &options);
+
+  Result operator()(std::atomic_bool *cancel);
 
  private:
-  void InitUserAgent();
-  void LoadServerList();
-  void FindNearestServer();
-  std::string LoadConfig(const http::Url &url);
-  void RunPingTest();
-  void RunDownloadTest();
-  void RunUploadTest();
+  TransferResult RunDownloadTest(std::atomic_bool *cancel);
+  TransferResult RunUploadTest(std::atomic_bool *cancel);
+  Ping::Result RunPingTest(std::atomic_bool *cancel);
 
-  int NumDownloads() const;
-  int DownloadSize() const;
-  int NumUploads() const;
-  int UploadSize() const;
-  int PingTimeout() const;
-  int PingRunTime() const;
-  int MinTransferRuntime() const;
-  int MaxTransferRuntime() const;
-  int MinTransferIntervals() const;
-  int MaxTransferIntervals() const;
-  double MaxTransferVariance() const;
-  int IntervalMillis() const;
+  int GetNumDownloads() const;
+  long GetDownloadSizeBytes() const;
+  int GetNumUploads() const;
+  long GetUploadSizeBytes() const;
+  long GetPingTimeoutMillis() const;
+  long GetPingRunTimeMillis() const;
+  long GetMinTransferRunTimeMillis() const;
+  long GetMaxTransferRunTimeMillis() const;
+  int GetMinTransferIntervals() const;
+  int GetMaxTransferIntervals() const;
+  double GetMaxTransferVariance() const;
+  long GetIntervalMillis() const;
 
-  http::Request::Ptr MakeRequest(const http::Url &url);
-  http::Request::Ptr MakeBaseRequest(int id, const std::string &path);
-  http::Request::Ptr MakeTransferRequest(int id, const std::string &path);
+  http::Request::Ptr MakeRequest(const http::Url &url) const;
+  http::Request::Ptr MakeBaseRequest(int id, const std::string &path) const;
+  http::Request::Ptr MakeTransferRequest(int id, const std::string &path) const;
 
-  std::shared_ptr <http::CurlEnv> env_;
   Options options_;
   Config config_;
-  std::string user_agent_;
-  std::vector<http::Url> servers_;
-  std::unique_ptr<http::Url> server_url_;
-  std::unique_ptr<std::string> send_data_;
+  Region selected_region_;
 
-  // disable
-  Speedtest(const Speedtest &) = delete;
-  void operator=(const Speedtest &) = delete;
+  DISALLOW_COPY_AND_ASSIGN(Speedtest);
 };
 
 }  // namespace speedtest

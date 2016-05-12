@@ -16,408 +16,298 @@
 
 #include "speedtest.h"
 
-#include <chrono>
-#include <cstring>
-#include <limits>
-#include <random>
-#include <thread>
-#include <iomanip>
-#include <fstream>
-#include <streambuf>
-
-#include "errors.h"
+#include "download.h"
 #include "timed_runner.h"
-#include "transfer_runner.h"
-#include "utils.h"
+#include "upload.h"
 
 namespace speedtest {
-namespace {
 
-std::shared_ptr<std::string> MakeRandomData(size_t size) {
-  std::random_device rd;
-  std::default_random_engine random_engine(rd());
-  std::uniform_int_distribution<char> uniform_dist(1, 255);
-  auto random_data = std::make_shared<std::string>();
-  random_data->resize(size);
-  for (size_t i = 0; i < size; ++i) {
-    (*random_data)[i] = uniform_dist(random_engine);
-  }
-  return std::move(random_data);
+Speedtest::Speedtest(const Options &options): options_(options) {
 }
 
-const char *kFileSerial = "/etc/serial";
-const char *kFileVersion = "/etc/version";
+Speedtest::Result Speedtest::operator()(std::atomic_bool *cancel) {
+  Speedtest::Result result;
+  result.start_time = SystemTimeMicros();
+  result.download_run = false;
+  result.upload_run = false;
+  result.ping_run = false;
 
-std::string LoadFile(const std::string &file_name) {
-  std::ifstream in(file_name);
-  return std::string(std::istreambuf_iterator<char>(in),
-                     std::istreambuf_iterator<char>());
-}
-
-}  // namespace
-
-Speedtest::Speedtest(const Options &options)
-    : options_(options) {
-  http::CurlEnv::Options curl_options;
-  curl_options.disable_dns_cache = options_.disable_dns_cache;
-  curl_options.max_connections = options_.max_connections;
-  env_ = http::CurlEnv::NewCurlEnv(curl_options);
-}
-
-Speedtest::~Speedtest() {
-}
-
-void Speedtest::Run() {
-  InitUserAgent();
-  LoadServerList();
-  if (servers_.empty()) {
-    std::cerr << "No servers found in global server list\n";
-    std::exit(1);
+  if (*cancel) {
+    result.status = Status(StatusCode::ABORTED, "Speedtest aborted");
+    result.end_time = SystemTimeMicros();
+    return result;
   }
-  FindNearestServer();
-  if (!server_url_) {
-    std::cout << "No servers responded. Exiting\n";
-    return;
+
+  Init::Options init_options;
+  init_options.verbose = options_.verbose;
+  init_options.request_factory = options_.request_factory;
+  init_options.global = options_.global;
+  init_options.global_url = options_.global_url;
+  init_options.ping_timeout_millis = options_.ping_timeout_millis;
+  init_options.regional_urls = options_.regional_urls;
+  Init init(init_options);
+  result.init_result = init(cancel);
+  if (!result.init_result.status.ok()) {
+    result.status = result.init_result.status;
+    result.end_time = SystemTimeMicros();
+    return result;
   }
-  std::string json = LoadConfig(*server_url_);
-  if (!ParseConfig(json, &config_)) {
-    std::cout << "Could not parse config\n";
-    return;
-  }
+  selected_region_ = result.init_result.selected_region;
   if (options_.verbose) {
-    std::cout << "Server config:\n";
-    PrintConfig(config_);
+    std::cout << "Setting selected region to "
+              << DescribeRegion(selected_region_) << "\n";
   }
-  std::cout << "Location: " << config_.location_name << "\n";
-  std::cout << "URL: " << server_url_->url() << "\n";
-  RunDownloadTest();
-  RunUploadTest();
-  RunPingTest();
-}
 
-void Speedtest::InitUserAgent() {
-  if (options_.user_agent.empty()) {
-    std::string serial = LoadFile(kFileSerial);
-    std::string version = LoadFile(kFileVersion);
-    Trim(&serial);
-    Trim(&version);
-    user_agent_ = "CPE";
-    if (!version.empty()) {
-      user_agent_ += "/" + version;
-      if (!serial.empty()) {
-        user_agent_ += "/" + serial;
-      }
-    }
+  if (*cancel) {
+    result.status = Status(StatusCode::ABORTED, "Speedtest aborted");
+    result.end_time = SystemTimeMicros();
+    return result;
+  }
+
+  config_ = result.init_result.config_result.config;
+
+  std::cout << "ID: " << result.init_result.selected_region.id << "\n";
+  std::cout << "Location: " << result.init_result.selected_region.name << "\n";
+
+  if (options_.skip_download) {
+    std::cout << "Skipping download test\n";
   } else {
-    user_agent_ = options_.user_agent;
-    return;
-  }
-  if (options_.verbose) {
-    std::cout << "Setting user agent to " << user_agent_ << "\n";
-  }
-}
-
-void Speedtest::LoadServerList() {
-  servers_.clear();
-  if (!options_.global) {
-    if (options_.verbose) {
-      std::cout << "Explicit server list:\n";
-      for (const auto &url : options_.hosts) {
-        std::cout << "  " << url.url() << "\n";
-      }
+    result.download_result = RunDownloadTest(cancel);
+    if (!result.download_result.status.ok()) {
+      result.status = result.download_result.status;
+      result.end_time = SystemTimeMicros();
+      return result;
     }
-    servers_ = options_.hosts;
-    return;
+    result.download_run = true;
+    std::cout << "Download speed: "
+              << round(result.download_result.speed_mbps, 2)
+              << " Mbps\n";
   }
 
-  std::string json = LoadConfig(options_.global_host);
-  if (json.empty()) {
-    std::cerr << "Failed to load config JSON\n";
-    std::exit(1);
-  }
-  if (options_.verbose) {
-    std::cout << "Loaded config JSON: " << json << "\n";
-  }
-  if (!ParseServers(json, &servers_)) {
-    std::cerr << "Failed to parse server list: " << json << "\n";
-    std::exit(1);
-  }
-  if (options_.verbose) {
-    std::cout << "Loaded servers:\n";
-    for (const auto &url : servers_) {
-      std::cout << "  " << url.url() << "\n";
-    }
-  }
-}
-
-void Speedtest::FindNearestServer() {
-  server_url_.reset();
-  if (servers_.size() == 1) {
-    server_url_.reset(new http::Url(servers_[0]));
-    if (options_.verbose) {
-      std::cout << "Only 1 server so using " << server_url_->url() << "\n";
-    }
-    return;
+  if (*cancel) {
+    result.status = Status(StatusCode::ABORTED, "Speedtest aborted");
+    result.end_time = SystemTimeMicros();
+    return result;
   }
 
-  PingTask::Options options;
-  options.verbose = options_.verbose;
-  options.timeout = PingTimeout();
-  std::vector<http::Url> hosts;
-  for (const auto &server : servers_) {
-    http::Url url(server);
-    url.set_path("/ping");
-    hosts.emplace_back(url);
-  }
-  options.num_pings = hosts.size();
-  if (options_.verbose) {
-    std::cout << "There are " << hosts.size() << " ping URLs:\n";
-    for (const auto &host : hosts) {
-      std::cout << "  " << host.url() << "\n";
-    }
-  }
-  options.request_factory = [&](int id) -> http::Request::Ptr{
-    return MakeRequest(hosts[id]);
-  };
-  PingTask find_nearest(options);
-  if (options_.verbose) {
-    std::cout << "Starting to find nearest server\n";
-  }
-  RunTimed(&find_nearest, 1500);
-  find_nearest.WaitForEnd();
-  if (find_nearest.IsSucceeded()) {
-    PingStats fastest = find_nearest.GetFastest();
-    server_url_.reset(new http::Url(fastest.url));
-    server_url_->clear_path();
-    if (options_.verbose) {
-      double ping_millis = fastest.min_micros / 1000.0d;
-      std::cout << "Found nearest server: " << fastest.url.url()
-                   << " (" << round(ping_millis, 2) << " ms)\n";
-    }
-  }
-}
-
-std::string Speedtest::LoadConfig(const http::Url &url) {
-  http::Url config_url(url);
-  config_url.set_path("/config");
-  if (options_.verbose) {
-    std::cout << "Loading config from " << config_url.url() << "\n";
-  }
-  http::Request::Ptr request = MakeRequest(config_url);
-  request->set_url(config_url);
-  std::string json;
-  request->Get([&](void *data, size_t size){
-    json.assign(static_cast<const char *>(data), size);
-  });
-  return json;
-}
-
-void Speedtest::RunPingTest() {
-  PingTask::Options options;
-  options.verbose = options_.verbose;
-  options.timeout = PingTimeout();
-  options.num_pings = 1;
-  http::Url ping_url(*server_url_);
-  ping_url.set_path("/ping");
-  options.request_factory = [&](int id) -> http::Request::Ptr{
-    return MakeRequest(ping_url);
-  };
-  std::unique_ptr<PingTask> ping(new PingTask(options));
-  RunTimed(ping.get(), PingRunTime());
-  ping->WaitForEnd();
-  PingStats fastest = ping->GetFastest();
-  if (ping->IsSucceeded()) {
-    long micros = fastest.min_micros;
-    std::cout << "Ping time: " << round(micros / 1000.0d, 3) << " ms\n";
+  if (options_.skip_upload) {
+    std::cout << "Skipping upload test\n";
   } else {
-    std::cout << "Failed to get ping response from "
-              << config_.location_name << " (" << fastest.url << ")\n";
+    result.upload_result = RunUploadTest(cancel);
+    if (!result.upload_result.status.ok()) {
+      result.status = result.upload_result.status;
+      result.end_time = SystemTimeMicros();
+      return result;
+    }
+    result.upload_run = true;
+    std::cout << "Upload speed: "
+              << round(result.upload_result.speed_mbps, 2)
+              << " Mbps\n";
   }
+
+  if (*cancel) {
+    result.status = Status(StatusCode::ABORTED, "Speedtest aborted");
+    result.end_time = SystemTimeMicros();
+    return result;
+  }
+
+  if (options_.skip_ping) {
+    std::cout << "Skipping ping test\n";
+  } else {
+    result.ping_result = RunPingTest(cancel);
+    if (!result.ping_result.status.ok()) {
+      result.status = result.ping_result.status;
+      result.end_time = SystemTimeMicros();
+      return result;
+    }
+    result.ping_run = true;
+    std::cout << "Ping time: "
+              << ToMillis(result.ping_result.min_ping_micros)
+              << " ms\n";
+  }
+  
+  result.status = Status::OK;
+  result.end_time = SystemTimeMicros();
+  return result;
 }
 
-void Speedtest::RunDownloadTest() {
+TransferResult Speedtest::RunDownloadTest(std::atomic_bool *cancel) {
   if (options_.verbose) {
-    std::cout << "Starting download test to " << config_.location_name
-              << " (" << server_url_->url() << ")\n";
+    std::cout << "Starting download test to "
+              << DescribeRegion(selected_region_) << ")\n";
   }
-  DownloadTask::Options download_options;
+  Download::Options download_options;
   download_options.verbose = options_.verbose;
-  download_options.num_transfers = NumDownloads();
-  download_options.download_size = DownloadSize();
+  download_options.num_transfers = GetNumDownloads();
+  download_options.download_bytes = GetDownloadSizeBytes();
   download_options.request_factory = [this](int id) -> http::Request::Ptr{
     return MakeTransferRequest(id, "/download");
   };
-  std::unique_ptr<DownloadTask> download(new DownloadTask(download_options));
-  TransferRunner::Options runner_options;
-  runner_options.verbose = options_.verbose;
-  runner_options.task = download.get();
-  runner_options.min_runtime = MinTransferRuntime();
-  runner_options.max_runtime = MaxTransferRuntime();
-  runner_options.min_intervals = MinTransferIntervals();
-  runner_options.max_intervals = MaxTransferIntervals();
-  runner_options.max_variance = MaxTransferVariance();
-  runner_options.interval_millis = IntervalMillis();
+  Download download(download_options);
+
+  TransferOptions transfer_options;
+  transfer_options.verbose = options_.verbose;
+  transfer_options.min_runtime_millis = GetMinTransferRunTimeMillis();
+  transfer_options.max_runtime_millis = GetMaxTransferRunTimeMillis();
+  transfer_options.min_intervals = GetMinTransferIntervals();
+  transfer_options.max_intervals = GetMaxTransferIntervals();
+  transfer_options.max_variance = GetMaxTransferVariance();
+  transfer_options.interval_millis = GetIntervalMillis();
   if (options_.progress_millis > 0) {
-    runner_options.progress_millis = options_.progress_millis;
-    runner_options.progress_fn = [](Interval interval) {
-      double speed_variance = variance(interval.short_megabits,
-                                       interval.long_megabits);
-      std::cout << "[+" << round(interval.running_time / 1000.0, 0) << " ms] "
-                << "Download speed: " << round(interval.short_megabits, 2)
-                << " - " << round(interval.long_megabits, 2)
-                << " Mbps (" << interval.bytes << " bytes, variance "
+    transfer_options.progress_millis = options_.progress_millis;
+    transfer_options.progress_fn = [](Bucket bucket) {
+      double speed_variance = variance(bucket.short_megabits,
+                                       bucket.long_megabits);
+      std::cout << "[+" << round(bucket.start_time / 1000.0, 0) << " ms] "
+                << "Download speed: " << round(bucket.short_megabits, 2)
+                << " - " << round(bucket.long_megabits, 2)
+                << " Mbps (" << bucket.total_bytes << " bytes, variance "
                 << round(speed_variance, 4) << ")\n";
     };
   }
-  TransferRunner runner(runner_options);
-  runner.Run();
-  runner.WaitForEnd();
-  if (options_.verbose) {
-    long running_time = download->GetRunningTimeMicros();
-    std::cout << "Downloaded " << download->bytes_transferred()
-              << " bytes in " << round(running_time / 1000.0, 0) << " ms\n";
-  }
-  std::cout << "Download speed: "
-            << round(runner.GetSpeedInMegabits(), 2) << " Mbps\n";
+  return RunTransfer(std::ref(download), cancel, transfer_options);
 }
 
-void Speedtest::RunUploadTest() {
+TransferResult Speedtest::RunUploadTest(std::atomic_bool *cancel) {
   if (options_.verbose) {
-    std::cout << "Starting upload test to " << config_.location_name
-              << " (" << server_url_->url() << ")\n";
+    std::cout << "Starting upload test to "
+              << DescribeRegion(selected_region_) << ")\n";
   }
-  UploadTask::Options upload_options;
+  Upload::Options upload_options;
   upload_options.verbose = options_.verbose;
-  upload_options.num_transfers = NumUploads();
-  upload_options.payload = MakeRandomData(UploadSize());
+  upload_options.num_transfers = GetNumUploads();
+  upload_options.payload = MakeRandomData(GetUploadSizeBytes());
   upload_options.request_factory = [this](int id) -> http::Request::Ptr{
     return MakeTransferRequest(id, "/upload");
   };
+  Upload upload(upload_options);
 
-  std::unique_ptr<UploadTask> upload(new UploadTask(upload_options));
-  TransferRunner::Options runner_options;
-  runner_options.verbose = options_.verbose;
-  runner_options.task = upload.get();
-  runner_options.min_runtime = MinTransferRuntime();
-  runner_options.max_runtime = MaxTransferRuntime();
-  runner_options.min_intervals = MinTransferIntervals();
-  runner_options.max_intervals = MaxTransferIntervals();
-  runner_options.max_variance = MaxTransferVariance();
-  runner_options.interval_millis = IntervalMillis();
+  TransferOptions transfer_options;
+  transfer_options.verbose = options_.verbose;
+  transfer_options.min_runtime_millis = GetMinTransferRunTimeMillis();
+  transfer_options.max_runtime_millis = GetMaxTransferRunTimeMillis();
+  transfer_options.min_intervals = GetMinTransferIntervals();
+  transfer_options.max_intervals = GetMaxTransferIntervals();
+  transfer_options.max_variance = GetMaxTransferVariance();
+  transfer_options.interval_millis = GetIntervalMillis();
   if (options_.progress_millis > 0) {
-    runner_options.progress_millis = options_.progress_millis;
-    runner_options.progress_fn = [](Interval interval) {
-      double speed_variance = variance(interval.short_megabits,
-                                       interval.long_megabits);
-      std::cout << "[+" << round(interval.running_time / 1000.0, 0) << " ms] "
-                << "Upload speed: " << round(interval.short_megabits, 2)
-                << " - " << round(interval.long_megabits, 2)
-                << " Mbps (" << interval.bytes << " bytes, variance "
+    transfer_options.progress_millis = options_.progress_millis;
+    transfer_options.progress_fn = [](Bucket bucket) {
+      double speed_variance = variance(bucket.short_megabits,
+                                       bucket.long_megabits);
+      std::cout << "[+" << round(bucket.start_time / 1000.0, 0) << " ms] "
+                << "Upload speed: " << round(bucket.short_megabits, 2)
+                << " - " << round(bucket.long_megabits, 2)
+                << " Mbps (" << bucket.total_bytes << " bytes, variance "
                 << round(speed_variance, 4) << ")\n";
     };
   }
-  TransferRunner runner(runner_options);
-  runner.Run();
-  runner.WaitForEnd();
-  if (options_.verbose) {
-    long running_time = upload->GetRunningTimeMicros();
-    std::cout << "Uploaded " << upload->bytes_transferred()
-              << " bytes in " << round(running_time / 1000.0, 0) << " ms\n";
-  }
-  std::cout << "Upload speed: "
-            << round(runner.GetSpeedInMegabits(), 2) << " Mbps\n";
+  return RunTransfer(std::ref(upload), cancel, transfer_options);
 }
 
-int Speedtest::NumDownloads() const {
+Ping::Result Speedtest::RunPingTest(std::atomic_bool *cancel) {
+  Ping::Options ping_options;
+  ping_options.verbose = options_.verbose;
+  ping_options.timeout_millis = GetPingTimeoutMillis();
+  ping_options.region = selected_region_;
+  ping_options.num_concurrent_pings = 0;
+  ping_options.request_factory = [&](const http::Url &url){
+    return MakeRequest(url);
+  };
+  Ping ping(ping_options);
+  return RunTimed(std::ref(ping), cancel, GetPingRunTimeMillis());
+}
+
+int Speedtest::GetNumDownloads() const {
   return options_.num_downloads
          ? options_.num_downloads
          : config_.num_downloads;
 }
 
-int Speedtest::DownloadSize() const {
-  return options_.download_size
-         ? options_.download_size
-         : config_.download_size;
+long Speedtest::GetDownloadSizeBytes() const {
+  return options_.download_bytes
+         ? options_.download_bytes
+         : config_.download_bytes;
 }
 
-int Speedtest::NumUploads() const {
+int Speedtest::GetNumUploads() const {
   return options_.num_uploads
          ? options_.num_uploads
          : config_.num_uploads;
 }
 
-int Speedtest::UploadSize() const {
-  return options_.upload_size
-         ? options_.upload_size
-         : config_.upload_size;
+long Speedtest::GetUploadSizeBytes() const {
+  return options_.upload_bytes
+         ? options_.upload_bytes
+         : config_.upload_bytes;
 }
 
-int Speedtest::PingRunTime() const {
-  return options_.ping_runtime
-         ? options_.ping_runtime
-         : config_.ping_runtime;
+long Speedtest::GetPingRunTimeMillis() const {
+  return options_.ping_runtime_millis
+         ? options_.ping_runtime_millis
+         : config_.ping_runtime_millis;
 }
 
-int Speedtest::PingTimeout() const {
-  return options_.ping_timeout
-         ? options_.ping_timeout
-         : config_.ping_timeout;
+long Speedtest::GetPingTimeoutMillis() const {
+  return options_.ping_timeout_millis
+         ? options_.ping_timeout_millis
+         : config_.ping_timeout_millis;
 }
 
-int Speedtest::MinTransferRuntime() const {
+long Speedtest::GetMinTransferRunTimeMillis() const {
   return options_.min_transfer_runtime
          ? options_.min_transfer_runtime
          : config_.min_transfer_runtime;
 }
 
-int Speedtest::MaxTransferRuntime() const {
+long Speedtest::GetMaxTransferRunTimeMillis() const {
   return options_.max_transfer_runtime
          ? options_.max_transfer_runtime
          : config_.max_transfer_runtime;
 }
 
-int Speedtest::MinTransferIntervals() const {
+int Speedtest::GetMinTransferIntervals() const {
   return options_.min_transfer_intervals
          ? options_.min_transfer_intervals
          : config_.min_transfer_intervals;
 }
 
-int Speedtest::MaxTransferIntervals() const {
+int Speedtest::GetMaxTransferIntervals() const {
   return options_.max_transfer_intervals
          ? options_.max_transfer_intervals
          : config_.max_transfer_intervals;
 }
 
-double Speedtest::MaxTransferVariance() const {
+double Speedtest::GetMaxTransferVariance() const {
   return options_.max_transfer_variance
          ? options_.max_transfer_variance
          : config_.max_transfer_variance;
 }
 
-int Speedtest::IntervalMillis() const {
+long Speedtest::GetIntervalMillis() const {
   return options_.interval_millis
          ? options_.interval_millis
          : config_.interval_millis;
 }
 
-http::Request::Ptr Speedtest::MakeRequest(const http::Url &url) {
-  http::Request::Ptr request = env_->NewRequest(url);
-  if (!user_agent_.empty()) {
-    request->set_user_agent(user_agent_);
+http::Request::Ptr Speedtest::MakeRequest(const http::Url &url) const {
+  http::Request::Ptr request = options_.request_factory(url);
+  if (!options_.user_agent.empty()) {
+    request->set_user_agent(options_.user_agent);
   }
   return std::move(request);
 }
 
 http::Request::Ptr Speedtest::MakeBaseRequest(
-    int id, const std::string &path) {
-  http::Url url(*server_url_);
+    int id, const std::string &path) const {
+  http::Url url(selected_region_.urls.front());
   url.set_path(path);
   return MakeRequest(url);
 }
 
 http::Request::Ptr Speedtest::MakeTransferRequest(
-    int id, const std::string &path) {
-  http::Url url(*server_url_);
+    int id, const std::string &path) const {
+  http::Url url(selected_region_.urls.front().url());
   int port_start = config_.transfer_port_start;
   int port_end = config_.transfer_port_end;
   int num_ports = port_end - port_start + 1;

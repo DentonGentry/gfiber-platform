@@ -14,40 +14,46 @@
  * limitations under the License.
  */
 
-#ifndef SPEEDTEST_UPLOAD_TASK_H
-#define SPEEDTEST_UPLOAD_TASK_H
+#ifndef SPEEDTEST_STATUS_H
+#define SPEEDTEST_STATUS_H
 
-#include <memory>
 #include <string>
-#include <thread>
-#include <vector>
-#include "transfer_task.h"
 
 namespace speedtest {
 
-class UploadTask : public TransferTask {
+enum class StatusCode {
+  OK = 0,
+  INVALID_ARGUMENT = 1,
+  ABORTED = 2,
+  INTERNAL = 3,
+  FAILED_PRECONDITION = 4,
+  UNAVAILABLE = 5,
+  UNKNOWN = 6
+};
+
+std::string ErrorString(StatusCode status_code);
+
+class Status {
  public:
-  struct Options : TransferTask::Options {
-    std::shared_ptr<std::string> payload;
-  };
+  Status();
+  explicit Status(StatusCode code);
+  Status(StatusCode code, std::string message);
 
-  explicit UploadTask(const Options &options);
+  bool ok() const;
+  StatusCode code() const;
+  const std::string &message() const;
+  std::string ToString() const;
 
- protected:
-  void RunInternal() override;
-  void StopInternal() override;
+  bool operator==(const Status &status) const;
+  bool operator!=(const Status &status) const;
+
+  static const Status OK;
 
  private:
-  void RunUpload(int id);
-
-  Options options_;
-  std::vector<std::thread> threads_;
-
-  // disallowed
-  UploadTask(const UploadTask &) = delete;
-  void operator=(const UploadTask &) = delete;
+  StatusCode code_;
+  std::string message_;
 };
 
 }  // namespace speedtest
 
-#endif  // SPEEDTEST_UPLOAD_TASK_H
+#endif  // SPEEDTEST_STATUS_H

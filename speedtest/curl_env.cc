@@ -19,7 +19,6 @@
 #include <cstdlib>
 #include <iostream>
 #include "errors.h"
-#include "request.h"
 
 namespace http {
 namespace {
@@ -71,7 +70,7 @@ CurlEnv::~CurlEnv() {
   curl_global_cleanup();
 }
 
-std::unique_ptr<Request> CurlEnv::NewRequest(const Url &url) {
+Request::Ptr CurlEnv::NewRequest(const Url &url) {
   // curl_global_init is not threadsafe and calling curl_easy_init may
   // implicitly call it so we need to mutex lock on creating all requests
   // to ensure the global initialization is done in a threadsafe manner.
@@ -101,6 +100,7 @@ std::unique_ptr<Request> CurlEnv::NewRequest(const Url &url) {
   }
 
   curl_easy_setopt(handle.get(), CURLOPT_SHARE, share_);
+  curl_easy_setopt(handle.get(), CURLOPT_NOSIGNAL, 1);
   return std::unique_ptr<Request>(new Request(handle, url));
 }
 

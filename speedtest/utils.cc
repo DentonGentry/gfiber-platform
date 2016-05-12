@@ -62,6 +62,18 @@ double ToMegabits(long bytes, long micros) {
   return (8.0d * bytes) / micros;
 }
 
+std::string ToMillis(long micros) {
+  double millis = micros / 1000.0d;
+  if (millis < 1) {
+    return round(millis, 3);
+  } else if (millis < 10) {
+    return round(millis, 2);
+  } else if (millis < 1000) {
+    return round(millis, 1);
+  }
+  return round(millis, 0);
+}
+
 bool ParseInt(const std::string &str, int *result) {
   if (!result) {
     return false;
@@ -93,6 +105,18 @@ void RightTrim(std::string *s) {
 void Trim(std::string *s) {
   LeftTrim(s);
   RightTrim(s);
+}
+
+std::shared_ptr<std::string> MakeRandomData(size_t size) {
+  std::random_device rd;
+  std::default_random_engine random_engine(rd());
+  std::uniform_int_distribution<char> uniform_dist(1, 255);
+  auto random_data = std::make_shared<std::string>();
+  random_data->resize(size);
+  for (size_t i = 0; i < size; ++i) {
+    (*random_data)[i] = uniform_dist(random_engine);
+  }
+  return std::move(random_data);
 }
 
 }  // namespace speedtest

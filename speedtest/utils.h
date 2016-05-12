@@ -17,9 +17,22 @@
 #ifndef SPEEDTEST_UTILS_H
 #define SPEEDTEST_UTILS_H
 
+#include <future>
+#include <memory>
 #include <string>
 
+#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
+  TypeName(const TypeName&) = delete;      \
+  TypeName& operator=(const TypeName&) = delete
+
 namespace speedtest {
+
+template <typename F, typename... Ts>
+inline std::future<typename std::result_of<F(Ts...)>::type>
+ReallyAsync(F&& f, Ts&&... params) {
+  return std::async(std::launch::async, std::forward<F>(f),
+                    std::forward<Ts>(params)...);
+}
 
 // Return relative time in microseconds
 // This isn't convertible to an absolute date and time
@@ -37,6 +50,9 @@ double variance(double d1, double d2);
 // Convert bytes and time in micros to speed in megabits
 double ToMegabits(long bytes, long micros);
 
+// Convert to milliseconds, round to at least 3 significant figures.
+std::string ToMillis(long micros);
+
 // Parse an int.
 // If successful, write result to result and return true.
 // If result is null or the int can't be parsed, return false.
@@ -53,6 +69,8 @@ void RightTrim(std::string *s);
 // Trim from both ends in place
 // Caller retains ownership
 void Trim(std::string *s);
+
+std::shared_ptr<std::string> MakeRandomData(size_t size);
 
 }  // namespace speedtst
 

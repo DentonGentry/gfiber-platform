@@ -23,6 +23,7 @@
 #include <memory>
 #include <string>
 #include "url.h"
+#include "utils.h"
 
 namespace http {
 
@@ -43,6 +44,7 @@ class Request {
                                         curl_off_t,
                                         curl_off_t)>;
   using Ptr = std::unique_ptr<Request>;
+  using Factory = std::function<Ptr(const Url &)>;
 
   Request(std::shared_ptr<CURL> handle, const Url &url);
   virtual ~Request();
@@ -100,9 +102,7 @@ class Request {
   QueryStringParams params_;
   ProgressFn progress_fn_;
 
-  // disable
-  Request(const Request &) = delete;
-  void operator=(const Request &) = delete;
+  DISALLOW_COPY_AND_ASSIGN(Request);
 };
 
 }  // namespace http

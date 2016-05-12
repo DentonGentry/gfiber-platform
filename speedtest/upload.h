@@ -14,42 +14,53 @@
  * limitations under the License.
  */
 
-#ifndef SPEEDTEST_TRANSFER_TEST_H
-#define SPEEDTEST_TRANSFER_TEST_H
+#ifndef SPEEDTEST_UPLOAD_H
+#define SPEEDTEST_UPLOAD_H
 
 #include <atomic>
-#include "http_task.h"
+#include <functional>
+#include <memory>
+#include "request.h"
+#include "status.h"
+#include "utils.h"
 
 namespace speedtest {
 
-class TransferTask : public HttpTask {
+class Upload {
  public:
-  struct Options : HttpTask::Options {
-    int num_transfers = 0;
+  struct Options {
+    bool verbose;
+    std::function<http::Request::Ptr(int)> request_factory;
+    int num_transfers;
+    std::shared_ptr<std::string> payload;
   };
 
-  explicit TransferTask(const Options &options);
+  struct Result {
+    long start_time;
+    long end_time;
+    Status status;
+    long bytes_transferred;
+  };
 
+  explicit Upload(const Options &options);
+
+  Result operator()(std::atomic_bool *cancel);
+
+  long start_time() const { return start_time_; }
+  long end_time() const { return end_time_; }
   long bytes_transferred() const { return bytes_transferred_; }
-  long requests_started() const { return requests_started_; }
-  long requests_ended() const { return requests_ended_; }
-
- protected:
-  void ResetCounters();
-  void StartRequest();
-  void EndRequest();
-  void TransferBytes(long bytes);
 
  private:
-  std::atomic_long bytes_transferred_;
-  std::atomic_int requests_started_;
-  std::atomic_int requests_ended_;
+  Result GetResult(Status status) const;
 
-  // disallowed
-  TransferTask(const TransferTask &) = delete;
-  void operator=(const TransferTask &) = delete;
+  Options options_;
+  std::atomic_long start_time_;
+  std::atomic_long end_time_;
+  std::atomic_long bytes_transferred_;
+
+  DISALLOW_COPY_AND_ASSIGN(Upload);
 };
 
 }  // namespace speedtest
 
-#endif  // SPEEDTEST_TRANSFER_TEST_H
+#endif // SPEEDTEST_UPLOAD_H

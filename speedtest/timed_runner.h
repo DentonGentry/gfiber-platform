@@ -14,16 +14,34 @@
  * limitations under the License.
  */
 
-#ifndef SPEEDTEST_RUNNER_H
-#define SPEEDTEST_RUNNER_H
+#ifndef SPEEDTEST_TIMED_RUNNER_H
+#define SPEEDTEST_TIMED_RUNNER_H
 
-#include "task.h"
+#include <future>
+#include <thread>
+#include <type_traits>
+#include "utils.h"
 
 namespace speedtest {
 
-// Run a task for a set duration
-void RunTimed(Task *task, long millis);
+template <typename F>
+typename std::result_of<F(std::atomic_bool *)>::type
+RunTimed(F &&fn, std::atomic_bool *cancel, long timeout_millis) {
+  std::atomic_bool local_cancel(false);
+  long start_time = SystemTimeMicros();
+  long end_time = start_time + timeout_millis * 1000;
+  auto fut = ReallyAsync(std::forward<F>(fn), &local_cancel);
+  std::thread timer([&]{
+    while (!*cancel && SystemTimeMicros() <= end_time) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    local_cancel = true;
+  });
+  timer.join();
+  fut.wait();
+  return fut.get();
+}
 
-}  // namespace speedtest
+}  // namespace
 
-#endif  // SPEEDTEST_RUNNER_H
+#endif // SPEEDTEST_TIMED_RUNNER_H

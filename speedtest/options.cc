@@ -24,8 +24,11 @@
 #include "url.h"
 
 namespace speedtest {
+namespace {
 
 const char* kDefaultHost = "any.speed.gfsvc.com";
+
+}  // namespace
 
 namespace {
 
@@ -69,7 +72,11 @@ bool ParseSize(const char *s, long *size) {
 
 const int kOptDisableDnsCache = 1000;
 const int kOptMaxConnections = 1001;
-const int kOptExponentialMovingAverage = 1002;
+const int kOptReportResults = 1002;
+const int kOptSkipDownload = 1003;
+const int kOptSkipUpload = 1004;
+const int kOptSkipPing = 1005;
+const int kOptNoReportResults = 1006;
 
 const int kOptMinTransferTime = 1100;
 const int kOptMaxTransferTime = 1101;
@@ -79,19 +86,23 @@ const int kOptMaxTransferVariance = 1104;
 const int kOptIntervalMillis = 1105;
 const int kOptPingRuntime = 1106;
 const int kOptPingTimeout = 1107;
+const int kOptExponentialMovingAverage = 1108;
 
 const char *kShortOpts = "hvg:a:d:s:t:u:p:";
 
 struct option kLongOpts[] = {
     {"help", no_argument, nullptr, 'h'},
     {"verbose", no_argument, nullptr, 'v'},
-    {"global_host", required_argument, nullptr, 'g'},
+    {"global_url", required_argument, nullptr, 'g'},
     {"user_agent", required_argument, nullptr, 'a'},
     {"disable_dns_cache", no_argument, nullptr, kOptDisableDnsCache},
     {"max_connections", required_argument, nullptr, kOptMaxConnections},
     {"progress_millis", required_argument, nullptr, 'p'},
-    {"exponential_moving_average", no_argument, nullptr,
-        kOptExponentialMovingAverage},
+    {"skip_download", no_argument, nullptr, kOptSkipDownload},
+    {"skip_upload", no_argument, nullptr, kOptSkipUpload},
+    {"skip_ping", no_argument, nullptr, kOptSkipPing},
+    {"report_results", no_argument, nullptr, kOptReportResults},
+    {"noreport_results", no_argument, nullptr, kOptNoReportResults},
 
     {"num_downloads", required_argument, nullptr, 'd'},
     {"download_size", required_argument, nullptr, 's'},
@@ -108,6 +119,8 @@ struct option kLongOpts[] = {
     {"interval_millis", required_argument, nullptr, kOptIntervalMillis},
     {"ping_runtime", required_argument, nullptr, kOptPingRuntime},
     {"ping_timeout", required_argument, nullptr, kOptPingTimeout},
+    {"exponential_moving_average", no_argument, nullptr,
+        kOptExponentialMovingAverage},
     {nullptr, 0, nullptr, 0},
 };
 const int kMaxNumber = 1000;
@@ -124,12 +137,15 @@ will be used without pinging.
 Usage: speedtest [options] [host ...]
  -h, --help                    This help text
  -v, --verbose                 Verbose output
- -g, --global_host URL         Global host URL
+ -g, --global_url URL         Global host URL
  -a, --user_agent AGENT        User agent string for HTTP requests
  -p, --progress_millis NUM     Delay in milliseconds between updates
  --disable_dns_cache           Disable global DNS cache
  --max_connections NUM         Maximum number of parallel connections
- --exponential_moving_average  Use exponential instead of simple moving average
+ --skip_download               Skip the download test
+ --skip_upload                 Skip the upload test
+ --skip_ping                   Skip the ping test
+ --[no]report_results          Whether to report Speedtest results to server
 
 These options override the speedtest config parameters:
  -d, --num_downloads NUM       Number of simultaneous downloads
@@ -144,6 +160,7 @@ These options override the speedtest config parameters:
  --interval_millis TIME        Interval size in milliseconds
  --ping_runtime TIME           Ping runtime in milliseconds
  --ping_timeout TIME           Ping timeout in milliseconds
+ --exponential_moving_average  Use exponential instead of simple moving average
 )USAGE";
 
 }  // namespace
@@ -152,30 +169,34 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
   assert(options != nullptr);
   options->usage = false;
   options->verbose = false;
-  options->global_host = http::Url(kDefaultHost);
+  options->global_url = http::Url(kDefaultHost);
   options->global = false;
   options->user_agent = "";
   options->progress_millis = 0;
   options->disable_dns_cache = false;
   options->max_connections = 0;
   options->exponential_moving_average = false;
+  options->skip_download = false;
+  options->skip_upload = false;
+  options->skip_ping = false;
+  options->report_results = true;
 
   options->num_downloads = 0;
-  options->download_size = 0;
+  options->download_bytes = 0;
   options->num_uploads = 0;
-  options->upload_size = 0;
+  options->upload_bytes = 0;
   options->min_transfer_runtime = 0;
   options->max_transfer_runtime = 0;
   options->min_transfer_intervals = 0;
   options->max_transfer_intervals = 0;
   options->max_transfer_variance = 0.0;
   options->interval_millis = 0;
-  options->ping_runtime = 0;
-  options->ping_timeout = 0;
+  options->ping_runtime_millis = 0;
+  options->ping_timeout_millis = 0;
 
-  options->hosts.clear();
+  options->regional_urls.clear();
 
-  if (!options->global_host.ok()) {
+  if (!options->global_url.ok()) {
     std::cerr << "Invalid global host " << kDefaultHost << "\n";
     return false;
   }
@@ -210,7 +231,7 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
           std::cerr << "Invalid global host " << optarg << "\n";
           return false;
         }
-        options->global_host = url;
+        options->global_url = url;
         break;
       }
       case 'h':
@@ -228,17 +249,17 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
                     << ", got '" << optarg << "'\n";
           return false;
         }
-        options->progress_millis = static_cast<int>(progress);
+        options->progress_millis = progress;
         break;
       }
       case 's':
-        if (!ParseSize(optarg, &options->download_size)) {
+        if (!ParseSize(optarg, &options->download_bytes)) {
           std::cerr << "Invalid download size '" << optarg << "'\n";
           return false;
         }
         break;
       case 't':
-        if (!ParseSize(optarg, &options->upload_size)) {
+        if (!ParseSize(optarg, &options->upload_bytes)) {
           std::cerr << "Invalid upload size '" << optarg << "'\n";
           return false;
         }
@@ -279,8 +300,20 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
         options->max_connections = static_cast<int>(max_connections);
         break;
       }
-      case kOptExponentialMovingAverage:
-        options->exponential_moving_average = true;
+      case kOptReportResults:
+        options->report_results = true;
+        break;
+      case kOptSkipDownload:
+        options->skip_download = true;
+        break;
+      case kOptSkipUpload:
+        options->skip_upload = true;
+        break;
+      case kOptSkipPing:
+        options->skip_ping = true;
+        break;
+      case kOptNoReportResults:
+        options->report_results = false;
         break;
       case kOptMinTransferTime: {
         long transfer_time;
@@ -295,7 +328,7 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
                     << optarg << "'\n";
           return false;
         }
-        options->min_transfer_runtime = static_cast<int>(transfer_time);
+        options->min_transfer_runtime = transfer_time;
         break;
       }
       case kOptMaxTransferTime: {
@@ -311,7 +344,7 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
                     << optarg << "'\n";
           return false;
         }
-        options->max_transfer_runtime = static_cast<int>(transfer_time);
+        options->max_transfer_runtime = transfer_time;
         break;
       }
       case kOptMinTransferIntervals: {
@@ -372,7 +405,7 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
                     << optarg << "'\n";
           return false;
         }
-        options->interval_millis = static_cast<int>(interval_millis);
+        options->interval_millis = interval_millis;
         break;
       }
       case kOptPingRuntime: {
@@ -387,7 +420,7 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
                     << optarg << "'\n";
           return false;
         }
-        options->ping_runtime = static_cast<int>(ping_runtime);
+        options->ping_runtime_millis = ping_runtime;
         break;
       }
       case kOptPingTimeout: {
@@ -402,9 +435,12 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
                     << optarg << "'\n";
           return false;
         }
-        options->ping_timeout = static_cast<int>(ping_timeout);
+        options->ping_timeout_millis = ping_timeout;
         break;
       }
+      case kOptExponentialMovingAverage:
+        options->exponential_moving_average = true;
+        break;
       default:
         return false;
     }
@@ -423,10 +459,10 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
       url.clear_path();
       url.clear_query_string();
       url.clear_fragment();
-      options->hosts.emplace_back(url);
+      options->regional_urls.emplace_back(url);
     }
   }
-  if (options->hosts.empty()) {
+  if (options->regional_urls.empty()) {
     options->global = true;
   }
   return true;
@@ -439,29 +475,37 @@ void PrintOptions(const Options &options) {
 void PrintOptions(std::ostream &out, const Options &options) {
   out << "Usage: " << (options.usage ? "true" : "false") << "\n"
       << "Verbose: " << (options.verbose ? "true" : "false") << "\n"
-      << "Global host: " << options.global_host.url() << "\n"
+      << "Global host: " << options.global_url.url() << "\n"
       << "Global: " << (options.global ? "true" : "false") << "\n"
       << "User agent: " << options.user_agent << "\n"
       << "Progress interval: " << options.progress_millis << " ms\n"
       << "Disable DNS cache: "
       << (options.disable_dns_cache ? "true" : "false") << "\n"
       << "Max connections: " << options.max_connections << "\n"
-      << "Exponential moving average: "
-      << (options.exponential_moving_average ? "true" : "false") << "\n"
+      << "Skip download: "
+      << (options.skip_download ? "true" : "false") << "\n"
+      << "Skip upload: "
+      << (options.skip_upload ? "true" : "false") << "\n"
+      << "Skip ping: "
+      << (options.skip_ping ? "true" : "false") << "\n"
+      << "Report results: "
+      << (options.report_results ? "true" : "false") << "\n"
       << "Number of downloads: " << options.num_downloads << "\n"
-      << "Download size: " << options.download_size << " bytes\n"
+      << "Download size: " << options.download_bytes << " bytes\n"
       << "Number of uploads: " << options.num_uploads << "\n"
-      << "Upload size: " << options.upload_size << " bytes\n"
+      << "Upload size: " << options.upload_bytes << " bytes\n"
       << "Min transfer runtime: " << options.min_transfer_runtime << " ms\n"
       << "Max transfer runtime: " << options.max_transfer_runtime << " ms\n"
       << "Min transfer intervals: " << options.min_transfer_intervals << "\n"
       << "Max transfer intervals: " << options.max_transfer_intervals << "\n"
       << "Max transfer variance: " << options.max_transfer_variance << "\n"
       << "Interval size: " << options.interval_millis << " ms\n"
-      << "Ping runtime: " << options.ping_runtime << " ms\n"
-      << "Ping timeout: " << options.ping_timeout << " ms\n"
+      << "Ping runtime: " << options.ping_runtime_millis << " ms\n"
+      << "Ping timeout: " << options.ping_timeout_millis << " ms\n"
+      << "Exponential moving average: "
+      << (options.exponential_moving_average ? "true" : "false") << "\n"
       << "Hosts:\n";
-  for (const http::Url &host : options.hosts) {
+  for (const http::Url &host : options.regional_urls) {
     out << "  " << host.url() << "\n";
   }
 }

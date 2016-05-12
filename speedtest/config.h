@@ -20,41 +20,55 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "region.h"
+#include "request.h"
+#include "status.h"
 #include "url.h"
 
 namespace speedtest {
 
 struct Config {
-  int download_size = 0;
-  int upload_size = 0;
-  int interval_millis = 0;
+  long download_bytes = 0;
+  long upload_bytes = 0;
+  long interval_millis = 0;
+  std::string location_id;
   std::string location_name;
   int min_transfer_intervals = 0;
   int max_transfer_intervals = 0;
-  int min_transfer_runtime = 0;
-  int max_transfer_runtime = 0;
+  long min_transfer_runtime = 0;
+  long max_transfer_runtime = 0;
   double max_transfer_variance = 0;
   int num_downloads = 0;
   int num_uploads = 0;
-  int ping_runtime = 0;
-  int ping_timeout = 0;
+  long ping_runtime_millis = 0;
+  long ping_timeout_millis = 0;
   int transfer_port_start = 0;
   int transfer_port_end = 0;
 };
 
+struct ConfigOptions {
+  bool verbose;
+  http::Request::Factory request_factory;
+  http::Url region_url;
+};
+
+struct ConfigResult {
+  long start_time;
+  long end_time;
+  Status status;
+  Config config;
+};
+
+ConfigResult LoadConfig(ConfigOptions options);
+
 // Parses a JSON document into a config struct.
 // Returns true with the config struct populated on success.
 // Returns false if the JSON is invalid or config is null.
-bool ParseConfig(const std::string &json, Config *config);
-
-// Parses a JSON document into a list of server URLs
-// Returns true with the servers populated in the vector on success.
-// Returns false if the JSON is invalid or servers is null.
-bool ParseServers(const std::string &json, std::vector<http::Url> *servers);
+Status ParseConfig(const std::string &json, Config *config);
 
 void PrintConfig(const Config &config);
 void PrintConfig(std::ostream &out, const Config &config);
 
 }  // namespace speedtest
 
-#endif //SPEEDTEST_CONFIG_H
+#endif // SPEEDTEST_CONFIG_H

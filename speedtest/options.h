@@ -20,38 +20,43 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "request.h"
 #include "url.h"
 
 namespace speedtest {
 
-extern const char* kDefaultHost;
-
 struct Options {
+  bool verbose;
+  http::Request::Factory request_factory;
+
   bool usage = false;
-  bool verbose = false;
-  http::Url global_host;
+  http::Url global_url;
   bool global = false;
   std::string user_agent;
   bool disable_dns_cache = false;
   int max_connections = 0;
   int progress_millis = 0;
-  bool exponential_moving_average = false;
+  bool skip_download = false;
+  bool skip_upload = false;
+  bool skip_ping = false;
+  bool report_results = true;
 
   // A value of 0 means use the speedtest config parameters
   int num_downloads = 0;
-  long download_size = 0;
+  long download_bytes = 0;
   int num_uploads = 0;
-  long upload_size = 0;
-  int min_transfer_runtime = 0;
-  int max_transfer_runtime = 0;
+  long upload_bytes = 0;
+  long min_transfer_runtime = 0;
+  long max_transfer_runtime = 0;
   int min_transfer_intervals = 0;
   int max_transfer_intervals = 0;
   double max_transfer_variance = 0.0;
-  int interval_millis = 0;
-  int ping_runtime = 0;
-  int ping_timeout = 0;
+  long interval_millis = 0;
+  long ping_runtime_millis = 0;
+  long ping_timeout_millis = 0;
+  bool exponential_moving_average = false;
 
-  std::vector<http::Url> hosts;
+  std::vector<http::Url> regional_urls;
 };
 
 // Parse command line options putting results into 'options'

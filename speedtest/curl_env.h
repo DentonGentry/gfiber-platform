@@ -20,7 +20,9 @@
 #include <curl/curl.h>
 #include <memory>
 #include <mutex>
+#include "request.h"
 #include "url.h"
+#include "utils.h"
 
 namespace http {
 
@@ -37,7 +39,7 @@ class CurlEnv : public std::enable_shared_from_this<CurlEnv> {
   static std::shared_ptr<CurlEnv> NewCurlEnv(const Options &options);
   virtual ~CurlEnv();
 
-  std::unique_ptr<Request> NewRequest(const Url &url);
+  Request::Ptr NewRequest(const Url &url);
 
   void Lock(curl_lock_data lock_type);
   void Unlock(curl_lock_data lock_type);
@@ -54,9 +56,7 @@ class CurlEnv : public std::enable_shared_from_this<CurlEnv> {
   std::mutex dns_mutex_;
   CURLSH *share_;  // owned
 
-  // disable
-  CurlEnv(const CurlEnv &other) = delete;
-  void operator=(const CurlEnv &other) = delete;
+  DISALLOW_COPY_AND_ASSIGN(CurlEnv);
 };
 
 }  // namespace http

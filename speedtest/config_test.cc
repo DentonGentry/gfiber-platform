@@ -18,6 +18,12 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <string>
+#include <vector>
+#include "region.h"
+
+#define EXPECT_OK(statement) EXPECT_EQ(::speedtest::Status::OK, (statement))
+#define EXPECT_ERROR(statement) EXPECT_NE(::speedtest::Status::OK, (statement))
 
 namespace speedtest {
 namespace {
@@ -26,6 +32,7 @@ const char *kValidConfig = R"CONFIG(
 {
     "downloadSize": 10000000,
     "intervalSize": 200,
+    "locationId": "mci",
     "locationName": "Kansas City",
     "maxTransferIntervals": 25,
     "maxTransferRunTime": 20000,
@@ -42,90 +49,41 @@ const char *kValidConfig = R"CONFIG(
 }
 )CONFIG";
 
-const char *kValidServers = R"SERVERS(
-{
-    "locationName": "Kansas City",
-    "regionalServers": [
-        "http://austin.speed.googlefiber.net/",
-        "http://kansas.speed.googlefiber.net/",
-        "http://provo.speed.googlefiber.net/",
-        "http://stanford.speed.googlefiber.net/"
-    ]
-}
-)SERVERS";
-
-const char *kInvalidServers = R"SERVERS(
-{
-    "locationName": "Kansas City",
-    "regionalServers": [
-        "example.com..",
-    ]
-}
-)SERVERS";
-
 const char *kInvalidJson = "{{}{";
 
 TEST(ParseConfigTest, NullConfig_Invalid) {
-  EXPECT_FALSE(ParseConfig(kValidConfig, nullptr));
+  EXPECT_ERROR(ParseConfig(kValidConfig, nullptr));
 }
 
 TEST(ParseConfigTest, EmptyJson_Invalid) {
   Config config;
-  EXPECT_FALSE(ParseConfig("", &config));
+  EXPECT_ERROR(ParseConfig("", &config));
 }
 
 TEST(ParseConfigTest, InvalidJson_Invalid) {
   Config config;
-  EXPECT_FALSE(ParseConfig(kInvalidJson, &config));
+  EXPECT_ERROR(ParseConfig(kInvalidJson, &config));
 }
 
 TEST(ParseConfigTest, FullConfig_Valid) {
   Config config;
-  EXPECT_TRUE(ParseConfig(kValidConfig, &config));
-  EXPECT_EQ(10000000, config.download_size);
-  EXPECT_EQ(20000000, config.upload_size);
+  EXPECT_OK(ParseConfig(kValidConfig, &config));
+  EXPECT_EQ(10000000, config.download_bytes);
+  EXPECT_EQ(20000000, config.upload_bytes);
   EXPECT_EQ(20, config.num_downloads);
   EXPECT_EQ(15, config.num_uploads);
   EXPECT_EQ(200, config.interval_millis);
+  EXPECT_EQ("mci", config.location_id);
   EXPECT_EQ("Kansas City", config.location_name);
   EXPECT_EQ(10, config.min_transfer_intervals);
   EXPECT_EQ(25, config.max_transfer_intervals);
   EXPECT_EQ(5000, config.min_transfer_runtime);
   EXPECT_EQ(20000, config.max_transfer_runtime);
   EXPECT_EQ(0.08, config.max_transfer_variance);
-  EXPECT_EQ(3000, config.ping_runtime);
-  EXPECT_EQ(300, config.ping_timeout);
+  EXPECT_EQ(3000, config.ping_runtime_millis);
+  EXPECT_EQ(300, config.ping_timeout_millis);
   EXPECT_EQ(3004, config.transfer_port_start);
   EXPECT_EQ(3023, config.transfer_port_end);
-}
-
-TEST(ParseServersTest, NullServers_Invalid) {
-  EXPECT_FALSE(ParseServers(kValidServers, nullptr));
-}
-
-TEST(ParseServersTest, EmptyServers_Invalid) {
-  std::vector<http::Url> servers;
-  EXPECT_FALSE(ParseServers("", &servers));
-}
-
-TEST(ParseServersTest, InvalidJson_Invalid) {
-  std::vector<http::Url> servers;
-  EXPECT_FALSE(ParseServers(kInvalidJson, &servers));
-}
-
-TEST(ParseServersTest, FullServers_Valid) {
-  std::vector<http::Url> servers;
-  EXPECT_TRUE(ParseServers(kValidServers, &servers));
-  EXPECT_THAT(servers, testing::UnorderedElementsAre(
-      http::Url("http://austin.speed.googlefiber.net/"),
-      http::Url("http://kansas.speed.googlefiber.net/"),
-      http::Url("http://provo.speed.googlefiber.net/"),
-      http::Url("http://stanford.speed.googlefiber.net/")));
-}
-
-TEST(ParseServersTest, InvalidServers_Invalid) {
-  std::vector<http::Url> servers;
-  EXPECT_FALSE(ParseServers(kInvalidServers, &servers));
 }
 
 }  // namespace

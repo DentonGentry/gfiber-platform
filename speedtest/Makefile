@@ -13,53 +13,104 @@ GMOCK_DIR=googlemock
 TFLAGS=$(DEBUG) -isystem ${GTEST_DIR}/include -isystem $(GMOCK_DIR)/include -pthread -std=c++11
 
 LIBS=-lcurl -lpthread -ljsoncpp
-TOBJS=curl_env.o url.o errors.o request.o utils.o
+TOBJS=curl_env.o url.o errors.o request.o status.o utils.o
 OBJS=config.o \
      curl_env.o \
-     download_task.o \
+     download.o \
      errors.o \
-     http_task.o \
+     find_nearest.o \
+     init.o \
      options.o \
-     ping_task.o \
+     ping.o \
+     region.o \
      request.o \
      speedtest.o \
-     task.o \
-     timed_runner.o \
+     status.o \
      transfer_runner.o \
-     transfer_task.o \
-     upload_task.o \
+     upload.o \
      url.o \
      utils.o
 
 all: speedtest
 
-config.o: config.cc config.h url.h
+config.o: config.cc \
+          config.h \
+          errors.h \
+          region.h \
+          request.h \
+          status.h \
+          url.h \
+          utils.h
+curl_env.o: curl_env.cc curl_env.h errors.h request.h utils.h
+download.o: download.cc \
+            download.h \
+            request.h \
+            status.h \
+            utils.h
 errors.o: errors.cc errors.h
-curl_env.o: curl_env.cc curl_env.h errors.h request.h
-download_task.o: download_task.cc download_task.h transfer_task.h utils.h
-http_task.o: http_task.cc http_task.h
-options.o: options.cc options.h url.h
-ping_task.o: ping_task.cc ping_task.h http_task.h request.h url.h utils.h
-request.o: request.cc request.h url.h
+find_nearest.o: find_nearest.cc \
+                find_nearest.h \
+                ping.h \
+                region.h \
+                request.h \
+                status.h \
+                utils.h
+init.o: init.cc \
+        init.h \
+        config.h \
+        find_nearest.h \
+        region.h \
+        request.h \
+        status.h \
+        timed_runner.h \
+        url.h \
+        utils.h
+options.o: options.cc options.h request.h url.h
+ping.o: ping.cc \
+        ping.h \
+        errors.h \
+        region.h \
+        request.h \
+        status.h \
+        url.h \
+        utils.h
+region.o: region.cc \
+          region.h \
+          errors.h \
+          request.h \
+          status.h \
+          region.h \
+          utils.h
+request.o: request.cc request.h url.h utils.h
 speedtest.o: speedtest.cc \
              speedtest.h \
              config.h \
-             curl_env.h \
-             download_task.h \
+             download.h \
+             init.h \
              options.h \
-             ping_task.h \
+             region.h \
              request.h \
-             task.h \
+             status.h \
              timed_runner.h \
              transfer_runner.h \
-             upload_task.h \
-             url.h
-speedtest_main.o: speedtest_main.cc options.h speedtest.h
-task.o: task.cc task.h utils.h
-timed_runner.o: timed_runner.cc timed_runner.h task.h
-transfer_runner.o: transfer_runner.cc transfer_runner.h transfer_task.h utils.h
-transfer_task.o: transfer_task.cc transfer_task.h http_task.h
-upload_task.o: upload_task.cc upload_task.h transfer_task.h utils.h
+             upload.h \
+             url.h \
+             utils.h
+speedtest_main.o: speedtest_main.cc \
+                  curl_env.h \
+                  options.h \
+                  request.h \
+                  speedtest.h
+status.o: status.cc status.h utils.h
+transfer_runner.o: transfer_runner.cc \
+                   transfer_runner.h \
+                   status.h \
+                   utils.h
+upload.o: upload.cc \
+          upload.h \
+          request.h \
+          status.h \
+          utils.h
 utils.o: utils.cc options.h
 url.o: url.cc url.h utils.h
 
@@ -87,10 +138,10 @@ libspeedtesttest.a: $(TOBJS)
 	$(CXX) -c $< $(TFLAGS) $(CXXFLAGS)
 
 %_test: %_test.o %.o libgmock.a libspeedtesttest.a
-	$(CXX) -o $@ $(TFLAGS) googlemock/src/gmock_main.cc $< $*.o $(LDFLAGS) $(LIBS) libgmock.a libspeedtesttest.a
+	$(CXX) -o $@ $(TFLAGS) googlemock/src/gmock_main.cc $< $*.o $(LDFLAGS) libgmock.a libspeedtesttest.a $(LIBS)
 	./$@
 
-test: config_test options_test request_test url_test
+test: config_test options_test region_test request_test url_test
 
 install: speedtest
 	$(INSTALL) -m 0755 speedtest $(BINDIR)/
