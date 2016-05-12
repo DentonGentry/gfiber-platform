@@ -81,11 +81,13 @@ CraftUI.config = function(key, activate) {
   var el = document.getElementById(key);
   var value = el.value;
   var xhr = new XMLHttpRequest();
+  var action = "Configured";
   xhr.open('post', 'content.json');
   xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
   var data;
   if (activate) {
     data = { config: [ { [key + "_activate"]: "true" } ] };
+    action = "Applied";
   } else {
     data = { config: [ { [key]: value } ] };
   }
@@ -95,7 +97,7 @@ CraftUI.config = function(key, activate) {
   xhr.onload = function(e) {
     var json = JSON.parse(xhr.responseText);
     if (json.error == 0) {
-      el.innerHTML = "Success!";
+      el.innerHTML = action + " successfully.";
     } else {
       el.innerHTML = "Error: " + json.errorstring;
     }
@@ -104,6 +106,7 @@ CraftUI.config = function(key, activate) {
   xhr.onerror = function(e) {
     el.innerHTML = xhr.statusText + xhr.responseText;
   }
+  el.innerHTML = "sending...";
   xhr.send(txt);
 };
 

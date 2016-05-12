@@ -86,15 +86,15 @@
 
 	  <tr>
 	    <td><b>Out-of-band Management VLAN
-	    <td align=right><span id="platform/active_outofband_vlan">...</span>
+	    <td align=right><span id="platform/active_ooband_vlan">...</span>
 	    <td align=right>
-	      <span id="platform/vlan_outofband">...</span>
-	      <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_outofband', 1)">
+	      <span id="platform/vlan_ooband">...</span>
+	      <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_ooband', 1)">
 	    <td>
-	      <input id=vlan_outofband type=text value="">
-	      <input type=submit value=Configure onclick="CraftUI.config('vlan_outofband')">
+	      <input id=vlan_ooband type=text value="">
+	      <input type=submit value=Configure onclick="CraftUI.config('vlan_ooband')">
 	    <td>
-	      <span id=vlan_outofband_result>...</span>
+	      <span id=vlan_ooband_result>...</span>
 
 	  <tr>
 	    <td><b>Link VLAN (to peer)
