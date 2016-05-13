@@ -44,6 +44,7 @@ struct Config {
   long ping_timeout_millis = 0;
   int transfer_port_start = 0;
   int transfer_port_end = 0;
+  std::string average_type;
 };
 
 struct ConfigOptions {

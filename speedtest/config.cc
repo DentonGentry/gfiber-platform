@@ -85,6 +85,7 @@ Status ParseConfig(const std::string &json, Config *config) {
   config->ping_timeout_millis = root["pingTimeout"].asInt();
   config->transfer_port_start = root["transferPortStart"].asInt();
   config->transfer_port_end = root["transferPortEnd"].asInt();
+  config->average_type = root["averageType"].asString();
   return Status::OK;
 }
 
@@ -108,7 +109,8 @@ void PrintConfig(std::ostream &out, const Config &config) {
       << "Ping runtime: " << config.ping_runtime_millis << " ms\n"
       << "Ping timeout: " << config.ping_timeout_millis << " ms\n"
       << "Transfer port start: " << config.transfer_port_start << "\n"
-      << "Transfer port end: " << config.transfer_port_end << "\n";
+      << "Transfer port end: " << config.transfer_port_end << "\n"
+      << "Average type: " << config.average_type << "\n";
 }
 
 }  // namespace

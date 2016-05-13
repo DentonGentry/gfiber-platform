@@ -24,6 +24,7 @@ OBJS=config.o \
      ping.o \
      region.o \
      request.o \
+     result.o \
      speedtest.o \
      status.o \
      transfer_runner.o \
@@ -82,14 +83,25 @@ region.o: region.cc \
           region.h \
           utils.h
 request.o: request.cc request.h url.h utils.h
+result.o: result.cc \
+          result.h \
+          config.h \
+          find_nearest.h \
+          init.h \
+          ping.h \
+          speedtest.h \
+          transfer_runner.h \
+          url.h
 speedtest.o: speedtest.cc \
              speedtest.h \
              config.h \
              download.h \
+             errors.h \
              init.h \
              options.h \
              region.h \
              request.h \
+             result.h \
              status.h \
              timed_runner.h \
              transfer_runner.h \

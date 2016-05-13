@@ -121,6 +121,7 @@ RunTransfer(F &&fn, std::atomic_bool *cancel, TransferOptions options) {
         Bucket &bucket = result.buckets.back();
         bucket.start_time = running_time;
         bucket.total_bytes = fn.get().bytes_transferred();
+        result.total_bytes = bucket.total_bytes;
         if (options.exponential_moving_average) {
           bucket.short_megabits = GetShortEma(&result.buckets,
                                               options.min_intervals);

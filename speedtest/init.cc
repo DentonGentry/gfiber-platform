@@ -102,9 +102,6 @@ Init::Result Init::operator()(std::atomic_bool *cancel) {
       std::cout << "Load config failed: " << result.status.ToString() << "\n";
     }
   } else {
-    if (options_.verbose) {
-      PrintConfig(result.config_result.config);
-    }
     result.status = Status::OK;
     if (result.selected_region.id.empty()) {
       result.selected_region.id = result.config_result.config.location_id;

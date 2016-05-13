@@ -59,18 +59,7 @@ class Speedtest {
   TransferResult RunUploadTest(std::atomic_bool *cancel);
   Ping::Result RunPingTest(std::atomic_bool *cancel);
 
-  int GetNumDownloads() const;
-  long GetDownloadSizeBytes() const;
-  int GetNumUploads() const;
-  long GetUploadSizeBytes() const;
-  long GetPingTimeoutMillis() const;
-  long GetPingRunTimeMillis() const;
-  long GetMinTransferRunTimeMillis() const;
-  long GetMaxTransferRunTimeMillis() const;
-  int GetMinTransferIntervals() const;
-  int GetMaxTransferIntervals() const;
-  double GetMaxTransferVariance() const;
-  long GetIntervalMillis() const;
+  void OverrideConfigWithOptions(Config *config, const Options &options);
 
   http::Request::Ptr MakeRequest(const http::Url &url) const;
   http::Request::Ptr MakeBaseRequest(int id, const std::string &path) const;

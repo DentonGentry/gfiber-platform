@@ -16,7 +16,12 @@
 
 #include "speedtest.h"
 
+#include <curl/curl.h>
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/writer.h>
 #include "download.h"
+#include "errors.h"
+#include "result.h"
 #include "timed_runner.h"
 #include "upload.h"
 
@@ -52,10 +57,24 @@ Speedtest::Result Speedtest::operator()(std::atomic_bool *cancel) {
     result.end_time = SystemTimeMicros();
     return result;
   }
+
   selected_region_ = result.init_result.selected_region;
   if (options_.verbose) {
     std::cout << "Setting selected region to "
               << DescribeRegion(selected_region_) << "\n";
+  }
+
+  if (result.init_result.config_result.config.location_id.empty()) {
+    result.init_result.config_result.config.location_id = selected_region_.id;
+  }
+  if (result.init_result.config_result.config.location_name.empty()) {
+    result.init_result.config_result.config.location_name = selected_region_.name;
+  }
+
+  OverrideConfigWithOptions(&result.init_result.config_result.config, options_);
+  config_ = result.init_result.config_result.config;
+  if (options_.verbose) {
+    PrintConfig(config_);
   }
 
   if (*cancel) {
@@ -63,8 +82,6 @@ Speedtest::Result Speedtest::operator()(std::atomic_bool *cancel) {
     result.end_time = SystemTimeMicros();
     return result;
   }
-
-  config_ = result.init_result.config_result.config;
 
   std::cout << "ID: " << result.init_result.selected_region.id << "\n";
   std::cout << "Location: " << result.init_result.selected_region.name << "\n";
@@ -125,9 +142,37 @@ Speedtest::Result Speedtest::operator()(std::atomic_bool *cancel) {
               << ToMillis(result.ping_result.min_ping_micros)
               << " ms\n";
   }
-  
+
   result.status = Status::OK;
   result.end_time = SystemTimeMicros();
+
+  if (!options_.report_results) {
+    if (options_.verbose) {
+      std::cout << "Not reporting results to server\n";
+    }
+  } else {
+    Json::Value root;
+    PopulateSpeedtest(root, result);
+    Json::FastWriter writer;
+    std::string out = writer.write(root);
+
+    http::Url result_url(selected_region_.urls.front());
+    result_url.set_path("/result");
+    if (options_.verbose) {
+      std::cout << "Posting results to " << result_url.url() << "\n";
+    }
+    http::Request::Ptr request = options_.request_factory(result_url);
+    request->set_header("Content-Type", "application/json");
+    CURLcode curl_code = request->Post(out.c_str(), out.size());
+    if (curl_code == CURLE_OK) {
+      if (options_.verbose) {
+        std::cout << "Result posted successfully\n";
+      }
+    } else {
+      std::cout << "Failed to report results: "
+                << http::ErrorString(curl_code) << "\n";
+    }
+  }
   return result;
 }
 
@@ -138,8 +183,8 @@ TransferResult Speedtest::RunDownloadTest(std::atomic_bool *cancel) {
   }
   Download::Options download_options;
   download_options.verbose = options_.verbose;
-  download_options.num_transfers = GetNumDownloads();
-  download_options.download_bytes = GetDownloadSizeBytes();
+  download_options.num_transfers = config_.num_downloads;
+  download_options.download_bytes = config_.download_bytes;
   download_options.request_factory = [this](int id) -> http::Request::Ptr{
     return MakeTransferRequest(id, "/download");
   };
@@ -147,12 +192,14 @@ TransferResult Speedtest::RunDownloadTest(std::atomic_bool *cancel) {
 
   TransferOptions transfer_options;
   transfer_options.verbose = options_.verbose;
-  transfer_options.min_runtime_millis = GetMinTransferRunTimeMillis();
-  transfer_options.max_runtime_millis = GetMaxTransferRunTimeMillis();
-  transfer_options.min_intervals = GetMinTransferIntervals();
-  transfer_options.max_intervals = GetMaxTransferIntervals();
-  transfer_options.max_variance = GetMaxTransferVariance();
-  transfer_options.interval_millis = GetIntervalMillis();
+  transfer_options.min_runtime_millis = config_.min_transfer_runtime;
+  transfer_options.max_runtime_millis = config_.max_transfer_runtime;
+  transfer_options.min_intervals = config_.min_transfer_intervals;
+  transfer_options.max_intervals = config_.max_transfer_intervals;
+  transfer_options.max_variance = config_.max_transfer_variance;
+  transfer_options.interval_millis = config_.interval_millis;
+  transfer_options.exponential_moving_average =
+      config_.average_type == "EXPONENTIAL";
   if (options_.progress_millis > 0) {
     transfer_options.progress_millis = options_.progress_millis;
     transfer_options.progress_fn = [](Bucket bucket) {
@@ -175,8 +222,8 @@ TransferResult Speedtest::RunUploadTest(std::atomic_bool *cancel) {
   }
   Upload::Options upload_options;
   upload_options.verbose = options_.verbose;
-  upload_options.num_transfers = GetNumUploads();
-  upload_options.payload = MakeRandomData(GetUploadSizeBytes());
+  upload_options.num_transfers = config_.num_uploads;
+  upload_options.payload = MakeRandomData(config_.upload_bytes);
   upload_options.request_factory = [this](int id) -> http::Request::Ptr{
     return MakeTransferRequest(id, "/upload");
   };
@@ -184,12 +231,14 @@ TransferResult Speedtest::RunUploadTest(std::atomic_bool *cancel) {
 
   TransferOptions transfer_options;
   transfer_options.verbose = options_.verbose;
-  transfer_options.min_runtime_millis = GetMinTransferRunTimeMillis();
-  transfer_options.max_runtime_millis = GetMaxTransferRunTimeMillis();
-  transfer_options.min_intervals = GetMinTransferIntervals();
-  transfer_options.max_intervals = GetMaxTransferIntervals();
-  transfer_options.max_variance = GetMaxTransferVariance();
-  transfer_options.interval_millis = GetIntervalMillis();
+  transfer_options.min_runtime_millis = config_.min_transfer_runtime;
+  transfer_options.max_runtime_millis = config_.max_transfer_runtime;
+  transfer_options.min_intervals = config_.min_transfer_intervals;
+  transfer_options.max_intervals = config_.max_transfer_intervals;
+  transfer_options.max_variance = config_.max_transfer_variance;
+  transfer_options.interval_millis = config_.interval_millis;
+  transfer_options.exponential_moving_average =
+      config_.average_type == "EXPONENTIAL";
   if (options_.progress_millis > 0) {
     transfer_options.progress_millis = options_.progress_millis;
     transfer_options.progress_fn = [](Bucket bucket) {
@@ -208,86 +257,57 @@ TransferResult Speedtest::RunUploadTest(std::atomic_bool *cancel) {
 Ping::Result Speedtest::RunPingTest(std::atomic_bool *cancel) {
   Ping::Options ping_options;
   ping_options.verbose = options_.verbose;
-  ping_options.timeout_millis = GetPingTimeoutMillis();
+  ping_options.timeout_millis = config_.ping_timeout_millis;
   ping_options.region = selected_region_;
   ping_options.num_concurrent_pings = 0;
   ping_options.request_factory = [&](const http::Url &url){
     return MakeRequest(url);
   };
   Ping ping(ping_options);
-  return RunTimed(std::ref(ping), cancel, GetPingRunTimeMillis());
+  return RunTimed(std::ref(ping), cancel, config_.ping_runtime_millis);
 }
 
-int Speedtest::GetNumDownloads() const {
-  return options_.num_downloads
-         ? options_.num_downloads
-         : config_.num_downloads;
-}
-
-long Speedtest::GetDownloadSizeBytes() const {
-  return options_.download_bytes
-         ? options_.download_bytes
-         : config_.download_bytes;
-}
-
-int Speedtest::GetNumUploads() const {
-  return options_.num_uploads
-         ? options_.num_uploads
-         : config_.num_uploads;
-}
-
-long Speedtest::GetUploadSizeBytes() const {
-  return options_.upload_bytes
-         ? options_.upload_bytes
-         : config_.upload_bytes;
-}
-
-long Speedtest::GetPingRunTimeMillis() const {
-  return options_.ping_runtime_millis
-         ? options_.ping_runtime_millis
-         : config_.ping_runtime_millis;
-}
-
-long Speedtest::GetPingTimeoutMillis() const {
-  return options_.ping_timeout_millis
-         ? options_.ping_timeout_millis
-         : config_.ping_timeout_millis;
-}
-
-long Speedtest::GetMinTransferRunTimeMillis() const {
-  return options_.min_transfer_runtime
-         ? options_.min_transfer_runtime
-         : config_.min_transfer_runtime;
-}
-
-long Speedtest::GetMaxTransferRunTimeMillis() const {
-  return options_.max_transfer_runtime
-         ? options_.max_transfer_runtime
-         : config_.max_transfer_runtime;
-}
-
-int Speedtest::GetMinTransferIntervals() const {
-  return options_.min_transfer_intervals
-         ? options_.min_transfer_intervals
-         : config_.min_transfer_intervals;
-}
-
-int Speedtest::GetMaxTransferIntervals() const {
-  return options_.max_transfer_intervals
-         ? options_.max_transfer_intervals
-         : config_.max_transfer_intervals;
-}
-
-double Speedtest::GetMaxTransferVariance() const {
-  return options_.max_transfer_variance
-         ? options_.max_transfer_variance
-         : config_.max_transfer_variance;
-}
-
-long Speedtest::GetIntervalMillis() const {
-  return options_.interval_millis
-         ? options_.interval_millis
-         : config_.interval_millis;
+void Speedtest::OverrideConfigWithOptions(Config *config,
+                                          const Options &options) {
+  if (options_.num_downloads > 0) {
+    config->num_downloads = options_.num_downloads;
+  }
+  if (options_.download_bytes > 0) {
+    config->download_bytes = options_.download_bytes;
+  }
+  if (options_.num_uploads > 0) {
+    config->num_uploads = options_.num_uploads;
+  }
+  if (options_.upload_bytes > 0) {
+    config->upload_bytes = options_.upload_bytes;
+  }
+  if (options_.ping_runtime_millis > 0) {
+    config->ping_runtime_millis = options_.ping_runtime_millis;
+  }
+  if (options_.ping_timeout_millis > 0) {
+    config->ping_timeout_millis = options_.ping_timeout_millis;
+  }
+  if (options_.min_transfer_runtime > 0) {
+    config->min_transfer_runtime = options_.min_transfer_runtime;
+  }
+  if (options_.max_transfer_runtime > 0) {
+    config->max_transfer_runtime = options_.max_transfer_runtime;
+  }
+  if (options_.min_transfer_intervals > 0) {
+    config->min_transfer_intervals = options_.min_transfer_intervals;
+  }
+  if (options_.max_transfer_intervals > 0) {
+    config->max_transfer_intervals = options_.max_transfer_intervals;
+  }
+  if (options_.max_transfer_variance > 0) {
+    config->max_transfer_variance = options_.max_transfer_variance;
+  }
+  if (options_.interval_millis > 0) {
+    config->interval_millis = options_.interval_millis;
+  }
+  if (options_.exponential_moving_average){
+    config->average_type = "EXPONENTIAL";
+  }
 }
 
 http::Request::Ptr Speedtest::MakeRequest(const http::Url &url) const {
