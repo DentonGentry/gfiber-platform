@@ -459,6 +459,7 @@ def show_wifi(opt):
     True.
   """
   for band in opt.band.split():
+    frenzy = False
     print('Band: %s' % band)
     for tokens in utils.subprocess_line_tokens(('iw', 'reg', 'get')):
       if len(tokens) >= 2 and tokens[0] == 'country':
@@ -470,11 +471,20 @@ def show_wifi(opt):
       interface = iw.find_interface_from_band(
           band, interface_type, opt.interface_suffix)
       if interface is None:
-        continue
-      print('%sInterface: %s  # %s GHz %s' %
-            (prefix, interface, band, 'client' if 'cli' in interface else 'ap'))
+        if band == '5':
+          interface = _get_quantenna_interface()
+          if interface:
+            frenzy = True
+        if not interface:
+          continue
 
-      info_parsed = iw.info_parsed(interface)
+      print('%sInterface: %s  # %s GHz %s' %
+            (prefix, interface, band, prefix.lower() or 'ap'))
+
+      if frenzy:
+        info_parsed = quantenna.info_parsed(interface)
+      else:
+        info_parsed = iw.info_parsed(interface)
       for k, label in (('channel', 'Channel'),
                        ('ssid', 'SSID'),
                        ('addr', 'BSSID')):
@@ -499,6 +509,13 @@ def show_wifi(opt):
       print()
 
   return True
+
+
+def _get_quantenna_interface():
+  try:
+    return subprocess.check_output(['get-quantenna-interface']).strip()
+  except subprocess.CalledProcessError as e:
+    utils.log('Failed to call get-quantenna-interface: %s', e)
 
 
 @iw.requires_iw
