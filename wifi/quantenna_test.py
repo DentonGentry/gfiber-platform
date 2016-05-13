@@ -16,7 +16,9 @@ calls = []
 def fake_qcsapi(*args):
   calls.append(list(args))
   if args[0] == 'is_startprod_done':
-    return '1\n' if ['startprod', 'wifi0'] in calls else '0\n'
+    return '1' if ['startprod', 'wifi0'] in calls else '0'
+  if args[0] == 'get_status':
+    return 'Up' if ['get_status', 'wifi0'] in calls else 'Down'
 
 
 bridge_interfaces = set()
