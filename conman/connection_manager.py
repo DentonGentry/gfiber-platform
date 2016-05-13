@@ -272,7 +272,8 @@ class ConnectionManager(object):
         wifi_up = self.is_interface_up(wifi.name)
         self.ifplugd_action(wifi.name, wifi_up)
         if wifi_up:
-          wifi.attach_wpa_control(self._wpa_control_interface)
+          self._status.attached_to_wpa_supplicant = wifi.attach_wpa_control(
+              self._wpa_control_interface)
 
     for path, prefix in ((self._tmp_dir, self.GATEWAY_FILE_PREFIX),
                          (self._interface_status_dir, ''),
@@ -374,7 +375,8 @@ class ConnectionManager(object):
       if not wifi.attached():
         logging.debug('Attempting to attach to wpa control interface for %s',
                       wifi.name)
-        wifi.attach_wpa_control(self._wpa_control_interface)
+        self._status.attached_to_wpa_supplicant = wifi.attach_wpa_control(
+            self._wpa_control_interface)
       wifi.handle_wpa_events()
 
       # Only one wlan_configuration per interface will have access_point ==
