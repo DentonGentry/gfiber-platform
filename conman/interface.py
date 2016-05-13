@@ -333,8 +333,16 @@ class Wifi(Interface):
     return self._wpa_control and self._wpa_control.attached
 
   def attach_wpa_control(self, path):
+    """Attach to the wpa_supplicant control interface.
+
+    Args:
+      path:  The path containing the wpa_supplicant control interface socket.
+
+    Returns:
+      Whether attaching was successful.
+    """
     if self.attached():
-      return
+      return True
 
     socket = os.path.join(path, self.name)
     if os.path.exists(socket):
@@ -343,7 +351,7 @@ class Wifi(Interface):
         self._wpa_control.attach()
       except wpactrl.error as e:
         logging.error('Error attaching to wpa_supplicant: %s', e)
-        return
+        return False
 
       for line in self._wpa_control.request('STATUS').splitlines():
         if '=' not in line:
@@ -353,6 +361,11 @@ class Wifi(Interface):
           self.wpa_supplicant = value == 'COMPLETED'
         elif key == 'ssid' and not self._initialized:
           self.initial_ssid = value
+    else:
+      logging.error('wpa control socket does not exist: %s', socket)
+      return False
+
+    return True
 
   def get_wpa_control(self, socket):
     return wpactrl.WPACtrl(socket)
