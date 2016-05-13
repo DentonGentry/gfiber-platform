@@ -63,8 +63,8 @@ IMPLICATIONS = {
         (P.COULD_REACH_ACS,),
     ),
     P.HAVE_WORKING_CONFIG: (
-        (),
         (P.HAVE_CONFIG,),
+        (),
     ),
 }
 
