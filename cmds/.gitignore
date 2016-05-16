@@ -1,6 +1,7 @@
 *.o
 *.tmp.*
 alivemonitor
+anonid
 asus_hosts
 balloon
 bsa2bluez
@@ -43,6 +44,7 @@ ssdp_poll
 statcatcher
 statpitcher
 stun
+syslogd
 test_dir
 test_file
 udpburst

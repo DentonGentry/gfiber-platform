@@ -56,7 +56,6 @@ TARGETS=\
 	wait-until-created \
 	watch-dir
 
-HOST_TARGETS=$(addprefix host-,$(TARGETS)) host-isoping_fuzz
 LIB_TARGETS=\
 	stdoutline.so
 HOST_TEST_TARGETS=\
@@ -93,6 +92,12 @@ endif
 ifeq ($(BUILD_STATUTILS),y)
 TARGETS += statpitcher statcatcher
 endif
+
+ifeq ($(BUILD_SYSLOG),y)
+TARGETS += syslogd
+endif
+
+HOST_TARGETS=$(addprefix host-,$(TARGETS)) host-isoping_fuzz
 
 AS=$(CROSS_COMPILE)as
 CC=$(CROSS_COMPILE)gcc

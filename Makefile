@@ -16,11 +16,12 @@ BUILD_CRYPTDEV?=    # default off: needs libdevmapper
 BUILD_SIGNING?=     # default off: needs libgtest
 BUILD_JSONPOLL?=n
 BUILD_BOUNCER?=     # default off: costly
+BUILD_SYSLOG?=      # default off: new
 BUILD_PRESTERASTATS?=n
 export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
 	BUILD_BLUETOOTH BUILD_WAVEGUIDE BUILD_DVBUTILS BUILD_SYSMGR \
 	BUILD_STATUTILS BUILD_CRYPTDEV BUILD_SIGNING BUILD_JSONPOLL \
-	BUILD_PRESTERASTATS BUILD_CACHE_WARMING BUILD_BOUNCER
+	BUILD_PRESTERASTATS BUILD_CACHE_WARMING BUILD_BOUNCER BUILD_SYSLOG
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
