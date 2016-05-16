@@ -2,8 +2,11 @@
 
 """Tests for quantenna.py."""
 
+import json
 import os
+import shutil
 from subprocess import CalledProcessError
+import tempfile
 
 from configs_test import FakeOptDict
 import quantenna
@@ -192,6 +195,26 @@ def stop_wifi_test():
   wvtest.WVPASS(quantenna.stop_client_wifi(opt))
   wvtest.WVPASS(['rfenable', '0'] in calls)
 
+
+@wvtest.wvtest
+def info_parsed_test():
+  set_fakes()
+
+  try:
+    quantenna.WIFIINFO_PATH = tempfile.mkdtemp()
+    json.dump({
+        'Channel': '64',
+        'SSID': 'my ssid',
+        'BSSID': '00:00:00:00:00:00',
+    }, open(os.path.join(quantenna.WIFIINFO_PATH, 'wlan0'), 'w'))
+
+    wvtest.WVPASSEQ(quantenna.info_parsed('wlan0'), {
+        'ssid': 'my ssid',
+        'addr': '00:00:00:00:00:00',
+        'channel': '64',
+    })
+  finally:
+    shutil.rmtree(quantenna.WIFIINFO_PATH)
 
 if __name__ == '__main__':
   wvtest.wvtest_main()
