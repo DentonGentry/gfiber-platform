@@ -55,7 +55,8 @@ SCRIPT_TARGETS=\
 	is-secure-boot
 ARCH_TARGETS=\
 
-ifeq ($(BUILD_ASUS),y)
+ifeq ($(BUILD_LIBNL_UTILS),y)
+ARCH_TARGETS += dnssdmon
 TARGETS += asustax
 HOST_TEST_TARGETS += host-asustax_test
 endif
@@ -235,6 +236,14 @@ dhcpvendorlookup.c: dhcpvendorlookup.gperf
 dhcpvendorlookup.o: CFLAGS += -Wno-missing-field-initializers
 host-dhcpvendorlookup.o: CFLAGS += -Wno-missing-field-initializers
 host-dhcpvendortax: host-dhcpvendortax.o host-dhcpvendorlookup.o
+dnssdmon: dnssdmon.o l2utils.o modellookup.o
+dnssdmon: LIBS += -lnl-3 -lstdc++ -lm -lresolv
+modellookup.c: modellookup.gperf
+	$(GPERF) -G -C -t -T -L ANSI-C -n -N model_lookup -K model --delimiters="|" \
+		--includes --output-file=modellookup.c modellookup.gperf
+modellookup.o: CFLAGS += -Wno-missing-field-initializers
+host-modellookup.o: CFLAGS += -Wno-missing-field-initializers
+
 
 TESTS = $(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
 ifeq ($(RUN_HOST_TESTS),y)

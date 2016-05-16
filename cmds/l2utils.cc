@@ -119,3 +119,24 @@ void get_l2_map(L2Map *l2map)
     close(s);
   }
 }
+
+std::string get_l2addr_for_ip(std::string ipaddr)
+{
+  static L2Map l2map;
+  std::string mac;
+
+  L2Map::const_iterator l2i = l2map.find(ipaddr);
+  if (l2i == l2map.end()) {
+    /* If we only just saw this IP address, it may not be present in
+     * the cached data we have. Refresh the cache and try again. */
+    get_l2_map(&l2map);
+    l2i = l2map.find(ipaddr);
+  }
+  if (l2i == l2map.end()) {
+    mac = std::string("00:00:00:00:00:00");
+  } else {
+    mac = l2i->second;
+  }
+
+  return mac;
+}
