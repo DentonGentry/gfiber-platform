@@ -773,7 +773,7 @@ def InstallLoader(loader):
   """
   loader_start = loader.filelike.tell()
   installed = False
-  for i in ['cfe', 'loader', 'loader0', 'loader1', 'flash0.bolt']:
+  for i in ['cfe', 'loader', 'loader0', 'loader1', 'flash0.bolt', 'uboot']:
     mtd = GetMtdDevForNameOrNone(i)
     if mtd:
       WriteLoaderToMtd(loader, loader_start, mtd, 'loader')
