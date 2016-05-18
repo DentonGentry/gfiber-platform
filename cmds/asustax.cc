@@ -210,6 +210,9 @@ int main(int argc, char **argv)
   int s, opt, i;
   const char *ifname = "br0";
 
+  setlinebuf(stdout);
+  alarm(30);
+
   while ((opt = getopt(argc, argv, "i:")) != -1) {
     switch (opt) {
       case 'i':

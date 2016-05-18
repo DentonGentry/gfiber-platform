@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 
 struct string_match {
@@ -391,6 +392,8 @@ int main(int argc, char **argv)
   const char *vendor = NULL;
   char species[80];
 
+  setlinebuf(stdout);
+  alarm(30);
   while ((c = getopt_long(argc, argv, "l:v:", long_options, NULL)) != -1) {
     switch (c) {
     case 'l':

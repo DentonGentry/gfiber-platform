@@ -348,6 +348,8 @@ int main(int argc, char **argv)
   int testmode = 0;
 
   setlinebuf(stdout);
+  alarm(30);
+
   if (curl_global_init(CURL_GLOBAL_NOTHING)) {
     fprintf(stderr, "curl_global_init failed\n");
     exit(1);
