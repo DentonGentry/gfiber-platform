@@ -39,6 +39,11 @@ def _brctl(*args):
                                  stderr=subprocess.STDOUT).strip()
 
 
+def _ifplugd_action(*args):
+  return subprocess.check_output(['/etc/ifplugd/ifplugd.action'] + list(args),
+                                 stderr=subprocess.STDOUT).strip()
+
+
 def info_parsed(interface):
   """Fake version of iw.info_parsed."""
   wifiinfo_filename = os.path.join(WIFIINFO_PATH, interface)
@@ -121,6 +126,12 @@ def _set(mode, opt):
       time.sleep(1)
     else:
       raise utils.BinWifiException('wpa_supplicant failed to connect')
+
+    try:
+      _ifplugd_action(interface, 'up')
+    except subprocess.CalledProcessError:
+      utils.log('Failed to call ifplugd.action.  %s may not get an IP address.'
+                % interface)
 
   return True
 
