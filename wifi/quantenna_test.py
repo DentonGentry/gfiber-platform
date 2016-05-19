@@ -21,8 +21,8 @@ def fake_qcsapi(*args):
   calls.append(list(args))
   if args[0] == 'is_startprod_done':
     return '1' if ['startprod', 'wifi0'] in calls else '0'
-  if args[0] == 'get_status':
-    return 'Up' if ['get_status', 'wifi0'] in calls else 'Down'
+  if args[0] == 'get_bssid':
+    return '00:11:22:33:44:55'
 
 
 bridge_interfaces = set()
