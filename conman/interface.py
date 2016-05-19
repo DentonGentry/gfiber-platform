@@ -454,7 +454,7 @@ class FrenzyWPACtrl(object):
     self._update()
 
   def attached(self):
-    return self._client_mode and self._ssid
+    return self._client_mode
 
   def detach(self):
     raise wpactrl.error('Real WPACtrl always raises this when detaching.')
