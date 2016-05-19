@@ -77,6 +77,7 @@ const int kOptSkipDownload = 1003;
 const int kOptSkipUpload = 1004;
 const int kOptSkipPing = 1005;
 const int kOptNoReportResults = 1006;
+const int kOptServerId = 1007;
 
 const int kOptMinTransferTime = 1100;
 const int kOptMaxTransferTime = 1101;
@@ -121,6 +122,7 @@ struct option kLongOpts[] = {
     {"ping_timeout", required_argument, nullptr, kOptPingTimeout},
     {"exponential_moving_average", no_argument, nullptr,
         kOptExponentialMovingAverage},
+    {"serverid", required_argument, nullptr, kOptServerId},  // ignored
     {nullptr, 0, nullptr, 0},
 };
 const int kMaxNumber = 1000;
@@ -440,6 +442,9 @@ bool ParseOptions(int argc, char *argv[], Options *options) {
       }
       case kOptExponentialMovingAverage:
         options->exponential_moving_average = true;
+        break;
+      case kOptServerId:
+        // --serverid is accepted but ignored, for backwards compatibility.
         break;
       default:
         return false;
