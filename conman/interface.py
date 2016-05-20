@@ -499,7 +499,7 @@ class FrenzyWPACtrl(object):
     return self._events.pop(0)
 
   def request(self, request_type):
-    if request_type == 'STATUS' and self.attached():
+    if request_type == 'STATUS' and self._client_mode and self._ssid:
       return 'wpa_state=COMPLETED\nssid=%s\n' % self._ssid
 
     return ''
