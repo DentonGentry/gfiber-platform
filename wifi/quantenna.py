@@ -100,7 +100,7 @@ def _set(mode, opt):
     _qcsapi('apply_security_config', 'wifi0')
 
     for _ in xrange(10):
-      if _qcsapi('get_status', 'wifi0') == 'Up':
+      if _qcsapi('get_bssid', 'wifi0') != '00:00:00:00:00:00':
         break
       time.sleep(1)
     else:
