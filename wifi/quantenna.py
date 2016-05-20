@@ -136,15 +136,6 @@ def _set(mode, opt):
   return True
 
 
-def _stop(_):
-  """Disable wifi."""
-  if not _get_interface():
-    return False
-
-  _qcsapi('rfenable', '0')
-  return True
-
-
 def set_wifi(opt):
   return _set('ap', opt)
 
@@ -153,9 +144,23 @@ def set_client_wifi(opt):
   return _set('sta', opt)
 
 
-def stop_ap_wifi(opt):
-  return _stop(opt)
+def stop_ap_wifi(_):
+  """Disable AP."""
+  if not _get_interface():
+    return False
+
+  if _qcsapi('get_mode', 'wifi0') == 'Access point':
+    _qcsapi('rfenable', '0')
+
+  return True
 
 
-def stop_client_wifi(opt):
-  return _stop(opt)
+def stop_client_wifi(_):
+  """Disable client."""
+  if not _get_interface():
+    return False
+
+  if _qcsapi('get_mode', 'wifi0') == 'Station':
+    _qcsapi('rfenable', '0')
+
+  return True
