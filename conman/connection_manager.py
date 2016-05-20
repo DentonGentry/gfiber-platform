@@ -173,6 +173,7 @@ class ConnectionManager(object):
   # pylint: disable=invalid-name
   Bridge = interface.Bridge
   Wifi = interface.Wifi
+  FrenzyWifi = interface.FrenzyWifi
   WLANConfiguration = WLANConfiguration
 
   ETHERNET_STATUS_FILE = 'eth0'
@@ -232,12 +233,17 @@ class ConnectionManager(object):
         return interface.METRIC_5GHZ
       return interface.METRIC_24GHZ
 
-    self.wifi = sorted([self.Wifi(interface_name, metric_for_bands(bands),
-                                  # Prioritize 5 GHz over 2.4.
-                                  bands=sorted(bands, reverse=True))
-                        for interface_name, bands
-                        in get_client_interfaces().iteritems()],
-                       key=lambda w: w.metric)
+    def wifi_class(attrs):
+      return self.FrenzyWifi if 'frenzy' in attrs else self.Wifi
+
+    self.wifi = sorted([
+        wifi_class(attrs)(interface_name,
+                          metric_for_bands(attrs['bands']),
+                          # Prioritize 5 GHz over 2.4.
+                          bands=sorted(attrs['bands'], reverse=True))
+        for interface_name, attrs
+        in get_client_interfaces().iteritems()
+    ], key=lambda w: w.metric)
 
     for wifi in self.wifi:
       wifi.last_wifi_scan_time = -self._wifi_scan_period_s
@@ -700,6 +706,18 @@ class ConnectionManager(object):
       wlan_configuration.start_client()
 
   def _stop_wifi(self, band, stopap, stopclient):
+    """Stop running wifi processes.
+
+    At least one of [stopap, stopclient] must be True.
+
+    Args:
+      band:  The band on which to stop wifi.
+      stopap:  Whether to stop access points.
+      stopclient:  Whether to stop wifi clients.
+
+    Raises:
+      ValueError:  If neither stopap nor stopclient is True.
+    """
     if stopap and stopclient:
       command = 'stop'
     elif stopap:
@@ -740,18 +758,33 @@ def _wifi_show():
     return ''
 
 
+def _get_quantenna_interface():
+  try:
+    return subprocess.check_output(['get-quantenna-interface']).strip()
+  except subprocess.CalledProcessError:
+    logging.fatal('Failed to call get-quantenna-interface')
+    raise
+
+
 def get_client_interfaces():
   """Find all client interfaces on the device.
 
   Returns:
     A dict mapping wireless client interfaces to their supported bands.
   """
+
   current_band = None
-  result = collections.defaultdict(set)
+  result = collections.defaultdict(lambda: collections.defaultdict(set))
   for line in _wifi_show().splitlines():
     if line.startswith('Band:'):
       current_band = line.split()[1]
     elif line.startswith('Client Interface:'):
-      result[line.split()[2]].add(current_band)
+      result[line.split()[2]]['bands'].add(current_band)
+
+  # TODO(rofrankel):  Make 'wifi show' (or wifi_files) include this information
+  # so we don't need a subprocess call to check.
+  quantenna_interface = _get_quantenna_interface()
+  if quantenna_interface in result:
+    result[quantenna_interface]['frenzy'] = True
 
   return result

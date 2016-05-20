@@ -143,26 +143,35 @@ def get_client_interfaces_test():
   """Test get_client_interfaces."""
   # pylint: disable=protected-access
   original_wifi_show = connection_manager._wifi_show
+  original_get_quantenna_interface = connection_manager._get_quantenna_interface
+  connection_manager._get_quantenna_interface = lambda: ''
   connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_MARVELL8897
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
-                  {'wcli0': set(['2.4', '5'])})
+                  {'wcli0': {'bands': set(['2.4', '5'])}})
   connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_ATH9K_ATH10K
-  wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
-                  {'wcli0': set(['2.4']), 'wcli1': set(['5'])})
+  wvtest.WVPASSEQ(connection_manager.get_client_interfaces(), {
+      'wcli0': {'bands': set(['2.4'])},
+      'wcli1': {'bands': set(['5'])}
+  })
 
   # Test Quantenna devices.
 
   # 2.4 GHz cfg80211 radio + 5 GHz Frenzy (Optimus Prime).
   connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_ATH9K_FRENZY
-  wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
-                  {'wcli0': set(['2.4']), 'wlan1': set(['5'])})
+  connection_manager._get_quantenna_interface = lambda: 'wlan1'
+  wvtest.WVPASSEQ(connection_manager.get_client_interfaces(), {
+      'wcli0': {'bands': set(['2.4'])},
+      'wlan1': {'frenzy': True, 'bands': set(['5'])}
+  })
 
   # Only Frenzy (e.g. Lockdown).
   connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_FRENZY
+  connection_manager._get_quantenna_interface = lambda: 'wlan0'
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
-                  {'wlan0': set(['5'])})
+                  {'wlan0': {'frenzy': True, 'bands': set(['5'])}})
 
   connection_manager._wifi_show = original_wifi_show
+  connection_manager._get_quantenna_interface = original_get_quantenna_interface
 
 
 class WLANConfiguration(connection_manager.WLANConfiguration):
@@ -230,12 +239,22 @@ class Wifi(interface_test.Wifi):
     self.wifi_scan_counter = 0
 
 
+class FrenzyWifi(interface_test.FrenzyWifi):
+
+  def __init__(self, *args, **kwargs):
+    super(FrenzyWifi, self).__init__(*args, **kwargs)
+    # Whether wpa_supplicant is connected to a network.
+    self._initially_connected = True
+    self.wifi_scan_counter = 0
+
+
 class ConnectionManager(connection_manager.ConnectionManager):
   """ConnectionManager subclass for testing."""
 
   # pylint: disable=invalid-name
   Bridge = interface_test.Bridge
   Wifi = Wifi
+  FrenzyWifi = FrenzyWifi
   WLANConfiguration = WLANConfiguration
 
   WIFI_SETCLIENT = ['echo', 'setclient']
@@ -270,7 +289,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
       # pylint: disable=protected-access
       self.interface_by_name(wifi)._initially_connected = True
 
-    self.scan_has_results = False
+    self.interface_with_scan_results = None
     self.scan_results_include_hidden = False
     self.can_connect_to_s2 = True
 
@@ -323,7 +342,8 @@ class ConnectionManager(connection_manager.ConnectionManager):
   def _find_bssids(self, band):
     # Only wcli0 finds anything.
     scan_output = ''
-    if band in self.interface_by_name('wcli0').bands and self.scan_has_results:
+    if (self.interface_with_scan_results and
+        band in self.interface_by_name(self.interface_with_scan_results).bands):
       scan_output = IW_SCAN_DEFAULT_OUTPUT
       if self.scan_results_include_hidden:
         scan_output += IW_SCAN_HIDDEN_OUTPUT
@@ -438,8 +458,10 @@ class ConnectionManager(connection_manager.ConnectionManager):
 def wlan_config_filename(path, band):
   return os.path.join(path, 'command.%s' % band)
 
+
 def access_point_filename(path, band):
   return os.path.join(path, 'access_point.%s' % band)
+
 
 def write_wlan_config(path, band, ssid, psk, atomic=False):
   final_filename = wlan_config_filename(path, band)
@@ -450,11 +472,14 @@ def write_wlan_config(path, band, ssid, psk, atomic=False):
   if atomic:
     os.rename(filename, final_filename)
 
+
 def delete_wlan_config(path, band):
   os.unlink(wlan_config_filename(path, band))
 
+
 def enable_access_point(path, band):
   open(access_point_filename(path, band), 'w')
+
 
 def disable_access_point(path, band):
   ap_filename = access_point_filename(path, band)
@@ -462,8 +487,8 @@ def disable_access_point(path, band):
     os.unlink(ap_filename)
 
 
-
-def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
+def connection_manager_test(radio_config, wlan_configs=None,
+                            quantenna_interface='', **cm_kwargs):
   """Returns a decorator that does ConnectionManager test boilerplate."""
   if wlan_configs is None:
     wlan_configs = {}
@@ -481,6 +506,9 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
       original_wifi_show = connection_manager._wifi_show
       connection_manager._wifi_show = lambda: radio_config
 
+      original_gqi = connection_manager._get_quantenna_interface
+      connection_manager._get_quantenna_interface = lambda: quantenna_interface
+
       try:
         # No initial state.
         tmp_dir = tempfile.mkdtemp()
@@ -488,6 +516,7 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
         os.mkdir(os.path.join(tmp_dir, 'interfaces'))
         moca_tmp_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
+        FrenzyWifi.WPACtrl.WIFIINFO_PATH = tempfile.mkdtemp()
 
         for band, access_point in wlan_configs.iteritems():
           write_wlan_config(config_dir, band, 'initial ssid', 'initial psk')
@@ -515,8 +544,10 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
         shutil.rmtree(config_dir)
         shutil.rmtree(moca_tmp_dir)
         shutil.rmtree(wpa_control_interface)
+        shutil.rmtree(FrenzyWifi.WPACtrl.WIFIINFO_PATH)
         # pylint: disable=protected-access
         connection_manager._wifi_show = original_wifi_show
+        connection_manager._get_quantenna_interface = original_gqi
 
     actual_test.func_name = f.func_name
     return actual_test
@@ -524,15 +555,15 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
   return inner
 
 
-def connection_manager_test_radio_independent(c):
+def connection_manager_test_generic(c, band):
   """Test ConnectionManager for things independent of radio configuration.
 
-  To verify that these things are both independent, this function is called
-  twice below, once with each radio configuration.  Those wrappers have the
-  relevant test decorators.
+  To verify that these things are both independent, this function is called once
+  below with each radio configuration.
 
   Args:
-    c:  A ConnectionManager set up by @connection_manager_test.
+    c:  The ConnectionManager set up by @connection_manager_test.
+    band:  The band to test.
   """
   # This test only checks that this file gets created and deleted once each.
   # ConnectionManager cares that the file is created *where* expected, but it is
@@ -552,8 +583,8 @@ def connection_manager_test_radio_independent(c):
   wvtest.WVPASS(c.internet())
   wvtest.WVPASS(c.bridge.current_route())
   wvtest.WVPASS(os.path.exists(acs_autoprov_filepath))
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_route())
+  for wifi in c.wifi:
+    wvtest.WVFAIL(wifi.current_route())
   wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN,
                                     status.P.HAVE_CONFIG]))
 
@@ -611,9 +642,9 @@ def connection_manager_test_radio_independent(c):
   wvtest.WVFAIL(c.bridge.current_route())
 
   # Now there are some scan results.
-  c.scan_has_results = True
+  c.interface_with_scan_results = c.wifi_for_band(band).name
   # Wait for a scan, plus 3 cycles, so that s2 will have been tried.
-  c.run_until_scan('2.4')
+  c.run_until_scan(band)
   for _ in range(3):
     c.run_once()
     wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
@@ -623,17 +654,17 @@ def connection_manager_test_radio_independent(c):
   c.run_once()
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())
-  wvtest.WVFAIL(c.client_up('2.4'))
-  wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
+  wvtest.WVFAIL(c.client_up(band))
+  wvtest.WVPASS(c.wifi_for_band(band).current_route())
 
   # Now, create a WLAN configuration which should be connected to.
   ssid = 'wlan'
   psk = 'password'
-  c.write_wlan_config('2.4', ssid, psk)
-  c.disable_access_point('2.4')
+  c.write_wlan_config(band, ssid, psk)
+  c.disable_access_point(band)
   c.run_once()
-  wvtest.WVPASS(c.client_up('2.4'))
-  wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
+  wvtest.WVPASS(c.client_up(band))
+  wvtest.WVPASS(c.wifi_for_band(band).current_route())
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
 
   # Now, remove the WLAN configuration and make sure we are disconnected.  Then
@@ -641,12 +672,12 @@ def connection_manager_test_radio_independent(c):
   # the scan results, and scan again.  This time, the first SSID tried should be
   # 's3', which is not present in the scan results but *is* advertised by the
   # secure AP running the user's WLAN.
-  c.delete_wlan_config('2.4')
+  c.delete_wlan_config(band)
   c.run_once()
   c.can_connect_to_s2 = False
   c.scan_results_include_hidden = True
   wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
-  c.run_until_interface_update_and_scan('2.4')
+  c.run_until_interface_update_and_scan(band)
   c.run_until_interface_update()
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
   wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's3')
@@ -656,19 +687,19 @@ def connection_manager_test_radio_independent(c):
   # Also, test that atomic writes/renames work.
   ssid = 'wlan'
   psk = 'password'
-  c.write_wlan_config('2.4', ssid, psk, atomic=True)
-  c.disable_access_point('2.4')
+  c.write_wlan_config(band, ssid, psk, atomic=True)
+  c.disable_access_point(band)
   c.run_once()
-  wvtest.WVPASS(c.client_up('2.4'))
-  wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
+  wvtest.WVPASS(c.client_up(band))
+  wvtest.WVPASS(c.wifi_for_band(band).current_route())
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
 
   # Now enable the AP.  Since we have no wired connection, this should have no
   # effect.
-  c.enable_access_point('2.4')
+  c.enable_access_point(band)
   c.run_once()
-  wvtest.WVPASS(c.client_up('2.4'))
-  wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
+  wvtest.WVPASS(c.client_up(band))
+  wvtest.WVPASS(c.wifi_for_band(band).current_route())
   wvtest.WVFAIL(c.bridge.current_route())
 
   # Now bring up the bridge.  We should remove the wifi connection and start
@@ -676,48 +707,79 @@ def connection_manager_test_radio_independent(c):
   c.set_ethernet(True)
   c.bridge.set_connection_check_result('succeed')
   c.run_until_interface_update()
-  wvtest.WVPASS(c.access_point_up('2.4'))
-  wvtest.WVFAIL(c.client_up('2.4'))
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
+  wvtest.WVPASS(c.access_point_up(band))
+  wvtest.WVFAIL(c.client_up(band))
+  wvtest.WVFAIL(c.wifi_for_band(band).current_route())
   wvtest.WVPASS(c.bridge.current_route())
 
   # Now move (rather than delete) the configuration file.  The AP should go
   # away, and we should not be able to join the WLAN.  Routes should not be
   # affected.
-  filename = wlan_config_filename(c._config_dir, '2.4')
+  filename = wlan_config_filename(c._config_dir, band)
   other_filename = filename + '.bak'
   os.rename(filename, other_filename)
   c.run_once()
-  wvtest.WVFAIL(c.access_point_up('2.4'))
-  wvtest.WVFAIL(c.client_up('2.4'))
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
+  wvtest.WVFAIL(c.access_point_up(band))
+  wvtest.WVFAIL(c.client_up(band))
+  wvtest.WVFAIL(c.wifi_for_band(band).current_route())
   wvtest.WVPASS(c.bridge.current_route())
   wvtest.WVFAIL(c.has_status_files([status.P.HAVE_CONFIG]))
 
   # Now move it back, and the AP should come back.
   os.rename(other_filename, filename)
   c.run_once()
-  wvtest.WVPASS(c.access_point_up('2.4'))
-  wvtest.WVFAIL(c.client_up('2.4'))
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
+  wvtest.WVPASS(c.access_point_up(band))
+  wvtest.WVFAIL(c.client_up(band))
+  wvtest.WVFAIL(c.wifi_for_band(band).current_route())
   wvtest.WVPASS(c.bridge.current_route())
 
 
 @wvtest.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
-def connection_manager_test_radio_independent_marvell8897(c):
-  connection_manager_test_radio_independent(c)
+def connection_manager_test_generic_marvell8897_2g(c):
+  connection_manager_test_generic(c, '2.4')
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
+def connection_manager_test_generic_marvell8897_5g(c):
+  connection_manager_test_generic(c, '5')
 
 
 @wvtest.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
-def connection_manager_test_radio_independent_ath9k_ath10k(c):
-  connection_manager_test_radio_independent(c)
+def connection_manager_test_generic_ath9k_ath10k_2g(c):
+  connection_manager_test_generic(c, '2.4')
 
 
 @wvtest.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
-def connection_manager_test_ath9k_ath10k(c):
+def connection_manager_test_generic_ath9k_ath10k_5g(c):
+  connection_manager_test_generic(c, '5')
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
+                         quantenna_interface='wlan1')
+def connection_manager_test_generic_ath9k_frenzy_2g(c):
+  connection_manager_test_generic(c, '2.4')
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
+                         quantenna_interface='wlan1')
+def connection_manager_test_generic_ath9k_frenzy_5g(c):
+  connection_manager_test_generic(c, '5')
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_FRENZY,
+                         quantenna_interface='wlan0')
+def connection_manager_test_generic_frenzy_5g(c):
+  connection_manager_test_generic(c, '5')
+
+
+def connection_manager_test_dual_band_two_radios(c):
   """Test ConnectionManager for devices with two radios.
 
   This test should be kept roughly parallel to the one-radio test.
@@ -793,7 +855,7 @@ def connection_manager_test_ath9k_ath10k(c):
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
 
   # The next 2.4 GHz scan will have results.
-  c.scan_has_results = True
+  c.interface_with_scan_results = 'wcli0'
   c.run_until_scan('2.4')
   # Now run 3 cycles, so that s2 will have been tried.
   for _ in range(3):
@@ -806,11 +868,23 @@ def connection_manager_test_ath9k_ath10k(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
-def connection_manager_test_marvell8897(c):
-  """Test ConnectionManager for devices with one radio.
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
+def connection_manager_test_dual_band_two_radios_ath9k_ath10k(c):
+  connection_manager_test_dual_band_two_radios(c)
 
-  This test should be kept roughly parallel to the two-radio test.
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
+                         quantenna_interface='wlan1')
+def connection_manager_test_dual_band_two_radios_ath9k_frenzy(c):
+  connection_manager_test_dual_band_two_radios(c)
+
+
+def connection_manager_test_dual_band_one_radio(c):
+  """Test ConnectionManager for devices with one dual-band radio.
+
+  This test should be kept roughly parallel to
+  connection_manager_test_dual_band_two_radios.
 
   Args:
     c:  The ConnectionManager set up by @connection_manager_test.
@@ -873,7 +947,7 @@ def connection_manager_test_marvell8897(c):
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
 
   # The wcli0 scan will have results that will lead to ACS access.
-  c.scan_has_results = True
+  c.interface_with_scan_results = 'wcli0'
   c.run_until_scan('5')
   for _ in range(3):
     c.run_once()
@@ -882,6 +956,12 @@ def connection_manager_test_marvell8897(c):
   wvtest.WVFAIL(c.bridge.current_route())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
   wvtest.WVPASS(c.wifi_for_band('5').current_route())
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
+def connection_manager_test_dual_band_one_radio_marvell8897(c):
+  connection_manager_test_dual_band_one_radio(c)
 
 
 @wvtest.wvtest
@@ -935,8 +1015,7 @@ def connection_manager_test_wifi_already_up(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897,
-                         wlan_configs={'5': True})
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897, wlan_configs={'5': True})
 def connection_manager_one_radio_marvell8897_existing_config_5g_ap(c):
   wvtest.WVPASSEQ(len(c._binwifi_commands), 1)
   wvtest.WVPASSEQ(('stopclient', '--band', '5', '--persist'),
