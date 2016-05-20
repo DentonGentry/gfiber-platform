@@ -641,10 +641,10 @@ def connection_manager_test_radio_independent(c):
   # the scan results, and scan again.  This time, the first SSID tried should be
   # 's3', which is not present in the scan results but *is* advertised by the
   # secure AP running the user's WLAN.
-  c.can_connect_to_s2 = False
-  c.scan_results_include_hidden = True
   c.delete_wlan_config('2.4')
   c.run_once()
+  c.can_connect_to_s2 = False
+  c.scan_results_include_hidden = True
   wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
   c.run_until_interface_update_and_scan('2.4')
   c.run_until_interface_update()
