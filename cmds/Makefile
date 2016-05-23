@@ -56,9 +56,9 @@ SCRIPT_TARGETS=\
 ARCH_TARGETS=\
 
 ifeq ($(BUILD_LIBNL_UTILS),y)
-ARCH_TARGETS += dnssdmon
+ARCH_TARGETS += wifi_files dnssdmon
 TARGETS += asustax
-HOST_TEST_TARGETS += host-asustax_test
+HOST_TEST_TARGETS += host-wifi_files_test host-asustax_test
 endif
 
 ifeq ($(BUILD_SSDP),y)
@@ -77,11 +77,6 @@ endif
 
 ifeq ($(BUILD_STATUTILS),y)
 TARGETS += statpitcher statcatcher
-endif
-
-ifeq ($(BUILD_WIFIUTILS),y)
-ARCH_TARGETS += wifi_files
-HOST_TEST_TARGETS += host-wifi_files_test
 endif
 
 AS=$(CROSS_COMPILE)as

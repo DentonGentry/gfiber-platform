@@ -118,18 +118,46 @@ void send_discovery(int s)
   }
 }
 
-static const char *replace_newlines(const uint8_t *src, int srclen,
-                                    char *dst, int dstlen)
+
+static void strncpy_limited(char *dst, size_t dstsiz,
+    const char *src, size_t srclen)
 {
-  int i, j;
+  size_t i;
+  size_t lim = (srclen >= (dstsiz - 1)) ? (dstsiz - 2) : srclen;
 
-  for (i = 0, j = 0; i < srclen && j < (dstlen - 1); i++) {
-    dst[j++] = (src[i] == '\n') ? '.' : src[i];
+  for (i = 0; i < lim; ++i) {
+    unsigned char s = src[i];
+    if (s == ' ' || s == '\t') {
+      dst[i] = ' ';
+    } else if (isspace(s) || s == ';') {
+      dst[i] = '.';  // deliberately convert newline to dot
+    } else if (isprint(s)) {
+      dst[i] = s;
+    } else {
+      dst[i] = '_';
+    }
   }
-  dst[j] = '\0';
-
-  return dst;
+  dst[lim] = '\0';
 }
+
+
+static void extract_modelname(const char *src, int srclen,
+    char *genus, int genuslen, char *species, int specieslen)
+{
+  /* ASUS devices often (though not always) send just their
+   * model number like "RT-AC68U". In the string to be displayed
+   * to the user we want it to at least include "ASUS", so prepend
+   * it if necessary. */
+  if (strcasestr(src, "asus") == NULL && genuslen > 5) {
+    snprintf(genus, genuslen, "ASUS ");
+    genus += 5;
+    genuslen -= 5;
+  }
+
+  strncpy_limited(genus, genuslen, src, srclen);
+  strncpy_limited(species, specieslen, src, srclen);
+}
+
 
 int receive_response(int s, L2Map *l2map, char *response, int responselen)
 {
@@ -154,7 +182,8 @@ int receive_response(int s, L2Map *l2map, char *response, int responselen)
   }
   if (FD_ISSET(s, &rfds)) {
     uint8_t buf[PACKET_LENGTH + 64];
-    char addrbuf[INET_ADDRSTRLEN], namebuf[80];
+    char addrbuf[INET_ADDRSTRLEN];
+    char genus[80], species[80];
     const char *mac;
     struct sockaddr_in from;
     socklen_t fromlen = sizeof(from);
@@ -182,14 +211,15 @@ int receive_response(int s, L2Map *l2map, char *response, int responselen)
 
     id_len = strnlen((char *)discovery->product_id,
                      sizeof(discovery->product_id));
-    replace_newlines(discovery->product_id, id_len, namebuf, sizeof(namebuf));
+    extract_modelname((const char *)discovery->product_id, id_len,
+        genus, sizeof(genus), species, sizeof(species));
     L2Map::iterator ii = l2map->find(std::string(addrbuf));
     if (ii != l2map->end()) {
       mac = ii->second.c_str();
     } else {
       mac = "00:00:00:00:00:00";
     }
-    snprintf(response, responselen, "asus %s %s", mac, namebuf);
+    snprintf(response, responselen, "asus %s %s;%s", mac, genus, species);
 
     return 0;
   } else {
