@@ -74,11 +74,14 @@ class FakeWPACtrl(object):
     self.events = []
     self.attached = False
     self.connected = False
+    self.ssid_testonly = None
 
   def pending(self):
+    self.check_socket_exists('pending: socket does not exist')
     return bool(self.events)
 
   def recv(self):
+    self.check_socket_exists('recv: socket does not exist')
     return self.events.pop(0)
 
   def attach(self):
@@ -87,14 +90,15 @@ class FakeWPACtrl(object):
     self.attached = True
 
   def detach(self):
-    if not os.path.exists(self._socket):
-      raise wpactrl.error('wpactrl_detach failed')
     self.attached = False
+    self.ssid_testonly = None
+    self.connected = False
+    self.check_socket_exists('wpactrl_detach failed')
 
   def request(self, request_type):
     if request_type == 'STATUS':
-      return ('foo\nwpa_state=COMPLETED\nssid=my ssid\nbar' if self.connected
-              else 'foo')
+      return ('foo\nwpa_state=COMPLETED\nssid=%s\nbar' % self.ssid_testonly
+              if self.connected else 'foo')
     else:
       raise ValueError('Invalid request_type %s' % request_type)
 
@@ -104,14 +108,20 @@ class FakeWPACtrl(object):
     self.events.append(event)
 
   def add_connected_event(self):
+    self.connected = True
     self.add_event(Wifi.CONNECTED_EVENT)
 
   def add_disconnected_event(self):
+    self.connected = False
     self.add_event(Wifi.DISCONNECTED_EVENT)
 
   def add_terminating_event(self):
-    os.unlink(self._socket)
+    self.connected = False
     self.add_event(Wifi.TERMINATING_EVENT)
+
+  def check_socket_exists(self, msg='Fake socket does not exist'):
+    if not os.path.exists(self._socket):
+      raise wpactrl.error(msg)
 
 
 class Wifi(FakeInterfaceMixin, interface.Wifi):
@@ -125,17 +135,18 @@ class Wifi(FakeInterfaceMixin, interface.Wifi):
 
   def __init__(self, *args, **kwargs):
     super(Wifi, self).__init__(*args, **kwargs)
-    self._initially_connected = False
+    self._initial_ssid_testonly = None
 
   def attach_wpa_control(self, path):
-    open(os.path.join(path, self.name), 'w')
-    if self._initially_connected and self._wpa_control:
+    if self._initial_ssid_testonly and self._wpa_control:
       self._wpa_control.connected = True
     super(Wifi, self).attach_wpa_control(path)
 
   def get_wpa_control(self, *args, **kwargs):
     result = super(Wifi, self).get_wpa_control(*args, **kwargs)
-    result.connected = self._initially_connected
+    if self._initial_ssid_testonly:
+      result.connected = True
+      result.ssid_testonly = self._initial_ssid_testonly
     return result
 
   def add_connected_event(self):
@@ -143,35 +154,58 @@ class Wifi(FakeInterfaceMixin, interface.Wifi):
       self._wpa_control.add_connected_event()
 
   def add_disconnected_event(self):
+    self._initial_ssid_testonly = None
     if self.attached():
       self._wpa_control.add_disconnected_event()
 
   def add_terminating_event(self):
+    self._initial_ssid_testonly = None
     if self.attached():
       self._wpa_control.add_terminating_event()
+
+  def detach_wpa_control(self):
+    self._initial_ssid_testonly = None
+    super(Wifi, self).detach_wpa_control()
+
+  def start_wpa_supplicant_testonly(self, path):
+    logging.debug('Starting fake wpa_supplicant for %s', self.name)
+    open(os.path.join(path, self.name), 'w')
+
+  def kill_wpa_supplicant_testonly(self, path):
+    logging.debug('Killing fake wpa_supplicant for %s', self.name)
+    if self.attached():
+      self.detach_wpa_control()
+      os.unlink(os.path.join(path, self.name))
+    else:
+      raise RuntimeError('Trying to kill wpa_supplicant while not attached')
 
 
 class FrenzyWPACtrl(interface.FrenzyWPACtrl):
 
   def __init__(self, *args, **kwargs):
     super(FrenzyWPACtrl, self).__init__(*args, **kwargs)
-    self.fake_qcsapi = {}
+    self.ssid_testonly = None
 
   def _qcsapi(self, *command):
     return self.fake_qcsapi.get(command[0], None)
 
   def add_connected_event(self):
     self.fake_qcsapi['get_mode'] = 'Station'
-    json.dump({'SSID': 'my ssid'}, open(self._wifiinfo_filename(), 'w'))
-    self._update()
+    json.dump({'SSID': self.ssid_testonly},
+              open(self._wifiinfo_filename(), 'w'))
 
   def add_disconnected_event(self):
+    self.ssid_testonly = None
     json.dump({'SSID': ''}, open(self._wifiinfo_filename(), 'w'))
-    self._update()
 
   def add_terminating_event(self):
+    self.ssid_testonly = None
+    json.dump({'SSID': ''}, open(self._wifiinfo_filename(), 'w'))
     self.fake_qcsapi['get_mode'] = 'AP'
-    self._update()
+
+  def detach(self):
+    self.add_terminating_event()
+    super(FrenzyWPACtrl, self).detach()
 
 
 class FrenzyWifi(FakeInterfaceMixin, interface.FrenzyWifi):
@@ -179,17 +213,22 @@ class FrenzyWifi(FakeInterfaceMixin, interface.FrenzyWifi):
 
   def __init__(self, *args, **kwargs):
     super(FrenzyWifi, self).__init__(*args, **kwargs)
-    self._initially_connected = False
+    self._initial_ssid_testonly = None
+    self.fake_qcsapi = {}
 
   def attach_wpa_control(self, *args, **kwargs):
     super(FrenzyWifi, self).attach_wpa_control(*args, **kwargs)
     if self._wpa_control:
-      self._wpa_control.fake_qcsapi['get_mode'] = 'Station'
+      self._wpa_control.ssid_testonly = self._initial_ssid_testonly
+      if self._initial_ssid_testonly:
+        self._wpa_control.add_connected_event()
 
   def get_wpa_control(self, *args, **kwargs):
     result = super(FrenzyWifi, self).get_wpa_control(*args, **kwargs)
-    if self._initially_connected:
+    result.fake_qcsapi = self.fake_qcsapi
+    if self._initial_ssid_testonly:
       result.fake_qcsapi['get_mode'] = 'Station'
+      result.ssid_testonly = self._initial_ssid_testonly
       result.add_connected_event()
     return result
 
@@ -198,12 +237,31 @@ class FrenzyWifi(FakeInterfaceMixin, interface.FrenzyWifi):
       self._wpa_control.add_connected_event()
 
   def add_disconnected_event(self):
+    self._initial_ssid_testonly = None
     if self.attached():
       self._wpa_control.add_disconnected_event()
 
   def add_terminating_event(self):
+    self._initial_ssid_testonly = None
     if self.attached():
       self._wpa_control.add_terminating_event()
+
+  def detach_wpa_control(self):
+    self._initial_ssid_testonly = None
+    super(FrenzyWifi, self).detach_wpa_control()
+
+  def start_wpa_supplicant_testonly(self, unused_path):
+    logging.debug('Starting fake wpa_supplicant for %s', self.name)
+    self.fake_qcsapi['get_mode'] = 'Station'
+
+  def kill_wpa_supplicant_testonly(self, unused_path):
+    logging.debug('Killing fake wpa_supplicant for %s', self.name)
+    if self.attached():
+      # This happens to do what we need.
+      self.add_terminating_event()
+      self.detach_wpa_control()
+    else:
+      raise RuntimeError('Trying to kill wpa_supplicant while not attached')
 
 
 @wvtest.wvtest
@@ -273,6 +331,7 @@ def bridge_test():
 
 def generic_wifi_test(w, wpa_path):
   # Not currently connected.
+  w.start_wpa_supplicant_testonly(wpa_path)
   w.attach_wpa_control(wpa_path)
   wvtest.WVFAIL(w.wpa_supplicant)
 
@@ -280,6 +339,7 @@ def generic_wifi_test(w, wpa_path):
   wpa_control = w._wpa_control
 
   # wpa_supplicant connects.
+  wpa_control.ssid_testonly = 'my=ssid'
   wpa_control.add_connected_event()
   wvtest.WVFAIL(w.wpa_supplicant)
   w.handle_wpa_events()
@@ -295,14 +355,14 @@ def generic_wifi_test(w, wpa_path):
   # connected when we attach.
   w.detach_wpa_control()
   # pylint: disable=protected-access
-  w._initially_connected = True
+  w._initial_ssid_testonly = 'my=ssid'
   w._initialized = False
   w.attach_wpa_control(wpa_path)
   wpa_control = w._wpa_control
 
   # wpa_supplicant was already connected when we attached.
   wvtest.WVPASS(w.wpa_supplicant)
-  wvtest.WVPASSEQ(w.initial_ssid, 'my ssid')
+  wvtest.WVPASSEQ(w.initial_ssid, 'my=ssid')
   w.initialize()
   wvtest.WVPASSEQ(w.initial_ssid, None)
 

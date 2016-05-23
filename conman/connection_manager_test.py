@@ -182,16 +182,26 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
   WIFI_STOPCLIENT = ['echo', 'stopclient']
 
   def start_client(self):
-    if not self.client_up:
+    client_was_up = self.client_up
+    was_attached = self.wifi.attached()
+    # Do this before calling the super method so that the attach call at the end
+    # succeeds.
+    if not client_was_up and not was_attached:
+      self.wifi._initial_ssid_testonly = self.ssid
+      self.wifi.start_wpa_supplicant_testonly(self._wpa_control_interface)
+
+    super(WLANConfiguration, self).start_client()
+
+    if not client_was_up:
       self.wifi.set_connection_check_result('succeed')
 
-      if self.wifi.attached():
+      if was_attached:
+        self.wifi._wpa_control.ssid_testonly = self.ssid
         self.wifi.add_connected_event()
-      else:
-        open(self._socket(), 'w')
 
-      # Normally, wpa_supplicant would bring up wcli*, which would trigger
-      # ifplugd, which would run ifplugd.action, which would do two things:
+      # Normally, wpa_supplicant would bring up the client interface, which
+      # would trigger ifplugd, which would run ifplugd.action, which would do
+      # two things:
       #
       # 1)  Write an interface status file.
       # 2)  Call run-dhclient, which would call dhclient-script, which would
@@ -201,20 +211,17 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
       self.write_interface_status_file('1')
       self.write_gateway_file()
 
-    super(WLANConfiguration, self).start_client()
-
   def stop_client(self):
-    if self.client_up:
+    client_was_up = self.client_up
+
+    super(WLANConfiguration, self).stop_client()
+
+    if client_was_up:
       self.wifi.add_terminating_event()
       self.wifi.set_connection_check_result('fail')
 
     # See comments in start_client.
     self.write_interface_status_file('0')
-
-    super(WLANConfiguration, self).stop_client()
-
-  def _socket(self):
-    return os.path.join(self._wpa_control_interface, self.wifi.name)
 
   def write_gateway_file(self):
     gateway_file = os.path.join(self.tmp_dir,
@@ -234,8 +241,6 @@ class Wifi(interface_test.Wifi):
 
   def __init__(self, *args, **kwargs):
     super(Wifi, self).__init__(*args, **kwargs)
-    # Whether wpa_supplicant is connected to a network.
-    self._initially_connected = True
     self.wifi_scan_counter = 0
 
 
@@ -243,8 +248,6 @@ class FrenzyWifi(interface_test.FrenzyWifi):
 
   def __init__(self, *args, **kwargs):
     super(FrenzyWifi, self).__init__(*args, **kwargs)
-    # Whether wpa_supplicant is connected to a network.
-    self._initially_connected = True
     self.wifi_scan_counter = 0
 
 
@@ -268,11 +271,12 @@ class ConnectionManager(connection_manager.ConnectionManager):
     self.interfaces_already_up = kwargs.pop('__test_interfaces_already_up',
                                             ['eth0'])
 
-    wifi_interfaces_already_up = [ifc for ifc in self.interfaces_already_up
-                                  if ifc.startswith('wcli')]
-    for wifi in wifi_interfaces_already_up:
-      # wcli1 is always 5 GHz.  wcli0 always *includes* 2.4.
-      band = '5' if wifi == 'wcli1' else '2.4'
+    self.wifi_interfaces_already_up = [ifc for ifc in self.interfaces_already_up
+                                       if ifc.startswith('w')]
+    for wifi in self.wifi_interfaces_already_up:
+      # wcli1 is always 5 GHz.  wcli0 always *includes* 2.4.  wlan* client
+      # interfaces are Frenzy interfaces and therefore 5 GHz-only.
+      band = '5' if wifi in ('wlan0', 'wlan1', 'wcli1') else '2.4'
       # This will happen in the super function, but in order for
       # write_wlan_config to work we have to do it now.  This has to happen
       # before the super function so that the files exist before the inotify
@@ -285,42 +289,40 @@ class ConnectionManager(connection_manager.ConnectionManager):
 
     super(ConnectionManager, self).__init__(*args, **kwargs)
 
-    for wifi in wifi_interfaces_already_up:
-      # pylint: disable=protected-access
-      self.interface_by_name(wifi)._initially_connected = True
-
     self.interface_with_scan_results = None
     self.scan_results_include_hidden = False
     self.can_connect_to_s2 = True
+
+  def create_wifi_interfaces(self):
+    super(ConnectionManager, self).create_wifi_interfaces()
+    for wifi in self.wifi_interfaces_already_up:
+      # pylint: disable=protected-access
+      self.interface_by_name(wifi)._initial_ssid_testonly = 'my ssid'
 
   @property
   def IP_LINK(self):
     return ['echo'] + ['%s LOWER_UP' % ifc
                        for ifc in self.interfaces_already_up]
 
-  def _update_access_point(self, wlan_configuration):
-    client_was_up = wlan_configuration.client_up
-    super(ConnectionManager, self)._update_access_point(wlan_configuration)
-    if wlan_configuration.access_point_up:
-      if client_was_up:
-        wifi = self.wifi_for_band(wlan_configuration.band)
-        wifi.add_terminating_event()
-
   def _try_next_bssid(self, wifi):
     if hasattr(wifi, 'cycler'):
       bss_info = wifi.cycler.peek()
       if bss_info:
         self.last_provisioning_attempt = bss_info
+        # pylint: disable=protected-access
+        if wifi._wpa_control:
+          wifi._wpa_control.ssid_testonly = bss_info.ssid
 
     super(ConnectionManager, self)._try_next_bssid(wifi)
 
-    socket = os.path.join(self._wpa_control_interface, wifi.name)
-
     def connect(connection_check_result):
+      # pylint: disable=protected-access
       if wifi.attached():
+        wifi._wpa_control._ssid_testonly = bss_info.ssid
         wifi.add_connected_event()
       else:
-        open(socket, 'w')
+        wifi._initial_ssid_testonly = bss_info.ssid
+        wifi.start_wpa_supplicant_testonly(self._wpa_control_interface)
       wifi.set_connection_check_result(connection_check_result)
       self.ifplugd_action(wifi.name, True)
 
@@ -340,7 +342,6 @@ class ConnectionManager(connection_manager.ConnectionManager):
 
   # pylint: disable=unused-argument,protected-access
   def _find_bssids(self, band):
-    # Only wcli0 finds anything.
     scan_output = ''
     if (self.interface_with_scan_results and
         band in self.interface_by_name(self.interface_with_scan_results).bands):
@@ -656,6 +657,8 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.internet())
   wvtest.WVFAIL(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_route())
+  # Disable scan results again.
+  c.interface_with_scan_results = None
 
   # Now, create a WLAN configuration which should be connected to.
   ssid = 'wlan'
@@ -667,17 +670,28 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.wifi_for_band(band).current_route())
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
 
-  # Now, remove the WLAN configuration and make sure we are disconnected.  Then
-  # disable the previously used ACS connection via s2, add the user's WLAN to
-  # the scan results, and scan again.  This time, the first SSID tried should be
-  # 's3', which is not present in the scan results but *is* advertised by the
-  # secure AP running the user's WLAN.
-  c.delete_wlan_config(band)
+  # Kill wpa_supplicant.  conman should restart it.
+  wvtest.WVPASS(c.client_up(band))
+  wvtest.WVPASS(c._connected_to_wlan(c.wifi_for_band(band)))
+  c.wifi_for_band(band).kill_wpa_supplicant_testonly(c._wpa_control_interface)
+  wvtest.WVFAIL(c.client_up(band))
+  wvtest.WVFAIL(c._connected_to_wlan(c.wifi_for_band(band)))
   c.run_once()
+  wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
+  wvtest.WVPASS(c.client_up(band))
+  wvtest.WVPASS(c._connected_to_wlan(c.wifi_for_band(band)))
+
+  # Now, remove the WLAN configuration and make sure we are disconnected.  Then
+  # disable the previously used ACS connection via s2, re-enable scan results,
+  # add the user's WLAN to the scan results, and scan again.  This time, the
+  # first SSID tried should be 's3', which is now present in the scan results
+  # (with its SSID hidden, but included via vendor IE).
+  c.delete_wlan_config(band)
   c.can_connect_to_s2 = False
+  c.interface_with_scan_results = c.wifi_for_band(band).name
   c.scan_results_include_hidden = True
-  wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
   c.run_until_interface_update_and_scan(band)
+  wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
   c.run_until_interface_update()
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
   wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's3')
@@ -809,6 +823,8 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVPASS(c.access_point_up('2.4'))
   wvtest.WVPASS(c.access_point_up('5'))
   wvtest.WVPASS(c.bridge.current_route())
+  wvtest.WVFAIL(c.client_up('2.4'))
+  wvtest.WVFAIL(c.client_up('5'))
   wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
 
@@ -855,7 +871,7 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
 
   # The next 2.4 GHz scan will have results.
-  c.interface_with_scan_results = 'wcli0'
+  c.interface_with_scan_results = c.wifi_for_band('2.4').name
   c.run_until_scan('2.4')
   # Now run 3 cycles, so that s2 will have been tried.
   for _ in range(3):
@@ -946,8 +962,8 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
 
-  # The wcli0 scan will have results that will lead to ACS access.
-  c.interface_with_scan_results = 'wcli0'
+  # The 2.4 GHz scan will have results that will lead to ACS access.
+  c.interface_with_scan_results = c.wifi_for_band('2.4').name
   c.run_until_scan('5')
   for _ in range(3):
     c.run_once()

@@ -355,16 +355,31 @@ class Wifi(Interface):
       logging.error('Error attaching to wpa_supplicant: %s', e)
       return False
 
-    for line in self._wpa_control.request('STATUS').splitlines():
-      if '=' not in line:
-        continue
-      key, value = line.split('=', 1)
-      if key == 'wpa_state':
-        self.wpa_supplicant = value == 'COMPLETED'
-      elif key == 'ssid' and not self._initialized:
-        self.initial_ssid = value
+    status = self.wpa_cli_status()
+    self.wpa_supplicant = status.get('wpa_state') == 'COMPLETED'
+    if not self._initialized:
+      self.initial_ssid = status.get('ssid')
 
     return True
+
+  def wpa_cli_status(self):
+    """Parse the STATUS response from the wpa_supplicant CLI.
+
+    Returns:
+      A dict containing the parsed results, where key and value are separated by
+      '=' on each line.
+    """
+    status = {}
+
+    if self._wpa_control:
+      lines = self._wpa_control.request('STATUS').splitlines()
+      for line in lines:
+        if '=' not in line:
+          continue
+        k, v = line.strip().split('=', 1)
+        status[k] = v
+
+    return status
 
   def get_wpa_control(self, socket):
     return self.WPACtrl(socket)
@@ -408,10 +423,10 @@ class Wifi(Interface):
 
 
 class FrenzyWPACtrl(object):
-  """A fake WPACtrl for Frenzy devices.
+  """A WPACtrl for Frenzy devices.
 
   Implements the same functions used on the normal WPACtrl, using a combination
-  of the QCSAPI and wifi_files.  Keeps state in order to generate fake events by
+  of the QCSAPI and wifi_files.  Keeps state in order to generate events by
   diffing saved state with current system state.
   """
 
@@ -500,10 +515,17 @@ class FrenzyWPACtrl(object):
     return self._events.pop(0)
 
   def request(self, request_type):
-    if request_type == 'STATUS' and self._client_mode and self._ssid:
-      return 'wpa_state=COMPLETED\nssid=%s\n' % self._ssid
+    """Partial implementation of WPACtrl.request."""
 
-    return ''
+    if request_type != 'STATUS':
+      return ''
+
+    self._update()
+
+    if not self._client_mode or not self._ssid:
+      return ''
+
+    return 'wpa_state=COMPLETED\nssid=%s' % self._ssid
 
 
 class FrenzyWifi(Wifi):
