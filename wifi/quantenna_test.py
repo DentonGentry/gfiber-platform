@@ -19,6 +19,10 @@ def fake_qcsapi(*args):
     return '1' if ['startprod', 'wifi0'] in calls else '0'
   if args[0] == 'get_bssid':
     return '00:11:22:33:44:55'
+  if args[0] == 'get_mode':
+    i = [c for c in matching_calls_indices(['update_config_param'])
+         if calls[c][2] == 'mode']
+    return 'Access point' if calls[i[-1]][3] == 'ap' else 'Station'
 
 
 bridge_interfaces = set()
@@ -185,12 +189,15 @@ def set_wifi_test():
 @wvtest.wvtest
 def stop_wifi_test():
   opt = FakeOptDict()
+  opt.bridge = 'br0'
   set_fakes()
+  wvtest.WVPASS(quantenna.set_wifi(opt))
+  new_calls_start = len(calls)
   wvtest.WVPASS(quantenna.stop_ap_wifi(opt))
-  wvtest.WVPASS(['rfenable', '0'] in calls)
-  set_fakes()
+  wvtest.WVPASS(['rfenable', '0'] in calls[new_calls_start:])
+  new_calls_start = len(calls)
   wvtest.WVPASS(quantenna.stop_client_wifi(opt))
-  wvtest.WVPASS(['rfenable', '0'] in calls)
+  wvtest.WVPASS(['rfenable', '0'] not in calls[new_calls_start:])
 
 
 if __name__ == '__main__':
