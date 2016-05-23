@@ -453,6 +453,7 @@ class FrenzyWPACtrl(object):
   def attach(self):
     self._update()
 
+  @property
   def attached(self):
     return self._client_mode
 

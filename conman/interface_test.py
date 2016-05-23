@@ -161,13 +161,17 @@ class FrenzyWPACtrl(interface.FrenzyWPACtrl):
     return self.fake_qcsapi.get(command[0], None)
 
   def add_connected_event(self):
+    self.fake_qcsapi['get_mode'] = 'Station'
     json.dump({'SSID': 'my ssid'}, open(self._wifiinfo_filename(), 'w'))
+    self._update()
 
   def add_disconnected_event(self):
     json.dump({'SSID': ''}, open(self._wifiinfo_filename(), 'w'))
+    self._update()
 
   def add_terminating_event(self):
     self.fake_qcsapi['get_mode'] = 'AP'
+    self._update()
 
 
 class FrenzyWifi(FakeInterfaceMixin, interface.FrenzyWifi):
