@@ -6,5 +6,11 @@
 
 SSDP=./host-ssdptax
 
+FIFO="/tmp/ssdptax.test.$$"
+python ./ssdptax-test-server.py "$FIFO" &
+sleep 0.5
+
 WVSTART "ssdptax test"
-WVPASSEQ "$($SSDP -t)" "ssdp 00:01:02:03:04:05 Test Device"
+WVPASSEQ "$($SSDP -t $FIFO)" "ssdp 00:00:00:00:00:00 Test Device;Google Fiber ssdptax"
+
+rm "$FIFO"
