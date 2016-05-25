@@ -7,6 +7,7 @@ import subprocess
 
 
 FIBER_OUI = 'f4:f5:e8'
+DEFAULT_GFIBERSETUP_SSID = 'GFiberSetupAutomation'
 
 
 def _scan(band, **kwargs):
@@ -114,6 +115,11 @@ def find_bssids(band, vendor_ie_function, include_secure):
         if octets[0] == '03' and not bss_info.ssid:
           bss_info.ssid = ''.join(octets[1:]).decode('hex')
           continue
+
+    # Some of our devices (e.g. Frenzy) can't see vendor IEs.  If we find a
+    # hidden network no vendor IEs or SSID, guess 'GFiberSetupAutomation'.
+    if not bss_info.ssid and not bss_info.vendor_ies:
+      bss_info.ssid = DEFAULT_GFIBERSETUP_SSID
 
     for oui, data in bss_info.vendor_ies:
       if vendor_ie_function(oui, data):
