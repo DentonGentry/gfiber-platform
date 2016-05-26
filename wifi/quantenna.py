@@ -3,144 +3,55 @@
 """Wifi commands for Quantenna using QCSAPI."""
 
 import os
+import re
 import subprocess
 import time
 
 import utils
 
 
-ALREADY_MEMBER_FMT = ('device %s is already a member of a bridge; '
-                      "can't enslave it to bridge %s.")
-NOT_MEMBER_FMT = 'device %s is not a slave of %s'
-
-
-def _get_interface():
-  return subprocess.check_output(['get-quantenna-interface']).strip()
-
-
-def _get_mac_address(interface):
-  try:
-    var = {'wlan0': 'MAC_ADDR_WIFI', 'wlan1': 'MAC_ADDR_WIFI2'}[interface]
-  except KeyError:
-    raise utils.BinWifiException('no MAC address for %s in hnvram' % interface)
-  return subprocess.check_output(['hnvram', '-rq', var]).strip()
+def _get_quantenna_interfaces():
+  return subprocess.check_output(['get-quantenna-interfaces']).split()
 
 
 def _qcsapi(*args):
   return subprocess.check_output(['qcsapi'] + [str(x) for x in args]).strip()
 
 
-def _brctl(*args):
-  return subprocess.check_output(['brctl'] + list(args),
-                                 stderr=subprocess.STDOUT).strip()
+def _get_external_mac(hif):
+  # The MAC of the LHOST interface is equal to the MAC of the host interface
+  # with the locally administered bit cleared.
+  mac = utils.get_mac_address_for_interface(hif)
+  octets = mac.split(':')
+  octets[0] = '%02x' % (int(octets[0], 16) & ~(1 << 1))
+  return ':'.join(octets)
 
 
-def _ifplugd_action(*args):
-  return subprocess.check_output(['/etc/ifplugd/ifplugd.action'] + list(args),
-                                 stderr=subprocess.STDOUT).strip()
+def _get_vlan(hif):
+  m = re.search(r'VID: (\d+)', utils.read_or_empty('/proc/net/vlan/%s' % hif))
+  if m:
+    return int(m.group(1))
+  raise utils.BinWifiException('no VLAN ID for interface %s' % hif)
 
 
-def _set_interface_in_bridge(bridge, interface, want_in_bridge):
-  """Add/remove Quantenna interface from/to the bridge."""
-  if want_in_bridge:
-    command = 'addif'
-    error_fmt = ALREADY_MEMBER_FMT
-  else:
-    command = 'delif'
-    error_fmt = NOT_MEMBER_FMT
+def _get_interface(mode, suffix):
+  # Each host interface (hif) maps to exactly one LHOST interface (lif) based on
+  # the VLAN ID as follows: the lif is wifiX where X is the VLAN ID - 2 (VLAN
+  # IDs start at 2). The client interface must map to wifi0, so it must have
+  # VLAN ID 2.
+  prefix = 'wlan' if mode == 'ap' else 'wcli'
+  suffix = '_' + suffix if suffix else ''
+  for hif in _get_quantenna_interfaces():
+    if re.match(prefix + r'\d*' + suffix, hif):
+      vlan = _get_vlan(hif)
+      lif = 'wifi%d' % (vlan - 2)
+      mac = _get_external_mac(hif)
+      return hif, lif, mac, vlan
+  return None, None, None, None
 
-  try:
-    _brctl(command, bridge, interface)
-  except subprocess.CalledProcessError as e:
-    if error_fmt % (interface, bridge) not in e.output:
-      raise utils.BinWifiException(e.output)
 
-
-def _set(mode, opt):
-  """Enable wifi."""
-  interface = _get_interface()
-  if not interface:
-    return False
-
-  if opt.encryption == 'WEP':
-    raise utils.BinWifiException('WEP not supported')
-
-  if mode == 'scan':
-    mode = 'sta'
-    scan = True
-  else:
-    scan = False
-
-  _qcsapi('rfenable', 0)
-  _qcsapi('restore_default_config', 'noreboot')
-
-  config = {
-      'bw': opt.width if mode == 'ap' else 80,
-      'channel': 149 if opt.channel == 'auto' else opt.channel,
-      'mode': mode,
-      'pmf': 0,
-      'scs': 0,
-  }
-  for param, value in config.iteritems():
-    _qcsapi('update_config_param', 'wifi0', param, value)
-
-  _qcsapi('set_mac_addr', 'wifi0', _get_mac_address(interface))
-
-  if int(_qcsapi('is_startprod_done')):
-    _qcsapi('reload_in_mode', 'wifi0', mode)
-  else:
-    _qcsapi('startprod')
-    for _ in xrange(30):
-      if int(_qcsapi('is_startprod_done')):
-        break
-      time.sleep(1)
-    else:
-      raise utils.BinWifiException('startprod timed out')
-
-  if mode == 'ap':
-    _set_interface_in_bridge(opt.bridge, interface, True)
-    _qcsapi('set_ssid', 'wifi0', opt.ssid)
-    if opt.encryption == 'NONE':
-      _qcsapi('set_beacon_type', 'wifi0', 'Basic')
-    else:
-      protocol, authentication, encryption = opt.encryption.split('_')
-      protocol = {'WPA': 'WPA', 'WPA2': '11i', 'WPA12': 'WPAand11i'}[protocol]
-      authentication += 'Authentication'
-      encryption += 'Encryption'
-      _qcsapi('set_beacon_type', 'wifi0', protocol)
-      _qcsapi('set_wpa_authentication_mode', 'wifi0', authentication)
-      _qcsapi('set_wpa_encryption_modes', 'wifi0', encryption)
-      _qcsapi('set_passphrase', 'wifi0', 0, os.environ['WIFI_PSK'])
-    _qcsapi('set_option', 'wifi0', 'ssid_broadcast', int(not opt.hidden_mode))
-    _qcsapi('rfenable', 1)
-  elif mode == 'sta' and not scan:
-    _set_interface_in_bridge(opt.bridge, interface, False)
-    _qcsapi('create_ssid', 'wifi0', opt.ssid)
-    if opt.bssid:
-      _qcsapi('set_ssid_bssid', 'wifi0', opt.ssid, opt.bssid)
-    if opt.encryption == 'NONE' or not os.environ.get('WIFI_CLIENT_PSK'):
-      _qcsapi('ssid_set_authentication_mode', 'wifi0', opt.ssid, 'NONE')
-    else:
-      _qcsapi('ssid_set_passphrase', 'wifi0', opt.ssid, 0,
-              os.environ['WIFI_CLIENT_PSK'])
-    # In STA mode, 'rfenable 1' is already done by 'startprod'/'reload_in_mode'.
-    # 'apply_security_config' must be called instead.
-    _qcsapi('apply_security_config', 'wifi0')
-
-    for _ in xrange(10):
-      if _qcsapi('get_ssid', 'wifi0'):
-        break
-      time.sleep(1)
-    else:
-      raise utils.BinWifiException('wpa_supplicant failed to connect')
-
-    try:
-      _ifplugd_action(interface, 'up')
-    except subprocess.CalledProcessError:
-      utils.log('Failed to call ifplugd.action.  %s may not get an IP address.'
-                % interface)
-
-  return True
+def _set_link_state(hif, state):
+  subprocess.check_output(['ip', 'link', 'set', 'dev', hif, state])
 
 
 def _parse_scan_result(line):
@@ -163,49 +74,167 @@ def _parse_scan_result(line):
   # The SSID may contain quotes and spaces. Split on whitespace from the right,
   # making at most 10 splits, to preserve spaces in the SSID.
   sp = line.strip().rsplit(None, 10)
-  return sp[0][1:-1], sp[1], int(sp[2]), float(sp[3]), int(sp[4]), int(sp[5])
+  return sp[0][1:-1], sp[1], int(sp[2]), -float(sp[3]), int(sp[4]), int(sp[5])
+
+
+def _ensure_initialized(mode):
+  """Ensure that the device is in a state suitable for the given mode."""
+  if int(_qcsapi('is_startprod_done')):
+    if (mode == 'scan' or
+        mode == 'ap' and _qcsapi('get_mode', 'wifi0') == 'Access point' or
+        mode == 'sta' and _qcsapi('get_mode', 'wifi0') == 'Station'):
+      return
+    _qcsapi('restore_default_config', 'noreboot', mode)
+    _qcsapi('reload_in_mode', 'wifi0', mode)
+    _qcsapi('rfenable', 1)
+  else:
+    _qcsapi('restore_default_config', 'noreboot',
+            'sta' if mode == 'scan' else mode)
+
+    _, _, mac, _ = _get_interface('sta', '')
+    if mac:
+      _qcsapi('set_mac_addr', 'wifi0', mac)
+
+    _qcsapi('startprod')
+    for _ in xrange(30):
+      if int(_qcsapi('is_startprod_done')):
+        break
+      time.sleep(1)
+    else:
+      raise utils.BinWifiException('startprod timed out')
+
+    _qcsapi('rfenable', 1)
 
 
 def set_wifi(opt):
-  return _set('ap', opt)
+  """Enable AP."""
+  hif, lif, mac, vlan = _get_interface('ap', opt.interface_suffix)
+  if not hif:
+    return False
+
+  if opt.encryption == 'WEP':
+    raise utils.BinWifiException('WEP not supported')
+
+  stop_ap_wifi(opt)
+
+  try:
+    _ensure_initialized('ap')
+
+    _qcsapi('set_bw', 'wifi0', opt.width)
+    _qcsapi('set_channel', 'wifi0',
+            149 if opt.channel == 'auto' else opt.channel)
+
+    _qcsapi('wifi_create_bss', lif, mac)
+    _qcsapi('set_ssid', lif, opt.ssid)
+    if opt.encryption == 'NONE':
+      _qcsapi('set_beacon_type', lif, 'Basic')
+    else:
+      protocol, authentication, encryption = opt.encryption.split('_')
+      protocol = {'WPA': 'WPA', 'WPA2': '11i', 'WPA12': 'WPAand11i'}[protocol]
+      authentication += 'Authentication'
+      encryption += 'Encryption'
+      _qcsapi('set_beacon_type', lif, protocol)
+      _qcsapi('set_wpa_authentication_mode', lif, authentication)
+      _qcsapi('set_wpa_encryption_modes', lif, encryption)
+      _qcsapi('set_passphrase', lif, 0, os.environ['WIFI_PSK'])
+    _qcsapi('set_option', lif, 'ssid_broadcast', int(not opt.hidden_mode))
+
+    _qcsapi('vlan_config', lif, 'enable')
+    _qcsapi('vlan_config', lif, 'access', vlan)
+    _qcsapi('vlan_config', 'pcie0', 'enable')
+    _qcsapi('vlan_config', 'pcie0', 'trunk', vlan)
+
+    _qcsapi('block_bss', lif, 0)
+    _set_link_state(hif, 'up')
+  except:
+    stop_ap_wifi(opt)
+    raise
+
+  return True
 
 
 def set_client_wifi(opt):
-  return _set('sta', opt)
+  """Enable client."""
+  hif, lif, _, vlan = _get_interface('sta', opt.interface_suffix)
+  if not hif:
+    return False
+
+  stop_client_wifi(opt)
+
+  try:
+    _ensure_initialized('sta')
+
+    _qcsapi('set_bw', 'wifi0', 80)
+
+    _qcsapi('create_ssid', lif, opt.ssid)
+    if opt.bssid:
+      _qcsapi('set_ssid_bssid', lif, opt.ssid, opt.bssid)
+    if opt.encryption == 'NONE' or not os.environ.get('WIFI_CLIENT_PSK'):
+      _qcsapi('ssid_set_authentication_mode', lif, opt.ssid, 'NONE')
+    else:
+      _qcsapi('ssid_set_passphrase', lif, opt.ssid, 0,
+              os.environ['WIFI_CLIENT_PSK'])
+    _qcsapi('apply_security_config', lif)
+
+    for _ in xrange(10):
+      if _qcsapi('get_ssid', lif):
+        break
+      time.sleep(1)
+    else:
+      raise utils.BinWifiException('wpa_supplicant failed to connect')
+
+    _qcsapi('vlan_config', lif, 'enable')
+    _qcsapi('vlan_config', lif, 'access', vlan)
+    _qcsapi('vlan_config', 'pcie0', 'enable')
+    _qcsapi('vlan_config', 'pcie0', 'trunk', vlan)
+
+    _set_link_state(hif, 'up')
+  except:
+    stop_client_wifi(opt)
+    raise
+
+  return True
 
 
-def stop_ap_wifi(_):
+def stop_ap_wifi(opt):
   """Disable AP."""
-  if not _get_interface():
+  hif, lif, _, _ = _get_interface('ap', opt.interface_suffix)
+  if not hif:
     return False
 
-  if (int(_qcsapi('is_startprod_done')) and
-      _qcsapi('get_mode', 'wifi0') == 'Access point'):
-    _qcsapi('rfenable', 0)
+  try:
+    _qcsapi('wifi_remove_bss', lif)
+  except subprocess.CalledProcessError:
+    pass
+
+  _set_link_state(hif, 'down')
 
   return True
 
 
-def stop_client_wifi(_):
+def stop_client_wifi(opt):
   """Disable client."""
-  if not _get_interface():
+  hif, lif, _, _ = _get_interface('sta', opt.interface_suffix)
+  if not hif:
     return False
 
-  if (int(_qcsapi('is_startprod_done')) and
-      _qcsapi('get_mode', 'wifi0') == 'Station'):
-    _qcsapi('rfenable', 0)
+  try:
+    _qcsapi('remove_ssid', lif, _qcsapi('get_ssid_list', lif, 1))
+  except subprocess.CalledProcessError:
+    pass
+
+  _set_link_state(hif, 'down')
 
   return True
 
 
-def scan_wifi(opt):
+def scan_wifi(_):
   """Scan for APs."""
-  interface = _get_interface()
-  if not interface:
+  hif, _, _, _ = _get_interface('ap', '')
+  if not hif:
     return False
 
-  if _qcsapi('rfstatus') == 'Off':
-    _set('scan', opt)
+  _ensure_initialized('scan')
 
   _qcsapi('start_scan', 'wifi0')
   for _ in xrange(30):
@@ -213,14 +242,14 @@ def scan_wifi(opt):
       break
     time.sleep(1)
   else:
-    raise utils.BinWifiException('start_scan timed out')
+    raise utils.BinWifiException('scan timed out')
 
   for i in xrange(int(_qcsapi('get_results_ap_scan', 'wifi0'))):
     ssid, mac, channel, rssi, flags, protocols = _parse_scan_result(
         _qcsapi('get_properties_ap', 'wifi0', i))
-    print 'BSS %s(on %s)' % (mac, interface)
+    print 'BSS %s(on %s)' % (mac, hif)
     print '\tfreq: %d' % (5000 + 5 * channel)
-    print '\tsignal: %.2f' % -rssi
+    print '\tsignal: %.2f' % rssi
     print '\tSSID: %s' % ssid
     if flags & 0x1:
       if protocols & 0x1:
