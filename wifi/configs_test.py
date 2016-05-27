@@ -310,6 +310,7 @@ ieee80211n=1
 
 
 
+
 ht_capab=[HT20][RX-STBC1]
 
 """
@@ -332,6 +333,31 @@ ieee80211n=1
 
 
 
+
+
+ht_capab=[HT20][RX-STBC1]
+
+"""
+
+_HOSTAPD_CONFIG_PROVISION_VIA = """ctrl_interface=/var/run/hostapd
+interface=wlan0
+
+ssid=TEST_SSID
+utf8_ssid=1
+auth_algs=1
+hw_mode=g
+channel=1
+country_code=US
+ieee80211d=1
+ieee80211h=1
+ieee80211n=1
+
+
+
+
+ignore_broadcast_ssid=1
+
+vendor_elements=dd04f4f5e801dd0df4f5e803544553545f53534944
 
 ht_capab=[HT20][RX-STBC1]
 
@@ -366,6 +392,7 @@ class FakeOptDict(object):
     self.persist = False
     self.interface_suffix = ''
     self.client_isolation = False
+    self.supports_provisioning = False
 
 
 # pylint: disable=protected-access
@@ -392,6 +419,20 @@ def generate_hostapd_config_test():
                              '# Experiments: ()\n')),
                   config)
   opt.bridge = default_bridge
+
+  # Test provisioning IEs.
+  default_hidden_mode, opt.hidden_mode = opt.hidden_mode, True
+  default_supports_provisioning, opt.supports_provisioning = (
+      opt.supports_provisioning, True)
+  config = configs.generate_hostapd_config(
+      _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
+      'asdfqwer', opt)
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG_PROVISION_VIA,
+                             _HOSTAPD_CONFIG_WPA,
+                             '# Experiments: ()\n')),
+                  config)
+  opt.hidden_mode = default_hidden_mode
+  opt.supports_provisioning = default_supports_provisioning
 
   # Test with no encryption.
   default_encryption, opt.encryption = opt.encryption, 'NONE'
@@ -442,6 +483,13 @@ def generate_hostapd_config_test():
       _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
       'asdfqwer', opt)
   wvtest.WVPASSEQ(new_config, config)
+
+
+@wvtest.wvtest
+def create_vendor_ie_test():
+  wvtest.WVPASSEQ(configs.create_vendor_ie('01'), 'dd04f4f5e801')
+  wvtest.WVPASSEQ(configs.create_vendor_ie('03', 'GFiberSetupAutomation'),
+                  'dd19f4f5e80347466962657253657475704175746f6d6174696f6e')
 
 
 if __name__ == '__main__':

@@ -29,6 +29,7 @@ class P(object):
   COULD_REACH_ACS = 'COULD_REACH_ACS'
   CAN_REACH_INTERNET = 'CAN_REACH_INTERNET'
   PROVISIONING_FAILED = 'PROVISIONING_FAILED'
+  ATTACHED_TO_WPA_SUPPLICANT = 'ATTACHED_TO_WPA_SUPPLICANT'
 
 
 # Format:  { proposition: (implications, counter-implications), ... }
@@ -63,9 +64,13 @@ IMPLICATIONS = {
         (P.COULD_REACH_ACS,),
     ),
     P.HAVE_WORKING_CONFIG: (
-        (),
         (P.HAVE_CONFIG,),
+        (),
     ),
+    P.ATTACHED_TO_WPA_SUPPLICANT: (
+        (),
+        (),
+    )
 }
 
 
@@ -78,7 +83,7 @@ class Proposition(object):
   def __init__(self, name, export_path):
     self._name = name
     self._export_path = export_path
-    self._value = False
+    self._value = None
     self._implications = set()
     self._counter_implications = set()
     self._impliers = set()

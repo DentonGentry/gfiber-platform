@@ -23,6 +23,14 @@ for _i in EXPERIMENTS:
   experiment.register(_i)
 
 
+# From http://go/alphabet-ie-registry, OUI f4f5e8.
+# The properties of this class are hex string representations of varints.
+# pylint: disable=invalid-name
+class VENDOR_IE_FEATURE_ID(object):
+  SUPPORTS_PROVISIONING = '01'
+  PROVISIONING_SSID = '03'
+
+
 # Recommended HT40/VHT80 settings for given primary channels.
 # HT40 channels can fall back to 20 MHz, and VHT80 can fall back to 40 or 20.
 # So we configure using a "primary" 20 MHz channel, then allow wider
@@ -78,6 +86,7 @@ ieee80211h=1
 {require_vht}
 {hidden}
 {ap_isolate}
+{vendor_elements}
 
 ht_capab={ht20}{ht40}{guard_interval}{ht_rxstbc}
 {vht_settings}
@@ -285,7 +294,8 @@ def generate_hostapd_config(
       ht_rxstbc=ht_rxstbc, vht_settings=vht_settings,
       guard_interval=guard_interval, enable_wmm=enable_wmm, hidden=hidden,
       ap_isolate=ap_isolate, auth_algs=auth_algs, bridge=bridge,
-      ssid=utils.sanitize_ssid(opt.ssid))]
+      ssid=utils.sanitize_ssid(opt.ssid),
+      vendor_elements=get_vendor_elements(opt))]
 
   if opt.encryption != 'NONE':
     hostapd_conf_parts.append(_HOSTCONF_WPA_TPL.format(
@@ -342,3 +352,47 @@ def generate_wpa_supplicant_config(ssid, passphrase, opt):
   ]
   return '\n'.join(lines)
 
+
+def create_vendor_ie(feature_id, payload=''):
+  """Create a vendor IE in hostapd config format.
+
+  Args:
+    feature_id:  The go/alphabet-ie-registry feature ID for OUI f4f5e8.
+    payload:  A string payload (must be ASCII), or none.
+
+  Returns:
+    The vendor IE, as a string.
+  """
+  length = '%02x' % (3 + (len(feature_id)/2) + len(payload))
+  oui = 'f4f5e8'
+  return 'dd%s%s%s%s' % (length, oui, feature_id, payload.encode('hex'))
+
+
+def get_vendor_elements(opt):
+  """Get vendor_elements value hostapd config.
+
+  The way to specify multiple vendor IEs in hostapd is to concatenate them, e.g.
+
+    vendor_elements=dd0411223301dd051122330203
+
+  Args:
+    opt:  The optdict containing user-specified options.
+
+  Returns:
+    The vendor_elements string (including that prefix, or empty if there are no
+    vendor IEs.)
+  """
+  vendor_ies = []
+
+  if opt.supports_provisioning:
+    vendor_ies.append(
+        create_vendor_ie(VENDOR_IE_FEATURE_ID.SUPPORTS_PROVISIONING))
+
+  if opt.hidden_mode:
+    vendor_ies.append(
+        create_vendor_ie(VENDOR_IE_FEATURE_ID.PROVISIONING_SSID, opt.ssid))
+
+  if vendor_ies:
+    return 'vendor_elements=%s' % ''.join(vendor_ies)
+
+  return ''

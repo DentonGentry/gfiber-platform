@@ -54,8 +54,8 @@ def _link(interface, **kwargs):
 
 
 def _scan(interface, scan_args, **kwargs):
-  return subprocess.check_output(['iw', 'dev', interface, 'scan'] + scan_args,
-                                 **kwargs)
+  return subprocess.check_output(
+      ['iw', 'dev', interface, 'scan', '-u'] + scan_args, **kwargs)
 
 
 _WIPHY_RE = re.compile(r'Wiphy (?P<phy>\S+)')

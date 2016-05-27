@@ -6,9 +6,12 @@ import re
 import subprocess
 
 
-def _scan(interface, **kwargs):
+FIBER_OUI = 'f4:f5:e8'
+
+
+def _scan(band, **kwargs):
   try:
-    return subprocess.check_output(('iw', 'dev', interface, 'scan'), **kwargs)
+    return subprocess.check_output(('wifi', 'scan', '-b', band), **kwargs)
   except subprocess.CalledProcessError:
     return ''
 
@@ -36,6 +39,9 @@ class BssInfo(object):
     # pylint: disable=protected-access
     return isinstance(other, BssInfo) and self.__attrs() == other.__attrs()
 
+  def __ne__(self, other):
+    return not self.__eq__(other)
+
   def __hash__(self):
     return hash(self.__attrs())
 
@@ -47,11 +53,11 @@ class BssInfo(object):
 
 # TODO(rofrankel): waveguide also scans. Can we find a way to avoid two programs
 # scanning in parallel?
-def scan_parsed(interface, **kwargs):
+def scan_parsed(band, **kwargs):
   """Return the parsed results of 'iw scan'."""
   result = []
   bss_info = None
-  for line in _scan(interface, **kwargs).splitlines():
+  for line in _scan(band, **kwargs).splitlines():
     line = line.strip()
     match = re.match(_BSSID_RE, line)
     if match:
@@ -81,11 +87,11 @@ def scan_parsed(interface, **kwargs):
   return result
 
 
-def find_bssids(interface, vendor_ie_function, include_secure):
+def find_bssids(band, vendor_ie_function, include_secure):
   """Return information about interesting access points.
 
   Args:
-    interface:  The wireless interface with which to scan.
+    band:  The band on which to scan.
     vendor_ie_function:  A function that takes a vendor IE and returns a bool.
     include_secure:  Whether to exclude secure networks.
 
@@ -94,13 +100,21 @@ def find_bssids(interface, vendor_ie_function, include_secure):
     BSSIDs which have a vendor IE accepted by vendor_ie_function, and the second
     list has those which don't.
   """
-  parsed = scan_parsed(interface)
+  parsed = scan_parsed(band)
   result_with_ie = set()
   result_without_ie = set()
 
   for bss_info in parsed:
     if bss_info.security and not include_secure:
       continue
+
+    for oui, data in bss_info.vendor_ies:
+      if oui == FIBER_OUI:
+        octets = data.split()
+        if octets[0] == '03' and not bss_info.ssid:
+          bss_info.ssid = ''.join(octets[1:]).decode('hex')
+          continue
+
     for oui, data in bss_info.vendor_ies:
       if vendor_ie_function(oui, data):
         result_with_ie.add(bss_info)

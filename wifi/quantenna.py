@@ -2,11 +2,15 @@
 
 """Wifi commands for Quantenna using QCSAPI."""
 
+import json
 import os
 import subprocess
 import time
 
 import utils
+
+
+WIFIINFO_PATH = '/tmp/wifi/wifiinfo'
 
 
 ALREADY_MEMBER_FMT = ('device %s is already a member of a bridge; '
@@ -33,6 +37,23 @@ def _qcsapi(*args):
 def _brctl(*args):
   return subprocess.check_output(['brctl'] + list(args),
                                  stderr=subprocess.STDOUT).strip()
+
+
+def _ifplugd_action(*args):
+  return subprocess.check_output(['/etc/ifplugd/ifplugd.action'] + list(args),
+                                 stderr=subprocess.STDOUT).strip()
+
+
+def info_parsed(interface):
+  """Fake version of iw.info_parsed."""
+  wifiinfo_filename = os.path.join(WIFIINFO_PATH, interface)
+
+  if not os.path.exists(wifiinfo_filename):
+    return {}
+
+  wifiinfo = json.load(open(wifiinfo_filename))
+  return {'addr' if k == 'BSSID' else k.lower(): v
+          for k, v in wifiinfo.iteritems()}
 
 
 def _set_interface_in_bridge(bridge, interface, want_in_bridge):
@@ -105,6 +126,12 @@ def _set(mode, opt):
       time.sleep(1)
     else:
       raise utils.BinWifiException('wpa_supplicant failed to connect')
+
+    try:
+      _ifplugd_action(interface, 'up')
+    except subprocess.CalledProcessError:
+      utils.log('Failed to call ifplugd.action.  %s may not get an IP address.'
+                % interface)
 
   return True
 

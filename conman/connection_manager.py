@@ -12,6 +12,9 @@ import re
 import subprocess
 import time
 
+# This is in site-packages on the device, but not when running tests, and so
+# raises lint errors.
+# pylint: disable=g-bad-import-order
 import pyinotify
 
 import cycler
@@ -50,21 +53,21 @@ class FileChangeHandler(pyinotify.ProcessEvent):
 class WLANConfiguration(object):
   """Represents a WLAN configuration from cwmpd."""
 
-  WIFI_STOPAP = ['wifi', 'stopap']
+  WIFI_STOPAP = ['wifi', 'stopap', '--persist']
   WIFI_SETCLIENT = ['wifi', 'setclient', '--persist']
-  WIFI_STOPCLIENT = ['wifi', 'stopclient']
+  WIFI_STOPCLIENT = ['wifi', 'stopclient', '--persist']
 
-  def __init__(self, band, wifi, command_lines, _status):
+  def __init__(self, band, wifi, command_lines, _status, wpa_control_interface):
     self.band = band
     self.wifi = wifi
     self.command = command_lines.splitlines()
     self.access_point_up = False
-    self.client_up = False
     self.ssid = None
     self.passphrase = None
     self.interface_suffix = None
     self.access_point = None
     self._status = _status
+    self._wpa_control_interface = wpa_control_interface
 
     binwifi_option_attrs = {
         '-s': 'ssid',
@@ -89,7 +92,12 @@ class WLANConfiguration(object):
 
     if self.wifi.initial_ssid == self.ssid:
       logging.debug('Connected to WLAN at startup')
-      self.client_up = True
+
+  @property
+  def client_up(self):
+    wpa_cli_status = self.wifi.wpa_cli_status()
+    return (wpa_cli_status.get('wpa_state') == 'COMPLETED'
+            and wpa_cli_status.get('ssid') == self.ssid)
 
   def start_access_point(self):
     """Start an access point."""
@@ -127,11 +135,10 @@ class WLANConfiguration(object):
 
   def start_client(self):
     """Join the WLAN as a client."""
-    if self.client_up:
+    up = self.client_up
+    if up:
       logging.debug('Wifi client already started on %s GHz', self.band)
       return
-
-    self.wifi.detach_wpa_control()
 
     command = self.WIFI_SETCLIENT + ['--ssid', self.ssid, '--band', self.band]
     env = dict(os.environ)
@@ -140,11 +147,13 @@ class WLANConfiguration(object):
     try:
       self._status.trying_wlan = True
       subprocess.check_output(command, stderr=subprocess.STDOUT, env=env)
-      self.client_up = True
-      self._status.connected_to_wlan = True
-      logging.info('Started wifi client on %s GHz', self.band)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to start wifi client: %s', e.output)
+      return
+
+    self._status.connected_to_wlan = True
+    logging.info('Started wifi client on %s GHz', self.band)
+    self.wifi.attach_wpa_control(self._wpa_control_interface)
 
   def stop_client(self):
     if not self.client_up:
@@ -156,7 +165,6 @@ class WLANConfiguration(object):
     try:
       subprocess.check_output(self.WIFI_STOPCLIENT + ['-b', self.band],
                               stderr=subprocess.STDOUT)
-      self.client_up = False
       # TODO(rofrankel): Make this work for dual-radio devices.
       self._status.connected_to_wlan = False
       logging.debug('Stopped wifi client on %s GHz', self.band)
@@ -170,6 +178,7 @@ class ConnectionManager(object):
   # pylint: disable=invalid-name
   Bridge = interface.Bridge
   Wifi = interface.Wifi
+  FrenzyWifi = interface.FrenzyWifi
   WLANConfiguration = WLANConfiguration
 
   ETHERNET_STATUS_FILE = 'eth0'
@@ -184,6 +193,7 @@ class ConnectionManager(object):
   IFUP = ['ifup']
   IP_LINK = ['ip', 'link']
   IFPLUGD_ACTION = ['/etc/ifplugd/ifplugd.action']
+  BINWIFI = ['wifi']
 
   def __init__(self,
                bridge_interface='br0',
@@ -220,23 +230,7 @@ class ConnectionManager(object):
         bridge_interface, '10',
         acs_autoprovisioning_filepath=acs_autoprov_filepath)
 
-    # If we have multiple wcli interfaces, 5 GHz-only < both < 2.4 GHz-only.
-    def metric_for_bands(bands):
-      if '5' in bands:
-        if '2.4' in bands:
-          return interface.METRIC_24GHZ_5GHZ
-        return interface.METRIC_5GHZ
-      return interface.METRIC_24GHZ
-
-    self.wifi = sorted([self.Wifi(interface_name, metric_for_bands(bands),
-                                  # Prioritize 5 GHz over 2.4.
-                                  bands=sorted(bands, reverse=True))
-                        for interface_name, bands
-                        in get_client_interfaces().iteritems()],
-                       key=lambda w: w.metric)
-
-    for wifi in self.wifi:
-      wifi.last_wifi_scan_time = -self._wifi_scan_period_s
+    self.create_wifi_interfaces()
 
     self._status = status.Status(self._status_dir)
 
@@ -268,7 +262,8 @@ class ConnectionManager(object):
         wifi_up = self.is_interface_up(wifi.name)
         self.ifplugd_action(wifi.name, wifi_up)
         if wifi_up:
-          wifi.attach_wpa_control(self._wpa_control_interface)
+          self._status.attached_to_wpa_supplicant = wifi.attach_wpa_control(
+              self._wpa_control_interface)
 
     for path, prefix in ((self._tmp_dir, self.GATEWAY_FILE_PREFIX),
                          (self._interface_status_dir, ''),
@@ -277,7 +272,25 @@ class ConnectionManager(object):
       for filepath in glob.glob(os.path.join(path, prefix + '*')):
         self._process_file(path, os.path.split(filepath)[-1])
 
-    # Now that we've ready any existing state, it's okay to let interfaces touch
+    # Make sure no unwanted APs or clients are running.
+    for wifi in self.wifi:
+      for band in wifi.bands:
+        config = self._wlan_configuration.get(band, None)
+        if config:
+          if config.access_point:
+            # If we have a config and want an AP, we don't want a client.
+            self._stop_wifi(band, False, True)
+          else:
+            # If we have a config but don't want an AP, make sure we aren't
+            # running one.
+            self._stop_wifi(band, True, False)
+          break
+      else:
+        # If we have no config for this radio, neither a client nor an AP should
+        # be running.
+        self._stop_wifi(wifi.bands[0], True, True)
+
+    # Now that we've read any existing state, it's okay to let interfaces touch
     # the routing table.
     for ifc in [self.bridge] + self.wifi:
       ifc.initialize()
@@ -285,6 +298,32 @@ class ConnectionManager(object):
 
     self._interface_update_counter = 0
     self._try_wlan_after = {'5': 0, '2.4': 0}
+
+  def create_wifi_interfaces(self):
+    """Create Wifi interfaces."""
+
+    # If we have multiple client interfaces, 5 GHz-only < both < 2.4 GHz-only.
+    def metric_for_bands(bands):
+      if '5' in bands:
+        if '2.4' in bands:
+          return interface.METRIC_24GHZ_5GHZ
+        return interface.METRIC_5GHZ
+      return interface.METRIC_24GHZ
+
+    def wifi_class(attrs):
+      return self.FrenzyWifi if 'frenzy' in attrs else self.Wifi
+
+    self.wifi = sorted([
+        wifi_class(attrs)(interface_name,
+                          metric_for_bands(attrs['bands']),
+                          # Prioritize 5 GHz over 2.4.
+                          bands=sorted(attrs['bands'], reverse=True))
+        for interface_name, attrs
+        in get_client_interfaces().iteritems()
+    ], key=lambda w: w.metric)
+
+    for wifi in self.wifi:
+      wifi.last_wifi_scan_time = -self._wifi_scan_period_s
 
   def is_interface_up(self, interface_name):
     """Explicitly check whether an interface is up.
@@ -349,11 +388,6 @@ class ConnectionManager(object):
 
     for wifi in self.wifi:
       continue_wifi = False
-      if not wifi.attached():
-        logging.debug('Attempting to attach to wpa control interface for %s',
-                      wifi.name)
-        wifi.attach_wpa_control(self._wpa_control_interface)
-      wifi.handle_wpa_events()
 
       # Only one wlan_configuration per interface will have access_point ==
       # True.  Try 5 GHz first, then 2.4 GHz.  If both bands are supported by
@@ -374,6 +408,13 @@ class ConnectionManager(object):
           # client connections on it.
           if wlan_configuration.access_point_up:
             continue_wifi = True
+
+      if not wifi.attached():
+        logging.debug('Attempting to attach to wpa control interface for %s',
+                      wifi.name)
+        self._status.attached_to_wpa_supplicant = wifi.attach_wpa_control(
+            self._wpa_control_interface)
+      wifi.handle_wpa_events()
 
       if continue_wifi:
         logging.debug('Running AP on %s, nothing else to do.', wifi.name)
@@ -550,7 +591,8 @@ class ConnectionManager(object):
           wifi = self.wifi_for_band(band)
           if wifi:
             self._update_wlan_configuration(
-                self.WLANConfiguration(band, wifi, contents, self._status))
+                self.WLANConfiguration(band, wifi, contents, self._status,
+                                       self._wpa_control_interface))
       elif filename.startswith(self.ACCESS_POINT_FILE_PREFIX):
         match = re.match(self.ACCESS_POINT_FILE_REGEXP, filename)
         if match:
@@ -610,20 +652,22 @@ class ConnectionManager(object):
     logging.info('Scanning on %s...', wifi.name)
     wifi.last_wifi_scan_time = time.time()
     subprocess.call(self.IFUP + [wifi.name])
-    with_ie, without_ie = self._find_bssids(wifi.name)
+    # /bin/wifi takes a --band option but then finds the right interface for it,
+    # so it's okay to just pick the first band here.
+    with_ie, without_ie = self._find_bssids(wifi.bands[0])
     logging.info('Done scanning on %s', wifi.name)
     items = [(bss_info, 3) for bss_info in with_ie]
     items += [(bss_info, 1) for bss_info in without_ie]
     wifi.cycler = cycler.AgingPriorityCycler(cycle_length_s=30, items=items)
 
-  def _find_bssids(self, wcli):
+  def _find_bssids(self, band):
     def supports_autoprovisioning(oui, vendor_ie):
       if oui not in GFIBER_OUIS:
         return False
 
       return vendor_ie.startswith(VENDOR_IE_FEATURE_ID_AUTOPROVISIONING)
 
-    return iw.find_bssids(wcli, supports_autoprovisioning, False)
+    return iw.find_bssids(band, supports_autoprovisioning, False)
 
   def _try_next_bssid(self, wifi):
     """Attempt to connect to the next BSSID in wifi's BSSID cycler.
@@ -701,22 +745,86 @@ class ConnectionManager(object):
       wlan_configuration.stop_access_point()
       wlan_configuration.start_client()
 
+  def _stop_wifi(self, band, stopap, stopclient):
+    """Stop running wifi processes.
+
+    At least one of [stopap, stopclient] must be True.
+
+    Args:
+      band:  The band on which to stop wifi.
+      stopap:  Whether to stop access points.
+      stopclient:  Whether to stop wifi clients.
+
+    Raises:
+      ValueError:  If neither stopap nor stopclient is True.
+    """
+    if stopap and stopclient:
+      command = 'stop'
+    elif stopap:
+      command = 'stopap'
+    elif stopclient:
+      command = 'stopclient'
+    else:
+      raise ValueError('Called _stop_wifi without specifying AP or client.')
+
+    full_command = [command, '--band', band, '--persist']
+
+    try:
+      self._binwifi(*full_command)
+    except subprocess.CalledProcessError as e:
+      logging.error('wifi %s failed: "%s"', ' '.join(full_command), e.output)
+
+  def _binwifi(self, *command):
+    """Test seam for calls to /bin/wifi.
+
+    Only used by _stop_wifi, and probably shouldn't be used by anything else.
+
+    Args:
+      *command:  A command for /bin/wifi
+
+    Raises:
+      subprocess.CalledProcessError:  If the command fails.  Deliberately not
+      handled here to make future authors think twice before using this.
+    """
+    subprocess.check_output(self.BINWIFI + list(command),
+                            stderr=subprocess.STDOUT)
+
 
 def _wifi_show():
   try:
     return subprocess.check_output(['wifi', 'show'])
   except subprocess.CalledProcessError as e:
     logging.error('Failed to call "wifi show": %s', e)
+    return ''
+
+
+def _get_quantenna_interface():
+  try:
+    return subprocess.check_output(['get-quantenna-interface']).strip()
+  except subprocess.CalledProcessError:
+    logging.fatal('Failed to call get-quantenna-interface')
+    raise
 
 
 def get_client_interfaces():
+  """Find all client interfaces on the device.
+
+  Returns:
+    A dict mapping wireless client interfaces to their supported bands.
+  """
+
   current_band = None
-  result = collections.defaultdict(set)
+  result = collections.defaultdict(lambda: collections.defaultdict(set))
   for line in _wifi_show().splitlines():
     if line.startswith('Band:'):
       current_band = line.split()[1]
     elif line.startswith('Client Interface:'):
-      result[line.split()[2]].add(current_band)
+      result[line.split()[2]]['bands'].add(current_band)
+
+  # TODO(rofrankel):  Make 'wifi show' (or wifi_files) include this information
+  # so we don't need a subprocess call to check.
+  quantenna_interface = _get_quantenna_interface()
+  if quantenna_interface in result:
+    result[quantenna_interface]['frenzy'] = True
 
   return result
-
