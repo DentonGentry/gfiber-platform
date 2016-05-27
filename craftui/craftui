@@ -13,7 +13,7 @@ fi
 # if running from developer desktop, use simulated data
 if [ "$isdev" = 1 ]; then
   cw="$devcw"
-  args="$args --port=8888 --sim=./sim"
+  args="$args --http-port=8888 --https-port=8889 --sim=./sim"
   pycode=./craftui_fortesting.py
   export PATH="$PWD/sim/bin:$PATH"
 fi
@@ -23,10 +23,25 @@ if [ -d "$localwww" ]; then
   args="$args --www=$localwww"
 fi
 
-# enable debugger
-if [ "$1" = -d ]; then
-  debug="-m pdb"
-fi
+# command line parsing
+while [ $# -gt 0 ]; do
+  # enable debugger
+  if [ "$1" = -d ]; then
+    debug="-m pdb"
+    shift
+    continue
+  fi
 
-export PYTHONPATH="$cw/tr/vendor/tornado:$PYTHONPATH"
-exec python -u $debug $pycode $args
+  # enable https
+  if [ "$1" = -S ]; then
+    httpsmode="-S"
+    shift
+    continue
+  fi
+
+  echo "$0: '$1': unknown command line option" >&2
+  exit 1
+done
+
+export PYTHONPATH="$cw/tr/vendor/tornado:$cw/tr/vendor/curtain:$PYTHONPATH"
+exec python -u $debug $pycode $args $httpsmode

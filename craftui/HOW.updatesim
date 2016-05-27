@@ -20,6 +20,7 @@ ssh chimera cd / "&&" tar czf - -C / \
 	etc/version \
 	tmp/glaukus \
 	tmp/serial \
+	tmp/ssl \
 	tmp/platform \
 	tmp/gpio/ledstate \
 	tmp/sim \

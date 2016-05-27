@@ -16,6 +16,7 @@ CraftUI = function() {
 };
 
 CraftUI.info = {checksum: 0};
+CraftUI.am_sending = false
 
 CraftUI.updateField = function(key, val) {
   var el = document.getElementById(key);
@@ -60,6 +61,9 @@ CraftUI.flattenAndUpdateFields = function(jsonmap, prefix) {
 
 CraftUI.getInfo = function() {
   // Request info, set the connected status, and update the fields.
+  if (CraftUI.am_sending) {
+    return;
+  }
   var xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function() {
     self.unhandled = '';
@@ -68,11 +72,13 @@ CraftUI.getInfo = function() {
       CraftUI.flattenAndUpdateFields(list, '');
     }
     CraftUI.updateField('unhandled', self.unhandled);
+    CraftUI.am_sending = false
   };
   var payload = [];
   payload.push('checksum=' + encodeURIComponent(CraftUI.info.checksum));
   payload.push('_=' + encodeURIComponent((new Date()).getTime()));
   xhr.open('get', 'content.json?' + payload.join('&'), true);
+  CraftUI.am_sending = true
   xhr.send();
 };
 

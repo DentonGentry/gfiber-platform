@@ -16,6 +16,7 @@ install-libs:
 	@echo "No libs to install."
 
 .sim.extracted: sim.tgz
+	-chmod -R +w sim
 	rm -rf sim
 	rsync -av sim-tools/ sim
 	tar xf sim.tgz -C sim

@@ -2,6 +2,8 @@
 
 # developer tool to restart server when file source changes
 
+export PATH="$(pwd)/../../../../out.gfch100_defconfig/host/usr/bin:$PATH"
+
 pid=
 
 restart() {

@@ -1,4 +1,6 @@
+*.pyo
 *.swp
 .started
 .sim.extracted
 sim
+LOG

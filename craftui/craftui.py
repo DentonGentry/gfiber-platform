@@ -17,6 +17,7 @@
 
 __author__ = 'edjames@google.com (Ed James)'
 
+import base64
 import getopt
 import json
 import os
@@ -24,6 +25,8 @@ import re
 import subprocess
 import sys
 import urllib2
+import digest
+import tornado.httpserver
 import tornado.ioloop
 import tornado.web
 
@@ -138,7 +141,7 @@ class VGainIndex(VRange):
   """Validate as gain index."""
 
   def __init__(self):
-    super(VGainIndex, self).__init__(0, 5)
+    super(VGainIndex, self).__init__(1, 5)
 
 
 class VDict(Validator):
@@ -161,6 +164,22 @@ class VTx(VDict):
 class VTrueFalse(VDict):
   """Validate as true or false."""
   dict = {'true': 'true', 'false': 'false'}
+
+
+class VPassword(Validator):
+  """Validate as base64 encoded and reasonable length."""
+  example = '******'
+
+  def Validate(self, value):
+    super(VPassword, self).Validate(value)
+    pw = ''
+    try:
+      pw = base64.b64decode(value)
+    except TypeError:
+      raise ConfigError('passwords must be base64 encoded')
+    # TODO(edjames) ascii decodes legally; how to check it's really base64?
+    if len(pw) < 5 or len(pw) > 16:
+      raise ConfigError('passwords should be 5-16 characters')
 
 
 class Config(object):
@@ -247,6 +266,9 @@ class CraftUI(object):
   """A web server that configures and displays Chimera data."""
 
   handlers = {
+      'password_admin': PtpConfig(VPassword, 'password_admin'),
+      'password_guest': PtpConfig(VPassword, 'password_guest'),
+
       'craft_ipaddr': PtpConfig(VSlash, 'craft_ipaddr'),
       'link_ipaddr': PtpConfig(VSlash, 'local_ipaddr'),
       'peer_ipaddr': PtpConfig(VSlash, 'peer_ipaddr'),
@@ -300,11 +322,14 @@ class CraftUI(object):
       'tx_errors',
       'tx_dropped'
   ]
+  realm = 'gfch100'
 
-  def __init__(self, wwwroot, port, sim):
+  def __init__(self, wwwroot, http_port, https_port, use_https, sim):
     """initialize."""
     self.wwwroot = wwwroot
-    self.port = port
+    self.http_port = http_port
+    self.https_port = https_port
+    self.use_https = use_https
     self.sim = sim
     self.data = {}
     self.data['refreshCount'] = 0
@@ -466,40 +491,85 @@ class CraftUI(object):
         print 'Connection to %s failed: %s' % (url, ex.reason)
     return response
 
-  class MainHandler(tornado.web.RequestHandler):
+  def GetUserCreds(self, user):
+    if user not in ('admin', 'guest'):
+      return None
+    b64 = self.ReadFile('%s/config/settings/password_%s' % (self.sim, user))
+    pw = base64.b64decode(b64)
+    return {'auth_username': user, 'auth_password': pw}
+
+  def GetAdminCreds(self, user):
+    if user != 'admin':
+      return None
+    return self.GetUserCreds(user)
+
+  def Authenticate(self, request):
+    """Check if user is authenticated (sends challenge if not)."""
+    if not request.get_authenticated_user(self.GetUserCreds, self.realm):
+      return False
+    return True
+
+  def AuthenticateAdmin(self, request):
+    """Check if user is authenticated (sends challenge if not)."""
+    if not request.get_authenticated_user(self.GetAdminCreds, self.realm):
+      return False
+    return True
+
+  class RedirectHandler(tornado.web.RequestHandler):
+    """Redirect to the https_port."""
+
+    def get(self):
+      ui = self.settings['ui']
+      print 'GET craft redirect page'
+      host = re.sub(r':.*', '', self.request.host)
+      port = ui.https_port
+      self.redirect('https://%s:%d/' % (host, port))
+
+  class MainHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
     """Displays the Craft UI."""
 
     def get(self):
       ui = self.settings['ui']
+      if not ui.Authenticate(self):
+        return
       print 'GET craft HTML page'
       self.render(ui.wwwroot + '/index.thtml', peerurl='/?peer=1')
 
-  class ConfigHandler(tornado.web.RequestHandler):
+  class ConfigHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
     """Displays the Config page."""
 
     def get(self):
       ui = self.settings['ui']
+      if not ui.Authenticate(self):
+        return
       print 'GET config HTML page'
       self.render(ui.wwwroot + '/config.thtml', peerurl='/config/?peer=1')
 
-  class RestartHandler(tornado.web.RequestHandler):
+  class RestartHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
     """Restart the box."""
 
     def get(self):
+      ui = self.settings['ui']
+      if not ui.Authenticate(self):
+        return
       print 'displaying restart interstitial screen'
       self.render('restarting.html')
 
     def post(self):
+      ui = self.settings['ui']
+      if not ui.AuthenticateAdmin(self):
+        return
       print 'user requested restart'
       self.redirect('/restart')
       os.system('(sleep 5; reboot) &')
 
-  class JsonHandler(tornado.web.RequestHandler):
+  class JsonHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
     """Provides JSON-formatted content to be displayed in the UI."""
 
-    @tornado.web.asynchronous
     def get(self):
       ui = self.settings['ui']
+      if not ui.Authenticate(self):
+        return
       print 'GET JSON data for craft page'
       jsonstring = ui.GetData()
       self.set_header('Content-Type', 'application/json')
@@ -507,6 +577,9 @@ class CraftUI(object):
       self.finish()
 
     def post(self):
+      ui = self.settings['ui']
+      if not ui.AuthenticateAdmin(self):
+        return
       print 'POST JSON data for craft page'
       request = self.request.body
       result = {}
@@ -519,7 +592,6 @@ class CraftUI(object):
         except ValueError as e:
           print e
           raise ConfigError('json format error')
-        ui = self.settings['ui']
         ui.ApplyChanges(json_args)
       except ConfigError as e:
         print e
@@ -534,8 +606,13 @@ class CraftUI(object):
       self.finish()
 
   def RunUI(self):
-    """Create the web server and run forever."""
-    handlers = [
+    """Create the http redirect and https web server and run forever."""
+    sim = self.sim
+
+    redirect_handlers = [
+        (r'.*', self.RedirectHandler),
+    ]
+    craftui_handlers = [
         (r'/', self.MainHandler),
         (r'/config', self.ConfigHandler),
         (r'/content.json', self.JsonHandler),
@@ -543,9 +620,22 @@ class CraftUI(object):
         (r'/static/([^/]*)$', tornado.web.StaticFileHandler,
          {'path': self.wwwroot + '/static'}),
     ]
-    app = tornado.web.Application(handlers)
-    app.settings['ui'] = self
-    app.listen(self.port)
+
+    http_handlers = redirect_handlers if self.use_https else craftui_handlers
+
+    http_app = tornado.web.Application(http_handlers)
+    http_app.settings['ui'] = self
+    http_app.listen(self.http_port)
+
+    if self.use_https:
+      https_app = tornado.web.Application(craftui_handlers)
+      https_app.settings['ui'] = self
+      https_server = tornado.httpserver.HTTPServer(https_app, ssl_options={
+          'certfile': sim + '/tmp/ssl/certs/device.pem',
+          'keyfile': sim + '/tmp/ssl/private/device.key'
+      })
+      https_server.listen(self.https_port)
+
     ioloop = tornado.ioloop.IOLoop.instance()
     ioloop.start()
 
@@ -558,11 +648,14 @@ def Usage():
 
 def main():
   www = '/usr/craftui/www'
-  port = 80
+  http_port = 80
+  https_port = 443
+  use_https = False
   sim = ''
   try:
-    opts, args = getopt.getopt(sys.argv[1:], 's:p:w:',
-                               ['sim=', 'port=', 'www='])
+    opts, args = getopt.getopt(sys.argv[1:], 's:p:P:w:S',
+                               ['sim=', 'http-port=', 'https-port=', 'www=',
+                                'use-https='])
   except getopt.GetoptError as err:
     # print help information and exit:
     print str(err)
@@ -571,8 +664,12 @@ def main():
   for o, a in opts:
     if o in ('-s', '--sim'):
       sim = a
-    elif o in ('-p', '--port'):
-      port = int(a)
+    elif o in ('-p', '--http-port'):
+      http_port = int(a)
+    elif o in ('-P', '--https-port'):
+      https_port = int(a)
+    elif o in ('-S', '--use-https'):
+      use_https = True
     elif o in ('-w', '--www'):
       www = a
     else:
@@ -583,7 +680,7 @@ def main():
     assert False, 'extra args'
     Usage()
     sys.exit(1)
-  craftui = CraftUI(www, port, sim)
+  craftui = CraftUI(www, http_port, https_port, use_https, sim)
   craftui.RunUI()
 
 
