@@ -24,6 +24,7 @@ TARGETS=\
 	buttonmon \
 	chg_mod_own \
 	cpulog \
+	dhcpnametax \
 	dhcpvendortax \
 	dhcp-rogue \
 	dir-monitor \
@@ -238,6 +239,13 @@ modellookup.c: modellookup.gperf
 		--includes --output-file=modellookup.c modellookup.gperf
 modellookup.o: CFLAGS += -Wno-missing-field-initializers
 host-modellookup.o: CFLAGS += -Wno-missing-field-initializers
+dhcpnametax: dhcpnametax.o hostnamelookup.o
+host-dhcpnametax: host-dhcpnametax.o host-hostnamelookup.o
+hostnamelookup.c: hostnamelookup.gperf
+	$(GPERF) -G -C -t -T -L ANSI-C -n -c -N hostname_lookup -K name --delimiters="|" \
+		--includes --output-file=hostnamelookup.c hostnamelookup.gperf
+hostnamelookup.o: CFLAGS += -Wno-missing-field-initializers
+host-hostnamelookup.o: CFLAGS += -Wno-missing-field-initializers
 
 
 TESTS = $(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
