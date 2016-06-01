@@ -8,12 +8,17 @@ import os
 import re
 import subprocess
 
+import experiment
 import wpactrl
 
 METRIC_5GHZ = 20
 METRIC_24GHZ_5GHZ = 21
 METRIC_24GHZ = 22
 METRIC_TEMPORARY_CONNECTION_CHECK = 99
+
+experiment.register('WifiSimulateWireless')
+CWMP_PATH = '/tmp/cwmp'
+MAX_ACS_FAILURE_S = 60
 
 
 class Interface(object):
@@ -309,6 +314,33 @@ class Bridge(Interface):
     if os.path.exists(self._acs_autoprovisioning_filepath):
       os.unlink(self._acs_autoprovisioning_filepath)
     super(Bridge, self).delete_route()
+
+  def _connection_check(self, check_acs):
+    """Support for WifiSimulateWireless."""
+    failure_s = self._acs_session_failure_s()
+    if (experiment.enabled('WifiSimulateWireless')
+        and failure_s < MAX_ACS_FAILURE_S):
+      logging.debug('WifiSimulateWireless: failing bridge connection check (no '
+                    'ACS contact for %d seconds, max %d seconds)',
+                    failure_s, MAX_ACS_FAILURE_S)
+      return False
+
+    return super(Bridge, self)._connection_check(check_acs)
+
+  def _acs_session_failure_s(self):
+    """How long have we been failing to connect to the ACS?
+
+    Returns:
+      The number of seconds between the last attempted ACS session and the last
+      successful ACS session.
+    """
+    contact = os.path.join(CWMP_PATH, 'acscontact')
+    connected = os.path.join(CWMP_PATH, 'acsconnected')
+
+    if not os.path.exists(contact) or not os.path.exists(connected):
+      return 0
+
+    return os.stat(contact).st_mtime - os.stat(connected).st_mtime
 
 
 class Wifi(Interface):

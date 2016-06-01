@@ -7,16 +7,20 @@ import logging
 import os
 import shutil
 import tempfile
+import time
+
+# This has to be called before another module calls it with a higher log level.
+# pylint: disable=g-import-not-at-top
+logging.basicConfig(level=logging.DEBUG)
 
 # This is in site-packages on the device, but not when running tests, and so
 # raises lint errors.
 # pylint: disable=g-bad-import-order
 import wpactrl
 
+import experiment_testutils
 import interface
 from wvtest import wvtest
-
-logging.basicConfig(level=logging.DEBUG)
 
 
 class FakeInterfaceMixin(object):
@@ -404,6 +408,70 @@ def frenzy_wifi_test():
   finally:
     shutil.rmtree(wpa_path)
     shutil.rmtree(wifiinfo_path)
+
+
+@wvtest.wvtest
+def simulate_wireless_test():
+  """Test the WifiSimulateWireless experiment."""
+  unused_raii = experiment_testutils.MakeExperimentDirs()
+
+  tmp_dir = tempfile.mkdtemp()
+  interface.CWMP_PATH = tempfile.mkdtemp()
+  interface.MAX_ACS_FAILURE_S = 1
+
+  contact = os.path.join(interface.CWMP_PATH, 'acscontact')
+  connected = os.path.join(interface.CWMP_PATH, 'acsconnected')
+
+  try:
+    autoprov_filepath = os.path.join(tmp_dir, 'autoprov')
+    b = Bridge('br0', '10', acs_autoprovisioning_filepath=autoprov_filepath)
+    b.add_moca_station(0)
+    b.set_gateway_ip('192.168.1.1')
+    b.set_connection_check_result('succeed')
+    b.initialize()
+
+    # Initially, the connection check passes.
+    wvtest.WVPASS(b.internet())
+
+    # Enable the experiment.
+    experiment_testutils.enable('WifiSimulateWireless')
+    # Calling update_routes overwrites the connection status cache, which we
+    # need in order to see the effects we are looking for immediately
+    # (ConnectionManager calls this every few seconds).
+    b.update_routes()
+    wvtest.WVFAIL(b.internet())
+
+    # Create an ACS connection attempt.
+    open(contact, 'w')
+    b.update_routes()
+    wvtest.WVFAIL(b.internet())
+
+    # Record success.
+    open(connected, 'w')
+    b.update_routes()
+    wvtest.WVFAIL(b.internet())
+
+    # Disable the experiment and the connection check should pass again.
+    experiment_testutils.disable('WifiSimulateWireless')
+    b.update_routes()
+    wvtest.WVPASS(b.internet())
+
+    # Reenable the experiment and the connection check should fail again.
+    experiment_testutils.enable('WifiSimulateWireless')
+    b.update_routes()
+    wvtest.WVFAIL(b.internet())
+
+    # Wait until we've failed for long enough for the experiment to "expire",
+    # then log another attempt without success.  Make sure the connection check
+    # passes.
+    time.sleep(interface.MAX_ACS_FAILURE_S)
+    open(contact, 'w')
+    b.update_routes()
+    wvtest.WVPASS(b.internet())
+
+  finally:
+    shutil.rmtree(tmp_dir)
+    shutil.rmtree(interface.CWMP_PATH)
 
 
 if __name__ == '__main__':
