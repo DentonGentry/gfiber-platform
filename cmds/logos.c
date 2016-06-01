@@ -642,7 +642,11 @@ int main(int argc, char **argv) {
     }
     got = read(0, buf + used, sizeof(buf) - used);
     if (got == 0) {
-      flush(header, headerlen, buf, used);
+      if (used > 0) {
+        /* Only output if there is text in the buffer, avoid
+         * printing a blank line when a process exits. */
+        flush(header, headerlen, buf, used);
+      }
       goto done;
     } else if (got < 0) {
       if (errno != EINTR && errno != EAGAIN) {
