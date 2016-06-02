@@ -119,8 +119,20 @@ def _set(mode, opt):
   elif mode == 'sta' and not scan:
     _set_interface_in_bridge(opt.bridge, interface, False)
     _qcsapi('create_ssid', 'wifi0', opt.ssid)
-    _qcsapi('ssid_set_passphrase', 'wifi0', opt.ssid, 0,
-            os.environ['WIFI_CLIENT_PSK'])
+    if opt.encryption == 'NONE':
+      _qcsapi('ssid_set_authentication_mode', 'wifi0', opt.ssid, 'NONE')
+    elif opt.encryption == 'WEP':
+      raise utils.BinWifiException('WEP not supported')
+    else:
+      protocol, authentication, encryption = opt.encryption.split('_')
+      protocol = {'WPA': 'WPA', 'WPA2': '11i', 'WPA12': 'WPAand11i'}[protocol]
+      authentication += 'Authentication'
+      encryption += 'Encryption'
+      _qcsapi('ssid_set_proto', 'wifi0', opt.ssid, protocol)
+      _qcsapi('ssid_set_authentication_mode', 'wifi0', opt.ssid, authentication)
+      _qcsapi('ssid_set_encryption_modes', 'wifi0', opt.ssid, encryption)
+      _qcsapi('ssid_set_passphrase', 'wifi0', opt.ssid, 0,
+              os.environ['WIFI_CLIENT_PSK'])
     # In STA mode, 'rfenable 1' is already done by 'startprod'/'reload_in_mode'.
     # 'apply_security_config' must be called instead.
     _qcsapi('apply_security_config', 'wifi0')
