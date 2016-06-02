@@ -89,7 +89,7 @@ BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
 
 
-all:     $(addsuffix /all,$(DIRS)) build-optionspy
+all:     $(addsuffix /all,$(DIRS)) build-commonpy
 test:    $(addsuffix /test,$(DIRS))
 clean:   $(addsuffix /clean,$(DIRS))
 	find \( -name '*.pyc' -o -name '*~' \) -exec rm -fv {} \;
@@ -102,7 +102,7 @@ install-libs: $(addsuffix /install-libs,$(DIRS))
 # other to write site-packages/easy-install.pth.
 install:
 	set -e; for d in $(DIRS); do $(MAKE) -C $$d install; done
-	$(MAKE) install-optionspy
+	$(MAKE) install-commonpy
 	mkdir -p $(BINDIR)
 	rm -fv $(BINDIR)/hnvram
 ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME), gfmn110)
@@ -129,11 +129,11 @@ gpio-mailbox/all: libstacktrace/all libexperiments/all
 %/install:
 	$(MAKE) -C $* install
 
-build-optionspy:
+build-commonpy:
 	PYTHONPATH=$(HOSTPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py build
 	PYTHONPATH=$(TARGETPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py build
 
-install-optionspy:
+install-commonpy:
 	PYTHONPATH=$(HOSTPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py install --prefix=$(HOSTDIR)$(PREFIX)
 	PYTHONPATH=$(TARGETPYTHONPATH) $(HOSTDIR)/usr/bin/python setup.py install --prefix=$(DESTDIR)$(PREFIX)
 
