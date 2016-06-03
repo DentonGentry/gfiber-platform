@@ -84,6 +84,10 @@ ifeq ($(BUILD_PRESTERASTATS),y)
 DIRS+=presterastats
 endif
 
+ifeq ($(BUILD_LEDPATTERN),y)
+DIRS+=ledpattern
+endif
+
 PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
