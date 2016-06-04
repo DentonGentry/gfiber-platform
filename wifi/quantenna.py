@@ -78,6 +78,9 @@ def _set(mode, opt):
   if not interface:
     return False
 
+  if opt.encryption == 'WEP':
+    raise utils.BinWifiException('WEP not supported')
+
   if mode == 'scan':
     mode = 'sta'
     scan = True
@@ -102,7 +105,7 @@ def _set(mode, opt):
   if int(_qcsapi('is_startprod_done')):
     _qcsapi('reload_in_mode', 'wifi0', mode)
   else:
-    _qcsapi('startprod', 'wifi0')
+    _qcsapi('startprod')
     for _ in xrange(30):
       if int(_qcsapi('is_startprod_done')):
         break
@@ -113,24 +116,27 @@ def _set(mode, opt):
   if mode == 'ap':
     _set_interface_in_bridge(opt.bridge, interface, True)
     _qcsapi('set_ssid', 'wifi0', opt.ssid)
-    _qcsapi('set_passphrase', 'wifi0', 0, os.environ['WIFI_PSK'])
-    _qcsapi('set_option', 'wifi0', 'ssid_broadcast', int(not opt.hidden_mode))
-    _qcsapi('rfenable', 1)
-  elif mode == 'sta' and not scan:
-    _set_interface_in_bridge(opt.bridge, interface, False)
-    _qcsapi('create_ssid', 'wifi0', opt.ssid)
     if opt.encryption == 'NONE':
-      _qcsapi('ssid_set_authentication_mode', 'wifi0', opt.ssid, 'NONE')
-    elif opt.encryption == 'WEP':
-      raise utils.BinWifiException('WEP not supported')
+      _qcsapi('set_beacon_type', 'wifi0', 'Basic')
     else:
       protocol, authentication, encryption = opt.encryption.split('_')
       protocol = {'WPA': 'WPA', 'WPA2': '11i', 'WPA12': 'WPAand11i'}[protocol]
       authentication += 'Authentication'
       encryption += 'Encryption'
-      _qcsapi('ssid_set_proto', 'wifi0', opt.ssid, protocol)
-      _qcsapi('ssid_set_authentication_mode', 'wifi0', opt.ssid, authentication)
-      _qcsapi('ssid_set_encryption_modes', 'wifi0', opt.ssid, encryption)
+      _qcsapi('set_beacon_type', 'wifi0', protocol)
+      _qcsapi('set_wpa_authentication_mode', 'wifi0', authentication)
+      _qcsapi('set_wpa_encryption_modes', 'wifi0', encryption)
+      _qcsapi('set_passphrase', 'wifi0', 0, os.environ['WIFI_PSK'])
+    _qcsapi('set_option', 'wifi0', 'ssid_broadcast', int(not opt.hidden_mode))
+    _qcsapi('rfenable', 1)
+  elif mode == 'sta' and not scan:
+    _set_interface_in_bridge(opt.bridge, interface, False)
+    _qcsapi('create_ssid', 'wifi0', opt.ssid)
+    if opt.bssid:
+      _qcsapi('set_ssid_bssid', 'wifi0', opt.ssid, opt.bssid)
+    if opt.encryption == 'NONE' or not os.environ.get('WIFI_CLIENT_PSK'):
+      _qcsapi('ssid_set_authentication_mode', 'wifi0', opt.ssid, 'NONE')
+    else:
       _qcsapi('ssid_set_passphrase', 'wifi0', opt.ssid, 0,
               os.environ['WIFI_CLIENT_PSK'])
     # In STA mode, 'rfenable 1' is already done by 'startprod'/'reload_in_mode'.
@@ -138,7 +144,7 @@ def _set(mode, opt):
     _qcsapi('apply_security_config', 'wifi0')
 
     for _ in xrange(10):
-      if _qcsapi('get_bssid', 'wifi0') != '00:00:00:00:00:00':
+      if _qcsapi('get_ssid', 'wifi0'):
         break
       time.sleep(1)
     else:
@@ -189,7 +195,8 @@ def stop_ap_wifi(_):
   if not _get_interface():
     return False
 
-  if _qcsapi('get_mode', 'wifi0') == 'Access point':
+  if (int(_qcsapi('is_startprod_done')) and
+      _qcsapi('get_mode', 'wifi0') == 'Access point'):
     _qcsapi('rfenable', 0)
 
   return True
@@ -200,7 +207,8 @@ def stop_client_wifi(_):
   if not _get_interface():
     return False
 
-  if _qcsapi('get_mode', 'wifi0') == 'Station':
+  if (int(_qcsapi('is_startprod_done')) and
+      _qcsapi('get_mode', 'wifi0') == 'Station'):
     _qcsapi('rfenable', 0)
 
   return True

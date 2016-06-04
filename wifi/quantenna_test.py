@@ -20,9 +20,9 @@ ifplugd_action_calls = []
 def fake_qcsapi(*args):
   calls.append([str(x) for x in args])
   if args[0] == 'is_startprod_done':
-    return '1' if ['startprod', 'wifi0'] in calls else '0'
-  if args[0] == 'get_bssid':
-    return '00:11:22:33:44:55'
+    return '1' if ['startprod'] in calls else '0'
+  if args[0] == 'get_ssid':
+    return calls[matching_calls_indices(['set_ssid', 'create_ssid'])[-1]][1]
   if args[0] == 'get_mode':
     i = [c for c in matching_calls_indices(['update_config_param'])
          if calls[c][2] == 'mode']
@@ -126,7 +126,7 @@ def set_wifi_test():
 
   # 'update_config_param' and 'set_mac_addr' must be run before 'startprod',
   # since 'startprod' runs scripts that read these configs.
-  sp = calls.index(['startprod', 'wifi0'])
+  sp = calls.index(['startprod'])
   i = matching_calls_indices(['update_config_param', 'set_mac_addr'])
   wvtest.WVPASSLT(i[-1], sp)
 
@@ -161,7 +161,7 @@ def set_wifi_test():
   wvtest.WVPASSEQ(calls[1], ['restore_default_config', 'noreboot'])
 
   # Check that 'startprod' is not run.
-  wvtest.WVPASS(['startprod', 'wifi0'] not in calls)
+  wvtest.WVPASS(['startprod'] not in calls)
 
   # Check that configs are written.
   wvtest.WVPASS(['update_config_param', 'wifi0', 'bw', '80'] in calls)
