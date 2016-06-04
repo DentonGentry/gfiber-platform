@@ -52,6 +52,13 @@ static void got_alarm(int sig) {
   interrupted = 1;
 }
 
+static void got_usr1(int sig) {
+  // Do nothing.
+  // We create the signal handler without SA_RESTART, so this will interrupt
+  // an in-progress sleep, which is enough to wake us up and cause another
+  // upload cycle, if we're not already uploading.
+}
+
 // To allow overriding for testing.
 int getnameinfo_resolver(const struct sockaddr* sa, socklen_t salen, char* host,
     size_t hostlen, char* serv, size_t servlen, int flags) {
@@ -92,7 +99,7 @@ static void usage(const char* progname) {
   fprintf(stderr, " --server URL    Server URL [" DEFAULT_SERVER "]\n");
   fprintf(stderr, " --all           Upload entire logs, not just new data\n");
   fprintf(stderr, " --logtype TYPE  Tell server which log category this is\n");
-  fprintf(stderr, " --freq SECS     Upload logs every SECS seconds [60]\n");
+  fprintf(stderr, " --freq SECS     Repeat every SECS secs (default=once)\n");
   fprintf(stderr, " --stdout        Print to stdout instead of uploading\n");
   fprintf(stderr,
           " --stdin NAME    Get data from stdin, not /dev/kmsg, and\n"
@@ -183,6 +190,9 @@ int main(int argc, char* const argv[]) {
   sa.sa_handler = got_alarm;
   sigaction(SIGALRM, &sa, NULL);
 
+  sa.sa_handler = got_usr1;
+  sigaction(SIGUSR1, &sa, NULL);
+
   // Initialize the random number generator
   srandom(getpid() ^ time(NULL));
 
@@ -220,7 +230,7 @@ int main(int argc, char* const argv[]) {
   parse_params.dev_kmsg_path = DEV_KMSG_PATH;
   parse_params.version_path = VERSION_PATH;
   parse_params.ntp_synced_path = NTP_SYNCED_PATH;
-  // This'll set it to zero if it can't read the file which is fine.
+  // This'll set it to zero if it can't read the file, which is fine.
   parse_params.last_log_counter = read_file_as_uint64(COUNTER_MARKER_FILE);
   parse_params.log_buffer = log_buffer;
   parse_params.line_buffer = line_buffer;
