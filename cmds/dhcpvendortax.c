@@ -25,6 +25,7 @@
 
 struct string_match {
   char *vendor_class;
+  char *genus;
   char *species;
 };
 
@@ -33,39 +34,45 @@ extern const struct string_match *exact_match (const char *str,
     unsigned int len);
 
 
-struct string_match substring_matches[] = {
+struct regex_match {
+  char *regex;
+  char *genus;
+};
+
+
+struct regex_match regex_matches[] = {
   /*
    * Examples:
    *   AastraIPPhone55i
    *   AastraIPPhone57iCT
    *   AastraIPPhone6737i
    */
-  {"AastraIPPhone", "Aastra IP Phone"},
+  {"AastraIPPhone([[:alnum:]]+)", "Aastra IP Phone"},
 
   /* Examples:
    * AXIS,Network Camera,M3006,5.40.13
    * AXIS,Network Camera,P3346,5.20.1
    * AXIS,Thermal Network Camera,Q1931-E,5.55.4.1
    */
-  {"AXIS,Network Camera", "AXIS Network Camera"},
-  {"AXIS,Thermal Network Camera", "AXIS Network Camera"},
+  {"AXIS,Network Camera,([^,]+)", "AXIS Network Camera"},
+  {"AXIS,Thermal Network Camera,([^,]+)", "AXIS Network Camera"},
 
   /* Examples:
    * Canon MF620C Series
    */
-  {"Canon MF", "Canon Printer"},
+  {"Canon (MF[[:alnum:]]+)", "Canon Printer"},
 
   /* Examples:
    * Cisco AP c1200
    * Cisco AP c1240
    */
-  {"Cisco AP", "Cisco Wifi AP"},
+  {"Cisco AP ([[:alnum:]]+)", "Cisco Wifi AP"},
 
   /* Examples:
    *   Cisco Systems, Inc. IP Phone CP-7961G
    *   Cisco Systems, Inc. IP Phone CP-8861
    */
-  {"Cisco Systems, Inc. IP Phone", "Cisco IP Phone"},
+  {"Cisco Systems, Inc. IP Phone ([[:alnum:]-]+)", "Cisco IP Phone"},
 
   /* Examples:
    *   Cisco SPA504G
@@ -73,24 +80,31 @@ struct string_match substring_matches[] = {
    *   CISCO SPA112
    *   ATA186-H6.0|V3.2.0|B041111A
    */
-  {"Cisco SPA", "Cisco IP Phone"},
-  {"CISCO SPA", "Cisco IP Phone"},
-  {"ATA186", "Cisco IP Phone"},
+  {"Cisco (SPA[[:alnum:]]+)", "Cisco IP Phone"},
+  {"CISCO (SPA[[:alnum:]]+)", "Cisco IP Phone"},
+  {"(ATA186)", "Cisco IP Phone"},
 
   /* Examples:
    * CPQRIB3
    */
-  {"CPQRIB", "Compaq Remote Insight"},
+  {"(CPQRIB[[:digit:]]+)", "Compaq Remote Insight"},
 
   /* Examples:
    * Dell Color MFP E525w
    */
-  {"Dell Color MFP", "Dell Printer"},
+  {"Dell Color MFP ([[:alnum:]]+)", "Dell Printer"},
+
+  /* Examples:
+   * Dell C1760nw Color Printer
+   * Dell C2660dn Color Laser
+   * Dell 2155cn Color MFP
+   */
+  {"^Dell ([[:alnum:]]+) Color (Printer|Laser|MFP)", "Dell Printer"},
 
   /* Examples:
    * digium_D40_1_4_2_0_63880
    */
-  {"digium", "Digium IP Phone"},
+  {"digium_([^_]+)", "Digium IP Phone"},
 
   /* Examples:
    * FortiAP-FP321C-AC-Discovery
@@ -98,8 +112,8 @@ struct string_match substring_matches[] = {
    * FortiAP-FP321C
    * FortiWiFi-60D-POE
    */
-  {"FortiAP", "Fortinet Wifi AP"},
-  {"FortiWiFi", "Fortinet Wifi AP"},
+  {"FortiAP-([^-]+)", "Fortinet Wifi AP"},
+  {"FortiWiFi-([[:alnum:]-]+)", "Fortinet Wifi AP"},
 
   /* Examples:
    * Grandstream GXP1405 dslforum.org
@@ -107,41 +121,48 @@ struct string_match substring_matches[] = {
    * Grandstream GXV3275 dslforum.org
    * Grandstream HT702 dslforum.org
    */
-  {"Grandstream GXP", "Grandstream IP Phone"},
-  {"Grandstream GXV", "Grandstream IP Phone"},
-  {"Grandstream HT", "Grandstream VoIP adapter"},
+  {"Grandstream (GX[[:alnum:]]+)", "Grandstream IP Phone"},
+  {"Grandstream (HT[[:alnum:]]+)", "Grandstream VoIP Adapter"},
+
+  /* Grandstream Voice over IP adapters. Examples:
+   * HT500 dslforum.org
+   * HT7XX dslforum.org
+   * DP7XX dslforum.org
+   */
+  {"^(HT[[:alnum:]]+) dslforum.org", "Grandstream VoIP Adapter"},
+  {"^(DP[[:alnum:]]+) dslforum.org", "Grandstream IP Phone"},
 
   /* Examples:
    * iPECS IP Edge 5000i-24G
    */
-  {"iPECS IP Edge", "iPECS IP PHONE"},
+  {"iPECS IP Edge ([[:alnum:]-]+)", "iPECS IP Phone"},
 
   /* Examples:
    * Juniper-ex2200-c-12p-2g
    */
-  {"Juniper-ex", "Juniper router"},
+  {"Juniper-(ex[^-]+)", "Juniper Router"},
 
   /* Examples:
    *   LINKSYS SPA-922
    *   LINKSYS SPA-942
    */
-  {"LINKSYS SPA", "Linksys IP Phone"},
+  {"LINKSYS (SPA-[[:alnum:]]+)", "Linksys IP Phone"},
 
   /* Examples:
    * MotorolaAP.AP7131
    */
-  {"MotorolaAP", "Motorola Wifi AP"},
+  {"MotorolaAP.([[:alnum:]]+)", "Motorola Wifi AP"},
 
   /* Examples:
    * NECDT700
    */
-  {"NECDT", "NEC IP Phone"},
+  {"(NECDT[[:alnum:]]+)", "NEC IP Phone"},
 
   /* Examples:
    *   6=qPolycomSoundPointIP-SPIP_1234567-12345-001
    *   6=tPolycomSoundStationIP-SSIP_12345678-12345-001
    */
-  {"PolycomSoundPointIP", "Polycom IP Phone"},
+  {".*PolycomSoundPointIP-([^-]+)", "Polycom IP Phone"},
 
   /* Examples:
    *   Polycom-SPIP335
@@ -151,26 +172,26 @@ struct string_match substring_matches[] = {
    *   Polycom-VVX500
    *   Polycom-VVX600
    */
-  {"Polycom-SPIP", "Polycom IP Phone"},
-  {"Polycom-SSIP", "Polycom IP Phone"},
-  {"Polycom-VVX", "Polycom IP Phone"},
+  {"Polycom-(SPIP[[:alnum:]]+)", "Polycom IP Phone"},
+  {"Polycom-(SSIP[[:alnum:]]+)", "Polycom IP Phone"},
+  {"Polycom-(VVX[[:alnum:]]+)", "Polycom IP Phone"},
 
   /* Examples:
-   * Rabbit2000-TCPIP:Z-World:Testfoo:1.1.3
    * Rabbit-TCPIP:Z-World:DHCP-Test:1.2.0
+   * Rabbit2000-TCPIP:Z-World:Testfoo:1.1.3
    */
-  {"Rabbit-TCPIP", "Rabbit Microcontroller"},
-  {"Rabbit2000-TCPIP", "Rabbit Microcontroller"},
+  {"(Rabbit)-TCPIP", "Rabbit Microcontroller"},
+  {"(Rabbit2000)-TCPIP", "Rabbit Microcontroller"},
 
   /* Examples:
    * ReadyNet_WRT500
    */
-  {"ReadyNet_WRT", "ReadyNet Wifi AP"},
+  {"ReadyNet_(WRT[[:alnum:]]+)", "ReadyNet Wifi AP"},
 
   /* Examples:
    * SAMSUNG SCX-6x45
    */
-  {"SAMSUNG SCX", "Samsung Network MFP"},
+  {"SAMSUNG (SCX-[[:alnum:]]+)", "Samsung Network MFP"},
 
   /* Examples:
    * SF200-24P
@@ -182,29 +203,30 @@ struct string_match substring_matches[] = {
    * SG200-50P
    * SG300-10
    */
-  {"SF200", "Cisco Managed Switch"},
-  {"SG 200", "Cisco Managed Switch"},
-  {"SG200", "Cisco Managed Switch"},
-  {"SG 300", "Cisco Managed Switch"},
-  {"SG300", "Cisco Managed Switch"},
+  {"(SF200-[[:alnum:]]+)", "Cisco Managed Switch"},
+  {"(SG 200-[[:alnum:]]+)", "Cisco Managed Switch"},
+  {"(SG200-[[:alnum:]]+)", "Cisco Managed Switch"},
+  {"(SG 300-[[:alnum:]]+)", "Cisco Managed Switch"},
+  {"(SG300-[[:alnum:]]+)", "Cisco Managed Switch"},
 
   /* Examples:
    * snom-m3-SIP/02.11//18-Aug-10 15:36
    * snom320
    * snom710
    */
-  {"snom", "Snom IP Phone"},
+  {"(snom[^/]+)", "Snom IP Phone"},
 
   /* Examples:
    * telsey-stb-f8
    */
-  {"telsey-stb", "Telsey Media Player"},
+  {"telsey-stb-([[:alnum:]]+)", "Telsey Media Player"},
 
   {NULL, NULL}
 };
 
 
-/* Copy a string with no funny schtuff allowed; only alphanumerics + space. */
+/* Copy a string with no funny schtuff allowed; only alphanumerics + space
+ * plus a few characters considered safe. */
 static void no_mischief_strncpy(char *dst, const char *src, size_t n)
 {
   size_t i;
@@ -213,10 +235,11 @@ static void no_mischief_strncpy(char *dst, const char *src, size_t n)
     int is_lower = (s >= 'a' && s <= 'z');
     int is_upper = (s >= 'A' && s <= 'Z');
     int is_digit = (s >= '0' && s <= '9');
+    int is_safe = (s == '_' || s == '-' || s == '.');
     if (s == '\0') {
       dst[i] = '\0';
       break;
-    } else if (is_lower || is_upper || is_digit) {
+    } else if (is_lower || is_upper || is_digit || is_safe) {
       dst[i] = s;
     } else if (s == ' ' || s == '\t') {
       dst[i] = ' ';
@@ -237,8 +260,9 @@ static void no_mischief_strncpy(char *dst, const char *src, size_t n)
  *   Mfg=Hewlett Packard;Typ=Printer;Mod=HP LaserJet 400 M401n;Ser=ABCDE01234;
  *   mfg=Xerox;typ=MFP;mod=WorkCentre 3220;ser=ABC012345;loc=
  */
-int check_for_printer(const char *vendor_class, char *species,
-    size_t species_len)
+int check_for_printer(const char *vendor_class,
+    char *genus, size_t genus_len,
+    char *species, size_t species_len)
 {
   regex_t r_vendor, r_type, r_model;
   regmatch_t match[2];
@@ -270,9 +294,10 @@ int check_for_printer(const char *vendor_class, char *species,
   if (vendor && type) {
     char buf[128];
     snprintf(buf, sizeof(buf), "%s %s", vendor, type);
-    no_mischief_strncpy(species, buf, species_len);
+    no_mischief_strncpy(genus, buf, genus_len);
     rc = 0;
-  } else if (model) {
+  }
+  if (model) {
     no_mischief_strncpy(species, model, species_len);
     rc = 0;
   }
@@ -280,92 +305,49 @@ int check_for_printer(const char *vendor_class, char *species,
   if (vendor) free(vendor);
   if (type) free(type);
   if (model) free(model);
+  regfree(&r_vendor);
+  regfree(&r_type);
+  regfree(&r_model);
 
   return(rc);
 }
 
-/*
- * Check a few patterns from common vendors with lots of model
- * numbers.
- */
-int check_specials(const char *vendor_class, char *species,
-    size_t species_len)
-{
-  regex_t r_dellprinter, r_grandstream;
 
-  /*
-   * Dell printers. Examples:
-   * Dell C1760nw Color Printer
-   * Dell C2660dn Color Laser
-   * Dell 2155cn Color MFP
-   */
-  if (regcomp(&r_dellprinter, "^Dell \\S+ Color (Printer|Laser|MFP)",
-        REG_EXTENDED | REG_ICASE | REG_NOSUB)) {
-    fprintf(stderr, "%s: regcomp failed!\n", __FUNCTION__);
-    exit(1);
-  }
-  if (regexec(&r_dellprinter, vendor_class, 0, NULL, 0) == 0) {
-    snprintf(species, species_len, "Dell Printer");
-    return(0);
-  }
-
-  /*
-   * Grandstream Voice over IP adapters. Examples:
-   * HT500 dslforum.org
-   * HT7XX dslforum.org
-   */
-  if (regcomp(&r_grandstream, "^HT.* dslforum.org",
-        REG_EXTENDED | REG_ICASE | REG_NOSUB)) {
-    fprintf(stderr, "%s: regcomp failed!\n", __FUNCTION__);
-    exit(1);
-  }
-  if (regexec(&r_grandstream, vendor_class, 0, NULL, 0) == 0) {
-    snprintf(species, species_len, "Grandstream VoIP adapter");
-    return(0);
-  }
-
-  /*
-   * Grandstream IP phones. Examples:
-   * DP7XX dslforum.org
-   */
-  if (regcomp(&r_grandstream, "^DP.* dslforum.org",
-        REG_EXTENDED | REG_ICASE | REG_NOSUB)) {
-    fprintf(stderr, "%s: regcomp failed!\n", __FUNCTION__);
-    exit(1);
-  }
-  if (regexec(&r_grandstream, vendor_class, 0, NULL, 0) == 0) {
-    snprintf(species, species_len, "Grandstream IP phone");
-    return(0);
-  }
-
-  return(1);
-}
-
-
-int lookup_vc(const char *vendor_class, char *species, size_t species_len)
+int lookup_vc(const char *vendor_class,
+    char *genus, size_t genus_len,
+    char *species, size_t species_len)
 {
   const struct string_match *p;
+  const struct regex_match *r;
   int slen = strlen(vendor_class);
 
   if ((p = exact_match(vendor_class, slen)) != NULL) {
+    no_mischief_strncpy(genus, p->genus, genus_len);
     no_mischief_strncpy(species, p->species, species_len);
     return(0);
   }
 
-  p = &substring_matches[0];
-  while (p->vendor_class != NULL) {
-    if (strstr(vendor_class, p->vendor_class) != NULL) {
-      no_mischief_strncpy(species, p->species, species_len);
+  for (r = &regex_matches[0]; r->regex != NULL; ++r) {
+    regex_t rx;
+    regmatch_t match[2];
+    if (regcomp(&rx, r->regex, REG_EXTENDED | REG_ICASE)) {
+      fprintf(stderr, "%s: regcomp failed!\n", r->regex);
+      exit(1);
+    }
+    if (regexec(&rx, vendor_class, 2, match, 0) == 0) {
+      int len = match[1].rm_eo - match[1].rm_so;
+      char *model = strndup(vendor_class + match[1].rm_so, len);
+      no_mischief_strncpy(species, model, species_len);
+      free(model);
+
+      snprintf(genus, genus_len, "%s", r->genus);
       return(0);
     }
-    p++;
+    regfree(&rx);
   }
 
-  if (check_for_printer(vendor_class, species, species_len) == 0) {
-    return(0);
-  }
-
-  if (check_specials(vendor_class, species, species_len) == 0) {
+  if (check_for_printer(vendor_class,
+        genus, genus_len, species, species_len) == 0) {
     return(0);
   }
 
@@ -390,6 +372,7 @@ int main(int argc, char **argv)
   int c;
   const char *label = NULL;
   const char *vendor = NULL;
+  char genus[80];
   char species[80];
 
   setlinebuf(stdout);
@@ -410,9 +393,10 @@ int main(int argc, char **argv)
   if (optind < argc || vendor == NULL || label == NULL)
     usage(argv[0]);
 
+  memset(genus, 0, sizeof(genus));
   memset(species, 0, sizeof(species));
-  if (lookup_vc(vendor, species, sizeof(species)) == 0) {
-    printf("dhcpv %s %s\n", label, species);
+  if (lookup_vc(vendor, genus, sizeof(genus), species, sizeof(species)) == 0) {
+    printf("dhcpv %s %s;%s\n", label, genus, species);
   }
   exit(0);
 }

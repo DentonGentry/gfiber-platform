@@ -227,7 +227,7 @@ host-wifi_files_test: host-wifi_files_test.o
 host-wifi_files_test: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
 dhcpvendortax: dhcpvendortax.o dhcpvendorlookup.o
 dhcpvendorlookup.c: dhcpvendorlookup.gperf
-	$(GPERF) -G -C -t -L ANSI-C -N exact_match -K vendor_class \
+	$(GPERF) -G -C -t -L ANSI-C -N exact_match -K vendor_class --delimiters="|" \
 		--includes --output-file=dhcpvendorlookup.c dhcpvendorlookup.gperf
 dhcpvendorlookup.o: CFLAGS += -Wno-missing-field-initializers
 host-dhcpvendorlookup.o: CFLAGS += -Wno-missing-field-initializers
