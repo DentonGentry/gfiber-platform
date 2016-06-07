@@ -75,7 +75,7 @@ class PresteraStats(object):
       return
     kill_proc = lambda p: os.killpg(os.getpgid(p.pid), signal.SIGTERM)
     timer = threading.Timer(self.timeout, kill_proc, [proc])
-    cpss_cmd_prefix = 'show interfaces mac json-counters ethernet '
+    cpss_cmd_prefix = 'do show interfaces mac json-counters ethernet '
     try:
       timer.start()
       cpssout, _ = proc.communicate(input=cpss_cmd_prefix + self.ports + '\n')
