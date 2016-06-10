@@ -27,9 +27,9 @@ from wvtest import wvtest
 def TaxonomyTest():
   taxonomy.dhcp.DHCP_LEASES_FILE = 'fake/dhcp.leases'
   clientinfo.FINGERPRINTS_DIR = 'fake/taxonomy'
-  wvtest.WVPASS(';Nexus 6;' in clientinfo.taxonomize('00:00:01:00:00:01'))
-  wvtest.WVPASS(';Nexus 6;' in clientinfo.taxonomize('00:00:01:00:00:01\n'))
-  v = ';Moto G or Moto X;'
+  wvtest.WVPASS('Nexus 6' in clientinfo.taxonomize('00:00:01:00:00:01'))
+  wvtest.WVPASS('Nexus 6' in clientinfo.taxonomize('00:00:01:00:00:01\n'))
+  v = 'Moto G or Moto X'
   wvtest.WVPASS(v in clientinfo.taxonomize('9c:d9:17:00:00:02'))
   wvtest.WVPASSEQ(clientinfo.taxonomize('00:00:22:00:00:22'), None)
 
