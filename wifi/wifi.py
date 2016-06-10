@@ -379,13 +379,13 @@ def stop_ap_wifi(opt):
     utils.log('stopping AP for %s GHz...', band)
 
     if band == '5' and quantenna.stop_ap_wifi(opt):
-      success &= True
       continue
 
     interface = iw.find_interface_from_band(
         band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
     if interface is None:
-      raise utils.BinWifiException('No AP interface for band=%r', band)
+      utils.log('No AP interface for %s GHz; nothing to stop', band)
+      continue
 
     if _stop_hostapd(interface):
       if opt.persist:
@@ -973,20 +973,20 @@ def stop_client_wifi(opt):
     utils.log('stopping client for %s GHz...', band)
 
     if band == '5' and quantenna.stop_client_wifi(opt):
-      success &= True
       continue
 
     interface = iw.find_interface_from_band(
         band, iw.INTERFACE_TYPE.client, opt.interface_suffix)
-    if interface is not None:
-      if _stop_wpa_supplicant(interface):
-        if opt.persist:
-          persist.delete_options('wpa_supplicant', band)
-      else:
-        utils.log('Failed to stop wpa_supplicant on interface %s', interface)
-        success = False
-    else:
+    if interface is None:
       utils.log('No client interface for %s GHz; nothing to stop', band)
+      continue
+
+    if _stop_wpa_supplicant(interface):
+      if opt.persist:
+        persist.delete_options('wpa_supplicant', band)
+    else:
+      utils.log('Failed to stop wpa_supplicant on interface %s', interface)
+      success = False
 
   return success
 
