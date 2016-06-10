@@ -31,6 +31,7 @@
 #include <curl/curl.h>
 #include <getopt.h>
 #include <netinet/in.h>
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -172,6 +173,27 @@ std::string request_from_ssdpd(const char *sock_path,
 
 
 /*
+ * Returns true if the friendlyName appears to include an email address.
+ */
+bool contains_email_address(const std::string &friendlyName)
+{
+  regex_t r_email;
+  int rc;
+
+  if (regcomp(&r_email, ".+@[a-z0-9.-]+\\.[a-z0-9.-]+",
+        REG_EXTENDED | REG_ICASE | REG_NOSUB)) {
+    fprintf(stderr, "%s: regcomp failed!\n", __FUNCTION__);
+    exit(1);
+  }
+
+  rc = regexec(&r_email, friendlyName.c_str(), 0, NULL, 0);
+  regfree(&r_email);
+
+  return (rc == 0);
+}
+
+
+/*
  * Combine the manufacturer and model. If the manufacturer name
  * is already present in the model string, don't duplicate it.
  */
@@ -206,7 +228,9 @@ std::string format_response(const ssdp_info_t *info, L2Map *l2map)
   }
 
   mac = get_l2addr_for_ip(info->ipaddr);
-  if (info->friendlyName.length() > 0) {
+  if (contains_email_address(info->friendlyName)) {
+    result = "ssdp " + mac + " REDACTED;" + info->srv_type;
+  } else if (info->friendlyName.length() > 0) {
     result = "ssdp " + mac + " " + info->friendlyName + ";" +
       unfriendly_name(info->manufacturer, info->model);
   } else {
