@@ -120,6 +120,12 @@ class JsonPollTest(unittest.TestCase):
       output = ''.join(line.rstrip() for line in f)
       self.assertEqual('', output)
 
+  def testFlatObject(self):
+    obj = {'key1': 1, 'key2': {'key3': 3, 'key4': 4}}
+    got = []
+    self.poller._FlatObject('base', obj, got)
+    want = ['base/key1=1', 'base/key2/key3=3', 'base/key2/key4=4']
+    self.assertEqual(got.sort(), want.sort())
 
 if __name__ == '__main__':
   unittest.main()
