@@ -1014,9 +1014,14 @@ def _run(argv):
   """
   global lockfile_taken
 
+  serial = 'UNKNOWN'
+  try:
+    serial = subprocess.check_output(('serial')).strip()
+  except subprocess.CalledProcessError:
+    utils.log('Could not get serial number')
+
   optspec = _OPTSPEC_FORMAT.format(
-      bin=__file__.split('/')[-1],
-      ssid='%s_TestWifi' % subprocess.check_output(('serial')).strip())
+      bin=__file__.split('/')[-1], ssid='%s_TestWifi' % serial)
   parser = options.Options(optspec)
   opt, _, extra = parser.parse(argv)
   stringify_options(opt)
