@@ -23,7 +23,6 @@ import os
 import socket
 import sys
 import tempfile
-import textwrap
 import time
 import urllib2
 import options
@@ -61,17 +60,39 @@ class JsonPoll(object):
                                'api/radio': self.api_radio_output_file}
     self.last_response = None
 
+  def _FlatObject(self, base, obj, out):
+    """Open json object to a list of strings.
+
+    Args:
+      base: is a string that has a base name for a key.
+      obj: is a JSON object that will be flatten.
+      out: is an output where strings will be appended.
+
+    Example:
+         data = {"a": 1, "b": { "c": 2, "d": 3}}
+         out = []
+         _FlatObject('', data, out)
+
+         out will be equal to
+           [u'/a=1', u'/b/c=2', u'/b/d=3']
+    """
+    for k, v in obj.items():
+      name = base + '/' + k
+      if isinstance(v, dict):
+        self._FlatObject(name, v, out)
+      else:
+        val = '%s=' % name
+        out.append(val + str(v))
+
   def WriteToStderr(self, msg, is_json=False):
     """Write a message to stderr."""
     if is_json:
-      # Make the json easier to parse from the logs.
       json_data = json.loads(msg)
-      json_str = json.dumps(json_data, sort_keys=True, indent=2,
-                            separators=(',', ': '))
-      # Logging pretty-printed json is like logging one huge line. Logos is
-      # configured to limit lines to 768 characters. Split the logged output at
-      # half of that to make sure logos doesn't clip our output.
-      sys.stderr.write('\n'.join(textwrap.wrap(json_str, width=384)))
+      flat_data = []
+      self._FlatObject('', json_data, flat_data)
+      # Make the json easier to parse from the logs.
+      for s in flat_data:
+        sys.stderr.write('%s\n' % s)
       sys.stderr.flush()
     else:
       sys.stderr.write(msg)
