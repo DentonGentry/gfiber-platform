@@ -355,15 +355,15 @@ class Wifi(Interface):
       logging.error('Error attaching to wpa_supplicant: %s', e)
       return False
 
-    status = self.wpa_cli_status()
+    status = self.wpa_status()
     self.wpa_supplicant = status.get('wpa_state') == 'COMPLETED'
     if not self._initialized:
       self.initial_ssid = status.get('ssid')
 
     return True
 
-  def wpa_cli_status(self):
-    """Parse the STATUS response from the wpa_supplicant CLI.
+  def wpa_status(self):
+    """Parse the STATUS response from the wpa_supplicant control interface.
 
     Returns:
       A dict containing the parsed results, where key and value are separated by
@@ -371,8 +371,12 @@ class Wifi(Interface):
     """
     status = {}
 
-    if self._wpa_control:
-      lines = self._wpa_control.request('STATUS').splitlines()
+    if self._wpa_control and self._wpa_control.attached:
+      lines = []
+      try:
+        lines = self._wpa_control.request('STATUS').splitlines()
+      except wpactrl.error:
+        logging.error('wpa_control STATUS request failed')
       for line in lines:
         if '=' not in line:
           continue

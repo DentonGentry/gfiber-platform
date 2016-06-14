@@ -75,6 +75,7 @@ class FakeWPACtrl(object):
     self.attached = False
     self.connected = False
     self.ssid_testonly = None
+    self.request_status_fails = False
 
   def pending(self):
     self.check_socket_exists('pending: socket does not exist')
@@ -97,6 +98,8 @@ class FakeWPACtrl(object):
 
   def request(self, request_type):
     if request_type == 'STATUS':
+      if self.request_status_fails:
+        raise wpactrl.error('test error')
       return ('foo\nwpa_state=COMPLETED\nssid=%s\nbar' % self.ssid_testonly
               if self.connected else 'foo')
     else:
@@ -185,6 +188,7 @@ class FrenzyWPACtrl(interface.FrenzyWPACtrl):
   def __init__(self, *args, **kwargs):
     super(FrenzyWPACtrl, self).__init__(*args, **kwargs)
     self.ssid_testonly = None
+    self.request_status_fails = False
 
   def _qcsapi(self, *command):
     return self.fake_qcsapi.get(command[0], None)
@@ -206,6 +210,12 @@ class FrenzyWPACtrl(interface.FrenzyWPACtrl):
   def detach(self):
     self.add_terminating_event()
     super(FrenzyWPACtrl, self).detach()
+
+  def request(self, request_type):
+    if request_type == 'STATUS' and self.request_status_fails:
+      raise wpactrl.error('test error')
+
+    return super(FrenzyWPACtrl, self).request(request_type)
 
 
 class FrenzyWifi(FakeInterfaceMixin, interface.FrenzyWifi):
@@ -365,6 +375,10 @@ def generic_wifi_test(w, wpa_path):
   wvtest.WVPASSEQ(w.initial_ssid, 'my=ssid')
   w.initialize()
   wvtest.WVPASSEQ(w.initial_ssid, None)
+
+  wvtest.WVPASSNE(w.wpa_status(), {})
+  w._wpa_control.request_status_fails = True
+  wvtest.WVPASSEQ(w.wpa_status(), {})
 
   # The wpa_supplicant process disconnects and terminates.
   wpa_control.add_disconnected_event()
