@@ -182,7 +182,9 @@ setup_fakeroot GFLT110
 expected="\
 psback
 logos ginstall
+flash_unlock ${tmpdir}/dev/mtd6
 flash_erase --quiet ${tmpdir}/dev/mtd6 0 0
+flash_unlock ${tmpdir}/dev/mtd0
 flash_erase --quiet ${tmpdir}/dev/mtd0 0 0
 hnvram -q -w ACTIVATED_KERNEL_NAME=kernel0"
 
