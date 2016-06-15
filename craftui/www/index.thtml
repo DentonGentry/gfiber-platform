@@ -39,6 +39,7 @@
       <input type="radio" id="tab-2" name="tab-group-1">
       <label for="tab-2">Network</label>
       <div class="content">
+        <b>Peer is up:</b><span class="values" id="platform/peer_up">...</span><br>
         <b>IP Addresses:</b>
 	<table>
 	  <tr>
