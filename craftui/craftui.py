@@ -293,8 +293,6 @@ class CraftUI(object):
       'rx_gainindex': Glaukus(VGainIndex, '/api/radio/rx/agcDigitalGainIndex',
                               '%s'),
       'palna_on': Glaukus(VTrueFalse, '/api/radio/paLnaPowerEnabled', '%s'),
-      'transceivers_on': Glaukus(VTrueFalse,
-                                 '/api/radio/transceiversPowerEnabled', '%s'),
 
       'reboot': Reboot(VTrueFalse)
   }
