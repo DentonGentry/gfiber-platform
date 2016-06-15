@@ -88,7 +88,7 @@ def _set(mode, opt):
   _qcsapi('restore_default_config', 'noreboot')
 
   config = {
-      'bw': opt.width,
+      'bw': opt.width if mode == 'ap' else 80,
       'channel': 149 if opt.channel == 'auto' else opt.channel,
       'mode': mode,
       'pmf': 0,
