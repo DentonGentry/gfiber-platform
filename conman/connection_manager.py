@@ -95,9 +95,9 @@ class WLANConfiguration(object):
 
   @property
   def client_up(self):
-    wpa_cli_status = self.wifi.wpa_cli_status()
-    return (wpa_cli_status.get('wpa_state') == 'COMPLETED'
-            and wpa_cli_status.get('ssid') == self.ssid)
+    wpa_status = self.wifi.wpa_status()
+    return (wpa_status.get('wpa_state') == 'COMPLETED'
+            and wpa_status.get('ssid') == self.ssid)
 
   def start_access_point(self):
     """Start an access point."""
