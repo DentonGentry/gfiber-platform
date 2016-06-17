@@ -82,20 +82,28 @@ CraftUI.getInfo = function() {
   xhr.send();
 };
 
-CraftUI.config = function(key, activate) {
+CraftUI.config = function(key, activate, is_password) {
   // POST as json
   var el = document.getElementById(key);
-  var value = el.value;
   var xhr = new XMLHttpRequest();
   var action = "Configured";
   xhr.open('post', 'content.json');
   xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
   var data;
-  if (activate) {
+  if (is_password) {
+    var value_admin = btoa(document.getElementById(key + "_admin").value);
+    var value_new = btoa(document.getElementById(key + "_new").value);
+    var value_confirm = btoa(document.getElementById(key + "_confirm").value);
+    data = { config: [ { [key]: {
+          "admin": value_admin,
+          "new": value_new,
+          "confirm": value_confirm,
+        } } ] };
+  } else if (activate) {
     data = { config: [ { [key + "_activate"]: "true" } ] };
     action = "Applied";
   } else {
-    data = { config: [ { [key]: value } ] };
+    data = { config: [ { [key]: el.value } ] };
   }
   var txt = JSON.stringify(data);
   var resultid = key + "_result"

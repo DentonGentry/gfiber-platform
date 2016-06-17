@@ -177,14 +177,25 @@ run_tests() {
   check_success
 
   testname "password is base64"
-  d='{"config":[{"password_guest":"ZHVja3k="}]}'	# ducky
-  $curl $admin_auth -d $d $url/content.json |& grep '"error": 0}'
+  admin=$(echo -n admin | base64)
+  new=$(echo -n ducky | base64)
+  d='{ "config": [ { "password_guest": {
+        "admin": "'"$admin"'",
+        "new": "'"$new"'",
+        "confirm": "'"$new"'"
+      } } ] }'
+  $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 0}'
   check_success
 
   # TODO(edjames): duckduck does not fail.  Need to catch that.
   testname "password not base64"
-  d='{"config":[{"password_guest":"abc123XXX"}]}'
-  $curl $admin_auth -d $d $url/content.json |& grep '"error": 1}'
+  new=ducky
+  d='{ "config": [ { "password_guest": {
+        "admin": "'"$admin"'",
+        "new": "'"$new"'",
+        "confirm": "'"$new"'"
+      } } ] }'
+  $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 1}'
   check_success
 
   testname "process still running at end of test sequence"
