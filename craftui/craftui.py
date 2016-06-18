@@ -171,14 +171,24 @@ class VPassword(Validator):
   example = '******'
 
   def Validate(self, value):
-    super(VPassword, self).Validate(value)
-    pw = ''
+    # value is { admin: admin_pw, new: new_pw, confirm: confirm_pw }
+    # passwords are in base64
+    super(VPassword, self).Validate(value['new'])
+
+    # TODO(edjames) ascii decodes legally; how to check it's really base64?
     try:
-      pw = base64.b64decode(value)
+      current = base64.b64decode(self.admin)
+      admin_pw = base64.b64decode(value['admin'])
+      new_pw = base64.b64decode(value['new'])
     except TypeError:
       raise ConfigError('passwords must be base64 encoded')
-    # TODO(edjames) ascii decodes legally; how to check it's really base64?
-    if len(pw) < 5 or len(pw) > 16:
+
+    # verify correct admin pw is passed, confirm matches
+    if current != admin_pw:
+      raise ConfigError('admin password is incorrect')
+    if value['new'] != value['confirm']:
+      raise ConfigError('new password does not match confirm password')
+    if len(new_pw) < 5 or len(new_pw) > 16:
       raise ConfigError('passwords should be 5-16 characters')
 
 
@@ -193,6 +203,9 @@ class Config(object):
 
   def Configure(self):
     raise Exception('override Config.Configure')
+
+  def SetUI(self, ui):
+    self.ui = ui
 
   @staticmethod
   def Run(command):
@@ -214,6 +227,15 @@ class PtpConfig(Config):
 
   def Configure(self):
     Config.Run(['ptp-config', '-s', self.key, self.validator.config])
+
+
+class PtpPassword(PtpConfig):
+  """Configure a password (need password_admin setting)."""
+
+  def Validate(self, value):
+    admin = self.ui.ReadFile('%s/config/settings/password_admin' % self.ui.sim)
+    self.validator.admin = admin
+    super(PtpPassword, self).Validate(value)
 
 
 class PtpActivate(Config):
@@ -266,8 +288,8 @@ class CraftUI(object):
   """A web server that configures and displays Chimera data."""
 
   handlers = {
-      'password_admin': PtpConfig(VPassword, 'password_admin'),
-      'password_guest': PtpConfig(VPassword, 'password_guest'),
+      'password_admin': PtpPassword(VPassword, 'password_admin'),
+      'password_guest': PtpPassword(VPassword, 'password_guest'),
 
       'craft_ipaddr': PtpConfig(VSlash, 'craft_ipaddr'),
       'link_ipaddr': PtpConfig(VSlash, 'local_ipaddr'),
@@ -344,6 +366,7 @@ class CraftUI(object):
           if k not in self.handlers:
             raise ConfigError('unknown key "%s"' % k)
           h = self.handlers[k]
+          h.SetUI(self)
           h.Validate(v)
       # do it again for real
       for c in conf:
