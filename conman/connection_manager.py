@@ -798,11 +798,11 @@ def _wifi_show():
     return ''
 
 
-def _get_quantenna_interface():
+def _get_quantenna_interfaces():
   try:
-    return subprocess.check_output(['get-quantenna-interface']).strip()
+    return subprocess.check_output(['get-quantenna-interfaces']).split()
   except subprocess.CalledProcessError:
-    logging.fatal('Failed to call get-quantenna-interface')
+    logging.fatal('Failed to call get-quantenna-interfaces')
     raise
 
 
@@ -812,6 +812,7 @@ def get_client_interfaces():
   Returns:
     A dict mapping wireless client interfaces to their supported bands.
   """
+  # TODO(mikemu): Use wifi_files instead of "wifi show".
 
   current_band = None
   result = collections.defaultdict(lambda: collections.defaultdict(set))
@@ -821,10 +822,9 @@ def get_client_interfaces():
     elif line.startswith('Client Interface:'):
       result[line.split()[2]]['bands'].add(current_band)
 
-  # TODO(rofrankel):  Make 'wifi show' (or wifi_files) include this information
-  # so we don't need a subprocess call to check.
-  quantenna_interface = _get_quantenna_interface()
-  if quantenna_interface in result:
-    result[quantenna_interface]['frenzy'] = True
+  for quantenna_interface in _get_quantenna_interfaces():
+    if quantenna_interface.startswith('wcli'):
+      result[quantenna_interface]['bands'].add('5')
+      result[quantenna_interface]['frenzy'] = True
 
   return result

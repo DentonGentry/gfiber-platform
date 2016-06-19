@@ -106,22 +106,12 @@ Client BSSID: f4:f5:e8:81:1b:a1
 
 Band: 5
 RegDomain: 00
-Interface: wlan0  # 5 GHz ap
-AutoChannel: False
-Station List for band: 5
-
-Client Interface: wlan1  # 5 GHz client
 """
 
 WIFI_SHOW_OUTPUT_FRENZY = """Band: 2.4
 RegDomain: 00
 Band: 5
 RegDomain: 00
-Interface: wlan0  # 5 GHz ap
-AutoChannel: False
-Station List for band: 5
-
-Client Interface: wlan0  # 5 GHz client
 """
 
 IW_SCAN_DEFAULT_OUTPUT = """BSS 00:11:22:33:44:55(on wcli0)
@@ -141,14 +131,22 @@ IW_SCAN_HIDDEN_OUTPUT = """BSS ff:ee:dd:cc:bb:aa(on wcli0)
 @wvtest.wvtest
 def get_client_interfaces_test():
   """Test get_client_interfaces."""
+  wifi_show = None
+  quantenna_interfaces = None
+
   # pylint: disable=protected-access
-  original_wifi_show = connection_manager._wifi_show
-  original_get_quantenna_interface = connection_manager._get_quantenna_interface
-  connection_manager._get_quantenna_interface = lambda: ''
-  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_MARVELL8897
+  old_wifi_show = connection_manager._wifi_show
+  old_get_quantenna_interfaces = connection_manager._get_quantenna_interfaces
+  connection_manager._wifi_show = lambda: wifi_show
+  connection_manager._get_quantenna_interfaces = lambda: quantenna_interfaces
+
+  wifi_show = WIFI_SHOW_OUTPUT_MARVELL8897
+  quantenna_interfaces = []
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
                   {'wcli0': {'bands': set(['2.4', '5'])}})
-  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_ATH9K_ATH10K
+
+  wifi_show = WIFI_SHOW_OUTPUT_ATH9K_ATH10K
+  quantenna_interfaces = []
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(), {
       'wcli0': {'bands': set(['2.4'])},
       'wcli1': {'bands': set(['5'])}
@@ -157,21 +155,21 @@ def get_client_interfaces_test():
   # Test Quantenna devices.
 
   # 2.4 GHz cfg80211 radio + 5 GHz Frenzy (Optimus Prime).
-  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_ATH9K_FRENZY
-  connection_manager._get_quantenna_interface = lambda: 'wlan1'
+  wifi_show = WIFI_SHOW_OUTPUT_ATH9K_FRENZY
+  quantenna_interfaces = ['wlan1', 'wlan1_portal', 'wcli1']
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(), {
       'wcli0': {'bands': set(['2.4'])},
-      'wlan1': {'frenzy': True, 'bands': set(['5'])}
+      'wcli1': {'frenzy': True, 'bands': set(['5'])}
   })
 
   # Only Frenzy (e.g. Lockdown).
-  connection_manager._wifi_show = lambda: WIFI_SHOW_OUTPUT_FRENZY
-  connection_manager._get_quantenna_interface = lambda: 'wlan0'
+  wifi_show = WIFI_SHOW_OUTPUT_FRENZY
+  quantenna_interfaces = ['wlan0', 'wlan0_portal', 'wcli0']
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
-                  {'wlan0': {'frenzy': True, 'bands': set(['5'])}})
+                  {'wcli0': {'frenzy': True, 'bands': set(['5'])}})
 
-  connection_manager._wifi_show = original_wifi_show
-  connection_manager._get_quantenna_interface = original_get_quantenna_interface
+  connection_manager._wifi_show = old_wifi_show
+  connection_manager._get_quantenna_interfaces = old_get_quantenna_interfaces
 
 
 class WLANConfiguration(connection_manager.WLANConfiguration):
@@ -495,7 +493,7 @@ def disable_access_point(path, band):
 
 
 def connection_manager_test(radio_config, wlan_configs=None,
-                            quantenna_interface='', **cm_kwargs):
+                            quantenna_interfaces=None, **cm_kwargs):
   """Returns a decorator that does ConnectionManager test boilerplate."""
   if wlan_configs is None:
     wlan_configs = {}
@@ -510,11 +508,12 @@ def connection_manager_test(radio_config, wlan_configs=None,
       wifi_scan_period_s = run_duration_s * wifi_scan_period
 
       # pylint: disable=protected-access
-      original_wifi_show = connection_manager._wifi_show
+      old_wifi_show = connection_manager._wifi_show
       connection_manager._wifi_show = lambda: radio_config
 
-      original_gqi = connection_manager._get_quantenna_interface
-      connection_manager._get_quantenna_interface = lambda: quantenna_interface
+      old_gqi = connection_manager._get_quantenna_interfaces
+      connection_manager._get_quantenna_interfaces = (
+          lambda: quantenna_interfaces or [])
 
       try:
         # No initial state.
@@ -523,7 +522,6 @@ def connection_manager_test(radio_config, wlan_configs=None,
         os.mkdir(os.path.join(tmp_dir, 'interfaces'))
         moca_tmp_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
-        FrenzyWifi.WPACtrl.WIFIINFO_PATH = tempfile.mkdtemp()
 
         for band, access_point in wlan_configs.iteritems():
           write_wlan_config(config_dir, band, 'initial ssid', 'initial psk')
@@ -551,10 +549,9 @@ def connection_manager_test(radio_config, wlan_configs=None,
         shutil.rmtree(config_dir)
         shutil.rmtree(moca_tmp_dir)
         shutil.rmtree(wpa_control_interface)
-        shutil.rmtree(FrenzyWifi.WPACtrl.WIFIINFO_PATH)
         # pylint: disable=protected-access
-        connection_manager._wifi_show = original_wifi_show
-        connection_manager._get_quantenna_interface = original_gqi
+        connection_manager._wifi_show = old_wifi_show
+        connection_manager._get_quantenna_interfaces = old_gqi
 
     actual_test.func_name = f.func_name
     return actual_test
@@ -853,21 +850,24 @@ def connection_manager_test_generic_ath9k_ath10k_5g(c):
 
 @wvtest.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
-                         quantenna_interface='wlan1')
+                         quantenna_interfaces=['wlan1', 'wlan1_portal', 'wcli1']
+                        )
 def connection_manager_test_generic_ath9k_frenzy_2g(c):
   connection_manager_test_generic(c, '2.4')
 
 
 @wvtest.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
-                         quantenna_interface='wlan1')
+                         quantenna_interfaces=['wlan1', 'wlan1_portal', 'wcli1']
+                        )
 def connection_manager_test_generic_ath9k_frenzy_5g(c):
   connection_manager_test_generic(c, '5')
 
 
 @wvtest.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_FRENZY,
-                         quantenna_interface='wlan0')
+                         quantenna_interfaces=['wlan0', 'wlan0_portal', 'wcli0']
+                        )
 def connection_manager_test_generic_frenzy_5g(c):
   connection_manager_test_generic(c, '5')
 
@@ -970,7 +970,8 @@ def connection_manager_test_dual_band_two_radios_ath9k_ath10k(c):
 
 @wvtest.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
-                         quantenna_interface='wlan1')
+                         quantenna_interfaces=['wlan1', 'wlan1_portal', 'wcli1']
+                        )
 def connection_manager_test_dual_band_two_radios_ath9k_frenzy(c):
   connection_manager_test_dual_band_two_radios(c)
 
