@@ -346,6 +346,13 @@ def EraseMtd(mtddevname):
   return subprocess.call(cmd)
 
 
+def UnlockMtd(mtddevname):
+  """Unlocks an mtd partition."""
+  VerbosePrint('Unlocking flash partition %r\n', mtddevname)
+  cmd = ['flash_unlock', mtddevname]
+  return subprocess.call(cmd)
+
+
 def Nandwrite(f, mtddevname):
   """Write file to NAND flash using nandwrite."""
   cmd = ['nandwrite', '--quiet', '--markbad', mtddevname]
@@ -415,6 +422,9 @@ def InstallToMtd(f, mtddevname):
   """Write an image to an mtd device."""
   if not isinstance(f, FileWithSecureHash):
     f = FileWithSecureHash(f, None)
+  if GetPlatform().startswith('GFLT'):
+    if UnlockMtd(mtddevname):
+      raise IOError('Flash unlocking failed.')
   if EraseMtd(mtddevname):
     raise IOError('Flash erase failed.')
   VerbosePrint('Writing to mtd partition %r\n', mtddevname)
