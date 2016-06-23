@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# Periodically processes logged DNS queries and prefetches
+# prefetches the most requested hosts, warming the cache.
+
+while sleep 60; do
+  python log_hits.py
+  python fetch_popular.py
+done
