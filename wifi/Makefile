@@ -9,6 +9,7 @@ GPYLINT=$(shell \
       echo 'echo "(gpylint-missing)" >&2'; \
     fi \
 )
+NOINSTALL=%_test.py options.py experiment.py experiment_testutils.py
 
 all:
 
@@ -34,7 +35,7 @@ test: all
 
 install:
 	mkdir -p $(LIBDIR) $(BINDIR)
-	$(INSTALL) -m 0644 $(filter-out %_test.py, $(wildcard *.py)) $(LIBDIR)/
+	$(INSTALL) -m 0644 $(filter-out $(NOINSTALL), $(wildcard *.py)) $(LIBDIR)/
 	$(INSTALL) -m 0755 wifi.py $(LIBDIR)/
 	rm -f $(BINDIR)/wifi
 	ln -s /usr/wifi/wifi.py $(BINDIR)/wifi

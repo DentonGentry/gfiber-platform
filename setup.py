@@ -1,6 +1,6 @@
 from distutils.core import setup
 
-LONGDESC="""Command-line options parser.
+OPTIONS_LONGDESC="""Command-line options parser.
 With the help of an options spec string, easily parse command-line options.
 
 An options spec is made up of two parts, separated by a line with two dashes.
@@ -32,15 +32,26 @@ consecutive lines. Groups are formed by inserting a line that begins with a
 space. The text on that line will be output after an empty line.
 """
 
+options_url = 'https://github.com/apenwarr/bup/blob/master/lib/bup/options.py'
 setup(name='options',
-      version='1.0', 
+      version='1.0',
       description='A command-line options parser.',
       license='BSD',
       author='Avery Pennarun',
       author_email='apenwarr@google.com',
       url='git://github.com/apenwarr/bup.git',
-      download_url='https://github.com/apenwarr/bup/blob/master/lib/bup/options.py',
-      py_modules=["options"],
-      long_description=LONGDESC,
-      keywords="options",
-      )
+      download_url=options_url,
+      py_modules=['options'],
+      long_description=OPTIONS_LONGDESC,
+      keywords='options',
+     )
+
+
+setup(name='experiment',
+      version='1.0',
+      description='Python implementation of the GFiber experiment framework.',
+      author='Richard Frankel',
+      author_email='rofrankel@google.com',
+      py_modules=['experiment'],
+      keywords='experiment',
+     )

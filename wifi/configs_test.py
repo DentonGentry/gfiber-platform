@@ -5,7 +5,7 @@
 import subprocess
 
 import configs
-import experiment
+import experiment_testutils
 import utils
 from wvtest import wvtest
 
@@ -399,6 +399,8 @@ class FakeOptDict(object):
 @wvtest.wvtest
 def generate_hostapd_config_test():
   """Tests generate_hostapd_config."""
+  unused_raii = experiment_testutils.MakeExperimentDirs()
+
   opt = FakeOptDict()
 
   # Test a simple case.
@@ -443,10 +445,7 @@ def generate_hostapd_config_test():
   opt.encryption = default_encryption
 
   # Now enable extra short timeout intervals and the Wifi80211k experiment.
-  experiment._EXPERIMENTS_TMP_DIR = '/tmp'
-  experiment._EXPERIMENTS_DIR = '/tmp'
-  open('/tmp/Wifi80211k.available', 'a').close()
-  open('/tmp/Wifi80211k.active', 'a').close()
+  experiment_testutils.enable('Wifi80211k')
   opt.extra_short_timeouts = 2
   new_config = '\n'.join((
       _HOSTAPD_CONFIG,
