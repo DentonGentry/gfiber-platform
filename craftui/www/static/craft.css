@@ -1,10 +1,12 @@
 table, th, td {
+  margin: 1px;
+  margin-bottom: 20px;
   border: 1px solid #ccc;
   font-size:12px;
 }
 
 td {
-  padding: 5px;
+  padding: 2px;
 }
 
 .bit {

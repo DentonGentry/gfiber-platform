@@ -74,34 +74,23 @@ onexit() {
 }
 
 run_tests() {
-  local use_https http https url curl n arg secure_arg curl_arg
-  use_https=$1
+  local http https url curl n arg curl_arg
 
   http=8888
   https=8889
-  url=http://localhost:$http
-
-  if [ "$use_https" = 1 ]; then
-    url=https://localhost:$https
-    secure_arg=-S
-    curl_arg=-k
-
-    # not really testing here, just showing the mode change
-    testname "INFO: https mode"
-    true
-    check_success
-  else
-    # not really testing here, just showing the mode change
-    testname "INFO: http mode"
-    true
-    check_success
-  fi
+  curl_ca="--cacert tmp-certs/rootCA.pem"
 
   testname "server not running"
   curl -s http://localhost:8888/
   check_failure
 
-  ./craftui $secure_arg &
+  # add a signed cert (using our fake CA)
+  sh HOW.cert
+  chmod 750 sim/tmp/ssl/*
+  cp tmp-certs/localhost.pem sim/tmp/ssl/certs/craftui.pem
+  cp tmp-certs/localhost.key sim/tmp/ssl/private/craftui.key
+
+  ./craftui &
   pid=$!
 
   testname "process running"
@@ -110,93 +99,111 @@ run_tests() {
 
   sleep 1
 
-  curl="curl -v -s -m 1 $curl_arg"
+  curl_noca="curl -v -s -m 1"
+  curl="$curl_noca $curl_ca"
 
-  if [ "$use_https" = 1 ]; then
-    for n in localhost 127.0.0.1; do
-      testname "redirect web page ($n)"
-      $curl "http://$n:8888/anything" |& grep "Location: https://$n:8889/"
+  # verify localhost works
+  testname https localhost
+  $curl https://localhost:$https/status |& grep 'WWW-Authenticate: Digest'
+  check_success
+
+  # but needs --cacert
+  testname https localhost without CA
+  $curl_noca https://localhost:$https/status |&
+    grep 'unable to get local issuer certificate'
+  check_success
+
+  # and 127.0.0.1 fails due to cert name mismatch
+  testname https 127.0.0.1
+  $curl https://127.0.0.1:$https/status |&
+    grep "certificate subject name 'localhost' does not match target host name"
+  check_success
+
+  for url in http://localhost:$http https://localhost:$https; do
+
+    testname "404 not found ($url)"
+    $curl $url/notexist |& grep '404: Not Found'
+    check_success
+
+    baduser_auth="--digest --user root:admin"
+    badpass_auth="--digest --user guest:admin"
+
+    testname "welcome web page ($url)"
+    $curl $url/ |& grep welcome.thtml
+    check_success
+
+    for auth in "" "$baduser_auth" "$badpass_auth"; do
+      for n in status config content.json; do
+	testname "page $n bad auth ($url, $auth)"
+	$curl $auth $url/$n |& grep 'WWW-Authenticate: Digest'
+	check_success
+      done
+    done
+
+    admin_auth="--digest --user admin:admin"
+    guest_auth="--digest --user guest:guest"
+
+    for auth in "$admin_auth" "$guest_auth"; do
+      testname "status web page ($url, $auth)"
+      $curl $auth $url/status |& grep status.thtml
+      check_success
+
+      testname "config web page ($url, $auth)"
+      $curl $auth $url/config |& grep config.thtml
+      check_success
+
+      testname "json ($url, $auth)"
+      $curl $auth $url/content.json |& grep '"platform": "GFCH100"'
       check_success
     done
-  fi
 
-  testname "404 not found"
-  $curl $url/notexist |& grep '404: Not Found'
-  check_success
+    testname "bad json to config page ($url)"
+    $curl $admin_auth -d 'duck' $url/content.json | grep "json format error"
+    check_success
 
-  baduser_auth="--digest --user root:admin"
-  badpass_auth="--digest --user guest:admin"
+    testname "good json config ($url)"
+    d='{"config":[{"peer_ipaddr":"192.168.99.99/24"}]}'
+    $curl $admin_auth -d $d $url/content.json |& grep '"error": 0}'
+    check_success
 
-  for auth in "" "$baduser_auth" "$badpass_auth"; do
-    for n in / /config /content.json; do
-      testname "page $n bad auth ($auth)"
-      $curl -v $auth $url/ |& grep 'WWW-Authenticate: Digest'
-      check_success
-    done
+    testname "good json config, bad value ($url)"
+    d='{"config":[{"peer_ipaddr":"192.168.99.99/240"}]}'
+    $curl $admin_auth -d $d $url/content.json |& grep '"error": 1}'
+    check_success
+
+    testname "good json config, guest access ($url)"
+    d='{"config":[{"peer_ipaddr":"192.168.99.99/24"}]}'
+    $curl $guest_auth -d $d $url/content.json |& grep '401 Unauthorized'
+    check_success
+
+    testname "good json config, no auth ($url)"
+    d='{"config":[{"peer_ipaddr":"192.168.99.99/24"}]}'
+    $curl -d $d $url/content.json |& grep '401 Unauthorized'
+    check_success
+
+    testname "password is base64 ($url)"
+    admin=$(echo -n admin | base64)
+    new=$(echo -n ducky | base64)
+    d='{ "config": [ { "password_guest": {
+	  "admin": "'"$admin"'",
+	  "new": "'"$new"'",
+	  "confirm": "'"$new"'"
+	} } ] }'
+    $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 0}'
+    check_success
+
+    # TODO(edjames): duckduck does not fail.  Need to catch that.
+    testname "password not base64 ($url)"
+    new=ducky
+    d='{ "config": [ { "password_guest": {
+	  "admin": "'"$admin"'",
+	  "new": "'"$new"'",
+	  "confirm": "'"$new"'"
+	} } ] }'
+    $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 1}'
+    check_success
+
   done
-
-  admin_auth="--digest --user admin:admin"
-  guest_auth="--digest --user guest:guest"
-
-  for auth in "$admin_auth" "$guest_auth"; do
-    testname "main web page ($auth)"
-    $curl $auth $url/ |& grep index.thtml
-    check_success
-
-    testname "config web page ($auth)"
-    $curl $auth $url/config |& grep config.thtml
-    check_success
-
-    testname "json ($auth)"
-    $curl $auth $url/content.json |& grep '"platform": "GFCH100"'
-    check_success
-  done
-
-  testname "bad json to config page"
-  $curl $admin_auth -d 'duck' $url/content.json | grep "json format error"
-  check_success
-
-  testname "good json config"
-  d='{"config":[{"peer_ipaddr":"192.168.99.99/24"}]}'
-  $curl $admin_auth -d $d $url/content.json |& grep '"error": 0}'
-  check_success
-
-  testname "good json config, bad value"
-  d='{"config":[{"peer_ipaddr":"192.168.99.99/240"}]}'
-  $curl $admin_auth -d $d $url/content.json |& grep '"error": 1}'
-  check_success
-
-  testname "good json config, guest access"
-  d='{"config":[{"peer_ipaddr":"192.168.99.99/24"}]}'
-  $curl $guest_auth -d $d $url/content.json |& grep '401 Unauthorized'
-  check_success
-
-  testname "good json config, no auth"
-  d='{"config":[{"peer_ipaddr":"192.168.99.99/24"}]}'
-  $curl -d $d $url/content.json |& grep '401 Unauthorized'
-  check_success
-
-  testname "password is base64"
-  admin=$(echo -n admin | base64)
-  new=$(echo -n ducky | base64)
-  d='{ "config": [ { "password_guest": {
-        "admin": "'"$admin"'",
-        "new": "'"$new"'",
-        "confirm": "'"$new"'"
-      } } ] }'
-  $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 0}'
-  check_success
-
-  # TODO(edjames): duckduck does not fail.  Need to catch that.
-  testname "password not base64"
-  new=ducky
-  d='{ "config": [ { "password_guest": {
-        "admin": "'"$admin"'",
-        "new": "'"$new"'",
-        "confirm": "'"$new"'"
-      } } ] }'
-  $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 1}'
-  check_success
 
   testname "process still running at end of test sequence"
   kill -0 $pid
@@ -229,11 +236,8 @@ testname false
 false
 check_failure
 
-# run without https
-run_tests 0
-
-# run with https
-run_tests 1
+# run test suite
+run_tests
 
 # If there's a syntax error in this script, trap 0 will call onexit,
 # so indicate we really hit the end of the script.

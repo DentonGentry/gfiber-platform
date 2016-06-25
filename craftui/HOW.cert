@@ -1,0 +1,42 @@
+# how to create a CA and issue certs and use curl
+
+tmp=tmp-certs
+rm -rf $tmp
+mkdir -p $tmp
+
+# create the rootCA's key
+openssl genrsa -out $tmp/rootCA.key 2048
+
+# create the self-signed rootCA certificate
+openssl req -x509 -new -nodes -key $tmp/rootCA.key -sha256 -days 10 -out $tmp/rootCA.pem << EOF
+US
+California
+Mountain View
+gfiber-embedded-networking
+developer testing
+Ed James
+edjames@google.com
+EOF
+
+fqdn=localhost
+
+# create a device cert (could use existing gfch100 here)
+openssl genrsa -out $tmp/$fqdn.key 2048
+
+# create the signing request for $fqdn (must match URL)
+openssl req -new -key $tmp/$fqdn.key -out $tmp/$fqdn.csr << EOF
+US
+California
+Mountain View
+gfiber-embedded-networking
+developer testing
+$fqdn
+edjames@google.com
+
+
+EOF
+
+openssl x509 -req -in $tmp/$fqdn.csr -CA $tmp/rootCA.pem -CAkey $tmp/rootCA.key -CAcreateserial -out $tmp/$fqdn.pem -days 5 -sha256
+
+# test with 
+# curl --cacert rootCA.pem http://$fqdn:8889/status

@@ -14,7 +14,7 @@
       <h1><img src=static/logo.png alt="Google Fiber"></h1>
       <nav>
         <ul>
-          <li ><a href=/>GFCH100</a></li>
+          <li ><a href=/status>GFCH100</a></li>
           <li class=active><a href=/config>Configuration</a></li>
           <li ><a href={{ peerurl }} target=_blank>Peer</a></li>
         </ul>
@@ -73,7 +73,7 @@
 
     <div class="tab">
       <input type="radio" id="tab-3" name="tab-group-1">
-      <label for="tab-3">Network</label>
+      <label for="tab-3">Addresses</label>
       <div class="content">
         <b>Platform Parameters:</b>
         <table>
@@ -177,7 +177,7 @@
             <td align=right><span id="radio/hiTransceiver/pll/frequency">...</span>
             <td>
               <input id=freq_hi type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('freq_hi')">
+              <input type=submit value=Apply onclick="CraftUI.config('freq_hi')">
             <td>
               <span id=freq_hi_result>...</span>
 
@@ -186,7 +186,7 @@
             <td align=right><span id="radio/loTransceiver/pll/frequency">...</span>
             <td>
               <input id=freq_lo type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('freq_lo')">
+              <input type=submit value=Apply onclick="CraftUI.config('freq_lo')">
             <td>
               <span id=freq_lo_result>...</span>
 
@@ -195,7 +195,7 @@
             <td align=right><span id="radio/hiTransceiver/mode">...</span>
             <td>
               <input id=mode_hi type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('mode_hi')">
+              <input type=submit value=Apply onclick="CraftUI.config('mode_hi')">
             <td>
               <span id=mode_hi_result>...</span>
 
@@ -204,7 +204,7 @@
             <td align=right><span id="modem/status/acmEngineRxSensorsEnabled">...</span>
             <td>
               <input id=acm_on type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('acm_on')">
+              <input type=submit value=Apply onclick="CraftUI.config('acm_on')">
             <td>
               <span id=acm_on_result>...</span>
 
@@ -213,7 +213,7 @@
             <td align=right><span id="radio/tx/paPowerSet">...</span>
             <td>
               <input id=tx_powerlevel type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('tx_powerlevel')">
+              <input type=submit value=Apply onclick="CraftUI.config('tx_powerlevel')">
             <td>
               <span id=tx_powerlevel_result>...</span>
 
@@ -222,7 +222,7 @@
             <td align=right><span id="radio/tx/vgaGain">...</span>
             <td>
               <input id=tx_gain type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('tx_gain')">
+              <input type=submit value=Apply onclick="CraftUI.config('tx_gain')">
             <td>
               <span id=tx_gain_result>...</span>
 
@@ -231,7 +231,7 @@
             <td align=right><span id="radio/rx/agcDigitalGainIndex">...</span>
             <td>
               <input id=rx_gainindex type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('rx_gainindex')">
+              <input type=submit value=Apply onclick="CraftUI.config('rx_gainindex')">
             <td>
               <span id=rx_gainindex_result>...</span>
 
@@ -240,7 +240,7 @@
             <td align=right><span id="radio/paLnaPowerEnabled">...</span>
             <td>
               <input id=palna_on type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('palna_on')">
+              <input type=submit value=Apply onclick="CraftUI.config('palna_on')">
             <td>
               <span id=palna_on_result>...</span>
 
@@ -252,7 +252,8 @@
       <label for="tab-5">Debug</label>
       <div class="content">
         <b>refreshCount:</b><span class="values" id="platform/refreshCount">...</span><br>
-        <b>unhandled xml:</b><span class="values" id="unhandled"></span>
+        <b>unhandled xml:</b><span class="values">
+          <textarea id=unhandled cols=60 rows=30>...</textarea></span><br>
       </div>
     </div>
   </div>

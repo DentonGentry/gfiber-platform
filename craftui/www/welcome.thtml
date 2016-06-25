@@ -1,0 +1,30 @@
+<html>
+<head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+  <meta content="utf-8" http-equiv="encoding">
+  <script src="static/jquery-2.1.4.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="static/craft.css">
+  <link rel=icon href=static/favicon.ico>
+  <link rel=stylesheet href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700&amp;lang=en">
+  <link rel=stylesheet href=static/default.css>
+</head>
+<body>
+  <header>
+    <section>
+      <h1><img src=static/logo.png alt="Google Fiber"></h1>
+    </section>
+  </header>
+  <br>
+  Welcome to the GFCH100.<br>
+
+  To connect securely, use https.  <br>
+  Status: https://{{ipaddr}}/status<br>
+  Configuration: https://{{ipaddr}}/config<br>
+
+  If https is unavailable, you may connect insecurely:<br>
+  Status: http://{{ipaddr}}/status<br>
+  Configuration: http://{{ipaddr}}/config<br>
+
+</body>
+</html>
+<!-- end of welcome.thtml (used by unit test) -->

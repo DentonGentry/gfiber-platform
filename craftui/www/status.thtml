@@ -14,7 +14,7 @@
       <h1><img src=static/logo.png alt="Google Fiber"></h1>
       <nav>
         <ul>
-          <li class=active><a href=/>GFCH100</a></li>
+          <li class=active><a href=/status>GFCH100</a></li>
           <li ><a href=/config>Configuration</a></li>
           <li ><a href={{ peerurl }} target=_blank>Peer</a></li>
         </ul>
@@ -37,7 +37,7 @@
     </div>
     <div class="tab">
       <input type="radio" id="tab-2" name="tab-group-1">
-      <label for="tab-2">Network</label>
+      <label for="tab-2">Addresses</label>
       <div class="content">
         <b>Peer is up:</b><span class="values" id="platform/peer_up">...</span><br>
         <b>IP Addresses:</b>
@@ -73,13 +73,20 @@
 	    <td align=right><span id="platform/active_link_inet">...</span></td>
 	    <td align=right><span id="platform/active_link_inet6">...</span></td></tr>
 	</table>
-        <b>Packet Counters:</b>
+      </div>
+    </div>
+
+    <div class="tab">
+      <input type="radio" id="tab-3" name="tab-group-1">
+      <label for="tab-3">Counters</label>
+      <div class="content">
+        <b>Modem:</b>
         <table>
           <tr>
             <td><b></b></td>
             <td colspan=5 align=center><b>received</b></td>
             <td colspan=5 align=center><b>transmitted</b></td>
-            <td colspan=9 align=center><b>errors</b></td></tr>
+            <td colspan=4 align=center><b>errors</b></td></tr>
           <tr>
             <td align=center><b>interface</b></td>
 
@@ -95,15 +102,11 @@
             <td align=center><b>broadcast</b></td>
             <td align=center><b>unicast</b></td>
 
-            <td align=center><b>rx errors</b></td>
-            <td align=center><b>rx dropped</b></td>
             <td align=center><b>rx CRC</b></td>
             <td align=center><b>rx Undersize</b></td>
-            <td align=center><b>tx errors</b></td>
-            <td align=center><b>tx dropped</b></td>
             <td align=center><b>tx CRC</b></td>
             <td align=center><b>tx Undersize</b></td>
-            <td align=center><b>collisions</b></td>
+
           <tr>
             <td><b>Modem (from/to switch)<b></td>
             <td align=right><span id="modem/network/rxCounters/bytes">...</span></td>
@@ -118,16 +121,36 @@
 	    <td align=right><span id="modem/network/txCounters/broadcast">...</span></td>
 	    <td align=right><span id="modem/network/txCounters/unicast">...</span></td>
 
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="modem/network/rxCounters/crcErrors">...</span></td>
             <td align=right><span id="modem/network/rxCounters/framesUndersized">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="modem/network/txCounters/crcErrors">...</span></td>
             <td align=right><span id="modem/network/txCounters/framesUndersized">...</span></td>
-            <td align=right>-</td></tr>
+        </table>
 
+        <b>SOC (CPU):</b>
+        <table>
+          <tr>
+            <td><b></b></td>
+            <td colspan=5 align=center><b>received</b></td>
+            <td colspan=2 align=center><b>transmitted</b></td>
+            <td colspan=5 align=center><b>errors</b></td></tr>
+          <tr>
+            <td align=center><b>interface</b></td>
+
+            <td align=center><b>bytes</b></td>
+            <td align=center><b>frames</b></td>
+            <td align=center><b>multicast</b></td>
+            <td align=center><b>broadcast</b></td>
+            <td align=center><b>unicast</b></td>
+
+            <td align=center><b>bytes</b></td>
+            <td align=center><b>frames</b></td>
+
+            <td align=center><b>rx errors</b></td>
+            <td align=center><b>rx dropped</b></td>
+            <td align=center><b>tx errors</b></td>
+            <td align=center><b>tx dropped</b></td>
+            <td align=center><b>collisions</b></td>
 	  <tr>
             <td><b>Craft<b></td>
             <td align=right><span id="platform/craft_rx_bytes">...</span></td>
@@ -138,18 +161,11 @@
 
             <td align=right><span id="platform/craft_tx_bytes">...</span></td>
             <td align=right><span id="platform/craft_tx_packets">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
 
             <td align=right><span id="platform/craft_rx_errors">...</span></td>
             <td align=right><span id="platform/craft_rx_dropped">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="platform/craft_tx_errors">...</span></td>
             <td align=right><span id="platform/craft_tx_dropped">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="platform/craft_collisions">...</span></td>
 
 	  <tr>
@@ -162,18 +178,11 @@
 
             <td align=right><span id="platform/bridge_tx_bytes">...</span></td>
             <td align=right><span id="platform/bridge_tx_packets">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
 
             <td align=right><span id="platform/bridge_rx_errors">...</span></td>
             <td align=right><span id="platform/bridge_rx_dropped">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="platform/bridge_tx_errors">...</span></td>
             <td align=right><span id="platform/bridge_tx_dropped">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="platform/bridge_collisions">...</span></td>
 
 	  <tr>
@@ -186,18 +195,11 @@
 
             <td align=right><span id="platform/ooband_tx_bytes">...</span></td>
             <td align=right><span id="platform/ooband_tx_packets">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
 
             <td align=right><span id="platform/ooband_rx_errors">...</span></td>
             <td align=right><span id="platform/ooband_rx_dropped">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="platform/ooband_tx_errors">...</span></td>
             <td align=right><span id="platform/ooband_tx_dropped">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="platform/ooband_collisions">...</span></td>
 
 	  <tr>
@@ -210,122 +212,87 @@
 
             <td align=right><span id="platform/link_tx_bytes">...</span></td>
             <td align=right><span id="platform/link_tx_packets">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
 
             <td align=right><span id="platform/link_rx_errors">...</span></td>
             <td align=right><span id="platform/link_rx_dropped">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="platform/link_tx_errors">...</span></td>
             <td align=right><span id="platform/link_tx_dropped">...</span></td>
-            <td align=right>-</td>
-            <td align=right>-</td>
             <td align=right><span id="platform/link_collisions">...</span></td>
+        </table>
+
+        <b>Switch:</b>
+        <table>
+          <tr>
+            <td><b></b></td>
+            <td colspan=4 align=center><b>received</b></td>
+            <td colspan=4 align=center><b>transmitted</b></td>
+          <tr>
+            <td align=center><b>interface</b></td>
+
+            <td align=center><b>bytes</b></td>
+            <td align=center><b>multicast</b></td>
+            <td align=center><b>broadcast</b></td>
+            <td align=center><b>unicast</b></td>
+
+            <td align=center><b>bytes</b></td>
+            <td align=center><b>multicast</b></td>
+            <td align=center><b>broadcast</b></td>
+            <td align=center><b>unicast</b></td>
 
           <tr>
             <td><b>Switch Port 0/0 (PoE)</b></td>
             <td align=right><span id="platform/switch/0/0/bytes_received">...</span></td>
-            <td align=right>-</td>
             <td align=right><span id="platform/switch/0/0/multicast_packets_received">...</span></td>
             <td align=right><span id="platform/switch/0/0/broadcast_packets_received">...</span></td>
             <td align=right><span id="platform/switch/0/0/unicast_packets_received">...</span></td>
 
             <td align=right><span id="platform/switch/0/0/bytes_sent">...</span></td>
-            <td align=right>-</td>
             <td align=right><span id="platform/switch/0/0/multicast_packets_sent">...</span></td>
             <td align=right><span id="platform/switch/0/0/broadcast_packets_sent">...</span></td>
             <td align=right><span id="platform/switch/0/0/unicast_packets_sent">...</span></td>
 
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-
           <tr>
             <td><b>Switch Port 0/4 (SOC)</b></td>
             <td align=right><span id="platform/switch/0/4/bytes_received">...</span></td>
-            <td align=right>-</td>
             <td align=right><span id="platform/switch/0/4/multicast_packets_received">...</span></td>
             <td align=right><span id="platform/switch/0/4/broadcast_packets_received">...</span></td>
             <td align=right><span id="platform/switch/0/4/unicast_packets_received">...</span></td>
 
             <td align=right><span id="platform/switch/0/4/bytes_sent">...</span></td>
-            <td align=right>-</td>
             <td align=right><span id="platform/switch/0/4/multicast_packets_sent">...</span></td>
             <td align=right><span id="platform/switch/0/4/broadcast_packets_sent">...</span></td>
             <td align=right><span id="platform/switch/0/4/unicast_packets_sent">...</span></td>
 
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-
           <tr>
             <td><b>Switch Port 0/24 (modem)</b></td>
             <td align=right><span id="platform/switch/0/24/bytes_received">...</span></td>
-            <td align=right>-</td>
             <td align=right><span id="platform/switch/0/24/multicast_packets_received">...</span></td>
             <td align=right><span id="platform/switch/0/24/broadcast_packets_received">...</span></td>
             <td align=right><span id="platform/switch/0/24/unicast_packets_received">...</span></td>
 
             <td align=right><span id="platform/switch/0/24/bytes_sent">...</span></td>
-            <td align=right>-</td>
             <td align=right><span id="platform/switch/0/24/multicast_packets_sent">...</span></td>
             <td align=right><span id="platform/switch/0/24/broadcast_packets_sent">...</span></td>
             <td align=right><span id="platform/switch/0/24/unicast_packets_sent">...</span></td>
 
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-
           <tr>
             <td><b>Switch Port 0/25 (SFP+)</b></td>
             <td align=right><span id="platform/switch/0/25/bytes_received">...</span></td>
-            <td align=right>-</td>
             <td align=right><span id="platform/switch/0/25/multicast_packets_received">...</span></td>
             <td align=right><span id="platform/switch/0/25/broadcast_packets_received">...</span></td>
             <td align=right><span id="platform/switch/0/25/unicast_packets_received">...</span></td>
 
             <td align=right><span id="platform/switch/0/25/bytes_sent">...</span></td>
-            <td align=right>-</td>
             <td align=right><span id="platform/switch/0/25/multicast_packets_sent">...</span></td>
             <td align=right><span id="platform/switch/0/25/broadcast_packets_sent">...</span></td>
             <td align=right><span id="platform/switch/0/25/unicast_packets_sent">...</span></td>
-
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
-            <td align=right>-</td>
 
         </table>
       </div>
     </div>
     <div class="tab">
-      <input type="radio" id="tab-3" name="tab-group-1">
-      <label for="tab-3">Modem</label>
+      <input type="radio" id="tab-4" name="tab-group-1">
+      <label for="tab-4">Modem</label>
       <div class="content">
         <b>Chip:</b><span class="values" id="modem/version/api/chipType">...</span><br>
         <b>Firmware:</b><span class="values" id="modem/firmware">...</span><br>
@@ -390,8 +357,8 @@
       </div>
     </div>
     <div class="tab">
-      <input type="radio" id="tab-4" name="tab-group-1">
-      <label for="tab-4">Radio</label>
+      <input type="radio" id="tab-5" name="tab-group-1">
+      <label for="tab-5">Radio</label>
       <div class="content">
         <b>Hardware Version:</b><span class="values">
           <span id="radio/version/hardware/type">...</span>&nbsp;
@@ -479,19 +446,20 @@
       </div>
     </div>
     <div class="tab">
-      <input type="radio" id="tab-5" name="tab-group-1">
-      <label for="tab-5">Debug</label>
+      <input type="radio" id="tab-6" name="tab-group-1">
+      <label for="tab-6">Debug</label>
       <div class="content">
         <form action=/startisostream method=post>
           {% module xsrf_form_html() %}
           <button id="isostream_button">Run Test</button>
         </form>
         <b>refreshCount:</b><span class="values" id="platform/refreshCount">...</span><br>
-        <b>unhandled xml:</b><span class="values" id="unhandled"></span>
+        <b>unhandled xml:</b><span class="values">
+          <textarea id=unhandled cols=60 rows=30>...</textarea></span><br>
       </div>
     </div>
   </div>
   <script src="static/craft.js"></script>
 </body>
 </html>
-<!-- end of index.thtml (used by unit test) -->
+<!-- end of status.thtml (used by unit test) -->

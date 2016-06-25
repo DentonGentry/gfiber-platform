@@ -372,12 +372,11 @@ class CraftUI(object):
   ]
   realm = 'gfch100'
 
-  def __init__(self, wwwroot, http_port, https_port, use_https, sim):
+  def __init__(self, wwwroot, http_port, https_port, sim):
     """initialize."""
     self.wwwroot = wwwroot
     self.http_port = http_port
     self.https_port = https_port
-    self.use_https = use_https
     self.sim = sim
     self.data = {}
     self.data['refreshCount'] = 0
@@ -565,25 +564,24 @@ class CraftUI(object):
       return False
     return True
 
-  class RedirectHandler(tornado.web.RequestHandler):
-    """Redirect to the https_port."""
+  class WelcomeHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
+    """Displays the Welcome page."""
 
     def get(self):
       ui = self.settings['ui']
-      print 'GET craft redirect page'
-      host = re.sub(r':.*', '', self.request.host)
-      port = ui.https_port
-      self.redirect('https://%s:%d/' % (host, port))
+      # no auth required for welcome page
+      print 'GET welcome HTML page'
+      self.render(ui.wwwroot + '/welcome.thtml', ipaddr='xxx')
 
-  class MainHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
-    """Displays the Craft UI."""
+  class StatusHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
+    """Displays the Status page."""
 
     def get(self):
       ui = self.settings['ui']
       if not ui.Authenticate(self):
         return
-      print 'GET craft HTML page'
-      self.render(ui.wwwroot + '/index.thtml', peerurl='/?peer=1')
+      print 'GET status HTML page'
+      self.render(ui.wwwroot + '/status.thtml', peerurl='/status/?peer=1')
 
   class ConfigHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
     """Displays the Config page."""
@@ -659,32 +657,35 @@ class CraftUI(object):
     """Create the http redirect and https web server and run forever."""
     sim = self.sim
 
-    redirect_handlers = [
-        (r'.*', self.RedirectHandler),
-    ]
     craftui_handlers = [
-        (r'/', self.MainHandler),
-        (r'/config', self.ConfigHandler),
-        (r'/content.json', self.JsonHandler),
-        (r'/restart', self.RestartHandler),
-        (r'/static/([^/]*)$', tornado.web.StaticFileHandler,
+        (r'^/$', self.WelcomeHandler),
+        (r'^/status/?$', self.StatusHandler),
+        (r'^/config/?$', self.ConfigHandler),
+        (r'^/content.json/?$', self.JsonHandler),
+        (r'^/restart/?$', self.RestartHandler),
+        (r'^/static/([^/]*)$', tornado.web.StaticFileHandler,
          {'path': self.wwwroot + '/static'}),
     ]
 
-    http_handlers = redirect_handlers if self.use_https else craftui_handlers
-
-    http_app = tornado.web.Application(http_handlers)
+    http_app = tornado.web.Application(craftui_handlers)
     http_app.settings['ui'] = self
     http_app.listen(self.http_port)
 
-    if self.use_https:
-      https_app = tornado.web.Application(craftui_handlers)
-      https_app.settings['ui'] = self
-      https_server = tornado.httpserver.HTTPServer(https_app, ssl_options={
-          'certfile': sim + '/tmp/ssl/certs/device.pem',
-          'keyfile': sim + '/tmp/ssl/private/device.key'
-      })
-      https_server.listen(self.https_port)
+    certfile = sim + '/tmp/ssl/certs/craftui.pem'
+    keyfile = sim + '/tmp/ssl/private/craftui.key'
+    # use the device cert if signed one is not available
+    if not os.path.exists(certfile) or not os.path.exists(keyfile):
+      certfile = sim + '/tmp/ssl/certs/device.pem'
+      keyfile = sim + '/tmp/ssl/private/device.key'
+
+    print 'certfile=', certfile
+    print 'keyfile=', keyfile
+
+    https_app = tornado.web.Application(craftui_handlers)
+    https_app.settings['ui'] = self
+    https_server = tornado.httpserver.HTTPServer(https_app, ssl_options={
+        'certfile': certfile, 'keyfile': keyfile})
+    https_server.listen(self.https_port)
 
     ioloop = tornado.ioloop.IOLoop.instance()
     ioloop.start()
@@ -700,12 +701,10 @@ def main():
   www = '/usr/craftui/www'
   http_port = 80
   https_port = 443
-  use_https = False
   sim = ''
   try:
     opts, args = getopt.getopt(sys.argv[1:], 's:p:P:w:S',
-                               ['sim=', 'http-port=', 'https-port=', 'www=',
-                                'use-https='])
+                               ['sim=', 'http-port=', 'https-port=', 'www='])
   except getopt.GetoptError as err:
     # print help information and exit:
     print str(err)
@@ -718,8 +717,6 @@ def main():
       http_port = int(a)
     elif o in ('-P', '--https-port'):
       https_port = int(a)
-    elif o in ('-S', '--use-https'):
-      use_https = True
     elif o in ('-w', '--www'):
       www = a
     else:
@@ -730,7 +727,7 @@ def main():
     assert False, 'extra args'
     Usage()
     sys.exit(1)
-  craftui = CraftUI(www, http_port, https_port, use_https, sim)
+  craftui = CraftUI(www, http_port, https_port, sim)
   craftui.RunUI()
 
 
