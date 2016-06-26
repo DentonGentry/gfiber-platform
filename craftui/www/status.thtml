@@ -131,7 +131,7 @@
         <table>
           <tr>
             <td><b></b></td>
-            <td colspan=5 align=center><b>received</b></td>
+            <td colspan=3 align=center><b>received</b></td>
             <td colspan=2 align=center><b>transmitted</b></td>
             <td colspan=5 align=center><b>errors</b></td></tr>
           <tr>
@@ -140,8 +140,6 @@
             <td align=center><b>bytes</b></td>
             <td align=center><b>frames</b></td>
             <td align=center><b>multicast</b></td>
-            <td align=center><b>broadcast</b></td>
-            <td align=center><b>unicast</b></td>
 
             <td align=center><b>bytes</b></td>
             <td align=center><b>frames</b></td>
@@ -156,8 +154,6 @@
             <td align=right><span id="platform/craft_rx_bytes">...</span></td>
             <td align=right><span id="platform/craft_rx_packets">...</span></td>
             <td align=right><span id="platform/craft_multicast">...</span></td>
-            <td align=right><span id="platform/craft_broadcast">...</span></td>
-            <td align=right><span id="platform/craft_unicast">...</span></td>
 
             <td align=right><span id="platform/craft_tx_bytes">...</span></td>
             <td align=right><span id="platform/craft_tx_packets">...</span></td>
@@ -173,8 +169,6 @@
             <td align=right><span id="platform/bridge_rx_bytes">...</span></td>
             <td align=right><span id="platform/bridge_rx_packets">...</span></td>
             <td align=right><span id="platform/bridge_multicast">...</span></td>
-            <td align=right><span id="platform/bridge_broadcast">...</span></td>
-            <td align=right><span id="platform/bridge_unicast">...</span></td>
 
             <td align=right><span id="platform/bridge_tx_bytes">...</span></td>
             <td align=right><span id="platform/bridge_tx_packets">...</span></td>
@@ -190,8 +184,6 @@
             <td align=right><span id="platform/ooband_rx_bytes">...</span></td>
             <td align=right><span id="platform/ooband_rx_packets">...</span></td>
             <td align=right><span id="platform/ooband_multicast">...</span></td>
-            <td align=right><span id="platform/ooband_broadcast">...</span></td>
-            <td align=right><span id="platform/ooband_unicast">...</span></td>
 
             <td align=right><span id="platform/ooband_tx_bytes">...</span></td>
             <td align=right><span id="platform/ooband_tx_packets">...</span></td>
@@ -207,8 +199,6 @@
             <td align=right><span id="platform/link_rx_bytes">...</span></td>
             <td align=right><span id="platform/link_rx_packets">...</span></td>
             <td align=right><span id="platform/link_multicast">...</span></td>
-            <td align=right><span id="platform/link_broadcast">...</span></td>
-            <td align=right><span id="platform/link_unicast">...</span></td>
 
             <td align=right><span id="platform/link_tx_bytes">...</span></td>
             <td align=right><span id="platform/link_tx_packets">...</span></td>
