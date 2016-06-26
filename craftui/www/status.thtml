@@ -41,38 +41,38 @@
       <div class="content">
         <b>Peer is up:</b><span class="values" id="platform/peer_up">...</span><br>
         <b>IP Addresses:</b>
-	<table>
-	  <tr>
+        <table>
+          <tr>
             <td align=center><b>Port</b></td>
             <td align=center><b>MAC</b></td>
             <td align=center><b>VLAN</b></td>
             <td align=center><b>IPv4</b></td>
             <td align=center><b>IPv6</b></td></tr>
-	  <tr>
+          <tr>
             <td><b>Craft</b></td>
-	    <td align=right><span id="platform/craft_mac">...</span></td>
-	    <td align=right>-</td>
-	    <td align=right><span id="platform/active_craft_inet">...</span></td>
-	    <td align=right><span id="platform/active_craft_inet6">...</span></td></tr>
-	  <tr>
+            <td align=right><span id="platform/craft_mac">...</span></td>
+            <td align=right>-</td>
+            <td align=right><span id="platform/active_craft_inet">...</span></td>
+            <td align=right><span id="platform/active_craft_inet6">...</span></td></tr>
+          <tr>
             <td><b>In-Band</b></td>
-	    <td align=right><span id="platform/bridge_mac">...</span></td>
-	    <td align=right><span id="platform/active_inband_vlan">...</span></td>
-	    <td align=right><span id="platform/active_bridge_inet">...</span></td>
-	    <td align=right><span id="platform/active_bridge_inet6">...</span></td></tr>
-	  <tr>
+            <td align=right><span id="platform/bridge_mac">...</span></td>
+            <td align=right><span id="platform/active_inband_vlan">...</span></td>
+            <td align=right><span id="platform/active_bridge_inet">...</span></td>
+            <td align=right><span id="platform/active_bridge_inet6">...</span></td></tr>
+          <tr>
             <td><b>Out-of-Band (PoE)</b></td>
-	    <td align=right><span id="platform/ooband_mac">...</span></td>
-	    <td align=right><span id="platform/active_ooband_vlan">...</span></td>
-	    <td align=right><span id="platform/active_ooband_inet">...</span></td>
-	    <td align=right><span id="platform/active_ooband_inet6">...</span></td></tr>
-	  <tr>
+            <td align=right><span id="platform/ooband_mac">...</span></td>
+            <td align=right><span id="platform/active_ooband_vlan">...</span></td>
+            <td align=right><span id="platform/active_ooband_inet">...</span></td>
+            <td align=right><span id="platform/active_ooband_inet6">...</span></td></tr>
+          <tr>
             <td><b>Link (to peer)</b></td>
-	    <td align=right><span id="platform/link_mac">...</span></td>
-	    <td align=right><span id="platform/active_link_vlan">...</span></td>
-	    <td align=right><span id="platform/active_link_inet">...</span></td>
-	    <td align=right><span id="platform/active_link_inet6">...</span></td></tr>
-	</table>
+            <td align=right><span id="platform/link_mac">...</span></td>
+            <td align=right><span id="platform/active_link_vlan">...</span></td>
+            <td align=right><span id="platform/active_link_inet">...</span></td>
+            <td align=right><span id="platform/active_link_inet6">...</span></td></tr>
+        </table>
       </div>
     </div>
 
@@ -111,15 +111,15 @@
             <td><b>Modem (from/to switch)<b></td>
             <td align=right><span id="modem/network/rxCounters/bytes">...</span></td>
             <td align=right><span id="modem/network/rxCounters/frames">...</span></td>
-	    <td align=right><span id="modem/network/rxCounters/multicast">...</span></td>
-	    <td align=right><span id="modem/network/rxCounters/broadcast">...</span></td>
-	    <td align=right><span id="modem/network/rxCounters/unicast">...</span></td>
+            <td align=right><span id="modem/network/rxCounters/multicast">...</span></td>
+            <td align=right><span id="modem/network/rxCounters/broadcast">...</span></td>
+            <td align=right><span id="modem/network/rxCounters/unicast">...</span></td>
 
             <td align=right><span id="modem/network/txCounters/bytes">...</span></td>
             <td align=right><span id="modem/network/txCounters/frames">...</span></td>
-	    <td align=right><span id="modem/network/txCounters/multicast">...</span></td>
-	    <td align=right><span id="modem/network/txCounters/broadcast">...</span></td>
-	    <td align=right><span id="modem/network/txCounters/unicast">...</span></td>
+            <td align=right><span id="modem/network/txCounters/multicast">...</span></td>
+            <td align=right><span id="modem/network/txCounters/broadcast">...</span></td>
+            <td align=right><span id="modem/network/txCounters/unicast">...</span></td>
 
             <td align=right><span id="modem/network/rxCounters/crcErrors">...</span></td>
             <td align=right><span id="modem/network/rxCounters/framesUndersized">...</span></td>
@@ -151,7 +151,7 @@
             <td align=center><b>tx errors</b></td>
             <td align=center><b>tx dropped</b></td>
             <td align=center><b>collisions</b></td>
-	  <tr>
+          <tr>
             <td><b>Craft<b></td>
             <td align=right><span id="platform/craft_rx_bytes">...</span></td>
             <td align=right><span id="platform/craft_rx_packets">...</span></td>
@@ -168,7 +168,7 @@
             <td align=right><span id="platform/craft_tx_dropped">...</span></td>
             <td align=right><span id="platform/craft_collisions">...</span></td>
 
-	  <tr>
+          <tr>
             <td><b>In-Band<b></td>
             <td align=right><span id="platform/bridge_rx_bytes">...</span></td>
             <td align=right><span id="platform/bridge_rx_packets">...</span></td>
@@ -185,7 +185,7 @@
             <td align=right><span id="platform/bridge_tx_dropped">...</span></td>
             <td align=right><span id="platform/bridge_collisions">...</span></td>
 
-	  <tr>
+          <tr>
             <td><b>Out-of-Band (PoE)<b></td>
             <td align=right><span id="platform/ooband_rx_bytes">...</span></td>
             <td align=right><span id="platform/ooband_rx_packets">...</span></td>
@@ -202,7 +202,7 @@
             <td align=right><span id="platform/ooband_tx_dropped">...</span></td>
             <td align=right><span id="platform/ooband_collisions">...</span></td>
 
-	  <tr>
+          <tr>
             <td><b>Link (to peer)<b></td>
             <td align=right><span id="platform/link_rx_bytes">...</span></td>
             <td align=right><span id="platform/link_rx_packets">...</span></td>
@@ -368,6 +368,7 @@
           <span id="radio/version/software/major">?</span>.<span id="radio/version/software/minor">?</span>.<span id="radio/version/software/build">?</span>
         </span><br>
         <b>RSSI:</b><span class="values" id="radio/rx/rssi">...</span><br>
+        <b>RSL:</b><span class="values" id="radio/rx/rsl">...</span><br>
         <b>PA Temp:</b><span class="values" id="radio/tx/paTemp">...</span><br>
         <b>MCU Temp:</b><span class="values" id="radio/mcuTemp">...</span><br>
         <b>Heater Enabled:</b><span class="values" id="radio/heaterEnabled">...</span><br>
