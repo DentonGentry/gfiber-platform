@@ -236,6 +236,16 @@ const FanControlParams FanControl::kGFLT300FanCtrlSocDefaults = {
                           temp_overheat : 97,
                         };
 
+const FanControlParams FanControl::kGFCH100FanCtrlSocDefaults = {
+                          temp_setpt    : 0,  /* No fan */
+                          temp_max      : 0,
+                          temp_step     : 0,
+                          duty_cycle_min: 0,
+                          duty_cycle_max: 0,
+                          pwm_step      : 0,
+                          temp_overheat : 97,
+                        };
+
 FanControl::~FanControl() {
   Terminate();
 }
@@ -322,6 +332,9 @@ void FanControl::InitParams() {
       break;
     case BRUNO_GFLT300:
       pfan_ctrl_params_[BRUNO_SOC] = kGFLT300FanCtrlSocDefaults;
+      break;
+    case BRUNO_GFCH100:
+      pfan_ctrl_params_[BRUNO_SOC] = kGFCH100FanCtrlSocDefaults;
       break;
     case BRUNO_UNKNOWN:
       LOG(LS_ERROR) << "Invalid platform type, ignore ... " << platform_;
