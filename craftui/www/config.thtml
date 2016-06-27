@@ -200,6 +200,15 @@
               <span id=mode_hi_result>...</span>
 
           <tr>
+            <td><b>ACM enabled
+            <td align=right><span id="modem/status/acmEngineRxSensorsEnabled">...</span>
+            <td>
+              <input id=acm_on type=text value="">
+              <input type=submit value=Configure onclick="CraftUI.config('acm_on')">
+            <td>
+              <span id=acm_on_result>...</span>
+
+          <tr>
             <td><b>Transmit Power (dB x 100)
             <td align=right><span id="radio/tx/paPowerSet">...</span>
             <td>

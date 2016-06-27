@@ -257,11 +257,10 @@ class Glaukus(Config):
     self.api = api
     self.fmt = fmt
 
-  def Configure(self):
+  def CallJson(self, url, payload):
     """Handle a JSON request to glaukusd."""
-    url = 'http://localhost:8080' + self.api
-    payload = self.fmt % self.validator.config
     print 'Glaukus: ', url, payload
+
     try:
       fd = urllib2.urlopen(url, payload)
     except urllib2.URLError as ex:
@@ -274,6 +273,33 @@ class Glaukus(Config):
       if j['message']:
         raise ConfigError(j.message)
       raise ConfigError('failed to configure glaukus')
+
+  def Configure(self):
+    url = 'http://localhost:8080' + self.api
+    payload = self.fmt % self.validator.config
+    self.CallJson(url, payload)
+
+
+class GlaukusACM(Glaukus):
+  """Configure glaukus ACM."""
+
+  def __init__(self, validator):
+    super(GlaukusACM, self).__init__(validator, '/unused', 'unused')
+
+  def Configure(self):
+    enable = self.validator.config
+    if enable:
+      url = '/api/modem/acm'
+      payload = '{"rxSensorsEnabled":true,"txSwitchEnabled":true}'
+      self.CallJson(url, payload)
+    else:
+      url = '/api/modem/acm'
+      payload = '{"rxSensorsEnabled":false,"txSwitchEnabled":false}'
+      self.CallJson(url, payload)
+
+      url = '/api/modem/acm/profile'
+      payload = '{"profileIndex":0,"isLocal":true}'
+      self.CallJson(url, payload)
 
 
 class Reboot(Config):
@@ -315,6 +341,8 @@ class CraftUI(object):
       'rx_gainindex': Glaukus(VGainIndex, '/api/radio/rx/agcDigitalGainIndex',
                               '%s'),
       'palna_on': Glaukus(VTrueFalse, '/api/radio/paLnaPowerEnabled', '%s'),
+
+      'acm_on': GlaukusACM(VTrueFalse),
 
       'reboot': Reboot(VTrueFalse)
   }
