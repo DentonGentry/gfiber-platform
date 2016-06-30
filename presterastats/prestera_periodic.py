@@ -18,6 +18,7 @@
 __author__ = 'poist@google.com (Gregory Poist)'
 
 import errno
+import json
 import os
 import subprocess
 import sys
@@ -44,6 +45,38 @@ class PresteraPeriodic(object):
     self.interval = interval
     self.ports_output_file = os.path.join(self.OUTPUT_DIR, 'ports.json')
 
+  def _FlatObject(self, base, obj, out):
+    """Open json object to a list of strings.
+
+    Args:
+      base: is a string that has a base name for a key.
+      obj: is a JSON object that will be flatten.
+      out: is an output where strings will be appended.
+
+    Example:
+         data = {"a": 1, "b": { "c": 2, "d": 3}}
+         out = []
+         _FlatObject('', data, out)
+
+         out will be equal to
+           [u'/a=1', u'/b/c=2', u'/b/d=3']
+    """
+    for k, v in obj.items():
+      name = base + '/' + k
+      if isinstance(v, dict):
+        self._FlatObject(name, v, out)
+      else:
+        val = '%s=' % name
+        out.append(val + str(v))
+
+  def _PrintStats(self, port_stats):
+    json_data = json.loads(port_stats)
+    flat_data = []
+    self._FlatObject('', json_data, flat_data)
+    for s in flat_data:
+      sys.stderr.write('%s\n' % s)
+      sys.stderr.flush()
+
   def WriteToStderr(self, msg):
     """Write a message to stderr."""
 
@@ -62,10 +95,14 @@ class PresteraPeriodic(object):
     ports_stats = ''
     try:
       ports_stats = self.RunPresteraStats()
+      if ports_stats:
+        self._PrintStats(ports_stats)
     except OSError as ex:
       self.WriteToStderr('Failed to run presterastats: %s\n' % ex)
     except subprocess.CalledProcessError as ex:
       self.WriteToStderr('presterastats exited non-zero: %s\n' % ex)
+    except ValueError as ex:
+      self.WriteToStderr('Failed to parse presterastats output: %s\n' % ex)
 
     if not ports_stats:
       self.WriteToStderr('Failed to get data from presterastats\n')
