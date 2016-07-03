@@ -2,10 +2,13 @@ PYTHON?=python
 
 all: build
 
-test: tax_signature
+test: tax_signature anonymize_pcap
 	set -e; \
 	for d in $(wildcard tests/*_test.py); do \
 		PYTHONPATH=. $(PYTHON) $$d; \
+	done
+	for d in $(wildcard tests/*_test.sh); do \
+		$$d; \
 	done
 	PYTHONPATH=. $(PYTHON) ./pcaptest.py
 
@@ -31,12 +34,13 @@ BINDIR=$(DESTDIR)/bin
 
 CFLAGS += -g -Os -Wall -Werror $(EXTRACFLAGS)
 LDFLAGS += $(EXTRALDFLAGS)
-
-SRCS = tax_signature.c
 INCS =
 
-tax_signature: $(SRCS) $(INCS)
-	$(CC) $(CFLAGS) $(SRCS) -o $@ $(LDFLAGS) -lpcap
+tax_signature: tax_signature.o $(INCS)
+	$(CC) $(CFLAGS) -I$(HOSTDIR)/usr/include tax_signature.c -o $@ $(LDFLAGS) -lpcap
+
+anonymize_pcap: anonymize_pcap.o $(INCS)
+	$(CC) $(CFLAGS) -I$(HOSTDIR)/usr/include anonymize_pcap.c -o $@ $(LDFLAGS) -lpcap
 
 clean:
-	rm -f tax_signature *.o
+	rm -f tax_signature anonymize_pcap *.o
