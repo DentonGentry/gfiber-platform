@@ -134,9 +134,9 @@ run_tests() {
 
     for auth in "" "$baduser_auth" "$badpass_auth"; do
       for n in status config content.json; do
-	testname "page $n bad auth ($url, $auth)"
-	$curl $auth $url/$n |& grep 'WWW-Authenticate: Digest'
-	check_success
+        testname "page $n bad auth ($url, $auth)"
+        $curl $auth $url/$n |& grep 'WWW-Authenticate: Digest'
+        check_success
       done
     done
 
@@ -185,10 +185,10 @@ run_tests() {
     admin=$(echo -n admin | base64)
     new=$(echo -n ducky | base64)
     d='{ "config": [ { "password_guest": {
-	  "admin": "'"$admin"'",
-	  "new": "'"$new"'",
-	  "confirm": "'"$new"'"
-	} } ] }'
+          "admin": "'"$admin"'",
+          "new": "'"$new"'",
+          "confirm": "'"$new"'"
+        } } ] }'
     $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 0}'
     check_success
 
@@ -196,10 +196,10 @@ run_tests() {
     testname "password not base64 ($url)"
     new=ducky
     d='{ "config": [ { "password_guest": {
-	  "admin": "'"$admin"'",
-	  "new": "'"$new"'",
-	  "confirm": "'"$new"'"
-	} } ] }'
+          "admin": "'"$admin"'",
+          "new": "'"$new"'",
+          "confirm": "'"$new"'"
+        } } ] }'
     $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 1}'
     check_success
 

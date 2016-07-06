@@ -307,7 +307,17 @@ class Reboot(Config):
 
   def Configure(self):
     if self.validator.config == 'true':
-      Config.Run(['reboot'])
+      cmd = '(sleep 5; reboot)&'
+      os.system(cmd)
+
+
+class FactoryReset(Config):
+  """Factory Reset."""
+
+  def Configure(self):
+    if self.validator.config == 'true':
+      cmd = 'zap --i-really-mean-it --erase-backups && ((sleep 5; reboot) &)'
+      os.system(cmd)
 
 
 class CraftUI(object):
@@ -344,7 +354,8 @@ class CraftUI(object):
 
       'acm_on': GlaukusACM(VTrueFalse),
 
-      'reboot': Reboot(VTrueFalse)
+      'reboot': Reboot(VTrueFalse),
+      'factory_reset': FactoryReset(VTrueFalse)
   }
   ifmap = {
       'craft0': 'craft',
@@ -465,7 +476,10 @@ class CraftUI(object):
       stats = subprocess.check_output(['presterastats'])
     except subprocess.CalledProcessError as e:
       print 'warning: "presterastats" failed: ', e
-    data['switch'] = json.loads(stats)['port-interface-statistics']
+    try:
+      data['switch'] = json.loads(stats)['port-interface-statistics']
+    except ValueError as e:
+      print 'warning: "presterastats" json parse failed: ', e
 
   def AddVlans(self, data):
     """Run ip -d link and parse results for vlans."""
@@ -593,24 +607,6 @@ class CraftUI(object):
       print 'GET config HTML page'
       self.render(ui.wwwroot + '/config.thtml', peerurl='/config/?peer=1')
 
-  class RestartHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
-    """Restart the box."""
-
-    def get(self):
-      ui = self.settings['ui']
-      if not ui.Authenticate(self):
-        return
-      print 'displaying restart interstitial screen'
-      self.render('restarting.html')
-
-    def post(self):
-      ui = self.settings['ui']
-      if not ui.AuthenticateAdmin(self):
-        return
-      print 'user requested restart'
-      self.redirect('/restart')
-      os.system('(sleep 5; reboot) &')
-
   class JsonHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
     """Provides JSON-formatted content to be displayed in the UI."""
 
@@ -662,7 +658,6 @@ class CraftUI(object):
         (r'^/status/?$', self.StatusHandler),
         (r'^/config/?$', self.ConfigHandler),
         (r'^/content.json/?$', self.JsonHandler),
-        (r'^/restart/?$', self.RestartHandler),
         (r'^/static/([^/]*)$', tornado.web.StaticFileHandler,
          {'path': self.wwwroot + '/static'}),
     ]

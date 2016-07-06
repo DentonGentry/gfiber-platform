@@ -440,10 +440,6 @@
       <input type="radio" id="tab-6" name="tab-group-1">
       <label for="tab-6">Debug</label>
       <div class="content">
-        <form action=/startisostream method=post>
-          {% module xsrf_form_html() %}
-          <button id="isostream_button">Run Test</button>
-        </form>
         <b>refreshCount:</b><span class="values" id="platform/refreshCount">...</span><br>
         <b>unhandled xml:</b><span class="values">
           <textarea id=unhandled cols=60 rows=30>...</textarea></span><br>

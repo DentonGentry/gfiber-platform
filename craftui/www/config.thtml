@@ -247,15 +247,36 @@
         </table>
       </div>
     </div>
+
     <div class="tab">
       <input type="radio" id="tab-5" name="tab-group-1">
-      <label for="tab-5">Debug</label>
+      <label for="tab-5">Reboot</label>
+      <div class="content">
+        <input hidden id=reboot type=text value="true">
+        <input type=submit value=Reboot onclick="CraftUI.config('reboot')">
+        <span class="values">
+          <span id=reboot_result>...</span>
+        </span>
+        <br>
+        <br>
+        <input hidden id=factory_reset type=text value="true">
+        <input type=submit value="Factory Reset" onclick="CraftUI.config('factory_reset')">
+        <span class="values">
+          <span id=factory_reset_result>...</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="tab">
+      <input type="radio" id="tab-6" name="tab-group-1">
+      <label for="tab-6">Debug</label>
       <div class="content">
         <b>refreshCount:</b><span class="values" id="platform/refreshCount">...</span><br>
         <b>unhandled xml:</b><span class="values">
           <textarea id=unhandled cols=60 rows=30>...</textarea></span><br>
       </div>
     </div>
+
   </div>
   <script src="static/craft.js"></script>
 </body>
