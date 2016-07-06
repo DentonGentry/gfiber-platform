@@ -243,7 +243,7 @@ const FanControlParams FanControl::kGFCH100FanCtrlSocDefaults = {
                           duty_cycle_min: 0,
                           duty_cycle_max: 0,
                           pwm_step      : 0,
-                          temp_overheat : 97,
+                          temp_overheat : 125,
                         };
 
 FanControl::~FanControl() {
