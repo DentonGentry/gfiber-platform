@@ -22,6 +22,6 @@ ssh chimera cd / "&&" tar czf - -C / \
 	tmp/serial \
 	tmp/ssl \
 	tmp/platform \
-	tmp/gpio/ledstate \
+	tmp/gpio \
 	tmp/sim \
 	> sim.tgz
