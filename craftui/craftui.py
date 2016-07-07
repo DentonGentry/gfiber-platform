@@ -578,43 +578,58 @@ class CraftUI(object):
       return False
     return True
 
-  class WelcomeHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
-    """Displays the Welcome page."""
+  class CraftHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
+    """Common class to add args to html template."""
+    auth = 'unset'
+
+    def TemplateArgs(self):
+      args = {}
+      args['hidepeer'] = ''
+      args['hidehttps'] = ''
+      args['peer'] = ''
+      if self.request.protocol is 'https':
+        args['hidehttps'] = 'hidden'
+      if self.get_argument('peer', default='0') == '1':
+        args['peer'] = '?peer=1'
+        args['hidepeer'] = 'hidden'
+      print args
+      return args
 
     def get(self):
       ui = self.settings['ui']
-      # no auth required for welcome page
-      print 'GET welcome HTML page'
-      self.render(ui.wwwroot + '/welcome.thtml', ipaddr='xxx')
+      if self.auth is 'any':
+        if not ui.Authenticate(self):
+          return
+      elif self.auth is 'admin':
+        if not ui.AuthenticateAdmin(self):
+          return
+      elif self.auth is not 'none':
+        raise Exception('unknown authentication type "%s"' % self.auth)
 
-  class StatusHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
-    """Displays the Status page."""
+      path = ui.wwwroot + '/' + self.page + '.thtml'
+      print 'GET %s page' % self.page
+      self.render(path, **self.TemplateArgs())
 
-    def get(self):
-      ui = self.settings['ui']
-      if not ui.Authenticate(self):
-        return
-      print 'GET status HTML page'
-      self.render(ui.wwwroot + '/status.thtml', peerurl='/status/?peer=1')
+  class WelcomeHandler(CraftHandler):
+    page = 'welcome'
+    auth = 'none'
 
-  class ConfigHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
-    """Displays the Config page."""
+  class StatusHandler(CraftHandler):
+    page = 'status'
+    auth = 'any'
 
-    def get(self):
-      ui = self.settings['ui']
-      if not ui.Authenticate(self):
-        return
-      print 'GET config HTML page'
-      self.render(ui.wwwroot + '/config.thtml', peerurl='/config/?peer=1')
+  class ConfigHandler(CraftHandler):
+    page = 'config'
+    auth = 'admin'
 
-  class JsonHandler(digest.DigestAuthMixin, tornado.web.RequestHandler):
+  class JsonHandler(CraftHandler):
     """Provides JSON-formatted content to be displayed in the UI."""
 
     def get(self):
       ui = self.settings['ui']
       if not ui.Authenticate(self):
         return
-      print 'GET JSON data for craft page'
+      print 'GET json data'
       jsonstring = ui.GetData()
       self.set_header('Content-Type', 'application/json')
       self.write(jsonstring)
