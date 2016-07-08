@@ -262,7 +262,7 @@ class Glaukus(Config):
     print 'Glaukus: ', url, payload
 
     try:
-      fd = urllib2.urlopen(url, payload)
+      fd = urllib2.urlopen(url, payload, timeout=2)
     except urllib2.URLError as ex:
       print 'Connection to %s failed: %s' % (url, ex.reason)
       raise ConfigError('failed to contact glaukus')
@@ -381,16 +381,18 @@ class CraftUI(object):
       'tx_errors',
       'tx_dropped'
   ]
-  realm = 'gfch100'
 
   def __init__(self, wwwroot, http_port, https_port, sim):
-    """initialize."""
+    """Initialize."""
     self.wwwroot = wwwroot
     self.http_port = http_port
     self.https_port = https_port
     self.sim = sim
     self.data = {}
     self.data['refreshCount'] = 0
+    platform = self.ReadFile(sim + '/etc/platform')
+    serial = self.ReadFile(sim + '/etc/serial')
+    self.realm = '%s-%s' % (platform, serial)
 
   def ApplyChanges(self, changes):
     """Apply changes to system."""
@@ -556,6 +558,7 @@ class CraftUI(object):
     return response
 
   def GetUserCreds(self, user):
+    """Create a dict with the requested password."""
     if user not in ('admin', 'guest'):
       return None
     b64 = self.ReadFile('%s/config/settings/password_%s' % (self.sim, user))
@@ -583,32 +586,110 @@ class CraftUI(object):
     """Common class to add args to html template."""
     auth = 'unset'
 
+    def IsProxy(self):
+      """Check if this request was proxied, (ie, we are the peer)."""
+      return self.request.headers.get('craftui-proxy', 0) == '1'
+
+    def IsPeer(self):
+      """Check args to see if this is a request for the peer."""
+      return self.get_argument('peer', default='0') == '1'
+
+    def IsHttps(self):
+      """See if https:// was used."""
+      return (self.request.protocol == 'https' or
+              self.request.headers.get('craftui-https', 0) == '1')
+
     def TemplateArgs(self):
+      """Build template args to dynamically adjust html file."""
+      is_https = self.IsHttps()
+      is_proxy = self.IsProxy()
+
+      peer_arg = '?peer=1'
+
       args = {}
-      args['hidepeer'] = ''
-      args['hidehttps'] = ''
-      args['peer'] = ''
-      if self.request.protocol is 'https':
-        args['hidehttps'] = 'hidden'
-      if self.get_argument('peer', default='0') == '1':
-        args['peer'] = '?peer=1'
-        args['hidepeer'] = 'hidden'
-      print args
+      args['hidden_on_https'] = 'hidden' if is_https else ''
+      args['hidden_on_peer'] = 'hidden' if is_proxy else ''
+      args['shown_on_peer'] = 'hidden' if not is_proxy else ''
+      args['peer_arg'] = peer_arg
+      args['peer_arg_on_peer'] = peer_arg if is_proxy else ''
       return args
 
-    def get(self):
-      ui = self.settings['ui']
-      if self.auth is 'any':
-        if not ui.Authenticate(self):
-          return
-      elif self.auth is 'admin':
-        if not ui.AuthenticateAdmin(self):
-          return
-      elif self.auth is not 'none':
-        raise Exception('unknown authentication type "%s"' % self.auth)
+    def TryProxy(self):
+      """Check if we should proxy this request to the peer."""
+      if not self.IsPeer() or self.IsProxy():
+        return False
+      self.Proxy()
+      return True
 
+    class ErrorHandler(urllib2.HTTPDefaultErrorHandler):
+      """Catch the error, don't raise exception."""
+      error = {}
+
+      def http_error_default(self, req, fd, code, msg, hdrs):
+        self.error = {
+            'request': req,
+            'fd': fd,
+            'code': code,
+            'msg': msg,
+            'hdrs': hdrs
+        }
+
+    def Proxy(self):
+      """Proxy to the peer."""
+      ui = self.settings['ui']
+      r = self.request
+      cs = '/config/settings/'
+      peer_ipaddr = ui.ReadFile(ui.sim + cs + 'peer_ipaddr')
+      peer_ipaddr = re.sub(r'/\d+$', '', peer_ipaddr)
+      if ui.sim:
+        peer_ipaddr = 'localhost:8890'
+      url = 'http://' + peer_ipaddr + r.uri
+      print 'proxy: ', url
+
+      eh = self.ErrorHandler()
+      opener = urllib2.build_opener(eh)
+
+      body = None
+      if r.method == 'POST':
+        body = '' if r.body is None else r.body
+      req = urllib2.Request(url, body, r.headers)
+      req.add_header('CraftUI-Proxy', 1)
+      req.add_header('CraftUI-Https', int(self.IsHttps()))
+      fd = opener.open(req, timeout=2)
+      if eh.error:
+        fd = eh.error['fd']
+        self.set_status(eh.error['code'])
+        hdrs = eh.error['hdrs']
+        for h in hdrs:
+          v = hdrs.get(h)
+          self.set_header(h, v)
+
+      response = fd.read()
+      if response:
+        self.write(response)
+      self.finish()
+
+    def Authenticated(self):
+      """Authenticate the user per the required auth type."""
+      ui = self.settings['ui']
+      if self.auth == 'any':
+        if not ui.Authenticate(self):
+          return False
+      elif self.auth == 'admin':
+        if not ui.AuthenticateAdmin(self):
+          return False
+      elif self.auth != 'none':
+        raise Exception('unknown authentication type "%s"' % self.auth)
+      return True
+
+    def get(self):
+      if self.TryProxy():
+        return
+      if not self.Authenticated():
+        return
+      ui = self.settings['ui']
       path = ui.wwwroot + '/' + self.page + '.thtml'
-      print 'GET %s page' % self.page
+      print '%s %s page (%s)' % (self.request.method, self.page, ui.sim)
       self.render(path, **self.TemplateArgs())
 
   class WelcomeHandler(CraftHandler):
@@ -625,22 +706,29 @@ class CraftUI(object):
 
   class JsonHandler(CraftHandler):
     """Provides JSON-formatted content to be displayed in the UI."""
+    page = 'json'
 
     def get(self):
-      ui = self.settings['ui']
-      if not ui.Authenticate(self):
+      if self.TryProxy():
         return
-      print 'GET json data'
+      self.auth = 'any'
+      if not self.Authenticated():
+        return
+      ui = self.settings['ui']
+      print '%s %s page (%s)' % (self.request.method, self.page, ui.sim)
       jsonstring = ui.GetData()
       self.set_header('Content-Type', 'application/json')
       self.write(jsonstring)
       self.finish()
 
     def post(self):
-      ui = self.settings['ui']
-      if not ui.AuthenticateAdmin(self):
+      if self.TryProxy():
         return
-      print 'POST JSON data for craft page'
+      self.auth = 'admin'
+      if not self.Authenticated():
+        return
+      ui = self.settings['ui']
+      print '%s %s page (%s)' % (self.request.method, self.page, ui.sim)
       request = self.request.body
       result = {}
       result['error'] = 0

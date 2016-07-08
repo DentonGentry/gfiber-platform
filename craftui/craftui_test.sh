@@ -52,7 +52,7 @@ check_failure() {
 
 onexit() {
   testname "process not running at exit"
-  kill -0 $pid
+  kill -0 $pid1
   check_failure
 
   testname "end of script reached"
@@ -86,15 +86,19 @@ run_tests() {
 
   # add a signed cert (using our fake CA)
   sh HOW.cert
-  chmod 750 sim/tmp/ssl/*
-  cp tmp-certs/localhost.pem sim/tmp/ssl/certs/craftui.pem
-  cp tmp-certs/localhost.key sim/tmp/ssl/private/craftui.key
+  for n in sim1 sim2; do
+    chmod 750 $n/tmp/ssl/*
+    cp tmp-certs/localhost.pem $n/tmp/ssl/certs/craftui.pem
+    cp tmp-certs/localhost.key $n/tmp/ssl/private/craftui.key
+  done
 
   ./craftui &
-  pid=$!
+  pid1=$!
+  ./craftui -2 &
+  pid2=$!
 
   testname "process running"
-  kill -0 $pid
+  kill -0 $pid1
   check_success
 
   sleep 1
@@ -225,15 +229,36 @@ run_tests() {
     $curl $admin_auth -d "$d" $url/content.json |& grep '"error": 1}'
     check_success
 
+    testname proxy read from peer
+    $curl $admin_auth $url/content.json'?peer=1' |& grep '"platform": "GFCH100"'
+    check_success
+
+    testname proxy write to peer
+    d='{"config":[{"peer_ipaddr":"192.168.99.99/24"}]}'
+    $curl $admin_auth -d $d $url/content.json'?peer=1' |& grep '"error": 0}'
+    check_success
+
+  done
+
+  # verify insecure message is hidden on https and not on http
+  for peer in '' '?peer=1'; do
+    testname http warning $peer
+    $curl http://localhost:$http$peer |& grep 'hidden_on_https value=""'
+    check_success
+
+    testname no https warning $peer
+    $curl https://localhost:$https$peer |& grep 'hidden_on_https value="hidden"'
+    check_success
   done
 
   testname "process still running at end of test sequence"
-  kill -0 $pid
+  kill -0 $pid1
   check_success
 
   # cleanup
   t0=$(date +%s)
-  kill $pid
+  kill $pid1
+  kill $pid2
   wait
   t1=$(date +%s)
   dt=$((t1 - t0))

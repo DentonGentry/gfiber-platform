@@ -1,7 +1,9 @@
 *.pyo
 *.swp
 .started
-.sim.extracted
-sim
+.sim1.extracted
+.sim2.extracted
+sim1
+sim2
 LOG
 tmp-certs

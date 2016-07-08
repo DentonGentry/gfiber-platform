@@ -15,14 +15,14 @@ install:
 install-libs:
 	@echo "No libs to install."
 
-.sim.extracted: sim.tgz
-	-chmod -R +w sim
-	rm -rf sim
-	rsync -av sim-tools/ sim
-	tar xf sim.tgz -C sim
+.sim%.extracted: sim%.tgz
+	-chmod -R +w sim$*
+	rm -rf sim$*
+	rsync -av sim-tools/ sim$*
+	tar xf sim$*.tgz -C sim$*
 	touch $@
 
-test: .sim.extracted lint
+test: .sim1.extracted .sim2.extracted lint
 	set -e; \
 	for n in $(wildcard ./*_test.*); do \
 		echo; \

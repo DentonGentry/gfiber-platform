@@ -14,21 +14,29 @@
       <h1><img src=static/logo.png alt="Google Fiber"></h1>
       <nav>
         <ul>
-          <li class=active><a href=/{{peer}}>Welcome</a></li>
-          <li ><a href=/status{{peer}}>Status</a></li>
-          <li ><a href=/config{{peer}}>Configuration</a></li>
-          <li ><a {{hidepeer}} href="/?peer=1" target=_blank>Peer</a></li>
+          <li class=active><a href=/{{peer_arg_on_peer}}>Welcome</a></li>
+          <li ><a href=/status{{peer_arg_on_peer}}>Status</a></li>
+          <li ><a href=/config{{peer_arg_on_peer}}>Configuration</a></li>
+          <li ><a {{hidden_on_peer}} href="/{{peer_arg}}" target=_blank>Peer</a></li>
         </ul>
       </nav>
     </section>
   </header>
   <br>
+  <div hidden>
+    <input id=hidden_on_https value="{{hidden_on_https}}">
+    <input id=hidden_on_peer value="{{hidden_on_peer}}">
+    <input id=shown_on_peer value="{{shown_on_peer}}">
+    <input id=peer_arg value="{{peer_arg}}">
+    <input id=peer_arg_on_peer value="{{peer_arg_on_peer}}">
+  </div>
+  <div {{shown_on_peer}}><font color="red"><b>This is the Peer</b></font></div>
   <div class="tabs">
     <div class="tab">
       <input type="radio" id="tab-1" name="tab-group-1" checked>
       <label for="tab-1">Authorized Use Only</label>
       <div class="content">
-        <div {{hidehttps}}>
+        <div {{hidden_on_https}}>
           <b>
             Warning: You are not connected securely.  Consider https://...
             <br>
@@ -40,9 +48,6 @@
           <p>
           Unauthorized access to this system is forbidden and will be
           prosecuted by law.
-          <br>
-          By accessing this system, you agree that your actions may be
-          monitored if unauthorized usage is suspected.
       </div>
     </div>
   </div>
