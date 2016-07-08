@@ -1,4 +1,4 @@
-#!/usr/bin/python -S
+#!/usr/bin/python
 
 """Tests for wifi.py."""
 

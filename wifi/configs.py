@@ -4,6 +4,8 @@
 
 import subprocess
 
+import Crypto.Protocol.KDF
+
 import experiment
 import utils
 
@@ -131,12 +133,6 @@ wpa_group_rekey=0
 wpa_strict_rekey=0
 wpa_gmk_rekey=0
 wpa_ptk_rekey=0
-"""
-
-_WPA_SUPPLICANT_UNSECURED_TPL = """network={{
-\tssid="{ssid}"
-\tkey_mgmt=NONE
-}}
 """
 
 
@@ -327,22 +323,55 @@ def generate_hostapd_config(
   return '\n'.join(hostapd_conf_parts)
 
 
+def make_network_block(network_block_lines):
+  return 'network={\n%s\n}\n' % '\n'.join(network_block_lines)
+
+
+def open_network_lines(ssid):
+  return ['\tssid="%s"' % utils.sanitize_ssid(ssid),
+          '\tkey_mgmt=NONE']
+
+
+def wpa_network_lines(ssid, passphrase):
+  """Like `wpa_passphrase "$ssid" "$passphrase"`, but more convenient output.
+
+  This generates raw config lines, so we can update the config when the defaults
+  don't make sense for us without doing parsing.
+
+  N.b. wpa_passphrase double quotes provided SSID and passphrase arguments, and
+  does not escape quotes or backslashes.
+
+  Args:
+    ssid: a wifi network SSID
+    passphrase: a wifi network PSK
+  Returns:
+    lines of a network block that will let wpa_supplicant join this network
+  """
+  clean_ssid = utils.sanitize_ssid(ssid)
+  network_lines = ['\tssid="%s"' % clean_ssid]
+  clean_passphrase = utils.validate_and_sanitize_psk(passphrase)
+  if len(clean_passphrase) == 64:
+    network_lines += ['\tpsk=%s' % clean_passphrase]
+  else:
+    raw_psk = Crypto.Protocol.KDF.PBKDF2(clean_passphrase, clean_ssid, 32, 4096)
+    hex_psk = ''.join(ch.encode('hex') for ch in raw_psk)
+    network_lines += ['\t#psk="%s"' % clean_passphrase, '\tpsk=%s' % hex_psk]
+
+  return network_lines
+
+
 def generate_wpa_supplicant_config(ssid, passphrase, opt):
   """Generate a wpa_supplicant config from the provided arguments."""
-
-  if passphrase is not None:
-    network_block = subprocess.check_output(
-        ('wpa_passphrase',
-         utils.sanitize_ssid(ssid),
-         utils.validate_and_sanitize_psk(passphrase)))
+  if passphrase is None:
+    network_block_lines = open_network_lines(ssid)
   else:
-    network_block = _WPA_SUPPLICANT_UNSECURED_TPL.format(ssid=ssid)
+    network_block_lines = wpa_network_lines(ssid, passphrase)
 
+  network_block_lines.append('\tscan_ssid=1')
   if opt.bssid:
-    network_block_lines = network_block.splitlines(True)
-    network_block_lines[-1:-1] = ['\tbssid=%s\n' %
-                                  utils.validate_and_sanitize_bssid(opt.bssid)]
-    network_block = ''.join(network_block_lines)
+    network_block_lines.append('\tbssid=%s' %
+                               utils.validate_and_sanitize_bssid(opt.bssid))
+  network_block = make_network_block(network_block_lines)
 
   lines = [
       'ctrl_interface=/var/run/wpa_supplicant',

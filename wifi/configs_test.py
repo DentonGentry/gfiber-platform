@@ -1,4 +1,4 @@
-#!/usr/bin/python -S
+#!/usr/bin/python
 
 """Tests for configs.py."""
 
@@ -17,6 +17,7 @@ network={
 \tssid="some ssid"
 \t#psk="some passphrase"
 \tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
+\tscan_ssid=1
 }
 """
 
@@ -27,6 +28,7 @@ network={
 \tssid="some ssid"
 \t#psk="some passphrase"
 \tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
+\tscan_ssid=1
 \tbssid=12:34:56:78:90:ab
 }
 """
@@ -39,6 +41,7 @@ autoscan=exponential:1:30
 network={
 \tssid="some ssid"
 \tkey_mgmt=NONE
+\tscan_ssid=1
 \tbssid=12:34:56:78:90:ab
 }
 """
@@ -393,6 +396,47 @@ class FakeOptDict(object):
     self.interface_suffix = ''
     self.client_isolation = False
     self.supports_provisioning = False
+
+
+def wpa_passphrase(ssid, passphrase):
+  return configs.make_network_block(
+      configs.wpa_network_lines(ssid, passphrase))
+
+
+def wpa_passphrase_subprocess(ssid, passphrase):
+  return subprocess.check_output(
+      ('wpa_passphrase',
+       utils.sanitize_ssid(ssid),
+       utils.validate_and_sanitize_psk(passphrase)))
+
+
+@wvtest.wvtest
+def wpa_passphrase_test():
+  """Make sure the configs we generate are the same as wpa_passphrase."""
+  for testdata in (
+      ('some ssid', 'some passphrase'),
+      (r'some\ssid', 'some passphrase'),
+      ('some ssid', r'some\passphrase'),
+      ('some"ssid', 'some passphrase'),
+      ('some ssid', 'some"passphrase')):
+    got, want = wpa_passphrase(*testdata), wpa_passphrase_subprocess(*testdata)
+    wvtest.WVPASSEQ(got, want)
+
+
+@wvtest.wvtest
+def wpa_raw_psk_test():
+  """Make sure we do the right thing when we get a raw PSK too."""
+  ssid = 'some ssid'
+  psk = '41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f'
+
+  got = wpa_passphrase(ssid, psk)
+  # hard code since `wpa_passphrase` dies if given a 64-character hex psk
+  want = """network={
+\tssid="some ssid"
+\tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
+}
+"""
+  wvtest.WVPASSEQ(got, want)
 
 
 # pylint: disable=protected-access
