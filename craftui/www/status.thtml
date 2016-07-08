@@ -14,9 +14,10 @@
       <h1><img src=static/logo.png alt="Google Fiber"></h1>
       <nav>
         <ul>
-          <li class=active><a href=/status>GFCH100</a></li>
-          <li ><a href=/config>Configuration</a></li>
-          <li ><a href={{ peerurl }} target=_blank>Peer</a></li>
+          <li ><a href=/?{{peer}}>Welcome</a></li>
+          <li class=active><a href=/status{{peer}}>Status</a></li>
+          <li ><a href=/config{{peer}}>Configuration</a></li>
+          <li ><a {{hidepeer}} href="/?peer=1" target=_blank>Peer</a></li>
         </ul>
       </nav>
     </section>

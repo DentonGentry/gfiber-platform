@@ -128,10 +128,6 @@ run_tests() {
     baduser_auth="--digest --user root:admin"
     badpass_auth="--digest --user guest:admin"
 
-    testname "welcome web page ($url)"
-    $curl $url/ |& grep welcome.thtml
-    check_success
-
     for auth in "" "$baduser_auth" "$badpass_auth"; do
       for n in status config content.json; do
         testname "page $n bad auth ($url, $auth)"
@@ -143,7 +139,33 @@ run_tests() {
     admin_auth="--digest --user admin:admin"
     guest_auth="--digest --user guest:guest"
 
-    for auth in "$admin_auth" "$guest_auth"; do
+    # should fail with guest_auth
+    for auth in "$admin_auth"; do
+      testname "config web page ($url, $auth)"
+      $curl $auth $url/config |& grep 'WWW-Authenticate: Digest'
+      check_success
+    done
+
+    # should work with no auth
+    for auth in ""; do
+      testname "welcome web page ($url)"
+      $curl $url/ |& grep welcome.thtml
+      check_success
+    done
+
+    # should work with guest_auth
+    for auth in "$guest_auth"; do
+      testname "status web page ($url, $auth)"
+      $curl $auth $url/status |& grep status.thtml
+      check_success
+
+      testname "json ($url, $auth)"
+      $curl $auth $url/content.json |& grep '"platform": "GFCH100"'
+      check_success
+    done
+
+    # should work with admin_auth
+    for auth in "$admin_auth"; do
       testname "status web page ($url, $auth)"
       $curl $auth $url/status |& grep status.thtml
       check_success
