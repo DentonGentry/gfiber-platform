@@ -512,6 +512,7 @@ class CraftUI(object):
     data['refreshCount'] += 1
     data['uptime'] = self.ReadFile(sim + '/proc/uptime')
     data['ledstate'] = self.ReadFile(sim + '/tmp/gpio/ledstate')
+    data['cpu_temperature'] = self.ReadFile(sim + '/tmp/gpio/cpu_temperature')
     data['peer_up'] = os.path.exists(sim + '/tmp/peer-up')
     cs = '/config/settings/'
     data['craft_ipaddr'] = self.ReadFile(sim + cs + 'craft_ipaddr')

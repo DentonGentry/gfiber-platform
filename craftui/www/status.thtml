@@ -34,6 +34,7 @@
         <b>Software Date:</b><span class="values" id="platform/softwaredate">...</span><br>
         <b>Uptime:</b><span class="values" id="platform/uptime">...</span><br>
         <b>Status:</b><span class="values" id="platform/ledstate">...</span><br>
+        <b>CPU Temperature:</b><span class="values" id="platform/cpu_temperature">...</span><br>
       </div>
     </div>
     <div class="tab">
