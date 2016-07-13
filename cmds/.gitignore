@@ -1,4 +1,5 @@
 *.o
+*.tmp.*
 alivemonitor
 asus_hosts
 balloon
@@ -9,15 +10,19 @@ chg_mod_own
 cpulog
 device_stats.pb.h
 dhcp-rogue
+dhcpnametax
+dhcpvendortax
 dir-monitor
 diskbench
 dnsck
 dnssd_hosts
+eddystone
 freemegs
 gsetsid
 gstatic
 host-*
 http_bouncer
+ibeacon
 ionice
 isoping
 isostream

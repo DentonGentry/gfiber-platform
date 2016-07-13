@@ -225,13 +225,14 @@ wifi_files: wifi_files.o
 wifi_files: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
 host-wifi_files_test: host-wifi_files_test.o
 host-wifi_files_test: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
-dhcpvendortax: dhcpvendortax.o dhcpvendorlookup.o
-dhcpvendorlookup.c: dhcpvendorlookup.gperf
-	$(GPERF) -G -C -t -L ANSI-C -N exact_match -K vendor_class --delimiters="|" \
-		--includes --output-file=dhcpvendorlookup.c dhcpvendorlookup.gperf
-dhcpvendorlookup.o: CFLAGS += -Wno-missing-field-initializers
-host-dhcpvendorlookup.o: CFLAGS += -Wno-missing-field-initializers
-host-dhcpvendortax: host-dhcpvendortax.o host-dhcpvendorlookup.o
+dhcpvendortax: dhcpvendortax.o dhcpvendorlookup.tmp.o
+dhcpvendorlookup.tmp.c: dhcpvendorlookup.gperf
+	$(GPERF) -G -C -t -L ANSI-C -N exact_match -K vendor_class \
+		--delimiters="|" \
+		--includes --output-file=$@ $<
+dhcpvendorlookup.tmp.o: CFLAGS += -Wno-missing-field-initializers
+host-dhcpvendorlookup.tmp.o: CFLAGS += -Wno-missing-field-initializers
+host-dhcpvendortax: host-dhcpvendortax.o host-dhcpvendorlookup.tmp.o
 dnssdmon: dnssdmon.o l2utils.o modellookup.o
 dnssdmon: LIBS += -lnl-3 -lstdc++ -lm -lresolv
 modellookup.c: modellookup.gperf
@@ -239,13 +240,14 @@ modellookup.c: modellookup.gperf
 		--includes --output-file=modellookup.c modellookup.gperf
 modellookup.o: CFLAGS += -Wno-missing-field-initializers
 host-modellookup.o: CFLAGS += -Wno-missing-field-initializers
-dhcpnametax: dhcpnametax.o hostnamelookup.o
-host-dhcpnametax: host-dhcpnametax.o host-hostnamelookup.o
-hostnamelookup.c: hostnamelookup.gperf
-	$(GPERF) -G -C -t -T -L ANSI-C -n -c -N hostname_lookup -K name --delimiters="|" \
-		--includes --output-file=hostnamelookup.c hostnamelookup.gperf
-hostnamelookup.o: CFLAGS += -Wno-missing-field-initializers
-host-hostnamelookup.o: CFLAGS += -Wno-missing-field-initializers
+dhcpnametax: dhcpnametax.o hostnamelookup.tmp.o
+host-dhcpnametax: host-dhcpnametax.o host-hostnamelookup.tmp.o
+hostnamelookup.tmp.c: hostnamelookup.gperf
+	$(GPERF) -G -C -t -T -L ANSI-C -n -c -N hostname_lookup -K name \
+		--delimiters="|" \
+		--includes --output-file=$@ $<
+hostnamelookup.tmp.o: CFLAGS += -Wno-missing-field-initializers
+host-hostnamelookup.tmp.o: CFLAGS += -Wno-missing-field-initializers
 
 
 TESTS = $(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
@@ -269,5 +271,5 @@ clean:
 		$(TEST_TARGETS) \
 		$(HOST_TEST_TARGETS) \
 		$(ARCH_TARGETS) \
-		*~ .*~ */*.pyc test_file *.pb.*
+		*~ .*~ */*.pyc test_file *.pb.* *.tmp.*
 	rm -rf test_dir
