@@ -226,6 +226,7 @@
             <td><b></b></td>
             <td colspan=4 align=center><b>received</b></td>
             <td colspan=4 align=center><b>transmitted</b></td>
+            <td colspan=3 align=center><b>errors</b></td></tr>
           <tr>
             <td align=center><b>interface</b></td>
 
@@ -239,53 +240,89 @@
             <td align=center><b>broadcast</b></td>
             <td align=center><b>unicast</b></td>
 
+            <td align=center><b>CRC</b></td>
+            <td align=center><b>dropped</b></td>
+            <td align=center><b>collisions</b></td>
+
           <tr>
             <td><b>Switch Port 0/0 (PoE)</b></td>
-            <td align=right><span id="platform/switch/0/0/bytes_received">...</span></td>
-            <td align=right><span id="platform/switch/0/0/multicast_packets_received">...</span></td>
-            <td align=right><span id="platform/switch/0/0/broadcast_packets_received">...</span></td>
-            <td align=right><span id="platform/switch/0/0/unicast_packets_received">...</span></td>
+            <td align=right><span id="platform/switch/0/0/goodOctetsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/0/mcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/0/brdcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/0/ucPktsRcv">...</span></td>
 
-            <td align=right><span id="platform/switch/0/0/bytes_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/0/multicast_packets_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/0/broadcast_packets_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/0/unicast_packets_sent">...</span></td>
+            <td align=right><span id="platform/switch/0/0/goodOctetsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/0/mcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/0/brdcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/0/ucPktsSent">...</span></td>
+
+            <td align=right><span id="platform/switch/0/0/badCrc">...</span></td>
+            <td align=right><span id="platform/switch/0/0/dropEvents">...</span></td>
+            <td align=right><span id="platform/switch/0/0/collisions">...</span></td>
 
           <tr>
             <td><b>Switch Port 0/4 (SOC)</b></td>
-            <td align=right><span id="platform/switch/0/4/bytes_received">...</span></td>
-            <td align=right><span id="platform/switch/0/4/multicast_packets_received">...</span></td>
-            <td align=right><span id="platform/switch/0/4/broadcast_packets_received">...</span></td>
-            <td align=right><span id="platform/switch/0/4/unicast_packets_received">...</span></td>
+            <td align=right><span id="platform/switch/0/4/goodOctetsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/4/mcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/4/brdcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/4/ucPktsRcv">...</span></td>
 
-            <td align=right><span id="platform/switch/0/4/bytes_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/4/multicast_packets_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/4/broadcast_packets_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/4/unicast_packets_sent">...</span></td>
+            <td align=right><span id="platform/switch/0/4/goodOctetsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/4/mcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/4/brdcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/4/ucPktsSent">...</span></td>
+
+            <td align=right><span id="platform/switch/0/4/badCrc">...</span></td>
+            <td align=right><span id="platform/switch/0/4/dropEvents">...</span></td>
+            <td align=right><span id="platform/switch/0/4/collisions">...</span></td>
 
           <tr>
             <td><b>Switch Port 0/24 (modem)</b></td>
-            <td align=right><span id="platform/switch/0/24/bytes_received">...</span></td>
-            <td align=right><span id="platform/switch/0/24/multicast_packets_received">...</span></td>
-            <td align=right><span id="platform/switch/0/24/broadcast_packets_received">...</span></td>
-            <td align=right><span id="platform/switch/0/24/unicast_packets_received">...</span></td>
+            <td align=right><span id="platform/switch/0/24/goodOctetsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/24/mcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/24/brdcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/24/ucPktsRcv">...</span></td>
 
-            <td align=right><span id="platform/switch/0/24/bytes_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/24/multicast_packets_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/24/broadcast_packets_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/24/unicast_packets_sent">...</span></td>
+            <td align=right><span id="platform/switch/0/24/goodOctetsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/24/mcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/24/brdcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/24/ucPktsSent">...</span></td>
+
+            <td align=right><span id="platform/switch/0/24/badCrc">...</span></td>
+            <td align=right><span id="platform/switch/0/24/dropEvents">...</span></td>
+            <td align=right><span id="platform/switch/0/24/collisions">...</span></td>
 
           <tr>
-            <td><b>Switch Port 0/25 (SFP+)</b></td>
-            <td align=right><span id="platform/switch/0/25/bytes_received">...</span></td>
-            <td align=right><span id="platform/switch/0/25/multicast_packets_received">...</span></td>
-            <td align=right><span id="platform/switch/0/25/broadcast_packets_received">...</span></td>
-            <td align=right><span id="platform/switch/0/25/unicast_packets_received">...</span></td>
+            <td><b>Switch Port 0/25 (SFP+ #1)</b></td>
+            <td align=right><span id="platform/switch/0/25/goodOctetsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/25/mcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/25/brdcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/25/ucPktsRcv">...</span></td>
 
-            <td align=right><span id="platform/switch/0/25/bytes_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/25/multicast_packets_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/25/broadcast_packets_sent">...</span></td>
-            <td align=right><span id="platform/switch/0/25/unicast_packets_sent">...</span></td>
+            <td align=right><span id="platform/switch/0/25/goodOctetsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/25/mcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/25/brdcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/25/ucPktsSent">...</span></td>
+
+            <td align=right><span id="platform/switch/0/25/badCrc">...</span></td>
+            <td align=right><span id="platform/switch/0/25/dropEvents">...</span></td>
+            <td align=right><span id="platform/switch/0/25/collisions">...</span></td>
+
+          <tr>
+            <td><b>Switch Port 0/26 (SFP+ #2)</b></td>
+            <td align=right><span id="platform/switch/0/26/goodOctetsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/26/mcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/26/brdcPktsRcv">...</span></td>
+            <td align=right><span id="platform/switch/0/26/ucPktsRcv">...</span></td>
+
+            <td align=right><span id="platform/switch/0/26/goodOctetsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/26/mcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/26/bcPktsSent">...</span></td>
+            <td align=right><span id="platform/switch/0/26/ucPktsSent">...</span></td>
+
+            <td align=right><span id="platform/switch/0/26/badCrc">...</span></td>
+            <td align=right><span id="platform/switch/0/26/dropEvents">...</span></td>
+            <td align=right><span id="platform/switch/0/26/collisions">...</span></td>
 
         </table>
       </div>
