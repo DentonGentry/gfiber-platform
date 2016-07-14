@@ -542,9 +542,20 @@ def _is_hostapd_running(interface):
       ('hostapd_cli', '-i', interface, 'status'), no_stdout=True) == 0
 
 
-def _is_wpa_supplicant_running(interface):
+def _wpa_cli(program, interface, command):
   return utils.subprocess_quiet(
-      ('wpa_cli', '-i', interface, 'status'), no_stdout=True) == 0
+      (program, '-i', interface, command), no_stdout=True) == 0
+
+
+def _is_wpa_supplicant_running(interface):
+  return _wpa_cli('wpa_cli', interface, 'status')
+
+
+def _reconfigure_wpa_supplicant(interface):
+  if not _wpa_cli('wpa_cli', interface, 'reconfigure'):
+    return False
+
+  return _wait_for_wpa_supplicant_to_associate(interface)
 
 
 def _hostapd_debug_options():
@@ -653,6 +664,38 @@ def _get_wpa_band(interface):
         return None
 
 
+def _wait_for_wpa_supplicant_to_associate(interface):
+  """Wait for wpa_supplicant to associate.
+
+  If it does not associate within a certain period of time, terminate it.
+
+  Args:
+    interface: The interface on which wpa_supplicant is running.
+
+  Raises:
+    BinWifiException: if wpa_supplicant fails to associate and
+    also cannot be stopped to cleanup after the failure.
+
+  Returns:
+    Whether wpa_supplicant associated within the timeout.
+  """
+  utils.log('Waiting for wpa_supplicant to connect')
+  for _ in xrange(100):
+    if _get_wpa_state(interface) == 'COMPLETED':
+      utils.log('ok')
+      return True
+    sys.stderr.write('.')
+    time.sleep(0.1)
+
+  utils.log('wpa_supplicant did not connect.')
+  if not _stop_wpa_supplicant(interface):
+    raise utils.BinWifiException(
+        "Couldn't stop wpa_supplicant after it failed to connect.  "
+        "Consider killing it manually.")
+
+  return False
+
+
 def _start_wpa_supplicant(interface, config_filename):
   """Starts a babysat wpa_supplicant.
 
@@ -704,21 +747,7 @@ def _start_wpa_supplicant(interface, config_filename):
   else:
     return False
 
-  utils.log('Waiting for wpa_supplicant to connect')
-  for _ in xrange(100):
-    if _get_wpa_state(interface) == 'COMPLETED':
-      utils.log('ok')
-      return True
-    sys.stderr.write('.')
-    time.sleep(0.1)
-
-  utils.log('wpa_supplicant did not connect.')
-  if not _stop_wpa_supplicant(interface):
-    raise utils.BinWifiException(
-        "Couldn't stop wpa_supplicant after it failed to connect.  "
-        "Consider killing it manually.")
-
-  return False
+  return _wait_for_wpa_supplicant_to_associate(interface)
 
 
 def _maybe_restart_hostapd(interface, config, opt):
@@ -777,8 +806,7 @@ def _maybe_restart_hostapd(interface, config, opt):
 def _restart_hostapd(band):
   """Restart hostapd from previous options.
 
-  Only used by _maybe_restart_wpa_supplicant, to restart hostapd after stopping
-  it.
+  Only used by _set_wpa_supplicant_config, to restart hostapd after stopping it.
 
   Args:
     band: The band on which to restart hostapd.
@@ -797,7 +825,7 @@ def _restart_hostapd(band):
   _run(argv)
 
 
-def _maybe_restart_wpa_supplicant(interface, config, opt):
+def _set_wpa_supplicant_config(interface, config, opt):
   """Starts or restarts wpa_supplicant unless doing so would be a no-op.
 
   The no-op case (i.e. wpa_supplicant is already running with an equivalent
@@ -826,11 +854,12 @@ def _maybe_restart_wpa_supplicant(interface, config, opt):
   except IOError:
     pass
 
-  if not _is_wpa_supplicant_running(interface):
+  already_running = _is_wpa_supplicant_running(interface)
+  if not already_running:
     utils.log('wpa_supplicant not running yet, starting.')
   elif current_config != config:
     # TODO(rofrankel): Consider using wpa_cli reconfigure here.
-    utils.log('wpa_supplicant config changed, restarting.')
+    utils.log('wpa_supplicant config changed, reconfiguring.')
   elif opt.force_restart:
     utils.log('Forced restart requested.')
     forced = True
@@ -838,12 +867,12 @@ def _maybe_restart_wpa_supplicant(interface, config, opt):
     utils.log('wpa_supplicant-%s already configured and running', interface)
     return True
 
-  if not _stop_wpa_supplicant(interface):
-    raise utils.BinWifiException("Couldn't stop wpa_supplicant")
-
   if not forced:
     utils.atomic_write(tmp_config_filename, config)
 
+  # TODO(rofrankel): Consider removing all the restart hostapd stuff when
+  # b/30140131 is resolved.  hostapd seems to keep working without being
+  # restarted, at least on Camaro.
   restart_hostapd = False
   ap_interface = iw.find_interface_from_band(band, iw.INTERFACE_TYPE.ap,
                                              opt.interface_suffix)
@@ -852,13 +881,15 @@ def _maybe_restart_wpa_supplicant(interface, config, opt):
     opt_without_persist = options.OptDict({})
     opt_without_persist.persist = False
     opt_without_persist.band = opt.band
-    # Code review: Will AP and client always have the same suffix?
     opt_without_persist.interface_suffix = opt.interface_suffix
     if not stop_ap_wifi(opt_without_persist):
       raise utils.BinWifiException(
           "Couldn't stop hostapd to start wpa_supplicant.")
 
-  if not _start_wpa_supplicant(interface, tmp_config_filename):
+  if already_running:
+    if not _reconfigure_wpa_supplicant(interface):
+      raise utils.BinWifiException('Failed to reconfigure wpa_supplicant.')
+  elif not _start_wpa_supplicant(interface, tmp_config_filename):
     raise utils.BinWifiException(
         'wpa_supplicant failed to start.  Look at wpa_supplicant logs for '
         'details.')
@@ -934,7 +965,7 @@ def set_client_wifi(opt):
           ('ip', 'link', 'set', interface, 'address', mac_address))
 
   wpa_config = configs.generate_wpa_supplicant_config(opt.ssid, psk, opt)
-  if not _maybe_restart_wpa_supplicant(interface, wpa_config, opt):
+  if not _set_wpa_supplicant_config(interface, wpa_config, opt):
     return False
 
   return True
