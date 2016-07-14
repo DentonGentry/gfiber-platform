@@ -7,15 +7,22 @@ localwww=./www
 
 # in developer environment if vendor/google/catawapus is above us
 if [ -d "$devcw" ]; then
-  isdev=1
+  sim=1
+fi
+
+if [ -n "$sim" ] && [ "$1" = "-2" ]; then
+  sim=2
+  shift
 fi
 
 # if running from developer desktop, use simulated data
-if [ "$isdev" = 1 ]; then
+if [ -n "$sim" ]; then
   cw="$devcw"
-  args="$args --http-port=8888 --https-port=8889 --sim=./sim"
+  args="$args --http-port=$((8888+2*($sim-1)))"
+  args="$args --https-port=$((8889+2*($sim-1)))"
+  args="$args --sim=./sim$sim"
   pycode=./craftui_fortesting.py
-  export PATH="$PWD/sim/bin:$PATH"
+  export PATH="$PWD/sim1/bin:$PATH"
 fi
 
 # for debugging on the device, use the local (/tmp/www?) web tree
@@ -28,13 +35,6 @@ while [ $# -gt 0 ]; do
   # enable debugger
   if [ "$1" = -d ]; then
     debug="-m pdb"
-    shift
-    continue
-  fi
-
-  # enable https
-  if [ "$1" = -S ]; then
-    httpsmode="-S"
     shift
     continue
   fi

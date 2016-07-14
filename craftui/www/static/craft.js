@@ -64,6 +64,7 @@ CraftUI.getInfo = function() {
   if (CraftUI.am_sending) {
     return;
   }
+  var peer_arg_on_peer = document.getElementById("peer_arg_on_peer").value;
   var xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function() {
     self.unhandled = '';
@@ -74,20 +75,18 @@ CraftUI.getInfo = function() {
     CraftUI.updateField('unhandled', self.unhandled);
     CraftUI.am_sending = false
   };
-  var payload = [];
-  payload.push('checksum=' + encodeURIComponent(CraftUI.info.checksum));
-  payload.push('_=' + encodeURIComponent((new Date()).getTime()));
-  xhr.open('get', 'content.json?' + payload.join('&'), true);
+  xhr.open('get', '/content.json' + peer_arg_on_peer, true);
   CraftUI.am_sending = true
   xhr.send();
 };
 
 CraftUI.config = function(key, activate, is_password) {
   // POST as json
+  var peer_arg_on_peer = document.getElementById("peer_arg_on_peer").value;
   var el = document.getElementById(key);
   var xhr = new XMLHttpRequest();
   var action = "Configured";
-  xhr.open('post', 'content.json');
+  xhr.open('post', '/content.json' + peer_arg_on_peer);
   xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
   var data;
   if (is_password) {

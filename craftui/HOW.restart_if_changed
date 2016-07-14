@@ -4,21 +4,26 @@
 
 export PATH="$(pwd)/../../../../out.gfch100_defconfig/host/usr/bin:$PATH"
 
-pid=
+pid1=
+pid2=
 
 restart() {
-  [ -n "$pid" ] && kill $pid
+  [ -n "$pid1" ] && kill $pid1
+  [ -n "$pid2" ] && kill $pid2
   echo "######################################################################"
   echo "# starting craftui"
   gpylint *.py
   make test
   ./craftui &
-  pid=$!
+  pid1=$!
+  ./craftui -2 &
+  pid2=$!
   touch .started
 }
 
 onExit() {
-  [ -n "$pid" ] && kill $pid
+  [ -n "$pid1" ] && kill $pid1
+  [ -n "$pid2" ] && kill $pid2
   exit 1
 }
 
@@ -26,7 +31,7 @@ trap onExit 1 2 3
 restart
 
 while sleep 1; do
-  if ! kill -0 $pid; then
+  if ! kill -0 $pid1 || ! kill -0 $pid2; then
     restart
     continue
   fi
