@@ -119,6 +119,9 @@ int main(int argc, char **argv)
     } else if (strcmp(dhcpsig, "1,28,2,3,15,6,119,12,44,47,26,121,42") == 0) {
       // SleepIQ
       sn = hostname_lookup(hostname, 11);
+    } else if (strcmp(dhcpsig, "1,121,33,3,6,12,15,28,42,51,54,58,59,119") == 0) {
+      // Lutron
+      sn = hostname_lookup(hostname, 7);
     }
   }
 

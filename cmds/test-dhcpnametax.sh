@@ -20,6 +20,7 @@ WVPASSEQ "$($TAX -l label -d 1,3,6,12,15,28,42 -h XL824-XXXXXXX)" "name label Tr
 WVPASSEQ "$($TAX -l label -d 1,3,6,12,15,28,40,41,42 -h DIRECTV-H21-01234567)" "name label DirecTV;H21"
 WVPASSEQ "$($TAX -l label -d 1,3,6,12,15,28,42 -h DIRECTV-HR22-01234567)" "name label DirecTV;HR22"
 WVPASSEQ "$($TAX -l label -d 1,28,2,3,15,6,119,12,44,47,26,121,42 -h 500-cc04b40XXXXX)" "name label Select Comfort SleepIQ;SleepIQ"
+WVPASSEQ "$($TAX -l label -d 1,121,33,3,6,12,15,28,42,51,54,58,59,119 -h Lutron-012a34bcde56)" "name label Lutron Caséta;Lutron Caséta"
 
 # check invalid or missing arguments.
 WVFAIL $TAX
