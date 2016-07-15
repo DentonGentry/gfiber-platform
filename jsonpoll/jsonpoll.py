@@ -106,15 +106,15 @@ class JsonPoll(object):
       try:
         response = self.GetHttpResponse(url)
         if not response:
-          self.WriteToStderr('Failed to get response from glaukus: %s', url)
+          self.WriteToStderr('Failed to get response from glaukus: %s\n' % url)
           continue
         elif self.last_response == response:
-          self.WriteToStderr('Skipping file write as content has not changed.')
+          self.WriteToStderr('Skip file write as content has not changed.\n')
           continue
         self.last_response = response
         with tempfile.NamedTemporaryFile(delete=False) as fd:
           if not self.CreateDirs(os.path.dirname(output_file)):
-            self.WriteToStderr('Failed to create output directory: %s' %
+            self.WriteToStderr('Failed to create output directory: %s\n' %
                                os.path.dirname(output_file))
             continue
           tmpfile = fd.name
@@ -124,7 +124,7 @@ class JsonPoll(object):
           try:
             os.rename(tmpfile, output_file)
           except OSError as ex:
-            self.WriteToStderr('Failed to move %s to %s: %s' % (
+            self.WriteToStderr('Failed to move %s to %s: %s\n' % (
                 tmpfile, output_file, ex))
             continue
       finally:
@@ -137,11 +137,11 @@ class JsonPoll(object):
       handle = urllib2.urlopen(url, timeout=self._SOCKET_TIMEOUT_SECS)
       response = handle.read()
     except socket.timeout as ex:
-      self.WriteToStderr('Connection to %s timed out after %d seconds: %s'
+      self.WriteToStderr('Connection to %s timed out after %d seconds: %s\n'
                          % (url, self._SOCKET_TIMEOUT_SECS, ex))
       return None
     except urllib2.URLError as ex:
-      self.WriteToStderr('Connection to %s failed: %s' % (url, ex.reason))
+      self.WriteToStderr('Connection to %s failed: %s\n' % (url, ex.reason))
       return None
     # Write the response to stderr so it will be uploaded with the other system
     # log files. This will allow turbogrinder to alert on the radio subsystem.
@@ -155,7 +155,7 @@ class JsonPoll(object):
     except os.error as ex:
       if ex.errno == errno.EEXIST:
         return True
-      self.WriteToStderr('Failed to create directory: %s' % ex)
+      self.WriteToStderr('Failed to create directory: %s\n' % ex)
       return False
     return True
 
