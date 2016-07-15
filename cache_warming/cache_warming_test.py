@@ -6,7 +6,7 @@ from wvtest import wvtest
 
 
 @wvtest.wvtest
-def testProcessQuery_firstHit():
+def test_process_query_first_hit():
   qry = '123456789 www.yahoo.com'
   expected = {'www.yahoo.com': (1, '123456789')}
   cache_warming.hit_log = {}
@@ -16,7 +16,7 @@ def testProcessQuery_firstHit():
 
 
 @wvtest.wvtest
-def testProcessQuery_updateHitCount():
+def test_process_query_update_hit_count():
   qry = '123456789 www.yahoo.com'
   cache_warming.hit_log = {'www.yahoo.com': (1, '123456789')}
   cache_warming.process_query(qry)
@@ -26,7 +26,7 @@ def testProcessQuery_updateHitCount():
 
 
 @wvtest.wvtest
-def testProcessQuery_updateRecentHitTime():
+def test_process_query_update_recent_hit_time():
   qry = '123456789 www.yahoo.com'
   cache_warming.hit_log = {'www.yahoo.com': (1, '987654321')}
   cache_warming.process_query(qry)
@@ -36,7 +36,7 @@ def testProcessQuery_updateRecentHitTime():
 
 
 @wvtest.wvtest
-def testSortHitLog_empty():
+def test_sort_hit_log_empty():
   cache_warming.hit_log = {}
   expected = []
   actual = cache_warming.sort_hit_log()
@@ -44,7 +44,7 @@ def testSortHitLog_empty():
 
 
 @wvtest.wvtest
-def testSortHitLog_nonEmpty():
+def test_sort_hit_log_non_empty():
   cache_warming.hit_log = {
       'www.google.com': (2, '123456789'),
       'www.yahoo.com': (1, '987654321'),
@@ -54,10 +54,11 @@ def testSortHitLog_nonEmpty():
   actual = cache_warming.sort_hit_log()
   wvtest.WVPASSEQ(actual, expected)
 
+
 @wvtest.wvtest
-def testHitLogSubset():
+def test_hit_log_subset():
   hosts = ['www.google.com', 'www.yahoo.com']
-  cache_warming.hit_log =   cache_warming.hit_log = {
+  cache_warming.hit_log = cache_warming.hit_log = {
       'www.youtube.com': (4, '987654321'),
       'www.google.com': (1, '987654321'),
       'www.espn.com': (3, '123456789'),
