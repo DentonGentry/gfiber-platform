@@ -13,6 +13,7 @@ from datetime import datetime
 import json
 import os
 import socket
+import dns.exception
 import dns.resolver
 
 hit_log = {}
@@ -104,7 +105,7 @@ def fetch(hosts, port, server):
   for host in hosts:
     try:
       my_resolver.query(host)
-    except:
+    except dns.exception.DNSException:
       del hit_log[host]
       hosts.remove(host)
 
