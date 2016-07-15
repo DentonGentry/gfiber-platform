@@ -442,7 +442,7 @@ class Wifi(Interface):
         if event == 'CONNECTED':
           self.wpa_supplicant = True
         elif event in ('DISCONNECTED', 'TERMINATING', 'ASSOC-REJECT',
-                       'AUTH-REJECT'):
+                       'SSID-TEMP-DISABLED', 'AUTH-REJECT'):
           self.wpa_supplicant = False
           if event == 'TERMINATING':
             self.detach_wpa_control()
@@ -520,7 +520,7 @@ class FrenzyWPACtrl(object):
     # return 'Error', we are probably not connected, and we don't do anything
     # special with auth/assoc failures specifically.
     if client_mode and status == 'Error' and self._status != 'Error':
-      self._events.append('<2>CTRL-EVENT-AUTH-REJECT')
+      self._events.append('<2>CTRL-EVENT-SSID-TEMP-DISABLED')
 
     # If we left client mode, wpa_supplicant has terminated.
     if self._client_mode and not client_mode:
