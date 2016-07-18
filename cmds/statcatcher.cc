@@ -23,7 +23,7 @@
 
 #include "device_stats.pb.h"
 
-std::string multicast_addr = "FF30::8000:1";
+std::string multicast_addr = "FF12::8000:1";
 const char *optstring = "i:f:";
 std::string interface = "wan0";
 std::string stat_file;
