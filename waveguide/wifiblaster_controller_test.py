@@ -17,6 +17,7 @@
 
 import glob
 import os
+import random
 import shutil
 import sys
 import tempfile
@@ -102,6 +103,7 @@ def PollTest():
   d = tempfile.mkdtemp()
   old_wifiblaster_dir = waveguide.WIFIBLASTER_DIR
   waveguide.WIFIBLASTER_DIR = tempfile.mkdtemp()
+  oldexpovariate = random.expovariate
   oldpath = os.environ['PATH']
   oldtime = time.time
 
@@ -110,6 +112,7 @@ def PollTest():
     return faketime[0]
 
   try:
+    random.expovariate = lambda lambd: random.uniform(0, 2 * 1.0 / lambd)
     time.time = FakeTime
     os.environ['PATH'] = 'fake:' + os.environ['PATH']
     sys.path.insert(0, 'fake')
@@ -141,11 +144,6 @@ def PollTest():
       WriteConfig('measureall', '0')
       WriteConfig('size', '1470')
 
-      # Disabled. No measurements should be run.
-      print manager.GetState()
-      for t in xrange(0, 100):
-        wc.Poll(t)
-
       def CountRuns():
         try:
           v = open('fake/wifiblaster.out').readlines()
@@ -155,16 +153,24 @@ def PollTest():
           os.unlink('fake/wifiblaster.out')
           return len(v)
 
-      CountRuns()  # get rid of any leftovers
+      # Get rid of any leftovers.
+      CountRuns()
+
+      # Disabled.
+      # No measurements should be run.
+      print manager.GetState()
+      for t in xrange(0, 100):
+        wc.Poll(t)
       wvtest.WVPASSEQ(CountRuns(), 0)
 
+      # Enabled.
       # The first measurement should be one cycle later than the start time.
       # This is not an implementation detail: it prevents multiple APs from
       # running simultaneous measurements if measurements are enabled at the
       # same time.
       WriteConfig('enable', 'True')
       wc.Poll(100)
-      wvtest.WVPASSGE(wc.NextMeasurement(), 100)
+      wvtest.WVPASSGT(wc.NextMeasurement(), 100)
       for t in xrange(101, 200):
         wc.Poll(t)
       wvtest.WVPASSGE(CountRuns(), 1)
@@ -183,20 +189,16 @@ def PollTest():
         wc.Poll(t)
       wvtest.WVPASSGE(CountRuns(), 1)
 
-      # Run the measurement at t=400 to restart the timer.
-      wc.Poll(400)
-      wvtest.WVPASSGE(CountRuns(), 0)
-
       # Next poll should be in at most one second regardless of interval.
-      wvtest.WVPASSLE(wc.NextTimeout(), 401)
+      wvtest.WVPASSLE(wc.NextTimeout(), 400)
 
-      # Enabled with longer average interval.  The change in interval should
+      # Enabled with shorter average interval.  The change in interval should
       # trigger a change in next poll timeout.
       WriteConfig('interval', '0.5')
       old_to = wc.NextMeasurement()
-      wc.Poll(401)
+      wc.Poll(400)
       wvtest.WVPASSNE(old_to, wc.NextMeasurement())
-      for t in xrange(402, 500):
+      for t in xrange(401, 500):
         wc.Poll(t)
       wvtest.WVPASSGE(CountRuns(), 1)
 
@@ -218,6 +220,7 @@ def PollTest():
                               manager.GetState().assoc[0].mac)
       wvtest.WVPASSEQ(CountRuns(), 1)
   finally:
+    random.expovariate = oldexpovariate
     time.time = oldtime
     shutil.rmtree(d)
     os.environ['PATH'] = oldpath

@@ -907,7 +907,8 @@ class WifiblasterController(object):
     wifiblaster.enable         Enable WiFi performance measurement.
     wifiblaster.interval       Average time between automated measurements in
                                seconds, or 0 to disable automated measurements.
-    wifiblaster.measureall     Unix time at which to measure all clients.
+    wifiblaster.measureall     Unix time at which to measure all clients, or 0
+                               to disable measureall requests.
     wifiblaster.onassociation  Enable WiFi performance measurement after clients
                                associate.
 
@@ -937,6 +938,20 @@ class WifiblasterController(object):
       return typecast(s)
     except ValueError:
       return None
+
+  def _GetParameters(self):
+    """Reads and returns all parameters if valid, or Nones."""
+    duration = self._ReadParameter('duration', float)
+    enable = self._ReadParameter('enable', self._StrToBool)
+    fraction = self._ReadParameter('fraction', int)
+    interval = self._ReadParameter('interval', float)
+    measureall = self._ReadParameter('measureall', float)
+    onassociation = self._ReadParameter('onassociation', self._StrToBool)
+    size = self._ReadParameter('size', int)
+    if (duration > 0 and enable and fraction > 0 and interval >= 0
+        and measureall >= 0 and size > 0):
+      return (duration, fraction, interval, measureall, onassociation, size)
+    return (None, None, None, None, None, None)
 
   def _SaveResult(self, line):
     """Save wifiblaster result to the status file for that client."""
@@ -975,23 +990,18 @@ class WifiblasterController(object):
     """Return the time of the next measurement event."""
     return self._next_measurement_time
 
-  def Measure(self, interface, client):
+  def Measure(self, interface, client, duration, fraction, size):
     """Measures the performance of a client."""
-    enable = self._ReadParameter('enable', self._StrToBool)
-    duration = self._ReadParameter('duration', float)
-    fraction = self._ReadParameter('fraction', int)
-    size = self._ReadParameter('size', int)
-    if enable and duration > 0 and fraction > 0 and size > 0:
-      RunProc(callback=self._HandleResults,
-              args=[WIFIBLASTER_BIN, '-i', interface, '-d', str(duration),
-                    '-f', str(fraction), '-s', str(size),
-                    helpers.DecodeMAC(client)])
+    RunProc(callback=self._HandleResults,
+            args=[WIFIBLASTER_BIN, '-i', interface, '-d', str(duration),
+                  '-f', str(fraction), '-s', str(size),
+                  helpers.DecodeMAC(client)])
 
   def MeasureOnAssociation(self, interface, client):
     """Measures the performance of a client after association."""
-    onassociation = self._ReadParameter('onassociation', self._StrToBool)
+    (duration, fraction, _, _, onassociation, size) = self._GetParameters()
     if onassociation:
-      self.Measure(interface, client)
+      self.Measure(interface, client, duration, fraction, size)
 
   def Poll(self, now):
     """Polls the state machine."""
@@ -1005,29 +1015,33 @@ class WifiblasterController(object):
       # Inter-arrival times in a Poisson process are exponentially distributed.
       # The timebase slip prevents a burst of measurements in case we fall
       # behind.
-      self._next_measurement_time = now + random.expovariate(1 / interval)
+      self._next_measurement_time = now + random.expovariate(1.0 / interval)
 
-    interval = self._ReadParameter('interval', float)
-    if interval <= 0:
+    # Read parameters.
+    (duration, fraction, interval, measureall, _, size) = self._GetParameters()
+
+    # Handle automated mode.
+    if interval > 0:
+      if self._interval != interval:
+        # Enable or change interval.
+        StartMeasurementTimer(interval)
+      elif now >= self._next_measurement_time:
+        # Measure a random client.
+        StartMeasurementTimer(interval)
+        try:
+          (interface, client) = random.choice(self._GetAllClients())
+        except IndexError:
+          pass
+        else:
+          self.Measure(interface, client, duration, fraction, size)
+    else:
       Disable()
-    elif self._interval != interval:
-      # Enable or change interval.
-      StartMeasurementTimer(interval)
-    elif now >= self._next_measurement_time:
-      # Measure a random client.
-      StartMeasurementTimer(interval)
-      try:
-        (interface, client) = random.choice(self._GetAllClients())
-      except IndexError:
-        pass
-      else:
-        self.Measure(interface, client)
 
-    measureall = self._ReadParameter('measureall', float)
+    # Handle measureall request.
     if time.time() >= measureall and measureall > self._last_measureall_time:
       self._last_measureall_time = measureall
       for (interface, client) in self._GetAllClients():
-        self.Measure(interface, client)
+        self.Measure(interface, client, duration, fraction, size)
 
     # Poll again in at most one second. This allows parameter changes (e.g. a
     # measureall request or a long interval to a short interval) to take effect
