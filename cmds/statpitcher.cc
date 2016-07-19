@@ -25,7 +25,7 @@
 #define GOOG_PROTOCOL 0x8930
 #define STAT_INTERVAL 60
 
-std::string multicast_addr = "FF30::8000:1";
+std::string multicast_addr = "FF12::8000:1";
 
 uint8_t mc_mac[] = { 0x01, 0x00, 0x5e, 0x00, 0x00, 0x01 };
 const char *optstring = "s:i:a:";
