@@ -522,6 +522,7 @@ def connection_manager_test(radio_config, wlan_configs=None,
         os.mkdir(os.path.join(tmp_dir, 'interfaces'))
         moca_tmp_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
+        FrenzyWifi.WPACtrl.WIFIINFO_PATH = tempfile.mkdtemp()
 
         for band, access_point in wlan_configs.iteritems():
           write_wlan_config(config_dir, band, 'initial ssid', 'initial psk')
@@ -549,6 +550,7 @@ def connection_manager_test(radio_config, wlan_configs=None,
         shutil.rmtree(config_dir)
         shutil.rmtree(moca_tmp_dir)
         shutil.rmtree(wpa_control_interface)
+        shutil.rmtree(FrenzyWifi.WPACtrl.WIFIINFO_PATH)
         # pylint: disable=protected-access
         connection_manager._wifi_show = old_wifi_show
         connection_manager._get_quantenna_interfaces = old_gqi
