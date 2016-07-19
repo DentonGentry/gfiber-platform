@@ -119,6 +119,8 @@ int main(int argc, char** argv) {
     if (recvsize < 0) {
       perror("Failed to receive data on socket.\n");
       exit(1);
+    } else {
+      fprintf(stderr, "received %d bytes\n", recvsize);
     }
     pkt.resize(recvsize);
 
