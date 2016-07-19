@@ -262,6 +262,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
   IFUP = ['echo', 'ifup']
   IFPLUGD_ACTION = ['echo', 'ifplugd.action']
   BINWIFI = ['echo', 'wifi']
+  UPLOAD_LOGS_AND_WAIT = ['echo', 'upload-logs-and-wait']
 
   def __init__(self, *args, **kwargs):
     self._binwifi_commands = []
@@ -294,6 +295,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
     self.can_connect_to_s3 = True
     # Will s2 fail rather than providing ACS access?
     self.s2_fail = False
+    self.log_upload_count = 0
 
   def create_wifi_interfaces(self):
     super(ConnectionManager, self).create_wifi_interfaces()
@@ -399,6 +401,10 @@ class ConnectionManager(connection_manager.ConnectionManager):
       return False
 
     return self._wlan_configuration[band].client_up
+
+  def _try_upload_logs(self):
+    self.log_upload_count += 1
+    return super(ConnectionManager, self)._try_upload_logs()
 
   # Test methods
 
@@ -651,6 +657,7 @@ def connection_manager_test_generic(c, band):
   c.interface_with_scan_results = c.wifi_for_band(band).name
   # Wait for a scan, plus 3 cycles, so that s2 will have been tried.
   c.run_until_scan(band)
+  wvtest.WVPASSEQ(c.log_upload_count, 0)
   for _ in range(3):
     c.run_once()
     wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
@@ -665,6 +672,7 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.internet())
   wvtest.WVFAIL(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_route())
+  wvtest.WVPASSEQ(c.log_upload_count, 1)
   # Disable scan results again.
   c.interface_with_scan_results = None
 
@@ -704,6 +712,7 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
   wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's3')
   wvtest.WVPASSEQ(c.last_provisioning_attempt.bssid, 'ff:ee:dd:cc:bb:aa')
+  wvtest.WVPASSEQ(c.log_upload_count, 2)
 
   # Now, recreate the same WLAN configuration, which should be connected to.
   # Also, test that atomic writes/renames work.
@@ -771,6 +780,7 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.acs())
   # Make sure we didn't scan on `band`.
   wvtest.WVPASSEQ(scan_count_for_band, c.wifi_for_band(band).wifi_scan_counter)
+  wvtest.WVPASSEQ(c.log_upload_count, 3)
 
   # Now re-create the WLAN config, connect to the WLAN, and make sure that s3 is
   # unset as last_successful_bss_info, since it is no longer available.
@@ -810,6 +820,7 @@ def connection_manager_test_generic(c, band):
     c.run_once()
   s2_bss = iw.BssInfo('01:23:45:67:89:ab', 's2')
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, s2_bss)
+  wvtest.WVPASSEQ(c.log_upload_count, 4)
 
   c.s2_fail = True
   c.write_wlan_config(band, ssid, psk)
@@ -962,6 +973,7 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVFAIL(c.bridge.current_route())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
+  wvtest.WVPASSEQ(c.log_upload_count, 1)
 
 
 @wvtest.wvtest
@@ -1054,6 +1066,7 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVFAIL(c.bridge.current_route())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
   wvtest.WVPASS(c.wifi_for_band('5').current_route())
+  wvtest.WVPASSEQ(c.log_upload_count, 1)
 
 
 @wvtest.wvtest
