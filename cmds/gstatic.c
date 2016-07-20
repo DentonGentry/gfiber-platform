@@ -85,11 +85,13 @@ ssize_t xwrite(int fd, const char *buf, size_t count)
   total = 0;
   while (total < count) {
     rc = write(fd, buf + total, count - total);
-    if (rc < 0)
-      perror_die("write");
-    else if (rc == 0)
+    if (rc < 0) {
+      perror("write");
+      return -1;
+    } else if (rc == 0) {
+      fprintf(stderr, "write: EOF\n");
       return total;
-    else
+    } else
       total += rc;
   }
 
@@ -125,8 +127,10 @@ int connect_timeout(int fd, struct addrinfo *addr, int timeout_ms)
   socket_set_blocking(fd, false);
 
   rc = connect(fd, addr->ai_addr, addr->ai_addrlen);
-  if (rc < 0 && errno != EINPROGRESS)
-    perror_die("connect");
+  if (rc < 0 && errno != EINPROGRESS) {
+    perror("connect");
+    return -1;
+  }
 
   if (rc != 0) {
     FD_ZERO(&writeset);
@@ -136,7 +140,8 @@ int connect_timeout(int fd, struct addrinfo *addr, int timeout_ms)
 
     rc = select(fd + 1, NULL, &writeset, NULL, &timeout);
     if (rc < 0) {
-      perror_die("select");
+      perror("connect-select");
+      return -1;
     } else if (rc == 0) {
       /* timeout */
       return -1;
@@ -156,26 +161,23 @@ int connect_timeout(int fd, struct addrinfo *addr, int timeout_ms)
 
 ssize_t read_timeout(int fd, void *buf, size_t count, int timeout_ms)
 {
-  fd_set readset, exceptset;
+  fd_set readset;
   struct timeval timeout;
   int rc;
 
   FD_ZERO(&readset);
   FD_SET(fd, &readset);
-  exceptset = readset;
   timeout.tv_sec = timeout_ms / 1000;
   timeout.tv_usec = (timeout_ms % 1000) * 1000;
 
-  rc = select(fd + 1, &readset, NULL, &exceptset, &timeout);
+  rc = select(fd + 1, &readset, NULL, NULL, &timeout);
   if (rc < 0) {
-    perror_die("select");
+    perror("select");
+    return -1;
   } else if (rc == 0) {
-    /* timeout */
-    return 0;
+    fprintf(stderr, "select: timed out\n");
+    return -1;
   }
-
-  if (FD_ISSET(fd, &exceptset))
-    return 0;
 
   return read(fd, buf, count);
 }
@@ -198,7 +200,7 @@ int do_http_request(int fd, struct addrinfo *addr)
 
   rc = xwrite(fd, HTTP_REQUEST, sizeof(HTTP_REQUEST));
   if (rc < (ssize_t)sizeof(HTTP_REQUEST))
-    perror_die("write");
+    goto err;
 
   rc = read_timeout(fd, http_response, sizeof(http_response), TIMEOUT_MS);
   if (rc < 0)
@@ -223,6 +225,9 @@ int main(int argc, const char **argv)
   int bad;
   int rc;
 
+  // In case we get stuck in one of the blocking syscalls (write, read, etc)
+  alarm(60);
+
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
@@ -241,8 +246,11 @@ int main(int argc, const char **argv)
     int fd;
 
     fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (fd < 0)
-      perror_die("socket");
+    if (fd < 0) {
+      perror("socket");
+      bad = 1;
+      continue;
+    }
 
     rc = do_http_request(fd, res);
     if (rc != 0)
