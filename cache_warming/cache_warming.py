@@ -13,11 +13,13 @@ from datetime import datetime
 import json
 import os
 import socket
+import sys
 import dns.exception
 import dns.resolver
 
 hit_log = {}
 last_fetch = datetime.min
+verbose = False
 TOP_N = 50
 FETCH_INTERVAL = 60  # seconds
 UDP_SERVER_PATH = '/tmp/dns_query_log_socket'
@@ -34,6 +36,8 @@ def save_hosts(log):
     log: Dictionary of top requested hosts with host key and tuple value
          containing most recent hit time and hit count.
   """
+  if verbose:
+    print 'Saving hosts in %s.' % HOSTS_JSON_PATH
   d = os.path.dirname(HOSTS_JSON_PATH)
   if not os.path.exists(d):
     os.makedirs(d)
@@ -47,6 +51,8 @@ def load_hosts():
   Loads dictionary with host key and tuple value containing most recent hit
   time and hit count as hit_log if it exists.
   """
+  if verbose:
+    print 'Loading hosts from %s.' % HOSTS_JSON_PATH
   if os.path.isfile(HOSTS_JSON_PATH):
     with open(HOSTS_JSON_PATH, 'r') as hosts_json:
       global hit_log
@@ -64,6 +70,8 @@ def process_query(qry):
             '[Unix time] [host name]'.
   """
   time, _, host = qry.partition(' ')
+  if verbose:
+    print 'Received query for %s.' % host
   if host in hit_log:
     hit_log[host] = (hit_log[host][0] + 1, time)
   else:
@@ -103,9 +111,13 @@ def fetch(hosts, port, server):
   if len(hosts) > TOP_N:
     hosts = hosts[:TOP_N]
   for host in hosts:
+    if verbose:
+      print 'Fetching %s.' % host
     try:
       my_resolver.query(host)
     except dns.exception.DNSException:
+      if verbose:
+        print 'Failed to fetch %s.' % host
       del hit_log[host]
       hosts.remove(host)
 
@@ -121,14 +133,20 @@ def sort_hit_log():
   return sorted(hit_log, key=hit_log.get, reverse=True)
 
 
-def warm_cache():
+def warm_cache(port, server):
   """Warms cache with predetermined number of most requested hosts.
 
   Sorts hosts in hit log by hit count, fetches predetermined
   number of top requested hosts, updates last fetch time.
+
+  Args:
+    port: Port to which to send queries (default is 53).
+    server: Alternate nameservers to query (default is None).
   """
+  if verbose:
+    print 'Warming cache.'
   sorted_hosts = sort_hit_log()
-  fetch(sorted_hosts, args.port, args.server)
+  fetch(sorted_hosts, port, server)
   global last_fetch
   last_fetch = datetime.now()
 
@@ -144,11 +162,15 @@ def set_args():
                       help='port to which to send queries (default is 53).')
   parser.add_argument('-s', '--server', nargs='*', type=str,
                       help='alternate nameservers to query (default is None).')
+  parser.add_argument('-v', '--verbose', action='store_true')
   return parser.parse_args()
 
 
 if __name__ == '__main__':
+  sys.stdout = os.fdopen(1, 'w', 1)
+  sys.stderr = os.fdopen(2, 'w', 1)
   args = set_args()
+  verbose = args.verbose
   load_hosts()
 
   server_address = UDP_SERVER_PATH
@@ -161,10 +183,12 @@ if __name__ == '__main__':
   sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   sock.bind(server_address)
   os.chmod(server_address, 0o777)
+  if verbose:
+    print 'Set up socket at %s.' % HOSTS_JSON_PATH
 
   while 1:
     diff = datetime.now() - last_fetch
     if diff.total_seconds() > 60:
-      warm_cache()
+      warm_cache(args.port, args.server)
     data = sock.recv(128)
     process_query(data)
