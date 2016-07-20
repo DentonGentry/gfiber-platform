@@ -9,6 +9,7 @@ BUILD_IBEACON?=     # default off: needs bluetooth.h
 BUILD_WAVEGUIDE?=y
 BUILD_DVBUTILS?=y
 BUILD_SYSMGR?=y
+BUILD_CACHE_WARMING?=y
 BUILD_STATUTILS?=y
 BUILD_SPEEDTEST?=y
 BUILD_CRYPTDEV?=    # default off: needs libdevmapper
@@ -18,7 +19,7 @@ BUILD_PRESTERASTATS?=n
 export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
 	BUILD_IBEACON BUILD_WAVEGUIDE BUILD_DVBUTILS BUILD_SYSMGR \
 	BUILD_STATUTILS BUILD_CRYPTDEV BUILD_SIGNING BUILD_JSONPOLL \
-	BUILD_PRESTERASTATS
+	BUILD_PRESTERASTATS BUILD_CACHE_WARMING
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
@@ -38,6 +39,10 @@ endif
 
 ifeq ($(BUILD_HNVRAM),y)
 DIRS+=hnvram
+endif
+
+ifeq ($(BUILD_CACHE_WARMING),y)
+DIRS+=cache_warming
 endif
 
 ifeq ($(BUILD_LOGUPLOAD),y)
