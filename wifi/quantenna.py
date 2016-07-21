@@ -120,12 +120,12 @@ def set_wifi(opt):
   try:
     _ensure_initialized('ap')
 
+    _qcsapi('wifi_create_bss', lif, mac)
+    _qcsapi('set_ssid', lif, opt.ssid)
     _qcsapi('set_bw', 'wifi0', opt.width)
     _qcsapi('set_channel', 'wifi0',
             149 if opt.channel == 'auto' else opt.channel)
 
-    _qcsapi('wifi_create_bss', lif, mac)
-    _qcsapi('set_ssid', lif, opt.ssid)
     if opt.encryption == 'NONE':
       _qcsapi('set_beacon_type', lif, 'Basic')
     else:
@@ -164,9 +164,9 @@ def set_client_wifi(opt):
   try:
     _ensure_initialized('sta')
 
+    _qcsapi('create_ssid', lif, opt.ssid)
     _qcsapi('set_bw', 'wifi0', 80)
 
-    _qcsapi('create_ssid', lif, opt.ssid)
     if opt.bssid:
       _qcsapi('set_ssid_bssid', lif, opt.ssid, opt.bssid)
     if opt.encryption == 'NONE' or not os.environ.get('WIFI_CLIENT_PSK'):
