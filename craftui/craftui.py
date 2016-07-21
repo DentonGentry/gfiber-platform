@@ -251,6 +251,7 @@ class PtpActivate(Config):
 
 class Glaukus(Config):
   """Configure using glaukus json api."""
+  baseurl = 'http://localhost:8080'
 
   def __init__(self, validator, api, fmt):
     super(Glaukus, self).__init__(validator)
@@ -275,7 +276,7 @@ class Glaukus(Config):
       raise ConfigError('failed to configure glaukus')
 
   def Configure(self):
-    url = 'http://localhost:8080' + self.api
+    url = self.baseurl + self.api
     payload = self.fmt % self.validator.config
     self.CallJson(url, payload)
 
@@ -288,16 +289,16 @@ class GlaukusACM(Glaukus):
 
   def Configure(self):
     enable = self.validator.config
-    if enable:
-      url = '/api/modem/acm'
+    if enable is 'true':
+      url = self.baseurl + '/api/modem/acm'
       payload = '{"rxSensorsEnabled":true,"txSwitchEnabled":true}'
       self.CallJson(url, payload)
     else:
-      url = '/api/modem/acm'
+      url = self.baseurl + '/api/modem/acm'
       payload = '{"rxSensorsEnabled":false,"txSwitchEnabled":false}'
       self.CallJson(url, payload)
 
-      url = '/api/modem/acm/profile'
+      url = self.baseurl + '/api/modem/acm/profile'
       payload = '{"profileIndex":0,"isLocal":true}'
       self.CallJson(url, payload)
 
