@@ -2,7 +2,6 @@
 
 """Models wired and wireless interfaces."""
 
-import json
 import logging
 import os
 import re
@@ -479,27 +478,7 @@ class FrenzyWPACtrl(object):
     self._events = []
 
   def _qcsapi(self, *command):
-    try:
-      return subprocess.check_output(['qcsapi'] + list(command)).strip()
-    except subprocess.CalledProcessError:
-      return None
-
-  def _wifiinfo_filename(self):
-    return os.path.join(self.WIFIINFO_PATH, self._interface)
-
-  def _get_wifiinfo(self):
-    try:
-      return json.load(open(self._wifiinfo_filename()))
-    except IOError:
-      return None
-
-  def _get_ssid(self):
-    wifiinfo = self._get_wifiinfo()
-    if wifiinfo:
-      return wifiinfo.get('SSID')
-
-  def _check_client_mode(self):
-    return self._qcsapi('get_mode', 'wifi0') == 'Station'
+    return subprocess.check_output(['qcsapi'] + list(command)).strip()
 
   def attach(self):
     self._update()
@@ -517,9 +496,13 @@ class FrenzyWPACtrl(object):
 
   def _update(self):
     """Generate and cache events, update state."""
-    client_mode = self._check_client_mode()
-    ssid = self._get_ssid()
-    status = self._qcsapi('get_status', 'wifi0')
+    try:
+      client_mode = self._qcsapi('get_mode', 'wifi0') == 'Station'
+      ssid = self._qcsapi('get_ssid', 'wifi0')
+      status = self._qcsapi('get_status', 'wifi0')
+    except subprocess.CalledProcessError:
+      # If QCSAPI failed, skip update.
+      return
 
     # If we have an SSID and are in client mode, and at least one of those is
     # new, then we have just connected.

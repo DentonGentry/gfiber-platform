@@ -2,7 +2,6 @@
 
 """Tests for connection_manager.py."""
 
-import json
 import logging
 import os
 import shutil
@@ -199,16 +198,15 @@ class FrenzyWPACtrl(interface.FrenzyWPACtrl):
 
   def add_connected_event(self):
     self.fake_qcsapi['get_mode'] = 'Station'
-    json.dump({'SSID': self.ssid_testonly},
-              open(self._wifiinfo_filename(), 'w'))
+    self.fake_qcsapi['get_ssid'] = self.ssid_testonly
 
   def add_disconnected_event(self):
     self.ssid_testonly = None
-    json.dump({'SSID': ''}, open(self._wifiinfo_filename(), 'w'))
+    self.fake_qcsapi['get_ssid'] = None
 
   def add_terminating_event(self):
     self.ssid_testonly = None
-    json.dump({'SSID': ''}, open(self._wifiinfo_filename(), 'w'))
+    self.fake_qcsapi['get_ssid'] = None
     self.fake_qcsapi['get_mode'] = 'AP'
 
   def detach(self):
