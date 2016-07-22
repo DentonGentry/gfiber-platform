@@ -30,6 +30,36 @@ def taxonomize(mac):
   try:
     with open(os.path.join(FINGERPRINTS_DIR, mac)) as f:
       signature = f.read()
-      return ';'.join(taxonomy.identify_wifi_device(signature, mac))
+      (genus, species, perf) = taxonomy.identify_wifi_device(signature, mac)
+
+      # Preserve older output format of chipset;model;performance. We no
+      # longer track chipsets, but we output the leading ';' separator to
+      # maintain compatibility with the format.
+      #
+      # For example, in the old code:
+      # unknown: SHA:c1...7b;Unknown;802.11n n:2,w:40
+      # known:   BCM4329;iPad (1st/2nd gen);802.11n n:1,w:20
+      #
+      # In the current code, in the unknown case:
+      # genus = 'SHA:c1...7b', species = 'Unknown', perf = '802.11n n:2,w:40'
+      # SHA:c1...7b;Unknown;802.11n n:2,w:40
+      #
+      # In the current code, known, with species information:
+      # genus = 'iPad', species = '(1st/2nd gen)', perf = '802.11n n:1,w:20'
+      # ;iPad (1st/2nd gen);802.11n n:1,w:20
+      #
+      # In the current code, known, no specific species:
+      # genus = 'Samsung Galaxy S6', species = '', perf = '802.11ac n:2,w:80'
+      # ;Samsung Galaxy S6;802.11ac n:2,w:80
+      # We don't want an extra space at the end of the model, so we need to be
+      # careful about a join of the empty species.
+      # ;Samsung Galaxy S6 ;802.11ac n:2,w:80
+
+      if genus.startswith('SHA:'):
+        return genus + ';' + species + ';' + perf
+      elif species:
+        return ';' + genus + ' ' + species + ';' + perf
+      else:
+        return ';' + genus + ';' + perf
   except IOError:
     return None
