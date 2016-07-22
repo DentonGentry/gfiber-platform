@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import tempfile
+import time
 
 import connection_manager
 import interface_test
@@ -539,6 +540,7 @@ def connection_manager_test(radio_config, wlan_configs=None,
                               run_duration_s=run_duration_s,
                               interface_update_period=interface_update_period,
                               wifi_scan_period_s=wifi_scan_period_s,
+                              bssid_cycle_length_s=0.05,
                               **cm_kwargs)
 
         c.test_interface_update_period = interface_update_period
@@ -805,8 +807,11 @@ def connection_manager_test_generic(c, band):
   wvtest.WVFAIL(c.wifi_for_band(band).acs())
 
   c.can_connect_to_s2 = True
-  # Give it time to try all BSSIDs.
-  for _ in range(3):
+  # Give it time to try all BSSIDs.  This means sleeping long enough that
+  # everything in the cycler is active, then doing n+1 loops (the n+1st loop is
+  # when we decided that the SSID in the nth loop was successful).
+  time.sleep(c._bssid_cycle_length_s)
+  for _ in range(len(c.wifi_for_band(band).cycler) + 1):
     c.run_once()
   s2_bss = iw.BssInfo('01:23:45:67:89:ab', 's2')
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, s2_bss)
@@ -954,8 +959,8 @@ def connection_manager_test_dual_band_two_radios(c):
   # The next 2.4 GHz scan will have results.
   c.interface_with_scan_results = c.wifi_for_band('2.4').name
   c.run_until_scan('2.4')
-  # Now run 3 cycles, so that s2 will have been tried.
-  for _ in range(3):
+  # Now run for enough cycles that s2 will have been tried.
+  for _ in range(len(c.wifi_for_band('2.4').cycler)):
     c.run_once()
   c.run_until_interface_update()
   wvtest.WVPASS(c.acs())
@@ -1044,10 +1049,10 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVFAIL(c.wifi_for_band('2.4').current_route())
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
 
-  # The 2.4 GHz scan will have results that will lead to ACS access.
+  # The scan will have results that will lead to ACS access.
   c.interface_with_scan_results = c.wifi_for_band('2.4').name
   c.run_until_scan('5')
-  for _ in range(3):
+  for _ in range(len(c.wifi_for_band('2.4').cycler)):
     c.run_once()
   c.run_until_interface_update()
   wvtest.WVPASS(c.acs())

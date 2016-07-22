@@ -27,9 +27,10 @@ class AgingPriorityCycler(object):
       queue after being automatically reinserted.
       items: Initial items for the queue, as tuples of (item, priority).
     """
-    t = time.time()
-    self._items = {item: [priority, t] for item, priority in items}
     self._min_time_in_queue_s = cycle_length_s
+    self._items = {}
+    if items:
+      self.update(items)
 
   def empty(self):
     return not self._items
@@ -78,4 +79,24 @@ class AgingPriorityCycler(object):
       value[1] = now + self._min_time_in_queue_s
 
     return result
+
+  def update(self, items):
+    """Update to the given items, adding new ones and removing old ones.
+
+    Args:
+      items:  An iterable of (item, priority).
+    """
+    now = time.time()
+    new_items = {}
+    for item, priority in items:
+      t = now
+      existing = self._items.get(item, None)
+      if existing:
+        t = existing[1]
+      new_items[item] = [priority, t]
+
+    self._items = new_items
+
+  def __len__(self):
+    return len(self._items)
 
