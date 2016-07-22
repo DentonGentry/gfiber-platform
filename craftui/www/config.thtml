@@ -225,7 +225,7 @@
             <td>
               <span id=tx_powerlevel_result>...</span>
 
-          <tr>
+          <tr hidden>
             <td><b>Transmit VGA Gain
             <td align=right><span id="radio/tx/vgaGain">...</span>
             <td>
@@ -234,7 +234,7 @@
             <td>
               <span id=tx_gain_result>...</span>
 
-          <tr>
+          <tr hidden>
             <td><b>Receiver AGC Digital Gain Index
             <td align=right><span id="radio/rx/agcDigitalGainIndex">...</span>
             <td>
