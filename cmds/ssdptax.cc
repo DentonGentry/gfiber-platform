@@ -30,6 +30,7 @@
 #include <ctype.h>
 #include <curl/curl.h>
 #include <getopt.h>
+#include <net/if.h>
 #include <netinet/in.h>
 #include <regex.h>
 #include <stdio.h>
@@ -43,6 +44,7 @@
 
 #include <iostream>
 #include <set>
+#include <tr1/unordered_map>
 
 #include "l2utils.h"
 
@@ -68,10 +70,11 @@
 
 typedef struct ssdp_info {
   ssdp_info(): srv_type(), url(), friendlyName(), ipaddr(),
-    manufacturer(), model(), failed(0) {}
+    manufacturer(), model(), buffer(), failed(0) {}
   ssdp_info(const ssdp_info& s): srv_type(s.srv_type), url(s.url),
     friendlyName(s.friendlyName), ipaddr(s.ipaddr),
-    manufacturer(s.manufacturer), model(s.model), failed(s.failed) {}
+    manufacturer(s.manufacturer), model(s.model),
+    buffer(s.buffer), failed(s.failed) {}
   std::string srv_type;
   std::string url;
   std::string friendlyName;
@@ -82,6 +85,24 @@ typedef struct ssdp_info {
   std::string buffer;
   int failed;
 } ssdp_info_t;
+
+
+typedef std::tr1::unordered_map<std::string, ssdp_info_t*> ResponsesMap;
+
+
+int ssdp_loop = 0;
+
+
+/* SSDP Discover packet */
+#define SSDP_PORT 1900
+#define SSDP_IP4  "239.255.255.250"
+#define SSDP_IP6  "ff02::c"
+const char discover_template[] = "M-SEARCH * HTTP/1.1\r\n"
+                                 "HOST: %s:%d\r\n"
+                                 "MAN: \"ssdp:discover\"\r\n"
+                                 "MX: 2\r\n"
+                                 "USER-AGENT: ssdptax/1.0\r\n"
+                                 "ST: %s\r\n\r\n";
 
 
 static void strncpy_limited(char *dst, size_t dstlen,
@@ -101,6 +122,13 @@ static void strncpy_limited(char *dst, size_t dstlen,
     }
   }
   dst[lim] = '\0';
+}
+
+
+static time_t monotime(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return ts.tv_sec;
 }
 
 
@@ -124,19 +152,19 @@ std::string request_from_ssdpd(const char *sock_path,
 
   if (s < 0) {
     perror("socket AF_UNIX failed");
-    exit(1);
+    return rc;
   }
   memset(&addr, 0, sizeof(addr));
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, sock_path, sizeof(addr.sun_path));
-  if(connect(s, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) < 0) {
+  if (connect(s, (struct sockaddr *)&addr, sizeof(struct sockaddr_un)) < 0) {
     perror("connect to minisspd failed");
-    exit(1);
+    return rc;
   }
 
   if ((buffer = (char *)malloc(siz)) == NULL) {
     fprintf(stderr, "malloc(%zu) failed\n", siz);
-    exit(1);
+    return rc;
   }
   memset(buffer, 0, siz);
 
@@ -147,7 +175,8 @@ std::string request_from_ssdpd(const char *sock_path,
   p += device_len;
   if (write(s, buffer, p - buffer) < 0) {
     perror("write to minissdpd failed");
-    exit(1);
+    free(buffer);
+    return rc;
   }
 
   FD_ZERO(&readfds);
@@ -157,18 +186,174 @@ std::string request_from_ssdpd(const char *sock_path,
 
   if (select(s + 1, &readfds, NULL, NULL, &tv) < 1) {
     fprintf(stderr, "select failed\n");
-    exit(1);
+    free(buffer);
+    return rc;
   }
 
   if ((len = read(s, buffer, siz)) < 0) {
     perror("read from minissdpd failed");
-    exit(1);
+    free(buffer);
+    return rc;
   }
 
   close(s);
   rc = std::string(buffer, len);
   free(buffer);
-  return(rc);
+  return rc;
+}
+
+
+int get_ipv4_ssdp_socket()
+{
+  int s;
+  int reuse = 1;
+  struct sockaddr_in sin;
+  struct ip_mreq mreq;
+  struct ip_mreqn mreqn;
+
+  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    perror("socket SOCK_DGRAM");
+    exit(1);
+  }
+
+  if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse))) {
+    perror("setsockopt SO_REUSEADDR");
+    exit(1);
+  }
+
+  if (setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP,
+        &ssdp_loop, sizeof(ssdp_loop))) {
+    perror("setsockopt IP_MULTICAST_LOOP");
+    exit(1);
+  }
+
+  memset(&sin, 0, sizeof(sin));
+  sin.sin_family = AF_INET;
+  sin.sin_port = htons(SSDP_PORT);
+  sin.sin_addr.s_addr = INADDR_ANY;
+  if (bind(s, (struct sockaddr*)&sin, sizeof(sin))) {
+    perror("bind");
+    exit(1);
+  }
+
+  memset(&mreqn, 0, sizeof(mreqn));
+  mreqn.imr_ifindex = if_nametoindex("br0");
+  if (setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &mreqn, sizeof(mreqn))) {
+    perror("IP_MULTICAST_IF");
+    exit(1);
+  }
+
+  memset(&mreq, 0, sizeof(mreq));
+  mreq.imr_multiaddr.s_addr = inet_addr(SSDP_IP4);
+  if (setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+        (char *)&mreq, sizeof(mreq))) {
+    perror("IP_ADD_MEMBERSHIP");
+    exit(1);
+  }
+
+  return s;
+}
+
+
+void send_ssdp_ip4_request(int s, const char *search)
+{
+  struct sockaddr_in sin;
+  char buf[1024];
+  ssize_t len;
+
+  snprintf(buf, sizeof(buf), discover_template, SSDP_IP4, SSDP_PORT, search);
+  memset(&sin, 0, sizeof(sin));
+  sin.sin_family = AF_INET;
+  sin.sin_port = htons(SSDP_PORT);
+  sin.sin_addr.s_addr = inet_addr(SSDP_IP4);
+  len = strlen(buf);
+  if (sendto(s, buf, len, 0, (struct sockaddr*)&sin, sizeof(sin)) != len) {
+    perror("sendto multicast IPv4");
+    exit(1);
+  }
+}
+
+
+int get_ipv6_ssdp_socket()
+{
+  int s;
+  int reuse = 1;
+  struct sockaddr_in6 sin6;
+  struct ipv6_mreq mreq;
+  int idx;
+  int hops;
+
+  if ((s = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
+    perror("socket SOCK_DGRAM");
+    exit(1);
+  }
+
+  if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse))) {
+    perror("setsockopt SO_REUSEADDR");
+    exit(1);
+  }
+
+  if (setsockopt(s, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
+        &ssdp_loop, sizeof(ssdp_loop))) {
+    perror("setsockopt IPV6_MULTICAST_LOOP");
+    exit(1);
+  }
+
+  memset(&sin6, 0, sizeof(sin6));
+  sin6.sin6_family = AF_INET6;
+  sin6.sin6_port = htons(SSDP_PORT);
+  sin6.sin6_addr = in6addr_any;
+  if (bind(s, (struct sockaddr*)&sin6, sizeof(sin6))) {
+    perror("bind");
+    exit(1);
+  }
+
+  idx = if_nametoindex("br0");
+  if (setsockopt(s, IPPROTO_IPV6, IPV6_MULTICAST_IF, &idx, sizeof(idx))) {
+    perror("IP_MULTICAST_IF");
+    exit(1);
+  }
+
+  hops = 2;
+  if (setsockopt(s, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops))) {
+    perror("IPV6_MULTICAST_HOPS");
+    exit(1);
+  }
+
+  memset(&mreq, 0, sizeof(mreq));
+  mreq.ipv6mr_interface = idx;
+  if (inet_pton(AF_INET6, SSDP_IP6, &mreq.ipv6mr_multiaddr) != 1) {
+    fprintf(stderr, "ERR: inet_pton(%s) failed", SSDP_IP6);
+    exit(1);
+  }
+  if (setsockopt(s, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq, sizeof(mreq)) < 0) {
+    perror("ERR: setsockopt(IPV6_JOIN_GROUP)");
+    exit(1);
+  }
+
+  return s;
+}
+
+
+void send_ssdp_ip6_request(int s, const char *search)
+{
+  struct sockaddr_in6 sin6;
+  char buf[1024];
+  ssize_t len;
+
+  snprintf(buf, sizeof(buf), discover_template, SSDP_IP6, SSDP_PORT, search);
+  memset(&sin6, 0, sizeof(sin6));
+  sin6.sin6_family = AF_INET6;
+  sin6.sin6_port = htons(SSDP_PORT);
+  if (inet_pton(AF_INET6, SSDP_IP6, &sin6.sin6_addr) != 1) {
+    fprintf(stderr, "ERR: inet_pton(%s) failed", SSDP_IP6);
+    exit(1);
+  }
+  len = strlen(buf);
+  if (sendto(s, buf, len, 0, (struct sockaddr*)&sin6, sizeof(sin6)) != len) {
+    perror("sendto multicast IPv6");
+    exit(1);
+  }
 }
 
 
@@ -389,8 +574,102 @@ void fetch_device_info(const std::string &url, ssdp_info_t *info)
 }
 
 
+std::string trim(std::string s)
+{
+  size_t start = s.find_first_not_of(" \t\v\f\b\r\n");
+  if (std::string::npos != start && 0 != start) s = s.erase(0, start);
+
+  size_t end = s.find_last_not_of(" \t\v\f\b\r\n");
+  if (std::string::npos != end) s = s.substr(0, end + 1);
+
+  return s;
+}
+
+
+void parse_ssdp_response(int s, ResponsesMap &responses)
+{
+  ssdp_info_t *info = new ssdp_info_t;
+  char buffer[4096];
+  char *p, *saveptr, *strtok_pos;
+  ssize_t pktlen;
+
+  memset(buffer, 0, sizeof(buffer));
+  pktlen = recv(s, buffer, sizeof(buffer) - 1, 0);
+  if (pktlen < 0 || (size_t)pktlen >= sizeof(buffer)) {
+    fprintf(stderr, "error receiving SSDP response, pktlen=%zd\n", pktlen);
+    delete info;
+    /* not fatal, just return */
+    return;
+  }
+  buffer[pktlen] = '\0';
+  strtok_pos = buffer;
+
+  while ((p = strtok_r(strtok_pos, "\r\n", &saveptr)) != NULL) {
+    if (strlen(p) > 9 && strncasecmp(p, "location:", 9) == 0) {
+      char urlbuf[512];
+      p += 9;
+      strncpy_limited(urlbuf, sizeof(urlbuf), p, strlen(p));
+      info->url = trim(std::string(urlbuf, strlen(urlbuf)));
+    } else if (strlen(p) > 7 && strncasecmp(p, "server:", 7) == 0) {
+      char srv_type_buf[256];
+      p += 7;
+      strncpy_limited(srv_type_buf, sizeof(srv_type_buf), p, strlen(p));
+      info->srv_type = trim(std::string(srv_type_buf, strlen(srv_type_buf)));
+    }
+    strtok_pos = NULL;
+  }
+
+  if (info->url.length() && responses.find(info->url) == responses.end()) {
+    fetch_device_info(info->url, info);
+    responses[info->url] = info;
+  } else {
+    delete info;
+  }
+}
+
+
+/* Wait for SSDP NOTIFY messages to arrive. */
+#define TIMEOUT_SECS  5
+void listen_for_responses(int s4, int s6, ResponsesMap &responses)
+{
+  struct timeval tv;
+  fd_set rfds;
+  int maxfd = (s4 > s6) ? s4 : s6;
+  time_t start = monotime();
+
+  memset(&tv, 0, sizeof(tv));
+  tv.tv_sec = TIMEOUT_SECS;
+  tv.tv_usec = 0;
+
+  FD_ZERO(&rfds);
+  FD_SET(s4, &rfds);
+  FD_SET(s6, &rfds);
+
+  while (select(maxfd + 1, &rfds, NULL, NULL, &tv) > 0) {
+    time_t end = monotime();
+    if (FD_ISSET(s4, &rfds)) {
+      parse_ssdp_response(s4, responses);
+    }
+    if (FD_ISSET(s6, &rfds)) {
+      parse_ssdp_response(s6, responses);
+    }
+
+    FD_ZERO(&rfds);
+    FD_SET(s4, &rfds);
+    FD_SET(s6, &rfds);
+
+    if ((end - start) > TIMEOUT_SECS) {
+      /* even on a network filled with SSDP packets,
+       * return after TIMEOUT_SECS. */
+      break;
+    }
+  }
+}
+
+
 void usage(char *progname) {
-  printf("usage: %s [-t /path/to/fifo]\n", progname);
+  printf("usage: %s [-t /path/to/fifo] [-s search]\n", progname);
+  printf("\t-s\tserver type to search for (default ssdp:all)\n");
   printf("\t-t\ttest mode, use a fake path instead of minissdpd.\n");
   exit(1);
 }
@@ -399,11 +678,11 @@ void usage(char *progname) {
 int main(int argc, char **argv)
 {
   std::string buffer;
-  typedef std::tr1::unordered_map<std::string, ssdp_info_t*> ResponsesMap;
   ResponsesMap responses;
   L2Map l2map;
-  int c, num;
+  int c, s4, s6;
   const char *sock_path = SOCK_PATH;
+  const char *search = "ssdp:all";
 
   setlinebuf(stdout);
   alarm(30);
@@ -413,28 +692,52 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  while ((c = getopt(argc, argv, "t:")) != -1) {
+  while ((c = getopt(argc, argv, "s:t:")) != -1) {
     switch(c) {
-      case 't': sock_path = optarg; break;
+      case 's': search = optarg; break;
+      case 't':
+        sock_path = optarg;
+        ssdp_loop = 1;
+        break;
       default: usage(argv[0]); break;
     }
   }
 
-  buffer = request_from_ssdpd(sock_path, 3, "ssdp:all");
-  num = buffer.c_str()[0];
-  buffer.erase(0, 1);
-  while ((num-- > 0) && buffer.length() > 0) {
-    ssdp_info_t *info = new ssdp_info_t;
+  /* Request the list from MiniSSDPd */
+  buffer = request_from_ssdpd(sock_path, 3, search);
+  if (!buffer.empty()) {
+    int num = buffer.c_str()[0];
+    buffer.erase(0, 1);
+    while ((num-- > 0) && buffer.length() > 0) {
+      ssdp_info_t *info = new ssdp_info_t;
 
-    parse_minissdpd_response(buffer, info->url, info->srv_type);
-    if (info->url.length() && responses.find(info->url) == responses.end()) {
-      fetch_device_info(info->url, info);
-      responses[info->url] = info;
-    } else {
-      delete info;
+      parse_minissdpd_response(buffer, info->url, info->srv_type);
+      if (info->url.length() && responses.find(info->url) == responses.end()) {
+        fetch_device_info(info->url, info);
+        responses[info->url] = info;
+      } else {
+        delete info;
+      }
     }
+
+    /* Capture the ARP table in its current state. */
+    get_l2_map(&l2map);
   }
 
+  /* Supplement what we got from MiniSSDPd by sending
+   * our own M-SEARCH and listening for responses. */
+  s4 = get_ipv4_ssdp_socket();
+  send_ssdp_ip4_request(s4, search);
+  s6 = get_ipv6_ssdp_socket();
+  send_ssdp_ip6_request(s6, search);
+  listen_for_responses(s4, s6, responses);
+  close(s4);
+  s4 = -1;
+  close(s6);
+  s6 = -1;
+
+  /* Capture any new ARP table entries which appeared after sending
+   * our own M-SEARCH. */
   get_l2_map(&l2map);
 
   typedef std::set<std::string> ResultsSet;
