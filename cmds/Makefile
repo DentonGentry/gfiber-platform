@@ -63,13 +63,15 @@ HOST_TEST_TARGETS += host-wifi_files_test host-asustax_test
 endif
 
 ifeq ($(BUILD_SSDP),y)
-TARGETS += ssdptax
+TARGETS += ssdptax dialcheck
 HOST_TEST_TARGETS += host-test-ssdptax.sh
+HOST_TEST_TARGETS += host-test-dialcheck.sh
 endif
 
 ifeq ($(BUILD_DNSSD),y)
 # Don't bother building for host
 ARCH_TARGETS += dnssd_hosts
+SCRIPT_TARGETS += castcheck
 endif
 
 ifeq ($(BUILD_IBEACON),y)
@@ -202,6 +204,10 @@ ssdptax: ssdptax.o l2utils.o
 ssdptax: LIBS += -lcurl -lnl-3 -lstdc++ -lm
 host-ssdptax: host-ssdptax.o host-l2utils.o
 host-ssdptax: LIBS += $(HOST_LIBS) -lcurl -lnl-3 -lstdc++ -lm
+dialcheck: dialcheck.o
+dialcheck: LIBS += -lstdc++ -lm
+host-dialcheck: host-dialcheck.o
+host-dialcheck: LIBS += $(HOST_LIBS) -lstdc++ -lm
 statpitcher.o: device_stats.pb.o
 statpitcher: LIBS+=-L$(DESTDIR)$(PREFIX)/usr/lib -lprotobuf-lite -lpthread -lstdc++
 statpitcher: device_stats.pb.o statpitcher.o

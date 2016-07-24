@@ -1,0 +1,19 @@
+#!/bin/sh
+
+AVAHI=avahi-browse
+
+while getopts "a:" option
+do
+  case $option in
+  a) AVAHI="$OPTARG" ;;
+  esac
+done
+
+cast_devices=
+while IFS=";" read ip; do
+  cast_devices="$cast_devices $ip"
+done<<EOT
+$($AVAHI -tpvlr _googlecast._tcp | grep "^=" | cut -d";" -f8 | sort)
+EOT
+
+echo "Cast responses from:$cast_devices"
