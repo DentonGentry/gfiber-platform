@@ -17,5 +17,8 @@ message Status {
 
   // Device serial number.
   optional string serial = 5;
+
+  // Public ipv6 address of onu
+  optional string ipv6 = 6;
 };
 

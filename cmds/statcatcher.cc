@@ -142,7 +142,8 @@ int main(int argc, char** argv) {
 "onu_acs_contacted": %s,
 "onu_acs_contact_time": "%lld",
 "onu_uptime": %lld,
-"onu_serial": "%s"
+"onu_serial": "%s",
+"onu_ipv6": "%s"
 })";
     FILE *f = fopen(tmp_file.c_str(), "w");
     if (!f) {
@@ -155,7 +156,8 @@ int main(int argc, char** argv) {
             status.acs_contacted() ? "true" : "false",
             status.acs_contact_time(),
             status.uptime(),
-            status.serial().c_str());
+            status.serial().c_str(),
+            status.ipv6().c_str());
     fclose(f);
 
     if (rename(tmp_file.c_str(), stat_file.c_str()) != 0) {
