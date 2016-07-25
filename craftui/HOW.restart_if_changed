@@ -12,7 +12,6 @@ restart() {
   [ -n "$pid2" ] && kill $pid2
   echo "######################################################################"
   echo "# starting craftui"
-  gpylint *.py
   make test
   ./craftui &
   pid1=$!

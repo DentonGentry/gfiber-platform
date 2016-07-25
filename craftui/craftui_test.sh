@@ -238,6 +238,10 @@ run_tests() {
     $curl $admin_auth -d $d $url/content.json'?peer=1' |& grep '"error": 0}'
     check_success
 
+    testname rxslicer
+    $curl $admin_auth $url/rxslicer.png | file - | grep "PNG image data, 400 x 400"
+    check_success
+
   done
 
   # verify insecure message is hidden on https and not on http

@@ -4,12 +4,16 @@ PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 WWWDIR=$(DESTDIR)$(PREFIX)/usr/craftui
 PYTHON?=python
+PY=$(wildcard *.py)
+
+SKIPPY=png.py
+LINTPY=$(filter-out $(SKIPPY), $(PY))
 
 all:
 
 install:
 	mkdir -p $(BINDIR) $(WWWDIR)
-	cp craftui craftui.py $(BINDIR)
+	cp craftui craftui.py png.py $(BINDIR)
 	cp -rp www $(WWWDIR)
 
 install-libs:
@@ -34,4 +38,4 @@ clean:
 	rm -rf *.pyc
 
 lint:
-	for n in *.py; do gpylint $$n || exit 1; done
+	for n in $(LINTPY); do gpylint $$n || exit 1; done

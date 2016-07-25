@@ -12,6 +12,9 @@ for suffix in 1 2; do
 		ip -o -d link > /tmp/sim/ip.link.txt;
 		ip -o addr > /tmp/sim/ip.addr.txt;
 		presterastats > /tmp/sim/presterastats.json;
+		for n in adc rxrrc rxslicer dac; do
+			curl -s http://localhost:8080/api/modem/iq/$n > /tmp/glaukus/$n.json
+		done
 		'
 
 	ssh chimera$suffix cd / "&&" tar czf - -C / \
