@@ -7,25 +7,67 @@ CraftUI = function() {
     document.documentElement.classList.add('unsupported');
     return;
   }
-
-  // Initialize the info.
-  CraftUI.getInfo();
-
-  // Refresh data periodically.
-  window.setInterval(CraftUI.getInfo, 5000);
 };
 
-CraftUI.info = {checksum: 0};
-CraftUI.am_sending = false
+CraftUI.prototype.init = function() {
+  this.info = {checksum: 0};
+  this.am_sending = false
 
-CraftUI.updateField = function(key, val) {
+  // store history on some values
+  this.history = {
+    'radio/rx/rsl': { name: 'rsl-graph', count: 24, values: [] }
+  };
+
+  // Initialize the info.
+  this.getInfo();
+
+  // Refresh data periodically.
+  var f = function() {
+    this.ui.getInfo();
+  };
+  window.ui = this;
+  window.setInterval(f, 5000);
+};
+
+CraftUI.prototype.updateGraphs = function() {
+  for (var name in this.history) {
+    var h = this.history[name];
+    if (h.values.length == 0) {
+      continue;
+    }
+    if (!h.graph) {
+      h.graph = new Dygraph(document.getElementById(h.name), h.values, {
+        xlabel: 'Time',
+        ylabel: 'RSL',
+        labels: [ 'Date', 'RSL' ],
+      });
+    }
+    h.graph.updateOptions({ 'file': h.values });
+  }
+};
+
+CraftUI.prototype.updateField = function(key, val) {
+  // store history if requested
+  var h = this.history[key];
+  if (h) {
+    h.values.push([ui.date, val]);
+    if (h.values.length > h.count) {
+      h.values = h.values.slice(-h.count);
+    }
+  }
+  // find element, show on debug page if not used
   var el = document.getElementById(key);
   if (el == null) {
-    self.unhandled += key + '=' + val + '; ';
+    this.unhandled += key + '=' + val + '; ';
     return;
   }
-  el.innerHTML = ''; // Clear the field.
+  // For IMG objects, set image
+  if (el.src) {
+    el.src = '/static/' + val;
+    return;
+  }
   // For objects, create an unordered list and append the values as list items.
+  el.innerHTML = ''; // Clear the field.
   if (val && typeof val === 'object') {
     var ul = document.createElement('ul');
     for (key in val) {
@@ -48,44 +90,61 @@ CraftUI.updateField = function(key, val) {
   el.appendChild(document.createTextNode(val));
 };
 
-CraftUI.flattenAndUpdateFields = function(jsonmap, prefix) {
+CraftUI.prototype.flattenAndUpdateFields = function(jsonmap, prefix) {
   for (var key in jsonmap) {
     var val = jsonmap[key];
     if (typeof val !== 'object') {
-      CraftUI.updateField(prefix + key, jsonmap[key]);
+      this.updateField(prefix + key, jsonmap[key]);
     } else {
-      CraftUI.flattenAndUpdateFields(val, prefix + key + '/')
+      this.flattenAndUpdateFields(val, prefix + key + '/')
     }
   }
 };
 
-CraftUI.getInfo = function() {
+CraftUI.prototype.getInfo = function() {
   // Request info, set the connected status, and update the fields.
-  if (CraftUI.am_sending) {
+  if (this.am_sending) {
     return;
   }
   var peer_arg_on_peer = document.getElementById("peer_arg_on_peer").value;
   var xhr = new XMLHttpRequest();
+  xhr.timeout = 2000;
+  xhr.ui = this;
   xhr.onreadystatechange = function() {
-    self.unhandled = '';
-    if (xhr.readyState == 4 && xhr.status == 200) {
-      var list = JSON.parse(xhr.responseText);
-      CraftUI.flattenAndUpdateFields(list, '');
+    var ui = this.ui;
+    if (xhr.readyState != 4) {
+      return;
     }
-    CraftUI.updateField('unhandled', self.unhandled);
-    CraftUI.am_sending = false
+    ui.unhandled = '';
+    var led = 'red.gif';
+    if (xhr.status == 200) {
+      ui.date = new Date();
+      var list = JSON.parse(xhr.responseText);
+      ui.flattenAndUpdateFields(list, '');
+      led = 'green.gif';
+    } else {
+      var leds = ['ACS', 'Switch', 'Modem', 'Radio', 'RSSI', 'MSE', 'Peer'];
+      for (var i in leds) {
+        ui.updateField('leds/' + leds[i], 'grey.gif')
+      }
+    }
+    ui.updateField('unhandled', ui.unhandled);
+    ui.updateField('leds/Craft', led)
+    ui.updateGraphs();
+    ui.am_sending = false
   };
   xhr.open('get', '/content.json' + peer_arg_on_peer, true);
-  CraftUI.am_sending = true
+  this.am_sending = true
   xhr.send();
 };
 
-CraftUI.config = function(key, activate, is_password) {
+CraftUI.prototype.config = function(key, activate, is_password) {
   // POST as json
   var peer_arg_on_peer = document.getElementById("peer_arg_on_peer").value;
   var el = document.getElementById(key);
-  var xhr = new XMLHttpRequest();
   var action = "Configured";
+  var xhr = new XMLHttpRequest();
+  xhr.ui = this;
   xhr.open('post', '/content.json' + peer_arg_on_peer);
   xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
   var data;
@@ -108,13 +167,14 @@ CraftUI.config = function(key, activate, is_password) {
   var resultid = key + "_result"
   var el = document.getElementById(resultid);
   xhr.onload = function(e) {
+    var ui = this.ui;
     var json = JSON.parse(xhr.responseText);
     if (json.error == 0) {
       el.innerHTML = action + " successfully.";
     } else {
       el.innerHTML = "Error: " + json.errorstring;
     }
-    CraftUI.getInfo();
+    ui.getInfo();
   }
   xhr.onerror = function(e) {
     el.innerHTML = xhr.statusText + xhr.responseText;
@@ -123,4 +183,5 @@ CraftUI.config = function(key, activate, is_password) {
   xhr.send(txt);
 };
 
-new CraftUI();
+var craftUI = new CraftUI();
+craftUI.init();
