@@ -8,6 +8,7 @@ import glob
 import json
 import logging
 import os
+import random
 import re
 import subprocess
 import time
@@ -202,7 +203,8 @@ class ConnectionManager(object):
                moca_tmp_dir='/tmp/cwmp/monitoring/moca2',
                wpa_control_interface='/var/run/wpa_supplicant',
                run_duration_s=1, interface_update_period=5,
-               wifi_scan_period_s=120, wlan_retry_s=15, acs_update_wait_s=10):
+               wifi_scan_period_s=120, wlan_retry_s=15, acs_update_wait_s=10,
+               bssid_cycle_length_s=30):
 
     self._tmp_dir = tmp_dir
     self._config_dir = config_dir
@@ -215,6 +217,7 @@ class ConnectionManager(object):
     self._wifi_scan_period_s = wifi_scan_period_s
     self._wlan_retry_s = wlan_retry_s
     self._acs_update_wait_s = acs_update_wait_s
+    self._bssid_cycle_length_s = bssid_cycle_length_s
     self._wlan_configuration = {}
 
     # Make sure all necessary directories exist.
@@ -658,7 +661,13 @@ class ConnectionManager(object):
     logging.info('Done scanning on %s', wifi.name)
     items = [(bss_info, 3) for bss_info in with_ie]
     items += [(bss_info, 1) for bss_info in without_ie]
-    wifi.cycler = cycler.AgingPriorityCycler(cycle_length_s=30, items=items)
+    if not hasattr(wifi, 'cycler'):
+      wifi.cycler = cycler.AgingPriorityCycler(
+          cycle_length_s=self._bssid_cycle_length_s)
+    # Shuffle items to undefined determinism in scan results + dict
+    # implementation unfairly biasing BSSID order.
+    random.shuffle(items)
+    wifi.cycler.update(items)
 
   def _find_bssids(self, band):
     def supports_autoprovisioning(oui, vendor_ie):
