@@ -23,9 +23,6 @@ import interface
 import iw
 import status
 
-GFIBER_OUIS = ['f4:f5:e8']
-VENDOR_IE_FEATURE_ID_AUTOPROVISIONING = '01'
-
 
 class FileChangeHandler(pyinotify.ProcessEvent):
   """Connects pyinotify events to ConnectionManager."""
@@ -657,10 +654,8 @@ class ConnectionManager(object):
     subprocess.call(self.IFUP + [wifi.name])
     # /bin/wifi takes a --band option but then finds the right interface for it,
     # so it's okay to just pick the first band here.
-    with_ie, without_ie = self._find_bssids(wifi.bands[0])
+    items = self._find_bssids(wifi.bands[0])
     logging.info('Done scanning on %s', wifi.name)
-    items = [(bss_info, 3) for bss_info in with_ie]
-    items += [(bss_info, 1) for bss_info in without_ie]
     if not hasattr(wifi, 'cycler'):
       wifi.cycler = cycler.AgingPriorityCycler(
           cycle_length_s=self._bssid_cycle_length_s)
@@ -670,13 +665,8 @@ class ConnectionManager(object):
     wifi.cycler.update(items)
 
   def _find_bssids(self, band):
-    def supports_autoprovisioning(oui, vendor_ie):
-      if oui not in GFIBER_OUIS:
-        return False
-
-      return vendor_ie.startswith(VENDOR_IE_FEATURE_ID_AUTOPROVISIONING)
-
-    return iw.find_bssids(band, supports_autoprovisioning, False)
+    """Wrapper used as a unit testing seam."""
+    return iw.find_bssids(band, False)
 
   def _try_next_bssid(self, wifi):
     """Attempt to connect to the next BSSID in wifi's BSSID cycler.

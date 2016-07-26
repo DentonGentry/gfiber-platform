@@ -17,8 +17,13 @@ def _scan(band, **kwargs):
     return ''
 
 
+GFIBER_OUIS = ['f4:f5:e8']
+VENDOR_IE_FEATURE_ID_AUTOPROVISIONING = '01'
+
+
 _BSSID_RE = r'BSS (?P<BSSID>([0-9a-f]{2}:?){6})\(on .*\)'
 _SSID_RE = r'SSID: (?P<SSID>.*)'
+_RSSI_RE = r'signal: (?P<RSSI>.*) dBm'
 _VENDOR_IE_RE = (r'Vendor specific: OUI (?P<OUI>([0-9a-f]{2}:?){3}), '
                  'data:(?P<data>( [0-9a-f]{2})+)')
 
@@ -26,15 +31,17 @@ _VENDOR_IE_RE = (r'Vendor specific: OUI (?P<OUI>([0-9a-f]{2}:?){3}), '
 class BssInfo(object):
   """Contains info about a BSS, parsed from 'iw scan'."""
 
-  def __init__(self, bssid='', ssid='', security=None, vendor_ies=None):
+  def __init__(self, bssid='', ssid='', rssi=-100, security=None,
+               vendor_ies=None):
     self.bssid = bssid
     self.ssid = ssid
+    self.rssi = rssi
     self.vendor_ies = vendor_ies or []
     self.security = security or []
 
   def __attrs(self):
     return (self.bssid, self.ssid, tuple(sorted(self.vendor_ies)),
-            tuple(sorted(self.security)))
+            tuple(sorted(self.security)), self.rssi)
 
   def __eq__(self, other):
     # pylint: disable=protected-access
@@ -70,6 +77,10 @@ def scan_parsed(band, **kwargs):
     if match:
       bss_info.ssid = match.group('SSID')
       continue
+    match = re.match(_RSSI_RE, line)
+    if match:
+      bss_info.rssi = float(match.group('RSSI'))
+      continue
     match = re.match(_VENDOR_IE_RE, line)
     if match:
       bss_info.vendor_ies.append((match.group('OUI'),
@@ -88,22 +99,20 @@ def scan_parsed(band, **kwargs):
   return result
 
 
-def find_bssids(band, vendor_ie_function, include_secure):
+def find_bssids(band, include_secure):
   """Return information about interesting access points.
 
   Args:
     band:  The band on which to scan.
-    vendor_ie_function:  A function that takes a vendor IE and returns a bool.
     include_secure:  Whether to exclude secure networks.
 
   Returns:
-    Two lists of tuples of the form (SSID, BSSID info dict).  The first list has
-    BSSIDs which have a vendor IE accepted by vendor_ie_function, and the second
-    list has those which don't.
+    A list of (BSSID, priority) tuples, prioritizing BSSIDs with the GFiber
+    provisioning vendor IE > GFiber APs > other APs, and by RSSI within each
+    group.
   """
   parsed = scan_parsed(band)
-  result_with_ie = set()
-  result_without_ie = set()
+  bssids = set()
 
   for bss_info in parsed:
     if bss_info.security and not include_secure:
@@ -121,11 +130,16 @@ def find_bssids(band, vendor_ie_function, include_secure):
     if not bss_info.ssid and not bss_info.vendor_ies:
       bss_info.ssid = DEFAULT_GFIBERSETUP_SSID
 
-    for oui, data in bss_info.vendor_ies:
-      if vendor_ie_function(oui, data):
-        result_with_ie.add(bss_info)
-        break
-    else:
-      result_without_ie.add(bss_info)
+    bssids.add(bss_info)
 
-  return result_with_ie, result_without_ie
+  return [(bss_info, _bssid_priority(bss_info)) for bss_info in bssids]
+
+
+def _bssid_priority(bss_info):
+  result = 4 if bss_info.bssid[:8] in GFIBER_OUIS else 2
+  for oui, data in bss_info.vendor_ies:
+    if (oui in GFIBER_OUIS and
+        data.startswith(VENDOR_IE_FEATURE_ID_AUTOPROVISIONING)):
+      result = 5
+
+  return result + (100 + (max(bss_info.rssi, -100))) / 100.0
