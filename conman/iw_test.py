@@ -551,6 +551,7 @@ BSS 94:b4:0f:f1:36:42(on wcli0)
      * VI: CW 7-15, AIFSN 2, TXOP 3008 usec
      * VO: CW 3-7, AIFSN 2, TXOP 1504 usec
   Vendor specific: OUI 00:11:22, data: 01 23 45 67
+  Vendor specific: OUI f4:f5:e8, data: 01
   Vendor specific: OUI f4:f5:e8, data: 03 47 46 69 62 65 72 53 65 74 75 70 41 75 74 6f 6d 61 74 69 6f 6e
 BSS f4:f5:e8:f1:36:43(on wcli0)
   TSF: 12499150000 usec (0d, 03:28:19)
@@ -629,49 +630,55 @@ iw._scan = fake_scan
 def find_bssids_test():
   """Test iw.find_bssids."""
   test_ie = ('00:11:22', '01 23 45 67')
+  provisioning_ie = ('f4:f5:e8', '01')
   ssid_ie = (
       'f4:f5:e8',
       '03 47 46 69 62 65 72 53 65 74 75 70 41 75 74 6f 6d 61 74 69 6f 6e',
   )
   short_scan_result = iw.BssInfo(ssid='short scan result',
                                  bssid='00:23:97:57:f4:d8',
+                                 rssi=-60,
                                  security=['WEP'],
                                  vendor_ies=[test_ie])
   provisioning_bss_info = iw.BssInfo(ssid=iw.DEFAULT_GFIBERSETUP_SSID,
                                      bssid='94:b4:0f:f1:36:42',
-                                     vendor_ies=[test_ie, ssid_ie])
+                                     rssi=-66,
+                                     vendor_ies=[test_ie, provisioning_ie,
+                                                 ssid_ie])
   provisioning_bss_info_frenzy = iw.BssInfo(ssid=iw.DEFAULT_GFIBERSETUP_SSID,
-                                            bssid='f4:f5:e8:f1:36:43')
-
-  with_ie, without_ie = iw.find_bssids('wcli0', lambda o, d: o == '00:11:22',
-                                       True)
-
-  wvtest.WVPASSEQ(with_ie, set([short_scan_result, provisioning_bss_info]))
+                                            bssid='f4:f5:e8:f1:36:43',
+                                            rssi=-66)
 
   wvtest.WVPASSEQ(
-      without_ie,
-      set([provisioning_bss_info_frenzy,
-           iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:36:41'),
-           iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:3a:e1'),
-           iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:35:61'),
-           iw.BssInfo(ssid='Google', bssid='94:b4:0f:f1:36:40',
-                      security=['WPA2']),
-           iw.BssInfo(ssid='Google', bssid='94:b4:0f:f1:3a:e0',
-                      security=['WPA2']),
-           iw.BssInfo(ssid='Google', bssid='94:b4:0f:f1:35:60',
-                      security=['WPA2']),
-           iw.BssInfo(ssid='Google', bssid='94:b4:0f:f1:02:a0',
-                      security=['WPA2'])]))
+      set(iw.find_bssids('wcli0', True)),
+      set([(short_scan_result, 2.4),
+           (provisioning_bss_info, 5.34),
+           (provisioning_bss_info_frenzy, 4.34),
+           (iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:36:41', rssi=-67),
+            2.33),
+           (iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:3a:e1', rssi=-65),
+            2.35),
+           (iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:35:61', rssi=-38),
+            2.62),
+           (iw.BssInfo(ssid='Google', bssid='94:b4:0f:f1:36:40', rssi=-66,
+                       security=['WPA2']), 2.34),
+           (iw.BssInfo(ssid='Google', bssid='94:b4:0f:f1:3a:e0', rssi=-55,
+                       security=['WPA2']), 2.45),
+           (iw.BssInfo(ssid='Google', bssid='94:b4:0f:f1:35:60', rssi=-39,
+                       security=['WPA2']), 2.61),
+           (iw.BssInfo(ssid='Google', bssid='94:b4:0f:f1:02:a0', rssi=-54,
+                       security=['WPA2']), 2.46)]))
 
-  with_ie, without_ie = iw.find_bssids('wcli0', lambda o, d: o == '00:11:22',
-                                       False)
-  wvtest.WVPASSEQ(with_ie, set([provisioning_bss_info]))
   wvtest.WVPASSEQ(
-      without_ie,
-      set([provisioning_bss_info_frenzy,
-           iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:36:41'),
-           iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:3a:e1'),
-           iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:35:61')]))
+      set(iw.find_bssids('wcli0', False)),
+      set([(provisioning_bss_info, 5.34),
+           (provisioning_bss_info_frenzy, 4.34),
+           (iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:36:41', rssi=-67),
+            2.33),
+           (iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:3a:e1', rssi=-65),
+            2.35),
+           (iw.BssInfo(ssid='GoogleGuest', bssid='94:b4:0f:f1:35:61', rssi=-38),
+            2.62)]))
 
 if __name__ == '__main__':
   wvtest.wvtest_main()
