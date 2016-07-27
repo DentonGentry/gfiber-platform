@@ -3,6 +3,7 @@
   <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
   <meta content="utf-8" http-equiv="encoding">
   <script src="static/jquery-2.1.4.min.js"></script>
+  <script src="static/dygraph-combined.js"></script>
   <link rel="stylesheet" type="text/css" href="static/craft.css">
   <link rel=icon href=static/favicon.ico>
   <link rel=stylesheet href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700&amp;lang=en">
@@ -22,7 +23,6 @@
       </nav>
     </section>
   </header>
-  <br>
   <div hidden>
     <input id=hidden_on_https value="{{hidden_on_https}}">
     <input id=hidden_on_peer value="{{hidden_on_peer}}">
@@ -31,6 +31,27 @@
     <input id=peer_arg_on_peer value="{{peer_arg_on_peer}}">
   </div>
   <div {{shown_on_peer}}><font color="red"><b>This is the Peer</b></font></div>
+  <div>
+    <table class="leds">
+      <tr>
+        <td width=50 align=center>Craft<br>
+          <img id="leds/Craft" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>ACS<br>
+          <img id="leds/ACS" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>Switch<br>
+          <img id="leds/Switch" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>Modem<br>
+          <img id="leds/Modem" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>Radio<br>
+          <img id="leds/Radio" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>RSSI<br>
+          <img id="leds/RSSI" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>MSE<br>
+          <img id="leds/MSE" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>Peer<br>
+          <img id="leds/Peer" width=20 height=20 src=/static/grey.gif></td>
+    </table>
+  </div>
   <div class="tabs">
     <div class="tab">
       <input type="radio" id="tab-1" name="tab-group-1" checked>
@@ -38,7 +59,7 @@
       <div class="content">
         <b>Running Configuration:</b><br>
         <textarea id=configuration cols=60 rows=30>...</textarea><br>
-        <input type=submit value=Apply onclick="CraftUI.config('password_admin', 0, 1)">
+        <input type=submit value=Apply onclick="craftUI.config('password_admin', 0, 1)">
       </div>
     </div>
 
@@ -60,7 +81,7 @@
               Current <b>Admin</b> Password: <input id=password_admin_admin type=password value=""><br>
               New Admin Password: <input id=password_admin_new type=password value=""><br>
               Confirm: <input id=password_admin_confirm type=password value=""><br>
-              <input type=submit value="Apply Now" onclick="CraftUI.config('password_admin', 0, 1)">
+              <input type=submit value="Apply Now" onclick="craftUI.config('password_admin', 0, 1)">
             <td>
               <span id=password_admin_result>...</span>
 
@@ -71,7 +92,7 @@
               Current <b>Admin</b> Password: <input id=password_guest_admin type=password value=""><br>
               New Guest Password: <input id=password_guest_new type=password value=""><br>
               Confirm: <input id=password_guest_confirm type=password value=""><br>
-              <input type=submit value="Apply Now" onclick="CraftUI.config('password_guest', 0, 1)">
+              <input type=submit value="Apply Now" onclick="craftUI.config('password_guest', 0, 1)">
             <td>
               <span id=password_guest_result>...</span>
 
@@ -97,10 +118,10 @@
             <td align=right><span id="platform/active_craft_inet">...</span>
             <td align=right>
               <span id="platform/craft_ipaddr">...</span>
-              <input type=submit value="Apply Now" onclick="CraftUI.config('craft_ipaddr', 1)">
+              <input type=submit value="Apply Now" onclick="craftUI.config('craft_ipaddr', 1)">
             <td>
               <input id=craft_ipaddr type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('craft_ipaddr')">
+              <input type=submit value=Configure onclick="craftUI.config('craft_ipaddr')">
             <td>
               <span id=craft_ipaddr_result>...</span>
 
@@ -109,10 +130,10 @@
             <td align=right><span id="platform/active_link_inet">...</span>
             <td align=right>
               <span id="platform/link_ipaddr">...</span>
-              <input type=submit value="Apply Now" onclick="CraftUI.config('link_ipaddr', 1)">
+              <input type=submit value="Apply Now" onclick="craftUI.config('link_ipaddr', 1)">
             <td>
               <input id=link_ipaddr type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('link_ipaddr')">
+              <input type=submit value=Configure onclick="craftUI.config('link_ipaddr')">
             <td>
               <span id=link_ipaddr_result>...</span>
 
@@ -121,10 +142,10 @@
             <td align=right>See Peer
             <td align=right>
               <span id="platform/peer_ipaddr">...</span>
-              <input type=submit value="Apply Now" onclick="CraftUI.config('peer_ipaddr', 1)">
+              <input type=submit value="Apply Now" onclick="craftUI.config('peer_ipaddr', 1)">
             <td>
               <input id=peer_ipaddr type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('peer_ipaddr')">
+              <input type=submit value=Configure onclick="craftUI.config('peer_ipaddr')">
             <td>
               <span id=peer_ipaddr_result>...</span>
 
@@ -133,10 +154,10 @@
             <td align=right><span id="platform/active_inband_vlan">...</span>
             <td align=right>
               <span id="platform/vlan_inband">...</span>
-              <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_inband', 1)">
+              <input type=submit value="Apply Now" onclick="craftUI.config('vlan_inband', 1)">
             <td>
               <input id=vlan_inband type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('vlan_inband')">
+              <input type=submit value=Configure onclick="craftUI.config('vlan_inband')">
             <td>
               <span id=vlan_inband_result>...</span>
 
@@ -145,10 +166,10 @@
             <td align=right><span id="platform/active_ooband_vlan">...</span>
             <td align=right>
               <span id="platform/vlan_ooband">...</span>
-              <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_ooband', 1)">
+              <input type=submit value="Apply Now" onclick="craftUI.config('vlan_ooband', 1)">
             <td>
               <input id=vlan_ooband type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('vlan_ooband')">
+              <input type=submit value=Configure onclick="craftUI.config('vlan_ooband')">
             <td>
               <span id=vlan_ooband_result>...</span>
 
@@ -157,10 +178,10 @@
             <td align=right><span id="platform/active_link_vlan">...</span>
             <td align=right>
               <span id="platform/vlan_link">...</span>
-              <input type=submit value="Apply Now" onclick="CraftUI.config('vlan_peer', 1)">
+              <input type=submit value="Apply Now" onclick="craftUI.config('vlan_peer', 1)">
             <td>
               <input id=vlan_peer type=text value="">
-              <input type=submit value=Configure onclick="CraftUI.config('vlan_peer')">
+              <input type=submit value=Configure onclick="craftUI.config('vlan_peer')">
             <td>
               <span id=vlan_peer_result>...</span>
 
@@ -185,7 +206,7 @@
             <td align=right><span id="radio/hiTransceiver/pll/frequency">...</span>
             <td>
               <input id=freq_hi type=text value="">
-              <input type=submit value=Apply onclick="CraftUI.config('freq_hi')">
+              <input type=submit value=Apply onclick="craftUI.config('freq_hi')">
             <td>
               <span id=freq_hi_result>...</span>
 
@@ -194,7 +215,7 @@
             <td align=right><span id="radio/loTransceiver/pll/frequency">...</span>
             <td>
               <input id=freq_lo type=text value="">
-              <input type=submit value=Apply onclick="CraftUI.config('freq_lo')">
+              <input type=submit value=Apply onclick="craftUI.config('freq_lo')">
             <td>
               <span id=freq_lo_result>...</span>
 
@@ -203,7 +224,7 @@
             <td align=right><span id="radio/hiTransceiver/mode">...</span>
             <td>
               <input id=mode_hi type=text value="">
-              <input type=submit value=Apply onclick="CraftUI.config('mode_hi')">
+              <input type=submit value=Apply onclick="craftUI.config('mode_hi')">
             <td>
               <span id=mode_hi_result>...</span>
 
@@ -212,7 +233,7 @@
             <td align=right><span id="modem/status/acmEngineRxSensorsEnabled">...</span>
             <td>
               <input id=acm_on type=text value="">
-              <input type=submit value=Apply onclick="CraftUI.config('acm_on')">
+              <input type=submit value=Apply onclick="craftUI.config('acm_on')">
             <td>
               <span id=acm_on_result>...</span>
 
@@ -221,7 +242,7 @@
             <td align=right><span id="radio/tx/paPowerSet">...</span>
             <td>
               <input id=tx_powerlevel type=text value="">
-              <input type=submit value=Apply onclick="CraftUI.config('tx_powerlevel')">
+              <input type=submit value=Apply onclick="craftUI.config('tx_powerlevel')">
             <td>
               <span id=tx_powerlevel_result>...</span>
 
@@ -230,7 +251,7 @@
             <td align=right><span id="radio/tx/vgaGain">...</span>
             <td>
               <input id=tx_gain type=text value="">
-              <input type=submit value=Apply onclick="CraftUI.config('tx_gain')">
+              <input type=submit value=Apply onclick="craftUI.config('tx_gain')">
             <td>
               <span id=tx_gain_result>...</span>
 
@@ -239,7 +260,7 @@
             <td align=right><span id="radio/rx/agcDigitalGainIndex">...</span>
             <td>
               <input id=rx_gainindex type=text value="">
-              <input type=submit value=Apply onclick="CraftUI.config('rx_gainindex')">
+              <input type=submit value=Apply onclick="craftUI.config('rx_gainindex')">
             <td>
               <span id=rx_gainindex_result>...</span>
 
@@ -248,11 +269,12 @@
             <td align=right><span id="radio/paLnaPowerEnabled">...</span>
             <td>
               <input id=palna_on type=text value="">
-              <input type=submit value=Apply onclick="CraftUI.config('palna_on')">
+              <input type=submit value=Apply onclick="craftUI.config('palna_on')">
             <td>
               <span id=palna_on_result>...</span>
 
         </table>
+        <div id="rsl-graph">...</div>
       </div>
     </div>
 
@@ -261,7 +283,7 @@
       <label for="tab-5">Reboot</label>
       <div class="content">
         <input hidden id=reboot type=text value="true">
-        <input type=submit value=Reboot onclick="CraftUI.config('reboot')">
+        <input type=submit value=Reboot onclick="craftUI.config('reboot')">
         <span class="values">
           <span id=reboot_result>...</span>
         </span>
@@ -270,7 +292,7 @@
         <br>
         <br>
         <input hidden id=factory_reset type=text value="true">
-        <input type=submit value="Factory Reset" onclick="CraftUI.config('factory_reset')">
+        <input type=submit value="Factory Reset" onclick="craftUI.config('factory_reset')">
         <span class="values">
           <span id=factory_reset_result>...</span>
         </span>

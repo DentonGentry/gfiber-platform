@@ -28,6 +28,8 @@ for suffix in 1 2; do
 		tmp/ssl \
 		tmp/platform \
 		tmp/gpio \
+		tmp/cpss_ready \
+		tmp/peer-"*" \
 		tmp/sim \
 		> sim$suffix.tgz
 

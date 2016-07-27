@@ -431,12 +431,54 @@ class CraftUI(object):
 
     return text
 
+  def GetValue(self, data, path):
+    """Walk down the dicts to get a value."""
+    keys = path.split('/')
+    v = data
+    for key in keys:
+      if v:
+        v = v.get(key, None)
+    return v
+
+  def AddLeds(self, data):
+    """Add status leds to data."""
+    red = 'red.gif'
+    green = 'green.gif'
+    leds = {
+        'ACS': red,
+        'Switch': red,
+        'Modem': red,
+        'Radio': red,
+        'RSSI': red,
+        'MSE': red,
+        'Peer': red
+    }
+    if self.GetValue(data, 'platform/ledstate') is 'ACSCONTACT':
+      leds['ACS'] = green
+    if self.GetValue(data, 'platform/cpss_ready'):
+      leds['Switch'] = green
+    if self.GetValue(data, 'modem/status/acquireStatus') == 1:
+      leds['Modem'] = green
+    if self.GetValue(data, 'radio/paLnaPowerEnabled'):
+      leds['Radio'] = green
+    rssi = self.GetValue(data, 'radio/rx/rssi')
+    if rssi >= 1500 and rssi <= 2000:
+      leds['RSSI'] = green
+    mse = self.GetValue(data, 'modem/status/normalizedMse')
+    if mse is not None and mse <= -180:
+      leds['MSE'] = green
+    if self.GetValue(data, 'platform/peer_up'):
+      leds['Peer'] = green
+    data['leds'] = leds
+
   def GetData(self):
     """Get system data, return a json string."""
-    pj = self.GetPlatformData()
-    mj = self.GetModemData()
-    rj = self.GetRadioData()
-    js = '{"platform":' + pj + ',"modem":' + mj + ',"radio":' + rj + '}'
+    data = {}
+    data['platform'] = self.GetPlatformData()
+    data['modem'] = self.GetModemData()
+    data['radio'] = self.GetRadioData()
+    self.AddLeds(data)
+    js = json.dumps(data)
     return js
 
   def AddIpAddr(self, data):
@@ -505,7 +547,7 @@ class CraftUI(object):
       data[kdata] = vdata
 
   def GetPlatformData(self):
-    """Get platform data, return a json string."""
+    """Get platform data."""
     data = self.data
     sim = self.sim
 
@@ -519,6 +561,7 @@ class CraftUI(object):
     data['ledstate'] = self.ReadFile(sim + '/tmp/gpio/ledstate')
     data['cpu_temperature'] = self.ReadFile(sim + '/tmp/gpio/cpu_temperature')
     data['peer_up'] = os.path.exists(sim + '/tmp/peer-up')
+    data['cpss_ready'] = os.path.exists(sim + '/tmp/cpss_ready')
     cs = '/config/settings/'
     data['craft_ipaddr'] = self.ReadFile(sim + cs + 'craft_ipaddr')
     data['link_ipaddr'] = self.ReadFile(sim + cs + 'local_ipaddr')
@@ -530,10 +573,11 @@ class CraftUI(object):
     self.AddInterfaceStats(data)
     self.AddSwitchStats(data)
     self.AddVlans(data)
-    return json.dumps(data)
+    return data
 
   def GetModemData(self):
-    """Get modem data, return a json string."""
+    """Get modem data."""
+    data = {}
     response = '{}'
     if self.sim:
       response = self.ReadFile(self.sim + '/tmp/glaukus/modem.json')
@@ -544,10 +588,15 @@ class CraftUI(object):
         response = handle.read()
       except urllib2.URLError as ex:
         print 'Connection to %s failed: %s' % (url, ex.reason)
-    return response
+    try:
+      data = json.loads(response)
+    except ValueError as e:
+      print 'json format error: %s' % e
+    return data
 
   def GetRadioData(self):
     """Get radio data, return a json string."""
+    data = {}
     response = '{}'
     if self.sim:
       response = self.ReadFile(self.sim + '/tmp/glaukus/radio.json')
@@ -558,7 +607,11 @@ class CraftUI(object):
         response = handle.read()
       except urllib2.URLError as ex:
         print 'Connection to %s failed: %s' % (url, ex.reason)
-    return response
+    try:
+      data = json.loads(response)
+    except ValueError as e:
+      print 'json format error: %s' % e
+    return data
 
   def GetIQPNG(self, path):
     """Get IQ points and render as PNG."""
@@ -573,7 +626,12 @@ class CraftUI(object):
       except urllib2.URLError as ex:
         print 'Connection to %s failed: %s' % (url, ex.reason)
 
-    coords = json.loads(response)
+    coords = [0, 0]
+    try:
+      coords = json.loads(response)
+    except ValueError as e:
+      print 'json format error: %s' % e
+
     # owh is original width/height of data (-1200 to 1200)
     owh = (2400, 2400)
     # wh is display size (400x400)

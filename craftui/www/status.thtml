@@ -3,6 +3,7 @@
   <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
   <meta content="utf-8" http-equiv="encoding">
   <script src="static/jquery-2.1.4.min.js"></script>
+  <script src="static/dygraph-combined.js"></script>
   <link rel="stylesheet" type="text/css" href="static/craft.css">
   <link rel=icon href=static/favicon.ico>
   <link rel=stylesheet href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700&amp;lang=en">
@@ -22,7 +23,6 @@
       </nav>
     </section>
   </header>
-  <br>
   <div hidden>
     <input id=hidden_on_https value="{{hidden_on_https}}">
     <input id=hidden_on_peer value="{{hidden_on_peer}}">
@@ -31,6 +31,27 @@
     <input id=peer_arg_on_peer value="{{peer_arg_on_peer}}">
   </div>
   <div {{shown_on_peer}}><font color="red"><b>This is the Peer</b></font></div>
+  <div>
+    <table class="leds">
+      <tr>
+        <td width=50 align=center>Craft<br>
+          <img id="leds/Craft" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>ACS<br>
+          <img id="leds/ACS" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>Switch<br>
+          <img id="leds/Switch" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>Modem<br>
+          <img id="leds/Modem" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>Radio<br>
+          <img id="leds/Radio" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>RSSI<br>
+          <img id="leds/RSSI" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>MSE<br>
+          <img id="leds/MSE" width=20 height=20 src=/static/grey.gif></td>
+        <td width=50 align=center>Peer<br>
+          <img id="leds/Peer" width=20 height=20 src=/static/grey.gif></td>
+    </table>
+  </div>
   <div class="tabs">
     <div class="tab">
       <input type="radio" id="tab-1" name="tab-group-1" checked>
