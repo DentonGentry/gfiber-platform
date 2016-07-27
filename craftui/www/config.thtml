@@ -266,12 +266,16 @@
           <span id=reboot_result>...</span>
         </span>
         <br>
+        Note: Allow 60 seconds for UI to return after reboot, and 200 seconds for link to come up.
+        <br>
         <br>
         <input hidden id=factory_reset type=text value="true">
         <input type=submit value="Factory Reset" onclick="CraftUI.config('factory_reset')">
         <span class="values">
           <span id=factory_reset_result>...</span>
         </span>
+        <br>
+        Warning: This will restore all defaults, including the craft port address to <a href=http://192.168.1.1/>192.168.1.1</a>.
       </div>
     </div>
 
@@ -279,6 +283,7 @@
       <input type="radio" id="tab-6" name="tab-group-1">
       <label for="tab-6">Debug</label>
       <div class="content">
+        <b>Constellation:</b><span class="values"><a href="/rxslicer.png" target=_blank>rxslicer.png</a></li></span><br>
         <b>refreshCount:</b><span class="values" id="platform/refreshCount">...</span><br>
         <b>unhandled xml:</b><span class="values">
           <textarea id=unhandled cols=60 rows=30>...</textarea></span><br>

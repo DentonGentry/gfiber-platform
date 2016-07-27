@@ -22,10 +22,12 @@ import getopt
 import json
 import os
 import re
+import StringIO
 import subprocess
 import sys
 import urllib2
 import digest
+import png
 import tornado.httpserver
 import tornado.ioloop
 import tornado.web
@@ -558,6 +560,46 @@ class CraftUI(object):
         print 'Connection to %s failed: %s' % (url, ex.reason)
     return response
 
+  def GetIQPNG(self, path):
+    """Get IQ points and render as PNG."""
+    response = '[0,0]'
+    if self.sim:
+      response = self.ReadFile(self.sim + '/tmp/glaukus/' + path + '.json')
+    else:
+      try:
+        url = 'http://localhost:8080/api/modem/iq/' + path
+        handle = urllib2.urlopen(url, timeout=2)
+        response = handle.read()
+      except urllib2.URLError as ex:
+        print 'Connection to %s failed: %s' % (url, ex.reason)
+
+    coords = json.loads(response)
+    # owh is original width/height of data (-1200 to 1200)
+    owh = (2400, 2400)
+    # wh is display size (400x400)
+    wh = (400, 400)
+
+    w = png.Writer(size=wh, greyscale=True, bitdepth=1)
+    scanline = int((wh[0] + 7) / 8)
+    rows = [scanline*[0] for i in xrange(0, wh[1])]
+    for i in xrange(0, len(coords) / 2):
+      # data is a series of x,y,x,y,x,y...
+      xy = (coords[i*2], coords[i*2+1])
+      # transform and scale data to display
+      sxy = (int((xy[0] + owh[0]/2 + .5) * wh[0] / owh[0]),
+             int((xy[1] + owh[1]/2 + .5) * wh[1] / owh[1]))
+      if sxy[0] < 0 or sxy[0] >= wh[0] or sxy[1] < 0 or sxy[1] >= wh[1]:
+        continue
+      # set a pixel in the PNG
+      pos = int(sxy[0] / 8)
+      shift = sxy[0] % 8
+      rows[sxy[1]][pos] |= 1 << (7 - shift)
+    f = StringIO.StringIO()
+    w.write_packed(f, rows)
+    image = f.getvalue()
+    f.close()
+    return image
+
   def GetUserCreds(self, user):
     """Create a dict with the requested password."""
     if user not in ('admin', 'guest'):
@@ -754,6 +796,29 @@ class CraftUI(object):
       self.write(response)
       self.finish()
 
+  class PNGHandler(CraftHandler):
+    """Returns a PNG showing plotted IQ values."""
+    baseurl = 'http://localhost:8080/api/modem/iq/'
+    auth = 'any'
+    page = 'IQ'
+    path = None
+
+    def get(self):
+      if self.TryProxy():
+        return
+      if not self.Authenticated():
+        return
+      ui = self.settings['ui']
+      print '%s %s page (%s)' % (self.request.method, self.page, ui.sim)
+
+      image = ui.GetIQPNG(self.path)
+      self.set_header('Content-Type', 'image/png')
+      self.write(image)
+      self.finish()
+
+  class RXSlicerPNGHandler(PNGHandler):
+    path = 'rxslicer'
+
   def RunUI(self):
     """Create the http redirect and https web server and run forever."""
     sim = self.sim
@@ -763,6 +828,7 @@ class CraftUI(object):
         (r'^/status/?$', self.StatusHandler),
         (r'^/config/?$', self.ConfigHandler),
         (r'^/content.json/?$', self.JsonHandler),
+        (r'^/rxslicer.png$', self.RXSlicerPNGHandler),
         (r'^/static/([^/]*)$', tornado.web.StaticFileHandler,
          {'path': self.wwwroot + '/static'}),
     ]
