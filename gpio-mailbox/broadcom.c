@@ -614,6 +614,15 @@ static void platform_cleanup(void) {
   }
 }
 
+static void *mmap_(void* addr, size_t size, int prot, int flags, int fd,
+                   off_t offset) {
+#ifdef __ANDROID__
+  return mmap64(addr, size, prot, flags, fd, (off64_t)(uint64_t)(uint32_t)offset);
+#else
+  return mmap(addr, size, prot, flags, fd, offset);
+#endif
+}
+
 static int platform_init(struct platform_info* p) {
   platform_cleanup();
 
@@ -623,8 +632,8 @@ static int platform_init(struct platform_info* p) {
     return -1;
   }
   mmap_size = p->mmap_size;
-  mmap_addr = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED,
-                   mmap_fd, p->mmap_base);
+  mmap_addr = mmap_(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                    mmap_fd, p->mmap_base);
   if (mmap_addr == MAP_FAILED) {
     perror("mmap");
     platform_cleanup();
