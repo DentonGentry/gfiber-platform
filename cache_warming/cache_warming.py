@@ -171,7 +171,12 @@ if __name__ == '__main__':
   sys.stderr = os.fdopen(2, 'w', 1)
   args = set_args()
   verbose = args.verbose
-  load_hosts()
+  try:
+    load_hosts()
+  except ValueError as e:
+    if verbose:
+      print 'Failed to open %s: %s.' % (HOSTS_JSON_PATH,e)
+    save_hosts(hit_log)
 
   server_address = UDP_SERVER_PATH
   try:
