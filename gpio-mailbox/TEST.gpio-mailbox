@@ -1,4 +1,4 @@
-rm -rf /tmp/gpio /tmp/led
+rm -rf /tmp/gpio /tmp/leds
 
 mkdir -p /tmp/gpio
 echo x5 0 1 0 2 0 0x0f > /tmp/gpio/leds
