@@ -56,7 +56,14 @@ def load_hosts():
   if os.path.isfile(HOSTS_JSON_PATH):
     with open(HOSTS_JSON_PATH, 'r') as hosts_json:
       global hit_log
-      hit_log = json.load(hosts_json)
+      try:
+        hit_log = json.load(hosts_json)
+      except ValueError as e:
+        if verbose:
+          print 'Failed to open %s: %s.' % (HOSTS_JSON_PATH, e)
+      finally:
+        if not isinstance(hit_log, dict):
+          hit_log = {}
 
 
 def process_query(qry):
@@ -171,13 +178,7 @@ if __name__ == '__main__':
   sys.stderr = os.fdopen(2, 'w', 1)
   args = set_args()
   verbose = args.verbose
-  try:
-    load_hosts()
-  except ValueError as e:
-    if verbose:
-      print 'Failed to open %s: %s.' % (HOSTS_JSON_PATH, e)
-    save_hosts(hit_log)
-
+  load_hosts()
   server_address = UDP_SERVER_PATH
   try:
     os.remove(server_address)

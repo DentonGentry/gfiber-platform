@@ -1,6 +1,7 @@
 #!/usr/bin/python
 """Tests for cache_warming.py."""
 
+import os
 import cache_warming
 from wvtest import wvtest
 
@@ -70,6 +71,56 @@ def test_hit_log_subset():
   }
   actual = cache_warming.hit_log_subset(hosts)
   wvtest.WVPASSEQ(actual, expected)
+
+
+@wvtest.wvtest
+def test_no_cache_warming_hosts():
+  crash = False
+  cache_warming.HOSTS_JSON_PATH = '/tmp/cache_warming_hosts.json'
+  if os.path.exists('/tmp/cache_warming_hosts.json'):
+    os.remove('/tmp/cache_warming_hosts.json')
+  try:
+    cache_warming.load_hosts()
+    cache_warming.warm_cache(53, None)
+  except ValueError:
+    crash = True
+  wvtest.WVFAIL(crash)
+
+
+@wvtest.wvtest
+def test_empty_cache_warming_hosts():
+  crash = False
+  cache_warming.HOSTS_JSON_PATH = '/tmp/cache_warming_hosts.json'
+  if os.path.exists('/tmp/cache_warming_hosts.json'):
+    os.remove('/tmp/cache_warming_hosts.json')
+  open('/tmp/cache_warming_hosts.json', 'w').close()
+  try:
+    cache_warming.load_hosts()
+    cache_warming.warm_cache(53, None)
+  except ValueError:
+    crash = True
+  finally:
+    os.remove('/tmp/cache_warming_hosts.json')
+  wvtest.WVFAIL(crash)
+
+
+@wvtest.wvtest
+def test_wrong_cache_warming_hosts():
+  crash = False
+  cache_warming.HOSTS_JSON_PATH = '/tmp/cache_warming_hosts.json'
+  if os.path.exists('/tmp/cache_warming_hosts.json'):
+    os.remove('/tmp/cache_warming_hosts.json')
+  f = open('/tmp/cache_warming_hosts.json', 'w')
+  f.write('[]')
+  f.close()
+  try:
+    cache_warming.load_hosts()
+    cache_warming.warm_cache(53, None)
+  except ValueError:
+    crash = True
+  finally:
+    os.remove('/tmp/cache_warming_hosts.json')
+  wvtest.WVFAIL(crash)
 
 
 if __name__ == '__main__':
