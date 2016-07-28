@@ -95,7 +95,9 @@ class WLANConfiguration(object):
   def client_up(self):
     wpa_status = self.wifi.wpa_status()
     return (wpa_status.get('wpa_state') == 'COMPLETED'
-            and wpa_status.get('ssid') == self.ssid)
+            # NONE indicates we're on a provisioning network; anything else
+            # suggests we're already on the WLAN.
+            and wpa_status.get('key_mgmt') != 'NONE')
 
   def start_access_point(self):
     """Start an access point."""

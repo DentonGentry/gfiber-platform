@@ -183,6 +183,7 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
   def start_client(self):
     client_was_up = self.client_up
     was_attached = self.wifi.attached()
+    self.wifi._secure_testonly = True
     # Do this before calling the super method so that the attach call at the end
     # succeeds.
     if not client_was_up and not was_attached:
@@ -196,6 +197,7 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
 
       if was_attached:
         self.wifi._wpa_control.ssid_testonly = self.ssid
+        self.wifi._wpa_control.secure_testonly = True
         self.wifi.add_connected_event()
 
       # Normally, wpa_supplicant would bring up the client interface, which
@@ -301,6 +303,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
     for wifi in self.wifi_interfaces_already_up:
       # pylint: disable=protected-access
       self.interface_by_name(wifi)._initial_ssid_testonly = 'my ssid'
+      self.interface_by_name(wifi)._secure_testonly = True
 
   @property
   def IP_LINK(self):
@@ -323,10 +326,12 @@ class ConnectionManager(connection_manager.ConnectionManager):
     def connect(connection_check_result):
       # pylint: disable=protected-access
       if wifi.attached():
-        wifi._wpa_control._ssid_testonly = bss_info.ssid
+        wifi._wpa_control.ssid_testonly = bss_info.ssid
+        wifi._wpa_control.secure_testonly = False
         wifi.add_connected_event()
       else:
         wifi._initial_ssid_testonly = bss_info.ssid
+        wifi._secure_testonly = False
         wifi.start_wpa_supplicant_testonly(self._wpa_control_interface)
       wifi.set_connection_check_result(connection_check_result)
       self.ifplugd_action(wifi.name, True)
