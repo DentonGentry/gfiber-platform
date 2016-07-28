@@ -175,7 +175,7 @@ if __name__ == '__main__':
     load_hosts()
   except ValueError as e:
     if verbose:
-      print 'Failed to open %s: %s.' % (HOSTS_JSON_PATH,e)
+      print 'Failed to open %s: %s.' % (HOSTS_JSON_PATH, e)
     save_hosts(hit_log)
 
   server_address = UDP_SERVER_PATH
@@ -193,7 +193,7 @@ if __name__ == '__main__':
 
   while 1:
     diff = datetime.now() - last_fetch
-    if diff.total_seconds() > 60:
+    if diff.total_seconds() > FETCH_INTERVAL:
       warm_cache(args.port, args.server)
     data = sock.recv(128)
     process_query(data)
