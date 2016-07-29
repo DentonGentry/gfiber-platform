@@ -192,6 +192,7 @@ class ConnectionManager(object):
   IP_LINK = ['ip', 'link']
   IFPLUGD_ACTION = ['/etc/ifplugd/ifplugd.action']
   BINWIFI = ['wifi']
+  UPLOAD_LOGS_AND_WAIT = ['timeout', '60', 'upload-logs-and-wait']
 
   def __init__(self,
                bridge_interface='br0',
@@ -216,6 +217,7 @@ class ConnectionManager(object):
     self._acs_update_wait_s = acs_update_wait_s
     self._bssid_cycle_length_s = bssid_cycle_length_s
     self._wlan_configuration = {}
+    self._try_to_upload_logs = False
 
     # Make sure all necessary directories exist.
     for directory in (self._tmp_dir, self._config_dir, self._moca_tmp_dir,
@@ -465,6 +467,10 @@ class ConnectionManager(object):
         self._status.connected_to_wlan = False
         if self.acs():
           logging.debug('Connected to ACS on %s', wifi.name)
+          if self._try_to_upload_logs:
+            self._try_upload_logs()
+            self._try_to_upload_logs = False
+
           wifi.last_successful_bss_info = getattr(wifi,
                                                   'last_attempted_bss_info',
                                                   None)
@@ -693,6 +699,7 @@ class ConnectionManager(object):
         wifi.waiting_for_acs_since = now
         wifi.complain_about_acs_at = now + 5
         logging.info('Attempting to provision via SSID %s', bss_info.ssid)
+        self._try_to_upload_logs = True
       # If we can no longer connect to this, it's no longer successful.
       elif bss_info == last_successful_bss_info:
         wifi.last_successful_bss_info = None
@@ -787,6 +794,11 @@ class ConnectionManager(object):
     """
     subprocess.check_output(self.BINWIFI + list(command),
                             stderr=subprocess.STDOUT)
+
+  def _try_upload_logs(self):
+    logging.debug('Attempting to upload logs')
+    if subprocess.call(self.UPLOAD_LOGS_AND_WAIT) != 0:
+      logging.error('Failed to upload logs')
 
 
 def _wifi_show():
