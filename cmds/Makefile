@@ -118,6 +118,7 @@ install:
 	for n in $(SCRIPT_TARGETS); do \
 		test ! -f $$n.$(BR2_TARGET_GENERIC_PLATFORM_NAME) || \
 			cp -f $$n.$(BR2_TARGET_GENERIC_PLATFORM_NAME) $(BINDIR)/$$n; \
+		test ! -f $$n || cp -f $$n $(BINDIR)/$$n; \
 	done
 
 install-libs:
