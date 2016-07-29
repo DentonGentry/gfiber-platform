@@ -6,19 +6,10 @@ import re
 import subprocess
 
 
-FIBER_OUI = 'f4:f5:e8'
-DEFAULT_GFIBERSETUP_SSID = 'GFiberSetupAutomation'
-
-
-def _scan(band, **kwargs):
-  try:
-    return subprocess.check_output(('wifi', 'scan', '-b', band), **kwargs)
-  except subprocess.CalledProcessError:
-    return ''
-
-
-GFIBER_OUIS = ['f4:f5:e8']
+GFIBER_VENDOR_IE_OUI = 'f4:f5:e8'
+GFIBER_OUIS = ['00:1a:11', 'f4:f5:e8', 'f8:8f:ca']
 VENDOR_IE_FEATURE_ID_AUTOPROVISIONING = '01'
+DEFAULT_GFIBERSETUP_SSID = 'GFiberSetupAutomation'
 
 
 _BSSID_RE = r'BSS (?P<BSSID>([0-9a-f]{2}:?){6})\(on .*\)'
@@ -26,6 +17,13 @@ _SSID_RE = r'SSID: (?P<SSID>.*)'
 _RSSI_RE = r'signal: (?P<RSSI>.*) dBm'
 _VENDOR_IE_RE = (r'Vendor specific: OUI (?P<OUI>([0-9a-f]{2}:?){3}), '
                  'data:(?P<data>( [0-9a-f]{2})+)')
+
+
+def _scan(band, **kwargs):
+  try:
+    return subprocess.check_output(('wifi', 'scan', '-b', band), **kwargs)
+  except subprocess.CalledProcessError:
+    return ''
 
 
 class BssInfo(object):
@@ -119,7 +117,7 @@ def find_bssids(band, include_secure):
       continue
 
     for oui, data in bss_info.vendor_ies:
-      if oui == FIBER_OUI:
+      if oui == GFIBER_VENDOR_IE_OUI:
         octets = data.split()
         if octets[0] == '03' and not bss_info.ssid:
           bss_info.ssid = ''.join(octets[1:]).decode('hex')
@@ -138,7 +136,7 @@ def find_bssids(band, include_secure):
 def _bssid_priority(bss_info):
   result = 4 if bss_info.bssid[:8] in GFIBER_OUIS else 2
   for oui, data in bss_info.vendor_ies:
-    if (oui in GFIBER_OUIS and
+    if (oui == GFIBER_VENDOR_IE_OUI and
         data.startswith(VENDOR_IE_FEATURE_ID_AUTOPROVISIONING)):
       result = 5
 
