@@ -18,15 +18,13 @@
 #define GPIO_OUT                "out"
 
 /* GPIO_ACTIVITY LED is blue on Chimera. */
-#define GPIO_ACTIVITY           "30"
-#define GPIO_RED                "31"
+#define GPIO_ACTIVITY		"/led_activity"
+#define GPIO_RED		"/led_red"
 
-#define GPIO_BASE_DIR           "/sys/class/gpio"
-#define GPIO_EXPORT             GPIO_BASE_DIR "/export"
+#define GPIO_BASE_DIR		"/dev/gpio"
 
-#define GPIO_DIR(n)             GPIO_BASE_DIR "/gpio" n
+#define GPIO_DIR(n)             GPIO_BASE_DIR n
 
-#define GPIO_DIRECTION(dir)     dir "/direction"
 #define GPIO_VALUE(dir)         dir "/value"
 
 struct PinHandle_s {
@@ -38,9 +36,7 @@ struct systemp {
 };
 
 struct sysgpio {
-  const char* export_value;
   const char* value_path;
-  const char* direction_path;
 };
 
 struct platform_info {
@@ -57,13 +53,9 @@ struct platform_info platforms[] = {
       .value_path = "/sys/class/hwmon/hwmon0/temp1_input",
     },
     .led_red = {
-      .export_value = GPIO_RED,
-      .direction_path = GPIO_DIRECTION(GPIO_DIR(GPIO_RED)),
       .value_path = GPIO_VALUE(GPIO_DIR(GPIO_RED)),
     },
     .led_activity = {
-      .export_value = GPIO_ACTIVITY,
-      .direction_path = GPIO_DIRECTION(GPIO_DIR(GPIO_ACTIVITY)),
       .value_path = GPIO_VALUE(GPIO_DIR(GPIO_ACTIVITY)),
     },
   }
@@ -89,16 +81,6 @@ PinHandle PinCreate(void) {
     perror("calloc(PinHandle)");
     return NULL;
   }
-
-  // initialize leds to match boot values
-  write_file_string(GPIO_EXPORT, GPIO_RED);
-  write_file_string(platform->led_red.direction_path, GPIO_OUT);
-  write_file_string(platform->led_red.value_path, GPIO_OFF);
-
-  write_file_string(GPIO_EXPORT, GPIO_ACTIVITY);
-  write_file_string(platform->led_activity.direction_path, GPIO_OUT);
-  write_file_string(platform->led_activity.value_path, GPIO_ON);
-
   return handle;
 }
 
