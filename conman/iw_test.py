@@ -553,7 +553,7 @@ BSS 94:b4:0f:f1:36:42(on wcli0)
   Vendor specific: OUI 00:11:22, data: 01 23 45 67
   Vendor specific: OUI f4:f5:e8, data: 01
   Vendor specific: OUI f4:f5:e8, data: 03 47 46 69 62 65 72 53 65 74 75 70 41 75 74 6f 6d 61 74 69 6f 6e
-BSS f4:f5:e8:f1:36:43(on wcli0)
+BSS 00:1a:11:f1:36:43(on wcli0)
   TSF: 12499150000 usec (0d, 03:28:19)
   freq: 2437
   beacon interval: 100 TUs
@@ -646,7 +646,7 @@ def find_bssids_test():
                                      vendor_ies=[test_ie, provisioning_ie,
                                                  ssid_ie])
   provisioning_bss_info_frenzy = iw.BssInfo(ssid=iw.DEFAULT_GFIBERSETUP_SSID,
-                                            bssid='f4:f5:e8:f1:36:43',
+                                            bssid='00:1a:11:f1:36:43',
                                             rssi=-66)
 
   wvtest.WVPASSEQ(
