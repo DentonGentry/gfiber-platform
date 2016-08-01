@@ -10,27 +10,36 @@ import utils
 from wvtest import wvtest
 
 
+_FREQ_LIST = {
+    '2.4': '2412,2417,2422,2427,2432,2437,2442,2447,2452,2457,2462',
+    '5': ('5180,5200,5220,5240,5745,5765,5785,5805,5825,5260,5280,5300,5320,'
+          '5500,5520,5540,5560,5580,5660,5680,5700'),
+}
+
+
 _WPA_SUPPLICANT_CONFIG = """ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
 autoscan=exponential:1:30
-network={
+freq_list={freq_list}
+network={{
 \tssid="some ssid"
 \t#psk="some passphrase"
 \tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
 \tscan_ssid=1
-}
+}}
 """
 
 _WPA_SUPPLICANT_CONFIG_BSSID = """ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
 autoscan=exponential:1:30
-network={
+freq_list={freq_list}
+network={{
 \tssid="some ssid"
 \t#psk="some passphrase"
 \tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
 \tscan_ssid=1
 \tbssid=12:34:56:78:90:ab
-}
+}}
 """
 
 # pylint: disable=g-backslash-continuation
@@ -38,12 +47,13 @@ _WPA_SUPPLICANT_CONFIG_BSSID_UNSECURED = \
 """ctrl_interface=/var/run/wpa_supplicant
 ap_scan=1
 autoscan=exponential:1:30
-network={
+freq_list={freq_list}
+network={{
 \tssid="some ssid"
 \tkey_mgmt=NONE
 \tscan_ssid=1
 \tbssid=12:34:56:78:90:ab
-}
+}}
 """
 
 
@@ -54,24 +64,30 @@ def generate_wpa_supplicant_config_test():
         "Can't test generate_wpa_supplicant_config without wpa_passphrase.")
     return
 
-  opt = FakeOptDict()
-  config = configs.generate_wpa_supplicant_config(
-      'some ssid', 'some passphrase', opt)
-  wvtest.WVPASSEQ(_WPA_SUPPLICANT_CONFIG, config)
+  for band in ('2.4', '5'):
+    opt = FakeOptDict()
+    opt.band = band
+    got = configs.generate_wpa_supplicant_config(
+        'some ssid', 'some passphrase', opt)
+    want = _WPA_SUPPLICANT_CONFIG.format(freq_list=_FREQ_LIST[band])
+    wvtest.WVPASSEQ(want, got)
 
-  opt.bssid = 'TotallyNotValid'
-  wvtest.WVEXCEPT(utils.BinWifiException,
-                  configs.generate_wpa_supplicant_config,
-                  'some ssid', 'some passphrase', opt)
+    opt.bssid = 'TotallyNotValid'
+    wvtest.WVEXCEPT(utils.BinWifiException,
+                    configs.generate_wpa_supplicant_config,
+                    'some ssid', 'some passphrase', opt)
 
-  opt.bssid = '12:34:56:78:90:Ab'
-  config = configs.generate_wpa_supplicant_config(
-      'some ssid', 'some passphrase', opt)
-  wvtest.WVPASSEQ(_WPA_SUPPLICANT_CONFIG_BSSID, config)
+    opt.bssid = '12:34:56:78:90:Ab'
+    got = configs.generate_wpa_supplicant_config(
+        'some ssid', 'some passphrase', opt)
+    want = _WPA_SUPPLICANT_CONFIG_BSSID.format(freq_list=_FREQ_LIST[band])
+    wvtest.WVPASSEQ(want, got)
 
-  config = configs.generate_wpa_supplicant_config(
-      'some ssid', None, opt)
-  wvtest.WVPASSEQ(_WPA_SUPPLICANT_CONFIG_BSSID_UNSECURED, config)
+    got = configs.generate_wpa_supplicant_config(
+        'some ssid', None, opt)
+    want = _WPA_SUPPLICANT_CONFIG_BSSID_UNSECURED.format(
+        freq_list=_FREQ_LIST[band])
+    wvtest.WVPASSEQ(want, got)
 
 
 _PHY_INFO = """Wiphy phy0
