@@ -719,6 +719,8 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
   wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's3')
   wvtest.WVPASSEQ(c.last_provisioning_attempt.bssid, 'ff:ee:dd:cc:bb:aa')
+  # The log upload happens on the next main loop after joining s3.
+  c.run_once()
   wvtest.WVPASSEQ(c.log_upload_count, 2)
 
   # Now, recreate the same WLAN configuration, which should be connected to.
@@ -787,6 +789,7 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.acs())
   # Make sure we didn't scan on `band`.
   wvtest.WVPASSEQ(scan_count_for_band, c.wifi_for_band(band).wifi_scan_counter)
+  c.run_once()
   wvtest.WVPASSEQ(c.log_upload_count, 3)
 
   # Now re-create the WLAN config, connect to the WLAN, and make sure that s3 is
@@ -830,6 +833,7 @@ def connection_manager_test_generic(c, band):
     c.run_once()
   s2_bss = iw.BssInfo('01:23:45:67:89:ab', 's2')
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, s2_bss)
+  c.run_once()
   wvtest.WVPASSEQ(c.log_upload_count, 4)
 
   c.s2_fail = True
@@ -983,6 +987,7 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVFAIL(c.bridge.current_route())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
   wvtest.WVFAIL(c.wifi_for_band('5').current_route())
+  c.run_once()
   wvtest.WVPASSEQ(c.log_upload_count, 1)
 
 
@@ -1076,6 +1081,7 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVFAIL(c.bridge.current_route())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_route())
   wvtest.WVPASS(c.wifi_for_band('5').current_route())
+  c.run_once()
   wvtest.WVPASSEQ(c.log_upload_count, 1)
 
 
