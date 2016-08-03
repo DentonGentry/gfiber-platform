@@ -19,9 +19,13 @@ import time
 import pyinotify
 
 import cycler
+import experiment
 import interface
 import iw
 import status
+
+
+experiment.register('WifiNo2GClient')
 
 
 class FileChangeHandler(pyinotify.ProcessEvent):
@@ -135,11 +139,24 @@ class WLANConfiguration(object):
 
   def start_client(self):
     """Join the WLAN as a client."""
+    if experiment.enabled('WifiNo2GClient') and self.band == '2.4':
+      logging.debug('WifiNo2GClient enabled; not starting 2.4 GHz client.')
+      return
+
     up = self.client_up
     if up:
       logging.debug('Wifi client already started on %s GHz', self.band)
       return
 
+    if self._actually_start_client():
+      self._post_start_client()
+
+  def _actually_start_client(self):
+    """Actually run wifi setclient.
+
+    Returns:
+      Whether the command succeeded.
+    """
     command = self.WIFI_SETCLIENT + ['--ssid', self.ssid, '--band', self.band]
     env = dict(os.environ)
     if self.passphrase:
@@ -149,8 +166,11 @@ class WLANConfiguration(object):
       subprocess.check_output(command, stderr=subprocess.STDOUT, env=env)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to start wifi client: %s', e.output)
-      return
+      return False
 
+    return True
+
+  def _post_start_client(self):
     self._status.connected_to_wlan = True
     logging.info('Started wifi client on %s GHz', self.band)
     self.wifi.attach_wpa_control(self._wpa_control_interface)

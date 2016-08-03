@@ -9,6 +9,7 @@ import tempfile
 import time
 
 import connection_manager
+import experiment_testutils
 import interface_test
 import iw
 import status
@@ -180,22 +181,23 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
   WIFI_SETCLIENT = ['echo', 'setclient']
   WIFI_STOPCLIENT = ['echo', 'stopclient']
 
-  def start_client(self):
-    client_was_up = self.client_up
-    was_attached = self.wifi.attached()
+  def _actually_start_client(self):
+    self.client_was_up = self.client_up
+    self.was_attached = self.wifi.attached()
     self.wifi._secure_testonly = True
     # Do this before calling the super method so that the attach call at the end
     # succeeds.
-    if not client_was_up and not was_attached:
+    if not self.client_was_up and not self.was_attached:
       self.wifi._initial_ssid_testonly = self.ssid
       self.wifi.start_wpa_supplicant_testonly(self._wpa_control_interface)
 
-    super(WLANConfiguration, self).start_client()
+    return True
 
-    if not client_was_up:
+  def _post_start_client(self):
+    if not self.client_was_up:
       self.wifi.set_connection_check_result('succeed')
 
-      if was_attached:
+      if self.was_attached:
         self.wifi._wpa_control.ssid_testonly = self.ssid
         self.wifi._wpa_control.secure_testonly = True
         self.wifi.add_connected_event()
@@ -1166,6 +1168,30 @@ def connection_manager_two_radios_ath9k_ath10k_existing_config_5g_ap(c):
   wvtest.WVPASS(('stop', '--band', '2.4', '--persist') in c._binwifi_commands)
   wvtest.WVPASS(('stopclient', '--band', '5', '--persist')
                 in c._binwifi_commands)
+
+
+@wvtest.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
+def connection_manager_conman_no_2g_wlan(c):
+  unused_raii = experiment_testutils.MakeExperimentDirs()
+
+  # First, establish that we connect on 2.4 without the experiment, to make sure
+  # this test doesn't spuriously pass.
+  c.write_wlan_config('2.4', 'my ssid', 'my psk')
+  c.run_once()
+  wvtest.WVPASS(c.client_up('2.4'))
+
+  # Now, force a disconnect by deleting the config.
+  c.delete_wlan_config('2.4')
+  c.run_once()
+  wvtest.WVFAIL(c.client_up('2.4'))
+
+  # Now enable the experiment, recreate the config, and make sure we don't
+  # connect.
+  experiment_testutils.enable('WifiNo2GClient')
+  c.write_wlan_config('2.4', 'my ssid', 'my psk')
+  c.run_once()
+  wvtest.WVFAIL(c.client_up('2.4'))
 
 
 if __name__ == '__main__':
