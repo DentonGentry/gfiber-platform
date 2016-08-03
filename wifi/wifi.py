@@ -50,7 +50,7 @@ B,bridge=                         Bridge device to use [br0]
 X,extra-short-timeouts            Use shorter key rotations; 1=rotate PTK, 2=rotate often
 Y,yottasecond-timeouts            Don't rotate any keys: PTK, GTK, or GMK
 P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
-S,interface-suffix=               Interface suffix []
+S,interface-suffix=               Interface suffix (defaults to ALL for stop commands; use NONE to specify no suffix) []
 lock-timeout=                     How long, in seconds, to wait for another /bin/wifi process to finish before giving up. [60]
 scan-ap-force                     (Scan only) scan when in AP mode
 scan-passive                      (Scan only) do not probe, scan passively
@@ -381,18 +381,25 @@ def stop_ap_wifi(opt):
     if band == '5' and quantenna.stop_ap_wifi(opt):
       continue
 
-    interface = iw.find_interface_from_band(
-        band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
-    if interface is None:
-      utils.log('No AP interface for %s GHz; nothing to stop', band)
+    interfaces = []
+    if opt.interface_suffix == 'ALL':
+      interfaces = iw.find_all_interfaces_from_band(band, iw.INTERFACE_TYPE.ap)
+    else:
+      interface = iw.find_interface_from_band(
+          band, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
+      if interface:
+        interfaces = [interface]
+    if not interfaces:
+      utils.log('No AP interfaces for %s GHz; nothing to stop', band)
       continue
 
-    if _stop_hostapd(interface):
-      if opt.persist:
-        persist.delete_options('hostapd', band)
-    else:
-      utils.log('Failed to stop hostapd on interface %s', interface)
-      success = False
+    for interface in interfaces:
+      if _stop_hostapd(interface):
+        if opt.persist:
+          persist.delete_options('hostapd', band)
+      else:
+        utils.log('Failed to stop hostapd on interface %s', interface)
+        success = False
 
   return success
 
@@ -989,18 +996,26 @@ def stop_client_wifi(opt):
     if band == '5' and quantenna.stop_client_wifi(opt):
       continue
 
-    interface = iw.find_interface_from_band(
-        band, iw.INTERFACE_TYPE.client, opt.interface_suffix)
-    if interface is None:
-      utils.log('No client interface for %s GHz; nothing to stop', band)
+    interfaces = []
+    if opt.interface_suffix == 'ALL':
+      interfaces = iw.find_all_interfaces_from_band(
+          band, iw.INTERFACE_TYPE.client)
+    else:
+      interface = iw.find_interface_from_band(
+          band, iw.INTERFACE_TYPE.client, opt.interface_suffix)
+      if interface:
+        interfaces = [interface]
+    if not interfaces:
+      utils.log('No client interfaces for %s GHz; nothing to stop', band)
       continue
 
-    if _stop_wpa_supplicant(interface):
-      if opt.persist:
-        persist.delete_options('wpa_supplicant', band)
-    else:
-      utils.log('Failed to stop wpa_supplicant on interface %s', interface)
-      success = False
+    for interface in interfaces:
+      if _stop_wpa_supplicant(interface):
+        if opt.persist:
+          persist.delete_options('wpa_supplicant', band)
+      else:
+        utils.log('Failed to stop wpa_supplicant on interface %s', interface)
+        success = False
 
   return success
 
@@ -1044,9 +1059,17 @@ def _run(argv):
     parser.fatal('Must specify a command (see usage for details).')
     return 1
 
+  command = extra[0]
+
   # set and setclient have a different default for -b.
-  if extra[0].startswith('set') and ' ' in opt.band:
+  if command.startswith('set') and ' ' in opt.band:
     opt.band = '2.4'
+
+  if command == 'off' or command.startswith('stop'):
+    if not opt.interface_suffix:
+      opt.interface_suffix = 'ALL'
+    elif opt.interface_suffix == 'NONE':
+      opt.interface_suffix = ''
 
   try:
     function = {
