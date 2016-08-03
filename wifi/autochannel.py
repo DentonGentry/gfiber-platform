@@ -65,6 +65,12 @@ def get_permitted_frequencies(band, autotype, width):
                      % (band, autotype, width))
 
 
+def get_all_frequencies(band):
+  """Get all 802.11 frequencies for the given band."""
+  return get_permitted_frequencies(band, 'OVERLAP' if band == '2.4' else 'ANY',
+                                   '20').split()
+
+
 def scan(interface, band, autotype, width):
   """Do an autochannel scan and return the recommended channel.
 
