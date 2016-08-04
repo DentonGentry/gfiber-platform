@@ -93,7 +93,7 @@ class WLANConfiguration(object):
       raise ValueError('Command file does not specify SSID')
 
     if self.wifi.initial_ssid == self.ssid:
-      logging.debug('Connected to WLAN at startup')
+      logging.info('Connected to WLAN at startup')
 
   @property
   def client_up(self):
@@ -117,7 +117,7 @@ class WLANConfiguration(object):
     try:
       subprocess.check_output(self.command, stderr=subprocess.STDOUT)
       self.access_point_up = True
-      logging.debug('Started %s GHz AP', self.band)
+      logging.info('Started %s GHz AP', self.band)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to start access point: %s', e.output)
 
@@ -132,7 +132,7 @@ class WLANConfiguration(object):
     try:
       subprocess.check_output(command, stderr=subprocess.STDOUT)
       self.access_point_up = False
-      logging.debug('Stopped %s GHz AP', self.band)
+      logging.info('Stopped %s GHz AP', self.band)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to stop access point: %s', e.output)
       return
@@ -140,7 +140,7 @@ class WLANConfiguration(object):
   def start_client(self):
     """Join the WLAN as a client."""
     if experiment.enabled('WifiNo2GClient') and self.band == '2.4':
-      logging.debug('WifiNo2GClient enabled; not starting 2.4 GHz client.')
+      logging.info('WifiNo2GClient enabled; not starting 2.4 GHz client.')
       return
 
     up = self.client_up
@@ -187,7 +187,7 @@ class WLANConfiguration(object):
                               stderr=subprocess.STDOUT)
       # TODO(rofrankel): Make this work for dual-radio devices.
       self._status.connected_to_wlan = False
-      logging.debug('Stopped wifi client on %s GHz', self.band)
+      logging.info('Stopped wifi client on %s GHz', self.band)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to stop wifi client: %s', e.output)
 
@@ -318,7 +318,7 @@ class ConnectionManager(object):
     # the routing table.
     for ifc in [self.bridge] + self.wifi:
       ifc.initialize()
-      logging.debug('%s initialized', ifc.name)
+      logging.info('%s initialized', ifc.name)
 
     self._interface_update_counter = 0
     self._try_wlan_after = {'5': 0, '2.4': 0}
@@ -449,7 +449,7 @@ class ConnectionManager(object):
       if self._connected_to_wlan(wifi):
         self._status.connected_to_wlan = True
         logging.debug('Connected to WLAN on %s, nothing else to do.', wifi.name)
-        return
+        break
 
       # This interface is not connected to the WLAN, so scan for potential
       # routes to the ACS for provisioning.
@@ -467,10 +467,10 @@ class ConnectionManager(object):
       for band in wifi.bands:
         wlan_configuration = self._wlan_configuration.get(band, None)
         if wlan_configuration and time.time() > self._try_wlan_after[band]:
-          logging.debug('Trying to join WLAN on %s.', wifi.name)
+          logging.info('Trying to join WLAN on %s.', wifi.name)
           wlan_configuration.start_client()
           if self._connected_to_wlan(wifi):
-            logging.debug('Joined WLAN on %s.', wifi.name)
+            logging.info('Joined WLAN on %s.', wifi.name)
             self._status.connected_to_wlan = True
             self._try_wlan_after[band] = 0
             break
@@ -605,7 +605,7 @@ class ConnectionManager(object):
       if filename == self.ETHERNET_STATUS_FILE:
         try:
           self.bridge.ethernet = bool(int(contents))
-          logging.debug('Ethernet %s', 'up' if self.bridge.ethernet else 'down')
+          logging.info('Ethernet %s', 'up' if self.bridge.ethernet else 'down')
         except ValueError:
           logging.error('Status file contents should be 0 or 1, not %s',
                         contents)
@@ -628,7 +628,7 @@ class ConnectionManager(object):
           wifi = self.wifi_for_band(band)
           if wifi and band in self._wlan_configuration:
             self._wlan_configuration[band].access_point = True
-          logging.debug('AP enabled for %s GHz', band)
+          logging.info('AP enabled for %s GHz', band)
 
     elif path == self._tmp_dir:
       if filename.startswith(self.GATEWAY_FILE_PREFIX):
@@ -636,8 +636,8 @@ class ConnectionManager(object):
         ifc = self.interface_by_name(interface_name)
         if ifc:
           ifc.set_gateway_ip(contents)
-          logging.debug('Received gateway %r for interface %s', contents,
-                        ifc.name)
+          logging.info('Received gateway %r for interface %s', contents,
+                       ifc.name)
 
     elif path == self._moca_tmp_dir:
       match = re.match(r'^%s\d+$' % self.MOCA_NODE_FILE_PREFIX, filename)
@@ -711,8 +711,8 @@ class ConnectionManager(object):
     last_successful_bss_info = getattr(wifi, 'last_successful_bss_info', None)
     bss_info = last_successful_bss_info or wifi.cycler.next()
     if bss_info is not None:
-      logging.debug('Attempting to connect to SSID %s for provisioning',
-                    bss_info.ssid)
+      logging.info('Attempting to connect to SSID %s for provisioning',
+                   bss_info.ssid)
       self._status.trying_open = True
       connected = self._try_bssid(wifi, bss_info)
       if connected:
@@ -763,7 +763,7 @@ class ConnectionManager(object):
         wlan_configuration.access_point = os.path.exists(ap_file)
       self._wlan_configuration[band] = wlan_configuration
       self._status.have_config = True
-      logging.debug('Updated WLAN configuration for %s GHz', band)
+      logging.info('Updated WLAN configuration for %s GHz', band)
       self._update_access_point(wlan_configuration)
 
   def _update_access_point(self, wlan_configuration):
@@ -818,7 +818,7 @@ class ConnectionManager(object):
                             stderr=subprocess.STDOUT)
 
   def _try_upload_logs(self):
-    logging.debug('Attempting to upload logs')
+    logging.info('Attempting to upload logs')
     if subprocess.call(self.UPLOAD_LOGS_AND_WAIT) != 0:
       logging.error('Failed to upload logs')
 
