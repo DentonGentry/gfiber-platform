@@ -57,18 +57,18 @@ class Interface(object):
     """
     # Until initialized, we want to act as if the interface is down.
     if not self._initialized:
-      logging.debug('%s not initialized; not running connection_check%s',
-                    self.name, ' (ACS)' if check_acs else '')
+      logging.info('%s not initialized; not running connection_check%s',
+                   self.name, ' (ACS)' if check_acs else '')
       return None
 
     if not self.links:
-      logging.debug('Connection check for %s failed due to no links', self.name)
+      logging.info('Connection check for %s failed due to no links', self.name)
       return False
 
     logging.debug('Gateway IP for %s is %s', self.name, self._gateway_ip)
     if self._gateway_ip is None:
-      logging.debug('Connection check for %s failed due to no gateway IP',
-                    self.name)
+      logging.info('Connection check%s for %s failed due to no gateway IP',
+                   ' (ACS)' if check_acs else '', self.name)
       return False
 
     # Temporarily add a route to make sure the connection check can be run.
@@ -90,10 +90,10 @@ class Interface(object):
 
     with open(os.devnull, 'w') as devnull:
       result = subprocess.call(cmd, stdout=devnull, stderr=devnull) == 0
-      logging.debug('Connection check%s for %s %s',
-                    ' (ACS)' if check_acs else '',
-                    self.name,
-                    'passed' if result else 'failed')
+      logging.info('Connection check%s for %s %s',
+                   ' (ACS)' if check_acs else '',
+                   self.name,
+                   'passed' if result else 'failed')
 
     # Delete the temporary route.
     if added_temporary_route:
@@ -175,8 +175,8 @@ class Interface(object):
 
   def _ip_route(self, *args):
     if not self._initialized:
-      logging.debug('Not initialized, not running %s %s',
-                    ' '.join(self.IP_ROUTE), ' '.join(args))
+      logging.info('Not initialized, not running %s %s',
+                   ' '.join(self.IP_ROUTE), ' '.join(args))
       return ''
 
     return self._really_ip_route(*args)
@@ -191,7 +191,7 @@ class Interface(object):
       return ''
 
   def set_gateway_ip(self, gateway_ip):
-    logging.debug('New gateway IP %s for %s', gateway_ip, self.name)
+    logging.info('New gateway IP %s for %s', gateway_ip, self.name)
     self._gateway_ip = gateway_ip
     self.update_routes()
 
@@ -203,10 +203,10 @@ class Interface(object):
     had_links = bool(self.links)
 
     if is_up:
-      logging.debug('%s gained link %s', self.name, link)
+      logging.info('%s gained link %s', self.name, link)
       self.links.add(link)
     else:
-      logging.debug('%s lost link %s', self.name, link)
+      logging.info('%s lost link %s', self.name, link)
       self.links.remove(link)
 
     # If a link goes away, we may have lost access to something but not gained
@@ -319,9 +319,9 @@ class Bridge(Interface):
     failure_s = self._acs_session_failure_s()
     if (experiment.enabled('WifiSimulateWireless')
         and failure_s < MAX_ACS_FAILURE_S):
-      logging.debug('WifiSimulateWireless: failing bridge connection check (no '
-                    'ACS contact for %d seconds, max %d seconds)',
-                    failure_s, MAX_ACS_FAILURE_S)
+      logging.info('WifiSimulateWireless: failing bridge connection check%s '
+                   '(no ACS contact for %d seconds, max %d seconds)',
+                   ' (ACS)' if check_acs else '', failure_s, MAX_ACS_FAILURE_S)
       return False
 
     return super(Bridge, self)._connection_check(check_acs)
