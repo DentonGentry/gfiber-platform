@@ -506,6 +506,10 @@ def disable_access_point(path, band):
     os.unlink(ap_filename)
 
 
+def check_tmp_hosts(expected_contents):
+  wvtest.WVPASSEQ(open(connection_manager.TMP_HOSTS).read(), expected_contents)
+
+
 def connection_manager_test(radio_config, wlan_configs=None,
                             quantenna_interfaces=None, **cm_kwargs):
   """Returns a decorator that does ConnectionManager test boilerplate."""
@@ -531,6 +535,7 @@ def connection_manager_test(radio_config, wlan_configs=None,
 
       try:
         # No initial state.
+        connection_manager.TMP_HOSTS = tempfile.mktemp()
         tmp_dir = tempfile.mkdtemp()
         config_dir = tempfile.mkdtemp()
         os.mkdir(os.path.join(tmp_dir, 'interfaces'))
@@ -561,6 +566,8 @@ def connection_manager_test(radio_config, wlan_configs=None,
 
         f(c)
       finally:
+        if os.path.exists(connection_manager.TMP_HOSTS):
+          os.unlink(connection_manager.TMP_HOSTS)
         shutil.rmtree(tmp_dir)
         shutil.rmtree(config_dir)
         shutil.rmtree(moca_tmp_dir)
@@ -598,6 +605,7 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.internet())
   wvtest.WVPASS(c.has_status_files([status.P.CAN_REACH_ACS,
                                     status.P.CAN_REACH_INTERNET]))
+  hostname = connection_manager.HOSTNAME
 
   c.run_once()
   wvtest.WVPASS(c.acs())
@@ -661,12 +669,14 @@ def connection_manager_test_generic(c, band):
   wvtest.WVFAIL(c.acs())
   wvtest.WVFAIL(c.internet())
   wvtest.WVFAIL(c.bridge.current_route())
+  check_tmp_hosts('127.0.0.1 localhost')
 
   # Now there are some scan results.
   c.interface_with_scan_results = c.wifi_for_band(band).name
   # Wait for a scan, plus 3 cycles, so that s2 will have been tried.
   c.run_until_scan(band)
   wvtest.WVPASSEQ(c.log_upload_count, 0)
+  c.wifi_for_band(band).ip_testonly = '192.168.1.100'
   for _ in range(3):
     c.run_once()
     wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
@@ -684,6 +694,8 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASSEQ(c.log_upload_count, 1)
   # Disable scan results again.
   c.interface_with_scan_results = None
+  c.run_until_interface_update()
+  check_tmp_hosts('192.168.1.100 %s\n127.0.0.1 localhost' % hostname)
 
   # Now, create a WLAN configuration which should be connected to.
   ssid = 'wlan'
@@ -743,16 +755,20 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_route())
   wvtest.WVFAIL(c.bridge.current_route())
+  c.run_until_interface_update()
+  check_tmp_hosts('192.168.1.100 %s\n127.0.0.1 localhost' % hostname)
 
   # Now bring up the bridge.  We should remove the wifi connection and start
   # an AP.
   c.set_ethernet(True)
   c.bridge.set_connection_check_result('succeed')
+  c.bridge.ip_testonly = '192.168.1.101'
   c.run_until_interface_update()
   wvtest.WVPASS(c.access_point_up(band))
   wvtest.WVFAIL(c.client_up(band))
   wvtest.WVFAIL(c.wifi_for_band(band).current_route())
   wvtest.WVPASS(c.bridge.current_route())
+  check_tmp_hosts('192.168.1.101 %s\n127.0.0.1 localhost' % hostname)
 
   # Now move (rather than delete) the configuration file.  The AP should go
   # away, and we should not be able to join the WLAN.  Routes should not be
@@ -783,6 +799,7 @@ def connection_manager_test_generic(c, band):
   c.run_until_interface_update()
   wvtest.WVFAIL(c.acs())
   wvtest.WVFAIL(c.internet())
+  check_tmp_hosts('127.0.0.1 localhost')
   # s3 is not what the cycler would suggest trying next.
   wvtest.WVPASSNE('s3', c.wifi_for_band(band).cycler.peek())
   # Run only once, so that only one BSS can be tried.  It should be the s3 one,

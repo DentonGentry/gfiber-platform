@@ -22,6 +22,13 @@ import interface
 from wvtest import wvtest
 
 
+# pylint: disable=line-too-long
+_IP_ADDR_SHOW_TPL = """4: {name}: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP qlen 1000
+    inet {ip}/21 brd 100.100.55.255 scope global {name}
+       valid_lft forever preferred_lft forever
+"""
+
+
 class FakeInterfaceMixin(object):
   """Replace Interface methods which interact with the system."""
 
@@ -29,6 +36,7 @@ class FakeInterfaceMixin(object):
     super(FakeInterfaceMixin, self).__init__(*args, **kwargs)
     self.set_connection_check_result('succeed')
     self.routing_table = {}
+    self.ip_testonly = None
 
   def set_connection_check_result(self, result):
     if result in ['succeed', 'fail', 'restricted']:
@@ -62,6 +70,12 @@ class FakeInterfaceMixin(object):
             logging.debug('Deleting route for %r (generalized from %s)', k, key)
             del self.routing_table[k]
             break
+
+  def _ip_addr_show(self):
+    if self.ip_testonly:
+      return _IP_ADDR_SHOW_TPL.format(name=self.name, ip=self.ip_testonly)
+
+    return ''
 
 
 class Bridge(FakeInterfaceMixin, interface.Bridge):
@@ -360,6 +374,10 @@ def bridge_test():
     wvtest.WVFAIL(b.internet())
     wvtest.WVPASS(b.current_route())
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
+
+    wvtest.WVFAIL(b.get_ip_address())
+    b.ip_testonly = '192.168.1.100'
+    wvtest.WVPASSEQ(b.get_ip_address(), '192.168.1.100')
 
   finally:
     shutil.rmtree(tmp_dir)

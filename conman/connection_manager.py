@@ -10,6 +10,7 @@ import logging
 import os
 import random
 import re
+import socket
 import subprocess
 import time
 
@@ -24,6 +25,9 @@ import interface
 import iw
 import status
 
+
+HOSTNAME = socket.gethostname()
+TMP_HOSTS = '/tmp/hosts'
 
 experiment.register('WifiNo2GClient')
 
@@ -556,6 +560,37 @@ class ConnectionManager(object):
     # to-date.
     self.acs()
     self.internet()
+
+    # Update /etc/hosts (depends on routing table)
+    self._update_tmp_hosts()
+
+  def _update_tmp_hosts(self):
+    """Update the contents of /tmp/hosts."""
+    lowest_metric_interface = None
+    for ifc in [self.bridge] + self.wifi:
+      route = ifc.current_route()
+      if route:
+        metric = route.get('metric', 0)
+        # Skip temporary connection_check routes.
+        if metric == '99':
+          continue
+        candidate = (metric, ifc)
+        if (lowest_metric_interface is None or
+            candidate < lowest_metric_interface):
+          lowest_metric_interface = candidate
+
+    ip_line = ''
+    if lowest_metric_interface:
+      ip = lowest_metric_interface[1].get_ip_address()
+      ip_line = '%s %s\n' % (ip, HOSTNAME) if ip else ''
+
+    new_tmp_hosts = '%s127.0.0.1 localhost' % ip_line
+
+    if not os.path.exists(TMP_HOSTS) or open(TMP_HOSTS).read() != new_tmp_hosts:
+      tmp_hosts_tmp_filename = TMP_HOSTS + '.tmp'
+      tmp_hosts_tmp = open(tmp_hosts_tmp_filename, 'w')
+      tmp_hosts_tmp.write(new_tmp_hosts)
+      os.rename(tmp_hosts_tmp_filename, TMP_HOSTS)
 
   def handle_event(self, path, filename, deleted):
     if deleted:

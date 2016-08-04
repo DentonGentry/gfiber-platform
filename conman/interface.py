@@ -28,6 +28,7 @@ class Interface(object):
 
   CONNECTION_CHECK = 'connection_check'
   IP_ROUTE = ['ip', 'route']
+  IP_ADDR_SHOW = ['ip', 'addr', 'show', 'dev']
 
   def __init__(self, name, metric):
     self.name = name
@@ -189,6 +190,18 @@ class Interface(object):
       logging.error('Failed to call "ip route" with args %r: %s', args,
                     e.message)
       return ''
+
+  def _ip_addr_show(self):
+    try:
+      return subprocess.check_output(self.IP_ADDR_SHOW + [self.name])
+    except subprocess.CalledProcessError as e:
+      logging.error('Could not get IP address for %s: %s', self.name, e.message)
+      return None
+
+  def get_ip_address(self):
+    match = re.search(r'^\s*inet (?P<IP>\d+\.\d+\.\d+\.\d+)',
+                      self._ip_addr_show(), re.MULTILINE)
+    return match and match.group('IP') or None
 
   def set_gateway_ip(self, gateway_ip):
     logging.info('New gateway IP %s for %s', gateway_ip, self.name)
