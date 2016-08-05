@@ -50,8 +50,8 @@ def _get_interface(mode, suffix):
   return None, None, None, None
 
 
-def _set_link_state(hif, state):
-  subprocess.check_output(['ip', 'link', 'set', 'dev', hif, state])
+def _ifplugd_action(hif, state):
+  subprocess.check_output(['/etc/ifplugd/ifplugd.action', hif, state])
 
 
 def _parse_scan_result(line):
@@ -145,7 +145,7 @@ def set_wifi(opt):
     _qcsapi('vlan_config', 'pcie0', 'trunk', vlan)
 
     _qcsapi('block_bss', lif, 0)
-    _set_link_state(hif, 'up')
+    _ifplugd_action(hif, 'up')
   except:
     stop_ap_wifi(opt)
     raise
@@ -188,7 +188,7 @@ def set_client_wifi(opt):
     _qcsapi('vlan_config', 'pcie0', 'enable')
     _qcsapi('vlan_config', 'pcie0', 'trunk', vlan)
 
-    _set_link_state(hif, 'up')
+    _ifplugd_action(hif, 'up')
   except:
     stop_client_wifi(opt)
     raise
@@ -207,7 +207,7 @@ def stop_ap_wifi(opt):
   except subprocess.CalledProcessError:
     pass
 
-  _set_link_state(hif, 'down')
+  _ifplugd_action(hif, 'down')
 
   return True
 
@@ -223,7 +223,7 @@ def stop_client_wifi(opt):
   except subprocess.CalledProcessError:
     pass
 
-  _set_link_state(hif, 'down')
+  _ifplugd_action(hif, 'down')
 
   return True
 
