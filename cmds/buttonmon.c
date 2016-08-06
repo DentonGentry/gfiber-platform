@@ -13,18 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// GFLT110 the "reset" button is connected to MPP[18]
-//
-// This will periodically scan MPP[18].
-// If held < 1s &&  sysvar PRODUCTION_UNIT is NOT set
-//     start dropbear.
-// If held > 2s
-//   generate a reset.
-// if head > 10s
-//   remove sysvar PRODUCTION_UNIT AND
-//   generate a reset.
-//
-
 
 #include <fcntl.h>
 #include <stdint.h>
@@ -38,17 +26,26 @@
 #include <time.h>
 #include <unistd.h>
 
-
-// TODO(jnewlin): Export this LED register via the gpio sysfs.
 #define GPIO_INPUT_REG_ADDR 0xf1018110
-#define RESET_BIT 18
-#define RESET_BIT_MASK (1 << RESET_BIT)
 #define TRUE 1
 #define FALSE 0
 
+/* GFLT110: The reset button is connected to MPP18 */
+#define RESET_BIT_GFLT110 18
+#define RESET_BIT_MASK_GFLT110 (1 << RESET_BIT_GFLT110)
 
-// Only run on gflt110s.
-int IsGflt110() {
+/* GFLT300: The reset button is connected to MPP17 */
+#define RESET_BIT_GFLT300 17
+#define RESET_BIT_MASK_GFLT300 (1 << RESET_BIT_GFLT300)
+
+typedef enum {
+  PlatType_GFLT110 = 1,
+  PlatType_GFLT300,
+  PlatType_Unknown
+} PlatType;
+PlatType plat_type = PlatType_Unknown;
+
+int IsSupportedPlatform() {
   int bytes_read;
   char buf[64];
   memset(buf, 0, sizeof(buf));
@@ -61,9 +58,17 @@ int IsGflt110() {
   fclose(f);
   if (bytes_read <= 0) {
     printf("fread of /proc/board_type returned 0 data.\n");
-  }
-  if (strncmp(buf, "GFLT110", strlen("GFLT110")))
     return FALSE;
+  }
+
+  if (strncmp(buf, "GFLT110", strlen("GFLT110")) == 0) {
+    plat_type = PlatType_GFLT110;
+  } else if (strncmp(buf, "GFLT300", strlen("GFLT300")) == 0) {
+    plat_type = PlatType_GFLT300;
+  } else {
+    /* This platform is not supported. */
+    return FALSE;
+  }
   return TRUE;
 }
 
@@ -95,12 +100,20 @@ void MonitorReset() {
     exit(1);
   }
 
-  volatile uint32_t* reg_addr = base + ((GPIO_INPUT_REG_ADDR & page_mask) / sizeof(*base));
+  volatile uint32_t* reg_addr = base + (
+      (GPIO_INPUT_REG_ADDR & page_mask) / sizeof(*base));
   int button_down = FALSE;
   int button_down_sent = -1;
   uint64_t button_down_start_tick = 0;
   for(;;) {
-    int button_down_now = (*reg_addr & RESET_BIT_MASK) == 0;
+    int button_down_now;
+    if (plat_type == PlatType_GFLT110)
+      button_down_now = (*reg_addr & RESET_BIT_MASK_GFLT110) == 0;
+    else if (plat_type == PlatType_GFLT300)
+      button_down_now = (*reg_addr & RESET_BIT_MASK_GFLT300) == 0;
+    else
+      button_down_now = FALSE;
+
     if (!button_down && button_down_now) {
       // Handle button down toggle.
       button_down_start_tick = GetTick();
@@ -131,8 +144,8 @@ void MonitorReset() {
 
 
 int main() {
-  if (!IsGflt110()) {
-    printf("resetmonitor only works on gflt110.\n");
+  if (!IsSupportedPlatform()) {
+    printf("resetmonitor only works on GFLT platforms.\n");
     return 1;
   }
   setlinebuf(stdout);
