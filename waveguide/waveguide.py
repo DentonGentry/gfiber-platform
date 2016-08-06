@@ -58,8 +58,7 @@ scan-interval=    Seconds between full channel scan cycles (0 to disable) [0]
 tx-interval=      Seconds between state transmits (0 to disable) [15]
 autochan-interval= Seconds between autochannel decisions (0 to disable) [300]
 print-interval=   Seconds between state printouts to log (0 to disable) [16]
-D,debug           Increase (non-anonymized!) debug output level
-no-anonymize      Don't anonymize MAC addresses in logs
+D,debug           Increase debug output level
 status-dir=       Directory to store status information [/tmp/waveguide]
 watch-pid=        Shut down if the given process pid disappears
 auto-disable-threshold=  Shut down if >= RSSI received from other AP [-30]
@@ -240,11 +239,8 @@ class WlanManager(object):
   def Filename(self, suffix):
     return os.path.join(opt.status_dir, '%s.%s' % (self.vdevname, suffix))
 
-  def AnonymizeMAC(self, mac):
-    return log.AnonymizeMAC(consensus_key, mac)
-
   def _LogPrefix(self):
-    return '%s(%s): ' % (self.vdevname, self.AnonymizeMAC(self.mac))
+    return '%s(%s): ' % (self.vdevname, helpers.DecodeMAC(self.mac))
 
   def Log(self, s, *args):
     log.Log(self._LogPrefix() + s, *args)
@@ -291,7 +287,7 @@ class WlanManager(object):
       self.Debug('ignoring peer due to key mismatch')
       return 0
     if p.me.mac not in self.peer_list:
-      self.Log('added a peer: %s', self.AnonymizeMAC(p.me.mac))
+      self.Log('added a peer: %s', helpers.DecodeMAC(p.me.mac))
     self.peer_list[p.me.mac] = p
     self.MaybeAutoDisable()
     return 1
@@ -445,7 +441,7 @@ class WlanManager(object):
       return None
     for peer in sorted(self.peer_list.values(), key=lambda p: p.me.mac):
       self.Debug('considering auto disable: peer=%s',
-                 self.AnonymizeMAC(peer.me.mac))
+                 helpers.DecodeMAC(peer.me.mac))
       if peer.me.mac not in self.bss_list:
         self.Debug('--> peer no match')
       else:
@@ -478,11 +474,11 @@ class WlanManager(object):
     """Writes/removes the auto-disable file based on ShouldAutoDisable()."""
     ad = self.ShouldAutoDisable()
     if ad and self.auto_disabled != ad:
-      self.Log('auto-disabling because of %s', self.AnonymizeMAC(ad))
+      self.Log('auto-disabling because of %s', helpers.DecodeMAC(ad))
       helpers.WriteFileAtomic(self.Filename('disabled'), helpers.DecodeMAC(ad))
     elif self.auto_disabled and not ad:
       self.Log('auto-enabling because %s disappeared',
-               self.AnonymizeMAC(self.auto_disabled))
+               helpers.DecodeMAC(self.auto_disabled))
       helpers.Unlink(self.Filename('disabled'))
     self.auto_disabled = ad
 
@@ -960,17 +956,12 @@ class WifiblasterController(object):
       helpers.WriteFileAtomic(os.path.join(WIFIBLASTER_DIR, g.group()),
                               '%d %s' % (time.time(), line))
 
-  def _AnonymizeResult(self, line):
-    def Repl(match):
-      return log.AnonymizeMAC(consensus_key, helpers.EncodeMAC(match.group()))
-    return re.sub(MACADDR_REGEX, Repl, line)
-
   def _HandleResults(self, errcode, stdout, stderr):
     """Callback for 'wifiblaster' results."""
     log.Debug('wifiblaster err:%r stdout:%r stderr:%r', errcode, stdout[:70],
               stderr)
     for line in stdout.splitlines():
-      log.Log('wifiblaster: %s' % self._AnonymizeResult(line))
+      log.Log('wifiblaster: %s' % line)
       self._SaveResult(line)
 
   def _StrToBool(self, s):
@@ -1090,7 +1081,6 @@ def main():
   if opt.watch_pid and opt.watch_pid <= 1:
     o.fatal('--watch-pid must be empty or > 1')
   log.LOGLEVEL = opt.debug
-  log.ANONYMIZE = opt.anonymize
   log.STATUS_DIR = opt.status_dir
 
   try:
@@ -1232,11 +1222,11 @@ def main():
         self_signals[m.mac] = bss_signal
         peer_data[m.mac] = seen_peers
         log.Log('%s: APs=%-4d peer-APs=%s stations=%s',
-                m.AnonymizeMAC(p.me.mac), len(p.seen_bss),
-                ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
+                helpers.DecodeMAC(p.me.mac), len(p.seen_bss),
+                ','.join('%s(%d)' % (helpers.DecodeMAC(i.mac), i.rssi)
                          for i in sorted(seen_bss_peers,
                                          key=lambda i: -i.rssi)),
-                ','.join('%s(%d)' % (m.AnonymizeMAC(i.mac), i.rssi)
+                ','.join('%s(%d)' % (helpers.DecodeMAC(i.mac), i.rssi)
                          for i in sorted(p.assoc,
                                          key=lambda i: -i.rssi)))
 
@@ -1251,7 +1241,7 @@ def main():
       can2G_count = can5G_count = 0
       for m in managers:
         for assoc in m.assoc_list.itervalues():
-          anon = m.AnonymizeMAC(assoc.mac)
+          station = helpers.DecodeMAC(assoc.mac)
           if log_sta_band_capabilities:
             if assoc.can5G:
               can5G_count += 1
@@ -1259,11 +1249,10 @@ def main():
             else:
               can2G_count += 1
               capability = '2.4'
-            log.Log('Connected station %s supports %s GHz', anon, capability)
-          station = helpers.DecodeMAC(assoc.mac)
+            log.Log('Connected station %s supports %s GHz', station, capability)
           species = clientinfo.taxonomize(station)
           if species:
-            log.Log('Connected station %s taxonomy: %s' % (anon, species))
+            log.Log('Connected station %s taxonomy: %s', station, species)
       if log_sta_band_capabilities:
         log.Log('Connected stations: total %d, 5 GHz %d, 2.4 GHz %d',
                 can5G_count + can2G_count, can5G_count, can2G_count)

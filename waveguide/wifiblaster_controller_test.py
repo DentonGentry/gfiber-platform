@@ -71,13 +71,6 @@ def LogWifiblasterResultsTest():
     stdout = ('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
               'samples=5000000,15000000\n'
               'malformed 11:11:11:11:11:11 but has macs 11:11:11:11:11:11\n')
-
-    result = wc._AnonymizeResult(stdout)
-    expected = ('version=1 mac=CYAFVU throughput=10000000 '
-                'samples=5000000,15000000\n'
-                'malformed CYAFVU but has macs CYAFVU\n')
-    wvtest.WVPASSEQ(result, expected)
-
     expected = [('version=1 mac=11:11:11:11:11:11 throughput=10000000 '
                  'samples=5000000,15000000'),
                 'malformed 11:11:11:11:11:11 but has macs 11:11:11:11:11:11']
