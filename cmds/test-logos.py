@@ -86,23 +86,6 @@ def testLogos():
   os.write(fd1, '\n')
   WVPASSEQ('<7>fac: booga!\n', _Read())
 
-  # Filenames
-  os.write(fd1, 'Accessing /var/media/pictures/MyPicture.jpg for decode\n')
-  WVPASSEQ('<7>fac: Accessing /var/media/pictures/XXXXXXXXXXXXX for decode\n',
-           _Read())
-  os.write(fd1, '/var/media/pictures/MyPicture.jpg\n')
-  WVPASSEQ('<7>fac: /var/media/pictures/XXXXXXXXXXXXX\n',
-           _Read())
-  os.write(fd1, 'Accessing /var/media/videos/MyMovie.mpg for decode\n')
-  WVPASSEQ('<7>fac: Accessing /var/media/videos/XXXXXXXXXXX for decode\n',
-           _Read())
-  os.write(fd1, 'Accessing /var/media/tv/MyTvShow.ts for decode\n')
-  WVPASSEQ('<7>fac: Accessing /var/media/tv/MyTvShow.ts for decode\n',
-           _Read())
-  os.write(fd1, 'check "/var/media/videos/MyTvShow.ts"len=1024\n')
-  WVPASSEQ('<7>fac: check "/var/media/videos/XXXXXXXXXXX"len=1024\n',
-           _Read())
-
   # rate limiting
   os.write(fd1, (('x'*80) + '\n') * 500)
   result = ''

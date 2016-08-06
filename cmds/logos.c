@@ -25,7 +25,6 @@
  *  - cleans up control characters (ie. chars < 32).
  *  - makes sure output lines are in "facility: message" format.
  *  - doesn't rely on syslogd.
- *  - suppresses logging of filenames of personal media.
  */
 #include <assert.h>
 #include <ctype.h>
@@ -460,48 +459,6 @@ static void flush(uint8_t *header, ssize_t headerlen,
 }
 
 
-/*
- * Return true for a character which we expect to terminate a
- * media filename.
- */
-static int is_filename_terminator(char c) {
-  switch(c) {
-    case ' ':
-    case '\'':
-    case '"':
-      return 1;
-  }
-
-  return 0;
-}
-
-/*
- * search for text patterns which look like filenames of
- * personal media, and cross out the filename portion with
- * 'X' characters.
- */
-static void suppress_media_filenames(uint8_t *line, ssize_t len,
-                                     const char *path) {
-  uint8_t *s = line;
-  ssize_t pathlen = strlen(path);
-
-  while (len > pathlen) {
-    if (strncmp((char *)s, path, pathlen) == 0) {
-      /* Found a filename, blot it out. */
-      s += pathlen;
-      len -= pathlen;
-      while (len > 0 && !is_filename_terminator(*s)) {
-        *s++ = 'X';
-        len--;
-      }
-    } else {
-      s += 1;
-      len -= 1;
-    }
-  }
-}
-
-
 static void usage(void) {
   fprintf(stderr,
       "Usage: [LOGOS_DEBUG=1] logos <facilityname> [bytes/burst] [bytes/day]\n"
@@ -657,8 +614,6 @@ int main(int argc, char **argv) {
       uint8_t *start = buf, *next = buf + used, *end = buf + used + got, *p;
       while ((p = memchr(next, '\n', end - next)) != NULL) {
         ssize_t linelen = p - start;
-        suppress_media_filenames(start, linelen, "/var/media/pictures/");
-        suppress_media_filenames(start, linelen, "/var/media/videos/");
         flush(header, headerlen, start, linelen);
         if (overlong) {
           // that flush() was the first newline after buffer length
