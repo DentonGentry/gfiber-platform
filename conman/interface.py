@@ -106,6 +106,9 @@ class Interface(object):
 
     return result
 
+  def gateway(self):
+    return self._gateway_ip
+
   def acs(self):
     if self._has_acs is None:
       self._has_acs = self._connection_check(check_acs=True)

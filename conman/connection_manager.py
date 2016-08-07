@@ -228,7 +228,7 @@ class ConnectionManager(object):
                wpa_control_interface='/var/run/wpa_supplicant',
                run_duration_s=1, interface_update_period=5,
                wifi_scan_period_s=120, wlan_retry_s=15, acs_update_wait_s=10,
-               bssid_cycle_length_s=30):
+               dhcp_wait_s=10, bssid_cycle_length_s=30):
 
     self._tmp_dir = tmp_dir
     self._config_dir = config_dir
@@ -241,6 +241,7 @@ class ConnectionManager(object):
     self._wifi_scan_period_s = wifi_scan_period_s
     self._wlan_retry_s = wlan_retry_s
     self._acs_update_wait_s = acs_update_wait_s
+    self._dhcp_wait_s = dhcp_wait_s
     self._bssid_cycle_length_s = bssid_cycle_length_s
     self._wlan_configuration = {}
     self._try_to_upload_logs = False
@@ -522,8 +523,21 @@ class ConnectionManager(object):
         # If we didn't manage to join the WLAN and we don't have an ACS
         # connection, we should try to establish one.
         else:
-          logging.debug('Not connected to ACS')
-          self._try_next_bssid(wifi)
+          # If we are associated but waiting for a DHCP lease, try again later.
+          now = time.time()
+          connected_to_open = (
+              wifi.wpa_status().get('wpa_state', None) == 'COMPLETED' and
+              wifi.wpa_status().get('key_mgmt', None) == 'NONE')
+          wait_for_dhcp = (
+              not wifi.gateway() and
+              hasattr(wifi, 'waiting_for_dhcp_since') and
+              now - wifi.waiting_for_dhcp_since < self._dhcp_wait_s)
+          if connected_to_open and wait_for_dhcp:
+            logging.debug('Waiting for DHCP lease after %ds.',
+                          now - wifi.waiting_for_acs_since)
+          else:
+            logging.debug('Not connected to ACS')
+            self._try_next_bssid(wifi)
 
     time.sleep(max(0, self._run_duration_s - (time.time() - start_time)))
 
@@ -747,14 +761,16 @@ class ConnectionManager(object):
     last_successful_bss_info = getattr(wifi, 'last_successful_bss_info', None)
     bss_info = last_successful_bss_info or wifi.cycler.next()
     if bss_info is not None:
-      logging.info('Attempting to connect to SSID %s for provisioning',
-                   bss_info.ssid)
+      logging.info('Attempting to connect to SSID %s (%s) for provisioning',
+                   bss_info.ssid, bss_info.bssid)
       self._status.trying_open = True
+      wifi.set_gateway_ip(None)
       connected = self._try_bssid(wifi, bss_info)
       if connected:
         self._status.connected_to_open = True
         now = time.time()
         wifi.waiting_for_acs_since = now
+        wifi.waiting_for_dhcp_since = now
         wifi.complain_about_acs_at = now + 5
         logging.info('Attempting to provision via SSID %s', bss_info.ssid)
         self._try_to_upload_logs = True

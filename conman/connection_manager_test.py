@@ -300,6 +300,8 @@ class ConnectionManager(connection_manager.ConnectionManager):
     self.can_connect_to_s3 = True
     # Will s2 fail rather than providing ACS access?
     self.s2_fail = False
+    # Will s3 fail to acquire a DHCP lease?
+    self.dhcp_failure_on_s3 = False
     self.log_upload_count = 0
 
   def create_wifi_interfaces(self):
@@ -323,11 +325,12 @@ class ConnectionManager(connection_manager.ConnectionManager):
         wifi.add_terminating_event()
 
   def _try_bssid(self, wifi, bss_info):
+    wifi.add_disconnected_event()
     self.last_provisioning_attempt = bss_info
 
     super(ConnectionManager, self)._try_bssid(wifi, bss_info)
 
-    def connect(connection_check_result):
+    def connect(connection_check_result, dhcp_failure=False):
       # pylint: disable=protected-access
       if wifi.attached():
         wifi._wpa_control.ssid_testonly = bss_info.ssid
@@ -338,7 +341,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
         wifi._secure_testonly = False
         wifi.start_wpa_supplicant_testonly(self._wpa_control_interface)
       wifi.set_connection_check_result(connection_check_result)
-      self.ifplugd_action(wifi.name, True)
+      self.ifplugd_action(wifi.name, True, dhcp_failure)
 
     if bss_info and bss_info.ssid == 's1':
       connect('fail')
@@ -349,7 +352,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
       return True
 
     if bss_info and bss_info.ssid == 's3' and self.can_connect_to_s3:
-      connect('restricted')
+      connect('restricted', self.dhcp_failure_on_s3)
       return True
 
     return False
@@ -381,14 +384,14 @@ class ConnectionManager(connection_manager.ConnectionManager):
     super(ConnectionManager, self)._wifi_scan(wifi)
     wifi.wifi_scan_counter += 1
 
-  def ifplugd_action(self, interface_name, up):
+  def ifplugd_action(self, interface_name, up, dhcp_failure=False):
     # Typically, when moca comes up, conman calls ifplugd.action, which writes
     # this file.  Also, when conman starts, it calls ifplugd.action for eth0.
     self.write_interface_status_file(interface_name, '1' if up else '0')
 
     # ifplugd calls run-dhclient, which results in a gateway file if the link is
     # up (and working).
-    if up:
+    if up and not dhcp_failure:
       self.write_gateway_file('br0' if interface_name in ('eth0', 'moca0')
                               else interface_name)
 
@@ -524,6 +527,7 @@ def connection_manager_test(radio_config, wlan_configs=None,
       interface_update_period = 5
       wifi_scan_period = 15
       wifi_scan_period_s = run_duration_s * wifi_scan_period
+      dhcp_wait_s = .5
 
       # pylint: disable=protected-access
       old_wifi_show = connection_manager._wifi_show
@@ -558,11 +562,13 @@ def connection_manager_test(radio_config, wlan_configs=None,
                               run_duration_s=run_duration_s,
                               interface_update_period=interface_update_period,
                               wifi_scan_period_s=wifi_scan_period_s,
-                              bssid_cycle_length_s=0.05,
+                              dhcp_wait_s=dhcp_wait_s,
+                              bssid_cycle_length_s=1,
                               **cm_kwargs)
 
         c.test_interface_update_period = interface_update_period
         c.test_wifi_scan_period = wifi_scan_period
+        c.test_dhcp_wait_s = dhcp_wait_s
 
         f(c)
       finally:
@@ -677,7 +683,7 @@ def connection_manager_test_generic(c, band):
   c.run_until_scan(band)
   wvtest.WVPASSEQ(c.log_upload_count, 0)
   c.wifi_for_band(band).ip_testonly = '192.168.1.100'
-  for _ in range(3):
+  for _ in range(len(c.wifi_for_band(band).cycler)):
     c.run_once()
     wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
 
@@ -868,6 +874,32 @@ def connection_manager_test_generic(c, band):
   # Now run until it sees the lack of ACS access.
   c.run_until_interface_update()
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, None)
+
+  # Test that we wait dhcp_wait_s seconds for a DHCP lease before trying the
+  # next BSSID.  The scan results contain an s3 AP with vendor IEs that fails to
+  # send a DHCP lease.  This ensures that s3 will be tried before any other AP,
+  # which lets us force a timeout and proceed to the next AP.
+  del c.wifi_for_band(band).cycler
+  c.interface_with_scan_results = c.wifi_for_band(band).name
+  c.scan_results_include_hidden = True
+  c.can_connect_to_s3 = True
+  c.dhcp_failure_on_s3 = True
+  # First iteration: check that we try s3.
+  c.run_until_scan(band)
+  last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
+  wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
+  wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+  # Second iteration: check that we try s3 again since there's no gateway yet.
+  c.run_once()
+  last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
+  wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
+  wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+  # Third iteration: sleep for dhcp_wait_s and check that we try another AP.
+  time.sleep(c.test_dhcp_wait_s)
+  c.run_once()
+  last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
+  wvtest.WVPASSNE(last_bss_info.ssid, 's3')
+  wvtest.WVPASSNE(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
 
 
 @wvtest.wvtest
