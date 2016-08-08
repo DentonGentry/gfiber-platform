@@ -128,6 +128,10 @@ class FakeWPACtrl(object):
     else:
       raise ValueError('Invalid request_type %s' % request_type)
 
+  @property
+  def ctrl_iface_path(self):
+    return os.path.split(self._socket)[0]
+
   # Below methods are not part of WPACtrl.
 
   def add_event(self, event):

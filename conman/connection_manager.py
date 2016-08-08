@@ -492,14 +492,15 @@ class ConnectionManager(object):
         logging.debug('Unable to join WLAN on %s', wifi.name)
         self._status.connected_to_wlan = False
         if self.acs():
-          logging.debug('Connected to ACS on %s', wifi.name)
+          logging.debug('Connected to ACS')
           if self._try_to_upload_logs:
             self._try_upload_logs()
             self._try_to_upload_logs = False
 
-          wifi.last_successful_bss_info = getattr(wifi,
-                                                  'last_attempted_bss_info',
-                                                  None)
+          if wifi.acs():
+            wifi.last_successful_bss_info = getattr(wifi,
+                                                    'last_attempted_bss_info',
+                                                    None)
           now = time.time()
           if (self._wlan_configuration and
               hasattr(wifi, 'waiting_for_acs_since')):
@@ -521,7 +522,7 @@ class ConnectionManager(object):
         # If we didn't manage to join the WLAN and we don't have an ACS
         # connection, we should try to establish one.
         else:
-          logging.debug('Not connected to ACS on %s', wifi.name)
+          logging.debug('Not connected to ACS')
           self._try_next_bssid(wifi)
 
     time.sleep(max(0, self._run_duration_s - (time.time() - start_time)))
