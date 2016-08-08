@@ -379,14 +379,17 @@ class Wifi(Interface):
       return True
 
     socket = os.path.join(path, self.name)
+    logging.debug('%s socket is %s', self.name, socket)
     try:
       self._wpa_control = self.get_wpa_control(socket)
       self._wpa_control.attach()
+      logging.debug('%s successfully attached', self.name)
     except wpactrl.error as e:
       logging.error('Error attaching to wpa_supplicant: %s', e)
       return False
 
     status = self.wpa_status()
+    logging.debug('%s status after attaching is %s', self.name, status)
     self.wpa_supplicant = status.get('wpa_state') == 'COMPLETED'
     if not self._initialized:
       self.initial_ssid = status.get('ssid')
@@ -403,17 +406,21 @@ class Wifi(Interface):
     status = {}
 
     if self._wpa_control and self._wpa_control.attached:
+      logging.debug('%s ctrl_iface_path %s',
+                    self, self._wpa_control.ctrl_iface_path)
       lines = []
       try:
         lines = self._wpa_control.request('STATUS').splitlines()
-      except wpactrl.error:
-        logging.error('wpa_control STATUS request failed')
+      except wpactrl.error as e:
+        logging.error('wpa_control STATUS request failed %s args %s',
+                      e.message, e.args)
       for line in lines:
         if '=' not in line:
           continue
         k, v = line.strip().split('=', 1)
         status[k] = v
 
+    logging.debug('%s wpa status is %s', self.name, status)
     return status
 
   def get_wpa_control(self, socket):
@@ -468,7 +475,7 @@ class FrenzyWPACtrl(object):
   WIFIINFO_PATH = '/tmp/wifi/wifiinfo'
 
   def __init__(self, socket):
-    self._interface = os.path.split(socket)[-1]
+    self.ctrl_iface_path, self._interface = os.path.split(socket)
 
     # State from QCSAPI and wifi_files.
     self._client_mode = False
