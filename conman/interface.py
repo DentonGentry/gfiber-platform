@@ -479,7 +479,11 @@ class FrenzyWPACtrl(object):
     self._events = []
 
   def _qcsapi(self, *command):
-    return subprocess.check_output(['qcsapi'] + list(command)).strip()
+    try:
+      return subprocess.check_output(['qcsapi'] + list(command)).strip()
+    except subprocess.CalledProcessError as e:
+      logging.error('QCSAPI call failed: %s: %s', e, e.output)
+      raise
 
   def attach(self):
     self._update()
