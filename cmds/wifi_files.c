@@ -77,6 +77,11 @@ static time_t monotime(void) {
  * client for a while longer than that.
  */
 typedef struct client_state {
+  #define MAC_STR_LEN 18
+  char macstr[MAC_STR_LEN];
+  #define IFNAME_STR_LEN 16
+  char ifname[IFNAME_STR_LEN];
+
   double inactive_since;
 
   uint64_t rx_drop64;
@@ -106,14 +111,22 @@ typedef struct client_state {
   uint32_t tx_failed;
   uint32_t expected_mbps;
 
-  int sample_index;
 #define MAX_SAMPLE_INDEX 150
+  int rx_sample_index;
   uint8_t rx_ht_mcs_samples[MAX_SAMPLE_INDEX];
   uint8_t rx_vht_mcs_samples[MAX_SAMPLE_INDEX];
   uint8_t rx_width_samples[MAX_SAMPLE_INDEX];
   uint8_t rx_ht_nss_samples[MAX_SAMPLE_INDEX];
   uint8_t rx_vht_nss_samples[MAX_SAMPLE_INDEX];
-  uint8_t short_gi_samples[MAX_SAMPLE_INDEX];
+  uint8_t rx_short_gi_samples[MAX_SAMPLE_INDEX];
+
+  int tx_sample_index;
+  uint8_t tx_ht_mcs_samples[MAX_SAMPLE_INDEX];
+  uint8_t tx_vht_mcs_samples[MAX_SAMPLE_INDEX];
+  uint8_t tx_width_samples[MAX_SAMPLE_INDEX];
+  uint8_t tx_ht_nss_samples[MAX_SAMPLE_INDEX];
+  uint8_t tx_vht_nss_samples[MAX_SAMPLE_INDEX];
+  uint8_t tx_short_gi_samples[MAX_SAMPLE_INDEX];
 
   /*
    * Clients spend a lot of time mostly idle, where they
@@ -131,7 +144,14 @@ typedef struct client_state {
   uint8_t rx_width;
   uint8_t rx_ht_nss;
   uint8_t rx_vht_nss;
-  uint8_t short_gi;
+  uint8_t rx_short_gi;
+
+  uint8_t tx_ht_mcs;
+  uint8_t tx_vht_mcs;
+  uint8_t tx_width;
+  uint8_t tx_ht_nss;
+  uint8_t tx_vht_nss;
+  uint8_t tx_short_gi;
 
   /* Track the largest value we've ever seen from this client. This
    * shows client capabilities, even if current interference
@@ -141,7 +161,14 @@ typedef struct client_state {
   uint8_t rx_max_width;
   uint8_t rx_max_ht_nss;
   uint8_t rx_max_vht_nss;
-  uint8_t ever_short_gi;
+  uint8_t ever_rx_short_gi;
+
+  uint8_t tx_max_ht_mcs;
+  uint8_t tx_max_vht_mcs;
+  uint8_t tx_max_width;
+  uint8_t tx_max_ht_nss;
+  uint8_t tx_max_vht_nss;
+  uint8_t ever_tx_short_gi;
 
   int8_t signal;
   int8_t signal_avg;
@@ -153,11 +180,6 @@ typedef struct client_state {
   uint8_t mfp:1;
   uint8_t tdls_peer:1;
   uint8_t preamble_length:1;
-
-  #define MAC_STR_LEN 18
-  char macstr[MAC_STR_LEN];
-  #define IFNAME_STR_LEN 16
-  char ifname[IFNAME_STR_LEN];
 } client_state_t;
 
 
@@ -174,6 +196,16 @@ int ninterfaces = 0;
 
 /* FILE handle to /tmp/wifi/wifiinfo, while open. */
 static FILE *wifi_info_handle = NULL;
+
+
+static void ClearClientStateCounters(client_state_t *state)
+{
+  char macstr[MAC_STR_LEN];
+
+  memcpy(macstr, state->macstr, sizeof(macstr));
+  memset(state, 0, sizeof(*state));
+  memcpy(state->macstr, macstr, sizeof(state->macstr));
+}
 
 
 static int GetIfIndex(const char *ifname)
@@ -349,7 +381,7 @@ static uint32_t GetBitrate(struct nlattr *attr)
 }
 
 
-static void GetRxMCS(struct nlattr *attr,
+static void GetMCS(struct nlattr *attr,
     int *mcs, int *vht_mcs, int *width, int *short_gi, int *vht_nss)
 {
   int w160 = 0, w80_80 = 0, w80 = 0, w40 = 0;
@@ -418,7 +450,7 @@ static client_state_t *FindClientState(const uint8_t mac[6])
 }
 
 
-static int RxHtMcsToNss(int rxmcs)
+static int HtMcsToNss(int rxmcs)
 {
   /* https://en.wikipedia.org/wiki/IEEE_802.11n-2009 */
   switch(rxmcs) {
@@ -488,6 +520,12 @@ static int StationDumpCallback(struct nl_msg *msg, void *arg)
 
   mac = (uint8_t *)nla_data(tb[NL80211_ATTR_MAC]);
   state = FindClientState(mac);
+
+  if (strcasecmp(state->ifname, ifname) != 0) {
+    /* Client moved from one interface to another */
+    ClearClientStateCounters(state);
+  }
+
   state->last_seen = monotime();
   snprintf(state->ifname, sizeof(state->ifname), "%s", ifname);
 
@@ -502,20 +540,20 @@ static int StationDumpCallback(struct nl_msg *msg, void *arg)
   }
 
   if (si[NL80211_STA_INFO_RX_BITRATE]) {
-    int rx_ht_mcs=0, rx_vht_mcs=0, rx_vht_nss=0, rx_width=0, short_gi=0;
+    int rx_ht_mcs=0, rx_vht_mcs=0, rx_vht_nss=0, rx_width=0, rx_short_gi=0;
     int ht_nss;
-    int n = state->sample_index + 1;
+    int n = state->rx_sample_index + 1;
 
     if (n >= MAX_SAMPLE_INDEX) n = 0;
 
     state->rx_bitrate = GetBitrate(si[NL80211_STA_INFO_RX_BITRATE]);
-    GetRxMCS(si[NL80211_STA_INFO_RX_BITRATE], &rx_ht_mcs, &rx_vht_mcs,
-        &rx_width, &short_gi, &rx_vht_nss);
+    GetMCS(si[NL80211_STA_INFO_RX_BITRATE], &rx_ht_mcs, &rx_vht_mcs,
+        &rx_width, &rx_short_gi, &rx_vht_nss);
 
     state->rx_ht_mcs_samples[n] = rx_ht_mcs;
     if (rx_ht_mcs > state->rx_max_ht_mcs) state->rx_max_ht_mcs = rx_ht_mcs;
 
-    ht_nss = RxHtMcsToNss(rx_ht_mcs);
+    ht_nss = HtMcsToNss(rx_ht_mcs);
     state->rx_ht_nss_samples[n] = ht_nss;
     if (ht_nss > state->rx_max_ht_nss) state->rx_max_ht_nss = ht_nss;
 
@@ -525,13 +563,13 @@ static int StationDumpCallback(struct nl_msg *msg, void *arg)
     state->rx_vht_nss_samples[n] = rx_vht_nss;
     if (rx_vht_nss > state->rx_max_vht_nss) state->rx_max_vht_nss = rx_vht_nss;
 
-    state->short_gi_samples[n] = short_gi;
-    if (short_gi) state->ever_short_gi = 1;
+    state->rx_short_gi_samples[n] = rx_short_gi;
+    if (rx_short_gi) state->ever_rx_short_gi = 1;
 
     state->rx_width_samples[n] = rx_width;
     if (rx_width > state->rx_max_width) state->rx_max_width = rx_width;
 
-    state->sample_index = n;
+    state->rx_sample_index = n;
   }
   if (si[NL80211_STA_INFO_RX_BYTES]) {
     uint32_t last_rx_bytes = state->rx_bytes;
@@ -544,7 +582,36 @@ static int StationDumpCallback(struct nl_msg *msg, void *arg)
     state->rx_packets64 += (state->rx_packets - last_rx_packets);
   }
   if (si[NL80211_STA_INFO_TX_BITRATE]) {
+    int tx_ht_mcs=0, tx_vht_mcs=0, tx_vht_nss=0, tx_width=0, tx_short_gi=0;
+    int ht_nss;
+    int n = state->tx_sample_index + 1;
+
+    if (n >= MAX_SAMPLE_INDEX) n = 0;
+
     state->tx_bitrate = GetBitrate(si[NL80211_STA_INFO_TX_BITRATE]);
+    GetMCS(si[NL80211_STA_INFO_TX_BITRATE], &tx_ht_mcs, &tx_vht_mcs,
+        &tx_width, &tx_short_gi, &tx_vht_nss);
+
+    state->tx_ht_mcs_samples[n] = tx_ht_mcs;
+    if (tx_ht_mcs > state->tx_max_ht_mcs) state->tx_max_ht_mcs = tx_ht_mcs;
+
+    ht_nss = HtMcsToNss(tx_ht_mcs);
+    state->tx_ht_nss_samples[n] = ht_nss;
+    if (ht_nss > state->tx_max_ht_nss) state->tx_max_ht_nss = ht_nss;
+
+    state->tx_vht_mcs_samples[n] = tx_vht_mcs;
+    if (tx_vht_mcs > state->tx_max_vht_mcs) state->tx_max_vht_mcs = tx_vht_mcs;
+
+    state->tx_vht_nss_samples[n] = tx_vht_nss;
+    if (tx_vht_nss > state->tx_max_vht_nss) state->tx_max_vht_nss = tx_vht_nss;
+
+    state->tx_short_gi_samples[n] = tx_short_gi;
+    if (tx_short_gi) state->ever_tx_short_gi = 1;
+
+    state->tx_width_samples[n] = tx_width;
+    if (tx_width > state->tx_max_width) state->tx_max_width = tx_width;
+
+    state->tx_sample_index = n;
   }
   if (si[NL80211_STA_INFO_TX_BYTES]) {
     uint32_t last_tx_bytes = state->tx_bytes;
@@ -655,7 +722,9 @@ static void ConsolidateClientSamples(gpointer key, gpointer value,
   client_state_t *state = (client_state_t *)value;
   int i;
   uint8_t rx_ht_mcs=0, rx_vht_mcs=0, rx_width=0, rx_ht_nss=0;
-  uint8_t rx_vht_nss=0, short_gi=0;
+  uint8_t rx_vht_nss=0, rx_short_gi=0;
+  uint8_t tx_ht_mcs=0, tx_vht_mcs=0, tx_width=0, tx_ht_nss=0;
+  uint8_t tx_vht_nss=0, tx_short_gi=0;
 
   for (i = 0; i < MAX_SAMPLE_INDEX; ++i) {
     if (state->rx_ht_mcs_samples[i] > rx_ht_mcs) {
@@ -673,8 +742,27 @@ static void ConsolidateClientSamples(gpointer key, gpointer value,
     if (state->rx_vht_nss_samples[i] > rx_vht_nss) {
       rx_vht_nss = state->rx_vht_nss_samples[i];
     }
-    if (state->short_gi_samples[i] > short_gi) {
-      short_gi = state->short_gi_samples[i];
+    if (state->rx_short_gi_samples[i] > rx_short_gi) {
+      rx_short_gi = state->rx_short_gi_samples[i];
+    }
+
+    if (state->tx_ht_mcs_samples[i] > tx_ht_mcs) {
+      tx_ht_mcs = state->tx_ht_mcs_samples[i];
+    }
+    if (state->tx_vht_mcs_samples[i] > tx_vht_mcs) {
+      tx_vht_mcs = state->tx_vht_mcs_samples[i];
+    }
+    if (state->tx_width_samples[i] > tx_width) {
+      tx_width = state->tx_width_samples[i];
+    }
+    if (state->tx_ht_nss_samples[i] > tx_ht_nss) {
+      tx_ht_nss = state->tx_ht_nss_samples[i];
+    }
+    if (state->tx_vht_nss_samples[i] > tx_vht_nss) {
+      tx_vht_nss = state->tx_vht_nss_samples[i];
+    }
+    if (state->tx_short_gi_samples[i] > tx_short_gi) {
+      tx_short_gi = state->tx_short_gi_samples[i];
     }
   }
 
@@ -683,7 +771,14 @@ static void ConsolidateClientSamples(gpointer key, gpointer value,
   state->rx_width = rx_width;
   state->rx_ht_nss = rx_ht_nss;
   state->rx_vht_nss = rx_vht_nss;
-  state->short_gi = short_gi;
+  state->rx_short_gi = rx_short_gi;
+
+  state->tx_ht_mcs = tx_ht_mcs;
+  state->tx_vht_mcs = tx_vht_mcs;
+  state->tx_width = tx_width;
+  state->tx_ht_nss = tx_ht_nss;
+  state->tx_vht_nss = tx_vht_nss;
+  state->tx_short_gi = tx_short_gi;
 }
 
 
@@ -738,8 +833,8 @@ static void ClientStateToJson(gpointer key, gpointer value, gpointer user_data)
   fprintf(f, "  \"rx max vht_nss\": %u,\n", state->rx_max_vht_nss);
 
   #define BOOL(x) (x ? "true" : "false")
-  fprintf(f, "  \"rx SHORT_GI\": %s,\n", BOOL(state->short_gi));
-  fprintf(f, "  \"rx SHORT_GI seen\": %s,\n", BOOL(state->ever_short_gi));
+  fprintf(f, "  \"rx SHORT_GI\": %s,\n", BOOL(state->rx_short_gi));
+  fprintf(f, "  \"rx SHORT_GI seen\": %s,\n", BOOL(state->ever_rx_short_gi));
   #undef BOOL
 
   fprintf(f, "  \"signal\": %hhd,\n", state->signal);
@@ -797,6 +892,8 @@ static void ClientStateToLog(gpointer key, gpointer value, gpointer user_data)
       "%s %s %ld %" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64
       " %c,%hhd,%hhd,%u,%u,%u,%u,%u,%d"
       " %u,%u,%u,%u,%u,%d"
+      " %u,%u,%u,%u,%u,%d"
+      " %u,%u,%u,%u,%u,%d"
       "\n",
       state->macstr, state->ifname,
       ((mono_now - state->last_seen) + (state->inactive_msec / 1000)),
@@ -810,12 +907,21 @@ static void ClientStateToLog(gpointer key, gpointer value, gpointer user_data)
       state->signal, state->signal_avg,
       state->rx_ht_mcs, state->rx_ht_nss,
       state->rx_vht_mcs, state->rx_vht_nss,
-      state->rx_width, state->short_gi,
+      state->rx_width, state->rx_short_gi,
 
       /* information about the maximum we've ever seen from this client. */
       state->rx_max_ht_mcs, state->rx_max_ht_nss,
       state->rx_max_vht_mcs, state->rx_max_vht_nss,
-      state->rx_max_width, state->ever_short_gi);
+      state->rx_max_width, state->ever_rx_short_gi,
+
+      state->tx_ht_mcs, state->tx_ht_nss,
+      state->tx_vht_mcs, state->tx_vht_nss,
+      state->tx_width, state->tx_short_gi,
+
+      /* information about the maximum we've ever seen from this client. */
+      state->tx_max_ht_mcs, state->tx_max_ht_nss,
+      state->tx_max_vht_mcs, state->tx_max_vht_nss,
+      state->tx_max_width, state->ever_tx_short_gi);
 }
 
 
