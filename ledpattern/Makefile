@@ -1,7 +1,7 @@
 default:
 
-PREFIX=/
-BINDIR=$(DESTDIR)$(PREFIX)/bin
+ETCDIR=$(DESTDIR)/etc
+BINDIR=$(DESTDIR)/bin
 PYTHON?=python
 
 all:
@@ -9,6 +9,9 @@ all:
 install:
 	mkdir -p $(BINDIR)
 	cp ledpattern.py $(BINDIR)/ledpattern
+	cp ledtapcode.sh $(BINDIR)/ledtapcode
+	cp ledpatterns $(ETCDIR)/ledpatterns
+	chmod +x $(BINDIR)/ledtapcode
 
 install-libs:
 	@echo "No libs to install."
