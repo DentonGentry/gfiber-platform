@@ -3,6 +3,8 @@
 pycode=/bin/craftui.py
 cw=/usr/catawampus
 devcw=../../../../vendor/google/catawampus
+tornado=
+devtornado=../../../../vendor/opensource/tornado
 localwww=./www
 
 # in developer environment if vendor/google/catawapus is above us
@@ -18,6 +20,7 @@ fi
 # if running from developer desktop, use simulated data
 if [ -n "$sim" ]; then
   cw="$devcw"
+  tornado="$devtornado"
   args="$args --http-port=$((8888+2*($sim-1)))"
   args="$args --https-port=$((8889+2*($sim-1)))"
   args="$args --sim=./sim$sim"
@@ -43,5 +46,5 @@ while [ $# -gt 0 ]; do
   exit 1
 done
 
-export PYTHONPATH="$cw/tr/vendor/tornado:$cw/tr/vendor/curtain:$PYTHONPATH"
+export PYTHONPATH="$tornado:$cw/tr/vendor/curtain:$PYTHONPATH"
 exec python -u $debug $pycode $args $httpsmode
