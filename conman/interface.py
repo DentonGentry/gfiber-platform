@@ -528,7 +528,8 @@ class FrenzyWPACtrl(object):
       client_mode = self._qcsapi('get_mode', 'wifi0') == 'Station'
       ssid = self._qcsapi('get_ssid', 'wifi0')
       status = self._qcsapi('get_status', 'wifi0')
-      security = self._qcsapi('ssid_get_authentication_mode', 'wifi0', ssid)
+      security = (self._qcsapi('ssid_get_authentication_mode', 'wifi0', ssid)
+                  if ssid else None)
     except subprocess.CalledProcessError:
       # If QCSAPI failed, skip update.
       return
