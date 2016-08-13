@@ -50,6 +50,27 @@ void testPrintSsidEscaped()
 }
 
 
+void testPrintSsidEscapedQuoteBackslash()
+{
+  FILE *f = tmpfile();
+  char buf[32];
+  const uint8_t ssid[] = {'"', '\\'};  /* not NUL terminated. */
+  const uint8_t expected[] = {'\\', '"', '\\', '\\'};
+
+  printf("Testing \"%s\" in %s:\n", __FUNCTION__, __FILE__);
+  memset(buf, 0, sizeof(buf));
+  TEST_ASSERT(f != NULL);
+  print_ssid_escaped(f, sizeof(ssid), ssid);
+  fflush(f);
+  rewind(f);
+  TEST_ASSERT(fread(buf, 1, sizeof(buf), f) > 0);
+  printf("%s\n", buf);
+  TEST_ASSERT(memcmp(buf, expected, sizeof(expected)) == 0);
+  fclose(f);
+  printf("! %s:%d\t%s\tok\n", __FILE__, __LINE__, __FUNCTION__);
+}
+
+
 void testFrequencyToChannel()
 {
   printf("Testing \"%s\" in %s:\n", __FUNCTION__, __FILE__);
@@ -171,6 +192,7 @@ int main(int argc, char** argv)
   clients = g_hash_table_new(g_str_hash, g_str_equal);
 
   testPrintSsidEscaped();
+  testPrintSsidEscapedQuoteBackslash();
   testFrequencyToChannel();
   testClientStateToJson();
   testAgeOutClients();

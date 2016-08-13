@@ -984,8 +984,9 @@ static void print_ssid_escaped(FILE *f, int len, const uint8_t *data)
         if ((data[i] <= 0x1f) || !isprint(data[i])) {
           fprintf(f, "\\u00%02x", data[i]);
         } else {
-          fprintf(f, "%c", data[i]); break;
+          fprintf(f, "%c", data[i]);
         }
+        break;
     }
   }
 }
