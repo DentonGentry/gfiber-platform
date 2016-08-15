@@ -87,9 +87,8 @@ class JsonPoll(object):
   def WriteToStderr(self, msg, is_json=False):
     """Write a message to stderr."""
     if is_json:
-      json_data = json.loads(msg)
       flat_data = []
-      self._FlatObject('', json_data, flat_data)
+      self._FlatObject('', msg, flat_data)
       # Make the json easier to parse from the logs.
       for s in flat_data:
         sys.stderr.write('%s\n' % s)
@@ -118,7 +117,7 @@ class JsonPoll(object):
                                os.path.dirname(output_file))
             continue
           tmpfile = fd.name
-          fd.write(response)
+          fd.write(json.dumps(response))
           fd.flush()
           os.fsync(fd.fileno())
           try:
@@ -131,11 +130,22 @@ class JsonPoll(object):
         if os.path.exists(tmpfile):
           os.unlink(tmpfile)
 
+  def ParseJSONFromResponse(self, response):
+    try:
+      json_resp = json.loads(response)
+    except UnicodeDecodeError as ex:
+      self.WriteToStderr('Non-UTF8 character in HTTP response: %s', ex)
+      return None
+    except ValueError as ex:
+      self.WriteToStderr('Failed to parse JSON from HTTP response: %s', ex)
+      return None
+    return json_resp
+
   def GetHttpResponse(self, url):
     """Creates a request and retrieves the response from a web server."""
     try:
       handle = urllib2.urlopen(url, timeout=self._SOCKET_TIMEOUT_SECS)
-      response = handle.read()
+      response = self.ParseJSONFromResponse(handle.read())
     except socket.timeout as ex:
       self.WriteToStderr('Connection to %s timed out after %d seconds: %s\n'
                          % (url, self._SOCKET_TIMEOUT_SECS, ex))
@@ -143,9 +153,11 @@ class JsonPoll(object):
     except urllib2.URLError as ex:
       self.WriteToStderr('Connection to %s failed: %s\n' % (url, ex.reason))
       return None
+
     # Write the response to stderr so it will be uploaded with the other system
     # log files. This will allow turbogrinder to alert on the radio subsystem.
-    self.WriteToStderr(response, is_json=True)
+    if response is not None:
+      self.WriteToStderr(response, is_json=True)
     return response
 
   def CreateDirs(self, dir_to_create):

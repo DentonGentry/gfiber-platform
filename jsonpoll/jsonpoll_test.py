@@ -56,7 +56,7 @@ class FakeJsonPoll(jsonpoll.JsonPoll):
     self.get_response_called = True
     if self.generate_empty_response:
       return None
-    return json.dumps(JSON_RESPONSE)
+    return self.ParseJSONFromResponse(self.json_response)
 
 
 class JsonPollTest(unittest.TestCase):
@@ -73,6 +73,7 @@ class JsonPollTest(unittest.TestCase):
   def setUp(self):
     self.CreateTempFile()
     self.poller = FakeJsonPoll('fakehost.blah', 31337, 1)
+    self.poller.json_response = json.dumps(JSON_RESPONSE)
     self.poller.error_count = 0
     self.poller.generate_empty_response = False
 
@@ -90,7 +91,7 @@ class JsonPollTest(unittest.TestCase):
     # equivalent JSON representation we wrote out from the mock.
     with open(self.output_file, 'r') as f:
       output = ''.join(line.rstrip() for line in f)
-      self.assertEqual(json.dumps(JSON_RESPONSE), output)
+      self.assertEqual(JSON_RESPONSE, json.loads(output))
 
   def testRequestStatsFailureToCreateDirOutput(self):
     self.poller.paths_to_statfiles = {'fake/url': '/root/cannotwrite'}
@@ -107,7 +108,7 @@ class JsonPollTest(unittest.TestCase):
   def testCachedRequestStats(self):
     # Set the "last_response" as our mock output. This should mean we do not
     # write anything to the output file.
-    self.poller.last_response = json.dumps(JSON_RESPONSE)
+    self.poller.last_response = JSON_RESPONSE
 
     # Create a fake entry in the paths_to_stats map.
     self.poller.paths_to_statfiles = {'fake/url': self.output_file}
@@ -126,6 +127,40 @@ class JsonPollTest(unittest.TestCase):
     self.poller._FlatObject('base', obj, got)
     want = ['base/key1=1', 'base/key2/key3=3', 'base/key2/key4=4']
     self.assertEqual(got.sort(), want.sort())
+
+  def testJSONParsing(self):
+    # { "key": "value" }
+    start_json = ' { "key" : "'
+    euro = u'\u20AC'
+    end_json = '" }'
+
+    # Test for empty JSON
+    self.poller.json_response = ''
+    self.assertEquals(self.poller.GetHttpResponse('fake/url'), None)
+
+    # Test for broken JSON
+    self.poller.json_response = start_json
+    self.assertEquals(self.poller.GetHttpResponse('fake/url'), None)
+    self.poller.json_response = end_json
+    self.assertEquals(self.poller.GetHttpResponse('fake/url'), None)
+    self.poller.json_response = start_json + end_json + end_json
+    self.assertEquals(self.poller.GetHttpResponse('fake/url'), None)
+
+    # The json library (dumps/loads) assumes strings as UTF-8
+    # Need to fail gracefully when wrong encoding is given
+
+    # Normal ascii
+    incoming_json = start_json + 'ascii-value' + end_json
+    self.poller.json_response = incoming_json
+    self.assertNotEquals(self.poller.GetHttpResponse('fake/url'), None)
+
+    # Unicode utf-8: '\xE2 \x82 \xAC' == euro_sign
+    self.poller.json_response = start_json + euro.encode('utf-8') + end_json
+    self.assertNotEquals(self.poller.GetHttpResponse('fake/url'), None)
+
+    # Unicode utf-16: '\x20\xAC' == euro_sign, should fail
+    self.poller.json_response = start_json + euro.encode('utf-16') + end_json
+    self.assertEquals(self.poller.GetHttpResponse('fake/url'), None)
 
 if __name__ == '__main__':
   unittest.main()
