@@ -19,6 +19,7 @@ PORTABLE_TARGETS=\
 TARGETS=\
 	$(PORTABLE_TARGETS) \
 	alivemonitor \
+	anonid \
 	bsa2bluez \
 	burnin-flash \
 	buttonmon \
@@ -255,6 +256,9 @@ hostnamelookup.tmp.c: hostnamelookup.gperf
 		--includes --output-file=$@ $<
 hostnamelookup.tmp.o: CFLAGS += -Wno-missing-field-initializers
 host-hostnamelookup.tmp.o: CFLAGS += -Wno-missing-field-initializers
+anonid: anonid.o
+host-anonid: host-anonid.o
+anonid host-anonid: LIBS += -lcrypto
 
 
 TESTS = $(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
