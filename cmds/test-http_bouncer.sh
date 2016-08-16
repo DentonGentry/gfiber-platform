@@ -40,10 +40,6 @@ OUTPUTS[2]=$(printf "HTTP/1.0 302 Found\r\nLocation: $URL\r\n\r\n"; printf "$SEN
 INPUTS[3]=$(printf "\n\n"; printf "$SENTINEL")
 OUTPUTS[3]=$(printf "HTTP/1.0 302 Found\r\nLocation: $URL\r\n\r\n"; printf "$SENTINEL")
 
-INPUTS[4]=$(printf "GET /GIAG2.crl HTTP/1.0\r\nHost: pki.google.com\r\n\r\n"; printf "$SENTINEL")
-OUTPUTS[4]=$(curl "http://pki.google.com/GIAG2.crl"; printf "$SENTINEL")
-STRIP_HEADER[4]=1
-
 WVSTART "http_bouncer test"
 
 # fail with no arguments
@@ -59,10 +55,13 @@ wait_for_socket
 i=0
 while [ $i -lt ${#INPUTS[@]} ]; do
   output=$(echo -n "${INPUTS[$i]}" | nc localhost $PORT; printf "$SENTINEL")
-  if [ ${STRIP_HEADER[$i]} ]; then
-    output=$(echo -n "$output" | sed '1,/^\r$/d')
-  fi
-
   WVPASSEQ "$output" "${OUTPUTS[$i]}"
   i=$(expr $i + 1)
 done
+
+# Make sure we can download a CRL even through the bouncer.
+# Some Internet Explorer versions will refuse to connect if we can't.
+WVPASS printf "GET /GIAG2.crl HTTP/1.0\r\nHost: pki.google.com\r\n\r\n" |\
+  nc localhost $PORT |\
+  sed '1,/^\r$/d' |\
+  openssl crl -inform DER
