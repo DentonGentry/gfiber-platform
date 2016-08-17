@@ -32,6 +32,7 @@ TARGETS=\
 	diskbench \
 	dnsck \
 	freemegs \
+	gfhd254_reboot \
 	gstatic \
 	http_bouncer \
 	ionice \
