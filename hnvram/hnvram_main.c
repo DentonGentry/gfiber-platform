@@ -83,6 +83,7 @@ const hnvram_field_t nvram_fields[] = {
   {"LASER_CHANNEL",        NVRAM_FIELD_LASER_CHANNEL,     HNVRAM_STRING},
   {"MAC_ADDR_PON",         NVRAM_FIELD_MAC_ADDR_PON,      HNVRAM_MAC},
   {"PRODUCTION_UNIT",      NVRAM_FIELD_PRODUCTION_UNIT,   HNVRAM_STRING},
+  {"BOOT_TARGET",          NVRAM_FIELD_BOOT_TARGET,       HNVRAM_STRING},
 };
 
 const hnvram_field_t* get_nvram_field(const char* name) {
