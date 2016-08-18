@@ -16,8 +16,10 @@
 
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "device_stats.pb.h"
 
@@ -91,6 +93,71 @@ int64_t Uptime() {
   return static_cast<int64_t>(up);
 }
 
+std::string IPAddress() {
+  std::ifstream infile;
+  infile.open("/proc/net/if_inet6");
+
+  if (!infile.good()) {
+    perror("error reading ipv6 from file");
+    exit(1);
+  }
+
+  std::string line;
+  int found = 0;
+  while (!infile.eof()) {
+    getline(infile, line);
+    // Want Ipv6 address on man interface
+    if (line.find("man") == std::string::npos) {
+      continue;
+    }
+    // Avoid local ipv6
+    if (line.substr(0, 4) == "0100" || // Discard prefix RFC 6666
+        line.substr(0, 2) == "fc" || // Unique local addresses
+        line.substr(0, 2) == "fd" ||
+        line.substr(0, 4) == "fe80" || // Link-local addresses
+        line.substr(0, 4) == "fec0") { // Old, deprecated local address range
+      continue;
+    }
+    found = 1;
+    break;
+  }
+
+  infile.close();
+  if (!found || line.size() < 32) {
+    perror("ipv6 address on man not found in file");
+    return "::1";
+  }
+
+  // Add colons
+  std::stringstream ipv6;
+  line = line.substr(0, 32);
+  for (unsigned int i = 0; i < line.size(); i++) {
+    if (i != 0 && i % 4 == 0) {
+      ipv6 << ':';
+    }
+    ipv6 << line[i];
+  }
+
+  // Format canonically
+  struct in6_addr ipv6_struct;
+  if (!inet_pton(AF_INET6, ipv6.str().c_str(), &ipv6_struct)) {
+    std::string errmsg = "unable to parse ipv6 address to inet_pton: " +
+        ipv6.str();
+    perror(errmsg.c_str());
+    exit(1);
+  }
+  char address[INET6_ADDRSTRLEN];
+  if (!inet_ntop(AF_INET6, &ipv6_struct, address, INET6_ADDRSTRLEN)) {
+    std::string errmsg = "unable to parse ipv6 address from inet_pton struct "
+        "created from: " + ipv6.str();
+    perror(errmsg.c_str());
+    exit(1);
+  }
+
+  std::string result(address);
+  return result;
+}
+
 void MakePacket(std::vector<uint8_t>* pkt) {
   devstatus::Status status;
 
@@ -101,6 +168,7 @@ void MakePacket(std::vector<uint8_t>* pkt) {
   status.set_acs_contact_time(acs_contact_time);
   status.set_uptime(Uptime());
   status.set_serial(serial_number);
+  status.set_ipv6(IPAddress());
 
   pkt->resize(status.ByteSize());
   status.SerializeToArray(&(*pkt)[0], status.ByteSize());
