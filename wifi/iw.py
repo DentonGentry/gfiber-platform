@@ -226,14 +226,26 @@ def find_interface_from_phy(phy, interface_type, interface_suffix):
       return interface
 
 
-def find_all_interfaces_from_phy(phy):
+def find_all_interfaces_from_phy(phy, interface_type=None):
+  """Finds the names of all interfaces on a given phy.
+
+  Args:
+    phy: The name of a phy, e.g. 'phy0'.
+    interface_type: An INTERFACE_TYPE value (optional).
+
+  Returns:
+    A list of all interfaces found.
+  """
   interfaces = []
-  for interface_type in INTERFACE_TYPE:
+  interface_types = INTERFACE_TYPE
+  if interface_type:
+    interface_types = [interface_type]
+  for interface_type in interface_types:
     pattern = re.compile(r'w%s[0-9]\w*\Z' % re.escape(interface_type))
     interfaces.extend(interface for interface
                       in dev_parsed()[phy]['interfaces']
                       if pattern.match(interface))
-  return interfaces
+  return set(interfaces)
 
 
 def find_interface_from_band(band, interface_type, interface_suffix):
@@ -252,6 +264,23 @@ def find_interface_from_band(band, interface_type, interface_suffix):
     return None
 
   return find_interface_from_phy(phy, interface_type, interface_suffix)
+
+
+def find_all_interfaces_from_band(band, interface_type=None):
+  """Finds the names of all interface on a given band.
+
+  Args:
+    band: The band for which you want the interface.
+    interface_type: An INTERFACE_TYPE value (optional).
+
+  Returns:
+    A list of all interfaces found.
+  """
+  phy = find_phy(band, 'auto')
+  if phy is None:
+    return []
+
+  return find_all_interfaces_from_phy(phy, interface_type)
 
 
 def find_width_and_channel(interface):

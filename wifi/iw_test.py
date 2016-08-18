@@ -514,6 +514,19 @@ def find_interface_from_phy_test():
 
 
 @wvtest.wvtest
+def find_all_interfaces_from_phy_test():
+  wvtest.WVPASSEQ(set(['wlan0', 'wlan0_portal', 'wcli0']),
+                  iw.find_all_interfaces_from_phy('phy0'))
+  wvtest.WVPASSEQ(set(['wlan0', 'wlan0_portal']),
+                  iw.find_all_interfaces_from_phy('phy0', iw.INTERFACE_TYPE.ap))
+  wvtest.WVPASSEQ(set(['wcli0']),
+                  iw.find_all_interfaces_from_phy('phy0',
+                                                  iw.INTERFACE_TYPE.client))
+  wvtest.WVPASSEQ(set(['wlan1', 'wlan1_portal']),
+                  iw.find_all_interfaces_from_phy('phy1'))
+
+
+@wvtest.wvtest
 def find_interface_from_band_test():
   wvtest.WVPASSEQ('wlan0',
                   iw.find_interface_from_band('2.4', iw.INTERFACE_TYPE.ap, ''))
@@ -526,6 +539,19 @@ def find_interface_from_band_test():
   wvtest.WVPASSEQ(None,
                   iw.find_interface_from_band('5', iw.INTERFACE_TYPE.client,
                                               ''))
+
+
+@wvtest.wvtest
+def find_all_interfaces_from_band_test():
+  wvtest.WVPASSEQ(set(['wlan0', 'wlan0_portal', 'wcli0']),
+                  iw.find_all_interfaces_from_band('2.4'))
+  wvtest.WVPASSEQ(set(['wlan0', 'wlan0_portal']),
+                  iw.find_all_interfaces_from_band('2.4', iw.INTERFACE_TYPE.ap))
+  wvtest.WVPASSEQ(set(['wcli0']),
+                  iw.find_all_interfaces_from_band('2.4',
+                                                   iw.INTERFACE_TYPE.client))
+  wvtest.WVPASSEQ(set(['wlan1', 'wlan1_portal']),
+                  iw.find_all_interfaces_from_band('5'))
 
 
 @wvtest.wvtest
