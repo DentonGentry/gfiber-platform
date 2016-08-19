@@ -15,11 +15,12 @@ BUILD_SPEEDTEST?=y
 BUILD_CRYPTDEV?=    # default off: needs libdevmapper
 BUILD_SIGNING?=     # default off: needs libgtest
 BUILD_JSONPOLL?=n
+BUILD_BOUNCER?=     # default off: costly
 BUILD_PRESTERASTATS?=n
 export BUILD_HNVRAM BUILD_SSDP BUILD_DNSSD BUILD_LOGUPLOAD \
 	BUILD_IBEACON BUILD_WAVEGUIDE BUILD_DVBUTILS BUILD_SYSMGR \
 	BUILD_STATUTILS BUILD_CRYPTDEV BUILD_SIGNING BUILD_JSONPOLL \
-	BUILD_PRESTERASTATS BUILD_CACHE_WARMING
+	BUILD_PRESTERASTATS BUILD_CACHE_WARMING BUILD_BOUNCER
 
 # note: libgpio is not built here.  It's conditionally built
 # via buildroot/packages/google/google_platform/google_platform.mk
@@ -71,6 +72,10 @@ endif
 
 ifeq ($(BUILD_CRAFTUI),y)
 DIRS+=craftui
+endif
+
+ifeq ($(BUILD_BOUNCER),y)
+DIRS+=bouncer
 endif
 
 ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfsc100)
