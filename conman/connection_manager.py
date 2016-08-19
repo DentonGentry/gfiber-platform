@@ -170,6 +170,7 @@ class WLANConfiguration(object):
       subprocess.check_output(command, stderr=subprocess.STDOUT, env=env)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to start wifi client: %s', e.output)
+      self._status.wlan_failed = True
       return False
 
     return True
