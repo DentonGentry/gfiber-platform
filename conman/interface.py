@@ -7,6 +7,10 @@ import os
 import re
 import subprocess
 
+# This has to be called before another module calls it with a higher log level.
+# pylint: disable=g-import-not-at-top
+logging.basicConfig(level=logging.DEBUG)
+
 import experiment
 import wpactrl
 
@@ -14,6 +18,8 @@ METRIC_5GHZ = 20
 METRIC_24GHZ_5GHZ = 21
 METRIC_24GHZ = 22
 METRIC_TEMPORARY_CONNECTION_CHECK = 99
+
+RFC2385_MULTICAST_ROUTE = '239.0.0.0/8'
 
 experiment.register('WifiSimulateWireless')
 CWMP_PATH = '/tmp/cwmp'
@@ -30,7 +36,7 @@ class Interface(object):
   IP_ROUTE = ['ip', 'route']
   IP_ADDR_SHOW = ['ip', 'addr', 'show', 'dev']
 
-  def __init__(self, name, metric):
+  def __init__(self, name, base_metric):
     self.name = name
 
     # Currently connected links for this interface, e.g. ethernet.
@@ -42,10 +48,15 @@ class Interface(object):
 
     self._subnet = None
     self._gateway_ip = None
-    self.metric = metric
+    self.base_metric = base_metric
+    self.metric_offset = 0
 
     # Until this is set True, the routing table will not be touched.
     self._initialized = False
+
+  @property
+  def metric(self):
+    return str(int(self.base_metric) + self.metric_offset)
 
   def _connection_check(self, check_acs):
     """Check this interface's connection status.
@@ -77,8 +88,11 @@ class Interface(object):
     # routes.
     added_temporary_route = False
     if 'default' not in self.current_routes():
-      logging.debug('Adding temporary connection check route for dev %s',
+      logging.debug('Adding temporary connection check routes for dev %s',
                     self.name)
+      self._ip_route('add', self._gateway_ip,
+                     'dev', self.name,
+                     'metric', str(METRIC_TEMPORARY_CONNECTION_CHECK))
       self._ip_route('add', 'default',
                      'via', self._gateway_ip,
                      'dev', self.name,
@@ -98,9 +112,12 @@ class Interface(object):
 
     # Delete the temporary route.
     if added_temporary_route:
-      logging.debug('Deleting temporary connection check route for dev %s',
+      logging.debug('Deleting temporary connection check routes for dev %s',
                     self.name)
       self._ip_route('del', 'default',
+                     'dev', self.name,
+                     'metric', str(METRIC_TEMPORARY_CONNECTION_CHECK))
+      self._ip_route('del', self._gateway_ip,
                      'dev', self.name,
                      'metric', str(METRIC_TEMPORARY_CONNECTION_CHECK))
 
@@ -138,49 +155,54 @@ class Interface(object):
     # exists but is different, delete it before adding an updated one.
     current = self.current_routes()
     default = current.get('default', {})
-    subnet = current.get('subnet', {})
     if ((default.get('via', None), default.get('metric', None)) !=
         (self._gateway_ip, str(self.metric))):
       logging.debug('Adding default route for dev %s', self.name)
-      self.delete_route(default=True)
+      self.delete_route('default')
       self._ip_route('add', 'default',
                      'via', self._gateway_ip,
                      'dev', self.name,
                      'metric', str(self.metric))
 
+    subnet = current.get('subnet', {})
     if (self._subnet and
         (subnet.get('via', None), subnet.get('metric', None)) !=
         (self._gateway_ip, str(self.metric))):
       logging.debug('Adding subnet route for dev %s', self.name)
-      self.delete_route(subnet=True)
+      self.delete_route('subnet')
       self._ip_route('add', self._subnet,
                      'dev', self.name,
                      'metric', str(self.metric))
 
-  def delete_route(self, default=False, subnet=False):
+    # RFC2365 multicast route.
+    if current.get('multicast', {}).get('metric', None) != str(self.metric):
+      logging.debug('Adding multicast route for dev %s', self.name)
+      self.delete_route('multicast')
+      self._ip_route('add', RFC2385_MULTICAST_ROUTE,
+                     'dev', self.name,
+                     'metric', str(self.metric))
+
+  def delete_route(self, *args):
     """Delete default and/or subnet routes for this interface.
 
     Args:
-      default:  Whether to delete default routes.  Must be true if subnet isn't.
-      subnet:  Whether to delete subnet routes.  Must be true if default isn't.
+      *args:  Which routes to delete.  Must be at least one of 'default',
+          'subnet', 'multicast'.
 
     Raises:
       ValueError:  If neither default nor subnet is True.
     """
-    route_types = []
-    if default:
-      route_types.append(('default', 'default'))
-    if subnet:
-      route_types.append(('subnet', self._subnet))
-
-    if not route_types:
+    args = set(args)
+    args &= set(('default', 'subnet', 'multicast'))
+    if not args:
       raise ValueError(
-          'Must specify at least one of default or subnet to delete.')
+          'Must specify at least one of default, subnet, multicast to delete.')
 
-    for route_type, key in route_types:
+    for route_type in args:
       while route_type in self.current_routes():
         logging.debug('Deleting %s route for dev %s', route_type, self.name)
-        self._ip_route('del', key, 'dev', self.name)
+        self._ip_route('del', self.current_routes()[route_type]['route'],
+                       'dev', self.name)
 
   def current_routes(self):
     """Read the current routes for this interface.
@@ -193,13 +215,20 @@ class Interface(object):
     result = {}
     for line in self._ip_route().splitlines():
       if 'dev %s' % self.name in line:
-        route_type = 'default' if line.startswith('default') else 'subnet'
+        if line.startswith('default'):
+          route_type = 'default'
+        elif re.search(r'\/\d{1,2}$', line.split()[0]):
+          route_type = 'subnet'
+        else:
+          continue
         route = {}
-        key = None
+        key = 'route'
         for token in line.split():
           if token in ['via', 'metric']:
             key = token
           elif key:
+            if key == 'route' and token == RFC2385_MULTICAST_ROUTE:
+              route_type = 'multicast'
             route[key] = token
             key = None
         if route:
@@ -305,9 +334,38 @@ class Interface(object):
     maybe_had_access = maybe_had_acs != False or maybe_had_internet != False
     has_access = has_acs or has_internet
     if not had_access and has_access:
-      self.add_routes()
+      self.prioritize_routes()
     elif maybe_had_access and not has_access:
-      self.delete_route(default=True, subnet=True)
+      # If we still have a link, just deprioritize the routes, in case we're
+      # wrong about the connection check.  If there's no actual link, then
+      # really delete the route.
+      if self.links:
+        self.deprioritize_routes()
+      else:
+        self.delete_route('default', 'subnet', 'multicast')
+
+  def prioritize_routes(self):
+    """When connection check succeeds, route priority (metric) should be normal.
+
+    This is the inverse of deprioritize_routes.
+    """
+    if not self._initialized:
+      return
+    logging.info('%s routes have normal priority', self.name)
+    self.metric_offset = 0
+    self.add_routes()
+
+  def deprioritize_routes(self):
+    """When connection check fails, deprioritize routes by increasing metric.
+
+    This is conservative alternative to deleting routes, in case we are mistaken
+    about route not providing a useful connection.
+    """
+    if not self._initialized:
+      return
+    logging.info('%s routes have low priority', self.name)
+    self.metric_offset = 50
+    self.add_routes()
 
   def initialize(self):
     """Tell the interface it has its initial state.
@@ -354,10 +412,16 @@ class Bridge(Interface):
       self._moca_stations.remove(node_id)
       self.moca = bool(self._moca_stations)
 
-  def add_routes(self):
+  def prioritize_routes(self):
     """We only want ACS autoprovisioning when we're using a wired route."""
-    super(Bridge, self).add_routes()
+    super(Bridge, self).prioritize_routes()
     open(self._acs_autoprovisioning_filepath, 'w')
+
+  def deprioritize_routes(self, *args, **kwargs):
+    """We only want ACS autoprovisioning when we're using a wired route."""
+    if os.path.exists(self._acs_autoprovisioning_filepath):
+      os.unlink(self._acs_autoprovisioning_filepath)
+    super(Bridge, self).deprioritize_routes(*args, **kwargs)
 
   def delete_route(self, *args, **kwargs):
     """We only want ACS autoprovisioning when we're using a wired route."""

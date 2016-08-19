@@ -637,7 +637,7 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.bridge.current_routes())
   wvtest.WVPASS(os.path.exists(acs_autoprov_filepath))
   for wifi in c.wifi:
-    wvtest.WVFAIL(wifi.current_routes())
+    wvtest.WVFAIL(wifi.current_routes_normal_testonly())
   wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN,
                                     status.P.HAVE_CONFIG]))
 
@@ -646,7 +646,7 @@ def connection_manager_test_generic(c, band):
   c.run_once()
   wvtest.WVFAIL(c.acs())
   wvtest.WVFAIL(c.internet())
-  wvtest.WVFAIL(c.bridge.current_routes())
+  wvtest.WVFAIL(c.bridge.current_routes_normal_testonly())
   wvtest.WVFAIL(os.path.exists(acs_autoprov_filepath))
   wvtest.WVFAIL(c.has_status_files([status.P.CAN_REACH_ACS,
                                     status.P.CAN_REACH_INTERNET]))
@@ -677,7 +677,7 @@ def connection_manager_test_generic(c, band):
   c.run_until_interface_update()
   wvtest.WVFAIL(c.acs())
   wvtest.WVFAIL(c.internet())
-  wvtest.WVFAIL(c.bridge.current_routes())
+  wvtest.WVFAIL(c.bridge.current_routes_normal_testonly())
 
   # Now c connects to a restricted network.
   c.bridge.set_connection_check_result('restricted')
@@ -692,6 +692,8 @@ def connection_manager_test_generic(c, band):
   c.run_once()
   wvtest.WVFAIL(c.acs())
   wvtest.WVFAIL(c.internet())
+  # We have no links, so we should have no routes (not even low priority ones),
+  # and /tmp/hosts should only contain a line for localhost.
   wvtest.WVFAIL(c.bridge.current_routes())
   check_tmp_hosts('127.0.0.1 localhost')
 
@@ -778,7 +780,7 @@ def connection_manager_test_generic(c, band):
   c.run_once()
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_routes())
-  wvtest.WVFAIL(c.bridge.current_routes())
+  wvtest.WVFAIL(c.bridge.current_routes_normal_testonly())
   c.run_until_interface_update()
   check_tmp_hosts('192.168.1.100 %s\n127.0.0.1 localhost' % hostname)
 
@@ -803,7 +805,7 @@ def connection_manager_test_generic(c, band):
   c.run_once()
   wvtest.WVFAIL(c.access_point_up(band))
   wvtest.WVFAIL(c.client_up(band))
-  wvtest.WVFAIL(c.wifi_for_band(band).current_routes())
+  wvtest.WVFAIL(c.wifi_for_band(band).current_routes_normal_testonly())
   wvtest.WVPASS(c.bridge.current_routes())
   wvtest.WVFAIL(c.has_status_files([status.P.HAVE_CONFIG]))
 
@@ -812,7 +814,7 @@ def connection_manager_test_generic(c, band):
   c.run_once()
   wvtest.WVPASS(c.access_point_up(band))
   wvtest.WVFAIL(c.client_up(band))
-  wvtest.WVFAIL(c.wifi_for_band(band).current_routes())
+  wvtest.WVFAIL(c.wifi_for_band(band).current_routes_normal_testonly())
   wvtest.WVPASS(c.bridge.current_routes())
 
   # Now delete the config and bring down the bridge and make sure we reprovision
@@ -823,7 +825,9 @@ def connection_manager_test_generic(c, band):
   c.run_until_interface_update()
   wvtest.WVFAIL(c.acs())
   wvtest.WVFAIL(c.internet())
-  check_tmp_hosts('127.0.0.1 localhost')
+  # We still have a link and might be wrong about the connection_check, so
+  # /tmp/hosts should still contain a line for this hostname.
+  check_tmp_hosts('192.168.1.101 %s\n127.0.0.1 localhost' % hostname)
   # s3 is not what the cycler would suggest trying next.
   wvtest.WVPASSNE('s3', c.wifi_for_band(band).cycler.peek())
   # Run only once, so that only one BSS can be tried.  It should be the s3 one,
@@ -1000,8 +1004,8 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVPASS(c.bridge.current_routes())
   wvtest.WVFAIL(c.client_up('2.4'))
   wvtest.WVFAIL(c.client_up('5'))
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # Disable the 2.4 GHz AP, make sure the 5 GHz AP stays up.  2.4 GHz should
   # join the WLAN.
@@ -1012,7 +1016,7 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVPASS(c.client_up('2.4'))
   wvtest.WVPASS(c.bridge.current_routes())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # Delete the 2.4 GHz WLAN configuration; it should leave the WLAN but nothing
   # else should change.
@@ -1022,8 +1026,8 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVPASS(c.access_point_up('5'))
   wvtest.WVFAIL(c.client_up('2.4'))
   wvtest.WVPASS(c.bridge.current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # Disable the wired connection and remove the WLAN configurations.  Both
   # radios should scan.  Wait for 5 GHz to scan, then enable scan results for
@@ -1032,18 +1036,18 @@ def connection_manager_test_dual_band_two_radios(c):
   c.set_ethernet(False)
   c.run_once()
   wvtest.WVFAIL(c.acs())
-  wvtest.WVFAIL(c.bridge.current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.bridge.current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # The 5 GHz scan has no results.
   c.run_until_scan('5')
   c.run_once()
   c.run_until_interface_update()
   wvtest.WVFAIL(c.acs())
-  wvtest.WVFAIL(c.bridge.current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.bridge.current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # The next 2.4 GHz scan will have results.
   c.interface_with_scan_results = c.wifi_for_band('2.4').name
@@ -1053,9 +1057,9 @@ def connection_manager_test_dual_band_two_radios(c):
     c.run_once()
   c.run_until_interface_update()
   wvtest.WVPASS(c.acs())
-  wvtest.WVFAIL(c.bridge.current_routes())
+  wvtest.WVFAIL(c.bridge.current_routes_normal_testonly())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
   c.run_once()
   wvtest.WVPASSEQ(c.log_upload_count, 1)
 
@@ -1104,8 +1108,8 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVFAIL(c.access_point_up('2.4'))
   wvtest.WVPASS(c.access_point_up('5'))
   wvtest.WVPASS(c.bridge.current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # Disable the 2.4 GHz AP; nothing should change.  The 2.4 GHz client should
   # not be up because the same radio is being used to run a 5 GHz AP.
@@ -1115,8 +1119,8 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVPASS(c.access_point_up('5'))
   wvtest.WVFAIL(c.client_up('2.4'))
   wvtest.WVPASS(c.bridge.current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # Delete the 2.4 GHz WLAN configuration; nothing should change.
   c.delete_wlan_config('2.4')
@@ -1125,8 +1129,8 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVPASS(c.access_point_up('5'))
   wvtest.WVFAIL(c.client_up('2.4'))
   wvtest.WVPASS(c.bridge.current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # Disable the wired connection and remove the WLAN configurations.  There
   # should be a single scan that leads to ACS access.  (It doesn't matter which
@@ -1136,9 +1140,9 @@ def connection_manager_test_dual_band_one_radio(c):
   c.set_ethernet(False)
   c.run_once()
   wvtest.WVFAIL(c.acs())
-  wvtest.WVFAIL(c.bridge.current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes())
-  wvtest.WVFAIL(c.wifi_for_band('5').current_routes())
+  wvtest.WVFAIL(c.bridge.current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('2.4').current_routes_normal_testonly())
+  wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # The scan will have results that will lead to ACS access.
   c.interface_with_scan_results = c.wifi_for_band('2.4').name
@@ -1147,7 +1151,7 @@ def connection_manager_test_dual_band_one_radio(c):
     c.run_once()
   c.run_until_interface_update()
   wvtest.WVPASS(c.acs())
-  wvtest.WVFAIL(c.bridge.current_routes())
+  wvtest.WVFAIL(c.bridge.current_routes_normal_testonly())
   wvtest.WVPASS(c.wifi_for_band('2.4').current_routes())
   wvtest.WVPASS(c.wifi_for_band('5').current_routes())
   c.run_once()
