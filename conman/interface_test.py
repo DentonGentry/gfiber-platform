@@ -48,14 +48,16 @@ class FakeInterfaceMixin(object):
   def _really_ip_route(self, *args):
     if not args:
       return '\n'.join(self.routing_table.values() +
-                       ['1.2.3.4/24 dev %s proto kernel scope link' % self.name,
+                       ['1.2.3.4/24 dev fake0 proto kernel scope link',
                         'default via 1.2.3.4 dev fake0',
                         'random junk'])
 
     metric = None
     if 'metric' in args:
       metric = args[args.index('metric') + 1]
-    key = (self.name, metric)
+    if args[0] in ('add', 'del'):
+      route = args[1]
+    key = (self.name, route, metric)
     if args[0] == 'add' and key not in self.routing_table:
       logging.debug('Adding route for %r', key)
       self.routing_table[key] = ' '.join(args[1:])
@@ -63,7 +65,7 @@ class FakeInterfaceMixin(object):
       if key in self.routing_table:
         logging.debug('Deleting route for %r', key)
         del self.routing_table[key]
-      elif key[1] is None:
+      elif key[2] is None:
         # pylint: disable=g-builtin-op
         for k in self.routing_table.keys():
           if k[0] == key[0]:
@@ -330,53 +332,59 @@ def bridge_test():
 
     wvtest.WVFAIL(b.acs())
     wvtest.WVFAIL(b.internet())
-    wvtest.WVFAIL(b.current_route())
+    wvtest.WVFAIL(b.current_routes())
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
 
     b.add_moca_station(0)
+    wvtest.WVFAIL(os.path.exists(autoprov_filepath))
     b.set_gateway_ip('192.168.1.1')
+    b.set_subnet('192.168.1.0/24')
+    wvtest.WVFAIL(os.path.exists(autoprov_filepath))
     # Everything should fail because the interface is not initialized.
     wvtest.WVFAIL(b.acs())
     wvtest.WVFAIL(b.internet())
-    wvtest.WVFAIL(b.current_route())
+    wvtest.WVFAIL(b.current_routes())
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
     b.initialize()
     wvtest.WVPASS(b.acs())
     wvtest.WVPASS(b.internet())
-    wvtest.WVPASS(b.current_route())
+    current_routes = b.current_routes()
+    wvtest.WVPASS(current_routes)
+    wvtest.WVPASS('default' in current_routes)
+    wvtest.WVPASS('subnet' in current_routes)
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     b.add_moca_station(1)
     wvtest.WVPASS(b.acs())
     wvtest.WVPASS(b.internet())
-    wvtest.WVPASS(b.current_route())
+    wvtest.WVPASS(b.current_routes())
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     b.remove_moca_station(0)
     b.remove_moca_station(1)
     wvtest.WVFAIL(b.acs())
     wvtest.WVFAIL(b.internet())
-    wvtest.WVFAIL(b.current_route())
+    wvtest.WVFAIL(b.current_routes())
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
 
     b.add_moca_station(2)
     wvtest.WVPASS(b.acs())
     wvtest.WVPASS(b.internet())
-    wvtest.WVPASS(b.current_route())
+    wvtest.WVPASS(b.current_routes())
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     b.set_connection_check_result('fail')
     b.update_routes()
     wvtest.WVFAIL(b.acs())
     wvtest.WVFAIL(b.internet())
-    wvtest.WVFAIL(b.current_route())
+    wvtest.WVFAIL(b.current_routes())
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
 
     b.set_connection_check_result('restricted')
     b.update_routes()
     wvtest.WVPASS(b.acs())
     wvtest.WVFAIL(b.internet())
-    wvtest.WVPASS(b.current_route())
+    wvtest.WVPASS(b.current_routes())
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     wvtest.WVFAIL(b.get_ip_address())
