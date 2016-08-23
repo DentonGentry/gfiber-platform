@@ -40,7 +40,7 @@ class Interface(object):
     self._has_acs = None
     self._has_internet = None
 
-    # The gateway IP for this interface.
+    self._subnet = None
     self._gateway_ip = None
     self.metric = metric
 
@@ -76,7 +76,7 @@ class Interface(object):
     # Give it a high metric so that it won't interfere with normal default
     # routes.
     added_temporary_route = False
-    if not self.current_route():
+    if 'default' not in self.current_routes():
       logging.debug('Adding temporary connection check route for dev %s',
                     self.name)
       self._ip_route('add', 'default',
@@ -121,11 +121,10 @@ class Interface(object):
 
     return self._has_internet
 
-  def add_route(self):
-    """Adds a default route for this interface.
+  def add_routes(self):
+    """Update default routes for this interface.
 
-    First, checks whether an equivalent route already exists, and if so,
-    returns.
+    Remove any stale routes and add any missing desired routes.
     """
     if self.metric is None:
       logging.info('Cannot add route for %s without a metric.', self.name)
@@ -135,45 +134,76 @@ class Interface(object):
       logging.info('Cannot add route for %s without a gateway IP.', self.name)
       return
 
-    # If the current default route is the same, there is nothing to do.  If it
+    # If the current routes are the same, there is nothing to do.  If either
     # exists but is different, delete it before adding an updated one.
-    current = self.current_route()
-    if current:
-      if (current.get('via', None) == self._gateway_ip and
-          current.get('metric', None) == str(self.metric)):
-        return
-      else:
-        self.delete_route()
+    current = self.current_routes()
+    default = current.get('default', {})
+    subnet = current.get('subnet', {})
+    if ((default.get('via', None), default.get('metric', None)) !=
+        (self._gateway_ip, str(self.metric))):
+      logging.debug('Adding default route for dev %s', self.name)
+      self.delete_route(default=True)
+      self._ip_route('add', 'default',
+                     'via', self._gateway_ip,
+                     'dev', self.name,
+                     'metric', str(self.metric))
 
-    logging.debug('Adding default route for dev %s', self.name)
-    self._ip_route('add', 'default',
-                   'via', self._gateway_ip,
-                   'dev', self.name,
-                   'metric', str(self.metric))
+    if (self._subnet and
+        (subnet.get('via', None), subnet.get('metric', None)) !=
+        (self._gateway_ip, str(self.metric))):
+      logging.debug('Adding subnet route for dev %s', self.name)
+      self.delete_route(subnet=True)
+      self._ip_route('add', self._subnet,
+                     'dev', self.name,
+                     'metric', str(self.metric))
 
-  def delete_route(self):
-    while self.current_route():
-      logging.debug('Deleting default route for dev %s', self.name)
-      self._ip_route('del', 'default',
-                     'dev', self.name)
+  def delete_route(self, default=False, subnet=False):
+    """Delete default and/or subnet routes for this interface.
 
-  def current_route(self):
-    """Read the current default route for this interface.
+    Args:
+      default:  Whether to delete default routes.  Must be true if subnet isn't.
+      subnet:  Whether to delete subnet routes.  Must be true if default isn't.
+
+    Raises:
+      ValueError:  If neither default nor subnet is True.
+    """
+    route_types = []
+    if default:
+      route_types.append(('default', 'default'))
+    if subnet:
+      route_types.append(('subnet', self._subnet))
+
+    if not route_types:
+      raise ValueError(
+          'Must specify at least one of default or subnet to delete.')
+
+    for route_type, key in route_types:
+      while route_type in self.current_routes():
+        logging.debug('Deleting %s route for dev %s', route_type, self.name)
+        self._ip_route('del', key, 'dev', self.name)
+
+  def current_routes(self):
+    """Read the current routes for this interface.
 
     Returns:
-      A dict containing the gateway [and metric] of the route, or an empty dict
-      if there is currently no default route for this interface.
+      A dict mapping 'default' and/or 'subnet' to a dict containing the gateway
+      [and metric] of the route.  Only contains keys for routes that are
+      present.
     """
     result = {}
     for line in self._ip_route().splitlines():
-      if line.startswith('default') and 'dev %s' % self.name in line:
+      if 'dev %s' % self.name in line:
+        route_type = 'default' if line.startswith('default') else 'subnet'
+        route = {}
         key = None
         for token in line.split():
           if token in ['via', 'metric']:
             key = token
           elif key:
-            result[key] = token
+            route[key] = token
             key = None
+        if route:
+          result[route_type] = route
 
     return result
 
@@ -209,7 +239,12 @@ class Interface(object):
   def set_gateway_ip(self, gateway_ip):
     logging.info('New gateway IP %s for %s', gateway_ip, self.name)
     self._gateway_ip = gateway_ip
-    self.update_routes()
+    self.update_routes(expire_cache=True)
+
+  def set_subnet(self, subnet):
+    logging.info('New subnet %s for %s', subnet, self.name)
+    self._subnet = subnet
+    self.update_routes(expire_cache=True)
 
   def _set_link_status(self, link, is_up):
     """Set whether a link is up or not."""
@@ -270,9 +305,9 @@ class Interface(object):
     maybe_had_access = maybe_had_acs != False or maybe_had_internet != False
     has_access = has_acs or has_internet
     if not had_access and has_access:
-      self.add_route()
+      self.add_routes()
     elif maybe_had_access and not has_access:
-      self.delete_route()
+      self.delete_route(default=True, subnet=True)
 
   def initialize(self):
     """Tell the interface it has its initial state.
@@ -319,16 +354,16 @@ class Bridge(Interface):
       self._moca_stations.remove(node_id)
       self.moca = bool(self._moca_stations)
 
-  def add_route(self):
+  def add_routes(self):
     """We only want ACS autoprovisioning when we're using a wired route."""
-    super(Bridge, self).add_route()
+    super(Bridge, self).add_routes()
     open(self._acs_autoprovisioning_filepath, 'w')
 
-  def delete_route(self):
+  def delete_route(self, *args, **kwargs):
     """We only want ACS autoprovisioning when we're using a wired route."""
     if os.path.exists(self._acs_autoprovisioning_filepath):
       os.unlink(self._acs_autoprovisioning_filepath)
-    super(Bridge, self).delete_route()
+    super(Bridge, self).delete_route(*args, **kwargs)
 
   def _connection_check(self, check_acs):
     """Support for WifiSimulateWireless."""

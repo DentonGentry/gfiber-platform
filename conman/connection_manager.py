@@ -212,6 +212,7 @@ class ConnectionManager(object):
   COMMAND_FILE_REGEXP = WLAN_FILE_REGEXP_FMT % COMMAND_FILE_PREFIX
   ACCESS_POINT_FILE_REGEXP = WLAN_FILE_REGEXP_FMT % ACCESS_POINT_FILE_PREFIX
   GATEWAY_FILE_PREFIX = 'gateway.'
+  SUBNET_FILE_PREFIX = 'subnet.'
   MOCA_NODE_FILE_PREFIX = 'node'
   WIFI_SETCLIENT = ['wifi', 'setclient']
   IFUP = ['ifup']
@@ -295,6 +296,7 @@ class ConnectionManager(object):
               self._wpa_control_interface)
 
     for path, prefix in ((self._tmp_dir, self.GATEWAY_FILE_PREFIX),
+                         (self._tmp_dir, self.SUBNET_FILE_PREFIX),
                          (self._interface_status_dir, ''),
                          (self._moca_tmp_dir, self.MOCA_NODE_FILE_PREFIX),
                          (self._config_dir, self.COMMAND_FILE_PREFIX)):
@@ -583,7 +585,7 @@ class ConnectionManager(object):
     """Update the contents of /tmp/hosts."""
     lowest_metric_interface = None
     for ifc in [self.bridge] + self.wifi:
-      route = ifc.current_route()
+      route = ifc.current_routes().get('default', None)
       if route:
         metric = route.get('metric', 0)
         # Skip temporary connection_check routes.
@@ -687,6 +689,14 @@ class ConnectionManager(object):
         if ifc:
           ifc.set_gateway_ip(contents)
           logging.info('Received gateway %r for interface %s', contents,
+                       ifc.name)
+
+      if filename.startswith(self.SUBNET_FILE_PREFIX):
+        interface_name = filename.split(self.SUBNET_FILE_PREFIX)[-1]
+        ifc = self.interface_by_name(interface_name)
+        if ifc:
+          ifc.set_subnet(contents)
+          logging.info('Received subnet %r for interface %s', contents,
                        ifc.name)
 
     elif path == self._moca_tmp_dir:
