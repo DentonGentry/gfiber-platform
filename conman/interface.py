@@ -217,7 +217,7 @@ class Interface(object):
       if 'dev %s' % self.name in line:
         if line.startswith('default'):
           route_type = 'default'
-        elif re.search(r'\/\d{1,2}$', line.split()[0]):
+        elif re.search(r'/\d{1,2}$', line.split()[0]):
           route_type = 'subnet'
         else:
           continue
@@ -307,38 +307,24 @@ class Interface(object):
   def update_routes(self, expire_cache=True):
     """Update this interface's routes.
 
-    If the interface has gained ACS or internet access, add a route.  If it had
-    either and now has neither, delete the route.
+    If the interface has ACS or internet access, prioritize its routes.  If it
+    doesn't but has a link, deprioritize the routes.  If it has no links, delete
+    the routes.
 
     Args:
       expire_cache:  If true, force a recheck of connection status before
-      deciding whether to add or remove routes.
+      deciding how to prioritize routes.
     """
     logging.debug('Updating routes for %s', self.name)
-    maybe_had_acs = self._has_acs
-    maybe_had_internet = self._has_internet
-
     if expire_cache:
       self.expire_connection_status_cache()
 
-    has_acs = self.acs()
-    has_internet = self.internet()
-
-    # This is a little confusing:  We want to try adding a route if we _may_
-    # have gone from no access to some access, and we want to try deleting the
-    # route if we _may_ have lost *all* access. So the first condition checks
-    # for truthiness but the elif checks for explicit Falsity (i.e. excluding
-    # the None/unknown case).
-    had_access = maybe_had_acs or maybe_had_internet
-    # pylint: disable=g-explicit-bool-comparison
-    maybe_had_access = maybe_had_acs != False or maybe_had_internet != False
-    has_access = has_acs or has_internet
-    if not had_access and has_access:
+    if self.acs() or self.internet():
       self.prioritize_routes()
-    elif maybe_had_access and not has_access:
+    else:
       # If we still have a link, just deprioritize the routes, in case we're
       # wrong about the connection check.  If there's no actual link, then
-      # really delete the route.
+      # really delete the routes.
       if self.links:
         self.deprioritize_routes()
       else:
