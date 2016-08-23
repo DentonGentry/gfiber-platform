@@ -49,6 +49,8 @@ class FakeInterfaceMixin(object):
     if not args:
       return '\n'.join(self.routing_table.values() +
                        ['1.2.3.4/24 dev fake0 proto kernel scope link',
+                        # Non-subnet route, e.g. to NFS host.
+                        '1.2.3.1 dev %s proto kernel scope link' % self.name,
                         'default via 1.2.3.4 dev fake0',
                         'random junk'])
 
@@ -68,7 +70,7 @@ class FakeInterfaceMixin(object):
       elif key[2] is None:
         # pylint: disable=g-builtin-op
         for k in self.routing_table.keys():
-          if k[0] == key[0]:
+          if k[:-1] == key[:-1]:
             logging.debug('Deleting route for %r (generalized from %s)', k, key)
             del self.routing_table[k]
             break
@@ -78,6 +80,10 @@ class FakeInterfaceMixin(object):
       return _IP_ADDR_SHOW_TPL.format(name=self.name, ip=self.ip_testonly)
 
     return ''
+
+  def current_routes_normal_testonly(self):
+    result = self.current_routes()
+    return {k: v for k, v in result.iteritems() if int(v.get('metric', 0)) < 50}
 
 
 class Bridge(FakeInterfaceMixin, interface.Bridge):
@@ -333,6 +339,7 @@ def bridge_test():
     wvtest.WVFAIL(b.acs())
     wvtest.WVFAIL(b.internet())
     wvtest.WVFAIL(b.current_routes())
+    wvtest.WVFAIL(b.current_routes_normal_testonly())
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
 
     b.add_moca_station(0)
@@ -343,48 +350,53 @@ def bridge_test():
     # Everything should fail because the interface is not initialized.
     wvtest.WVFAIL(b.acs())
     wvtest.WVFAIL(b.internet())
-    wvtest.WVFAIL(b.current_routes())
+    wvtest.WVFAIL(b.current_routes_normal_testonly())
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
     b.initialize()
     wvtest.WVPASS(b.acs())
     wvtest.WVPASS(b.internet())
     current_routes = b.current_routes()
-    wvtest.WVPASS(current_routes)
+    wvtest.WVPASSEQ(len(current_routes), 3)
     wvtest.WVPASS('default' in current_routes)
     wvtest.WVPASS('subnet' in current_routes)
+    wvtest.WVPASS('multicast' in current_routes)
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     b.add_moca_station(1)
     wvtest.WVPASS(b.acs())
     wvtest.WVPASS(b.internet())
-    wvtest.WVPASS(b.current_routes())
+    wvtest.WVPASSEQ(len(b.current_routes()), 3)
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     b.remove_moca_station(0)
     b.remove_moca_station(1)
     wvtest.WVFAIL(b.acs())
     wvtest.WVFAIL(b.internet())
+    # We have no links, so should have no routes.
     wvtest.WVFAIL(b.current_routes())
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
 
     b.add_moca_station(2)
     wvtest.WVPASS(b.acs())
     wvtest.WVPASS(b.internet())
-    wvtest.WVPASS(b.current_routes())
+    wvtest.WVPASSEQ(len(b.current_routes()), 3)
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     b.set_connection_check_result('fail')
     b.update_routes()
     wvtest.WVFAIL(b.acs())
     wvtest.WVFAIL(b.internet())
-    wvtest.WVFAIL(b.current_routes())
+    # We have links but the connection check failed, so we should only have a
+    # low priority route, i.e. metric at least 50.
+    wvtest.WVPASSEQ(len(b.current_routes()), 3)
+    wvtest.WVFAIL(b.current_routes_normal_testonly())
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
 
     b.set_connection_check_result('restricted')
     b.update_routes()
     wvtest.WVPASS(b.acs())
     wvtest.WVFAIL(b.internet())
-    wvtest.WVPASS(b.current_routes())
+    wvtest.WVPASSEQ(len(b.current_routes()), 3)
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     wvtest.WVFAIL(b.get_ip_address())
