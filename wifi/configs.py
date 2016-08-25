@@ -375,7 +375,7 @@ def generate_wpa_supplicant_config(ssid, passphrase, opt):
                                utils.validate_and_sanitize_bssid(opt.bssid))
   network_block = make_network_block(network_block_lines)
 
-  freq_list = ','.join(autochannel.get_all_frequencies(opt.band))
+  freq_list = ' '.join(autochannel.get_all_frequencies(opt.band))
 
   lines = [
       'ctrl_interface=/var/run/wpa_supplicant',
