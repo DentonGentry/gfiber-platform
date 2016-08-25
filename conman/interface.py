@@ -547,6 +547,10 @@ class Wifi(Interface):
     self.initial_ssid = None
     super(Wifi, self).initialize()
 
+  def connected_to_open(self):
+    return (self.wpa_status().get('wpa_state', None) == 'COMPLETED' and
+            self.wpa_status().get('key_mgmt', None) == 'NONE')
+
 
 class FrenzyWPACtrl(object):
   """A WPACtrl for Frenzy devices.

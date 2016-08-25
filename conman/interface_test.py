@@ -248,8 +248,10 @@ class Wifi(FakeInterfaceMixin, interface.Wifi):
     super(Wifi, self).detach_wpa_control()
 
   def start_wpa_supplicant_testonly(self, path):
-    logging.debug('Starting fake wpa_supplicant for %s', self.name)
-    open(os.path.join(path, self.name), 'w')
+    wpa_socket = os.path.join(path, self.name)
+    logging.debug('Starting fake wpa_supplicant for %s: %s',
+                  self.name, wpa_socket)
+    open(wpa_socket, 'w')
 
   def kill_wpa_supplicant_testonly(self, path):
     logging.debug('Killing fake wpa_supplicant for %s', self.name)
