@@ -927,7 +927,10 @@ def OpenPathOrUrl(path):
     pass
 
   try:
-    return open(path)
+    if path == '-':
+      return sys.stdin
+    else:
+      return open(path)
   except ValueError:
     pass
 
