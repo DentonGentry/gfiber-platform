@@ -76,7 +76,7 @@ ARCH_TARGETS += dnssd_hosts
 SCRIPT_TARGETS += castcheck
 endif
 
-ifeq ($(BUILD_IBEACON),y)
+ifeq ($(BUILD_BLUETOOTH),y)
 ARCH_TARGETS += ibeacon eddystone
 endif
 

@@ -1,0 +1,25 @@
+syntax = "proto2";
+package rcaudio;
+option optimize_for = LITE_RUNTIME;
+
+message AudioSamples {
+  // A unique identifier for the remote control.
+  // For Bluetooth this will be the BDADDR like "00:11:22:33:44:55"
+  optional string rc_address = 1;
+
+  enum AudioFormat {
+    UNDEFINED_AUDIO_FORMAT = 0;
+    PCM_16BIT_16KHZ = 1;
+  }
+  optional AudioFormat audio_format = 2;
+
+  enum RemoteType {
+    UNDEFINED_REMOTE_TYPE = 0;
+    GFRM210 = 1;
+    GFRM100 = 2;
+  }
+  optional RemoteType remote_type = 3;
+
+  optional bytes audio_samples = 4;
+};
+
