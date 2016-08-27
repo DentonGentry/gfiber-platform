@@ -5,6 +5,7 @@
 tmpdir="$(mktemp -d)"
 export PATH="$tmpdir/bin:${PATH}"
 export GINSTALL_OUT_FILE="$tmpdir/out"
+psiz=$(stat --format=%s testdata/img/loader.gflt110.bin)
 lsiz=$(stat --format=%s testdata/img/loader.img)
 ksiz=$(stat --format=%s testdata/img/kernel.img)
 rsiz=$(stat --format=%s testdata/img/rootfs.img)
@@ -191,6 +192,45 @@ hnvram -q -w ACTIVATED_KERNEL_NAME=kernel0"
 WVPASS ./ginstall.py --basepath="$tmpdir" --tar=./testdata/img/image_gflt110_v4.gi --partition=primary --skiploadersig
 WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
 WVPASS cmp --bytes="$lsiz" "${tmpdir}/dev/mtd0" testdata/img/loader.img
+WVPASS cmp --bytes="$ksiz" "${tmpdir}/dev/mtd6" testdata/img/kernel.img
+
+
+
+# GFLT110 with gflt110.bin loader.
+echo; echo; echo GFLT110 with platform loader
+setup_fakeroot GFLT110
+expected="\
+psback
+logos ginstall
+flash_unlock ${tmpdir}/dev/mtd6
+flash_erase --quiet ${tmpdir}/dev/mtd6 0 0
+flash_unlock ${tmpdir}/dev/mtd0
+flash_erase --quiet ${tmpdir}/dev/mtd0 0 0
+hnvram -q -w ACTIVATED_KERNEL_NAME=kernel0"
+
+WVPASS ./ginstall.py --basepath="$tmpdir" --tar=./testdata/img/image_gflt110_platform_loader.gi --partition=primary --skiploadersig
+WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
+WVPASS cmp --bytes="$psiz" "${tmpdir}/dev/mtd0" testdata/img/loader.gflt110.bin
+WVPASS cmp --bytes="$ksiz" "${tmpdir}/dev/mtd6" testdata/img/kernel.img
+
+
+
+# GFLT110 with both loaders with the MANIFEST containing "multiloader: 1"
+echo; echo; echo GFLT110 with both loaders
+setup_fakeroot GFLT110
+expected="\
+psback
+logos ginstall
+flash_unlock ${tmpdir}/dev/mtd6
+flash_erase --quiet ${tmpdir}/dev/mtd6 0 0
+flash_unlock ${tmpdir}/dev/mtd0
+flash_erase --quiet ${tmpdir}/dev/mtd0 0 0
+hnvram -q -w ACTIVATED_KERNEL_NAME=kernel0"
+
+WVPASS ./ginstall.py --basepath="$tmpdir" --tar=./testdata/img/image_gflt110_both_loaders.gi --partition=primary --skiploadersig
+WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
+WVFAIL cmp --bytes="$lsiz" "${tmpdir}/dev/mtd0" testdata/img/loader.bin
+WVPASS cmp --bytes="$psiz" "${tmpdir}/dev/mtd0" testdata/img/loader.gflt110.bin
 WVPASS cmp --bytes="$ksiz" "${tmpdir}/dev/mtd6" testdata/img/kernel.img
 
 

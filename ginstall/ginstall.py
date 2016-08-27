@@ -625,6 +625,14 @@ def CheckMisc(manifest):
                 'gftv200-39-pre1 and before.')
 
 
+def CheckMultiLoader(manifest):
+  """Check if this ginstall image supports platform-named loaders."""
+  multiloader = manifest.get('multiloader')
+  if not multiloader:
+    return False
+  return True
+
+
 class ProgressBar(object):
   """Progress bar that prints one dot per 1MB."""
 
@@ -863,6 +871,12 @@ def InstallImage(f, partition, skiploader=False, skiploadersig=False):
   CheckMinimumVersion(manifest)
   CheckMisc(manifest)
 
+  loader_bin_list = ['loader.img', 'loader.bin']
+  loader_sig_list = ['loader.sig']
+  if CheckMultiLoader(manifest):
+    loader_bin_list = ['loader.%s.bin' % GetPlatform().lower()]
+    loader_sig_list = ['loader.%s.sig' % GetPlatform().lower()]
+
   uloader = loader = None
   uloadersig = FileWithSecureHash(StringIO.StringIO(''), 'badsig')
   loadersig = FileWithSecureHash(StringIO.StringIO(''), 'badsig')
@@ -878,10 +892,10 @@ def InstallImage(f, partition, skiploader=False, skiploadersig=False):
     elif ti.name.startswith('rootfs.'):
       fh = FileWithSecureHash(tar.extractfile(ti), secure_hash)
       InstallRootfs(fh, partition)
-    elif ti.name in ['loader.img', 'loader.bin']:
+    elif ti.name in loader_bin_list:
       buf = StringIO.StringIO(tar.extractfile(ti).read())
       loader = FileWithSecureHash(buf, secure_hash)
-    elif ti.name == 'loader.sig':
+    elif ti.name in loader_sig_list:
       buf = StringIO.StringIO(tar.extractfile(ti).read())
       loadersig = FileWithSecureHash(buf, secure_hash)
     elif ti.name == 'uloader.img':
