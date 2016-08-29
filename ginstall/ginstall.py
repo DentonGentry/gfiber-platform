@@ -36,16 +36,18 @@ import options
 
 optspec = """
 ginstall -p <partition>
-ginstall -p <partition> -t <tarfile> [options...]
+ginstall [-t <tarfile>] [--drm <blob>] [options...]
 --
-t,tar=        *.gi file to install, from a local path or uri://path
+t,tar=        path to a *.gi file to install; may be - for STDIN, a file on the\
+ filesystem, or an http[s]:// URI
 skiploader    skip installing bootloader (dev-only)
 manifest=     manifest file
 drm=          drm blob filename to install
-p,partition=  partition to install to (primary, secondary, or other)
+p,partition=  partition to boot to on next boot (other, primary, or secondary)\
+ and to unpack .gi image to (if -t is given)
 q,quiet       suppress unnecessary output
 skiploadersig suppress checking the loader signature
-b,basepath=   for tests, prepend a path to all files accessed.
+b,basepath=   for tests, prepend a path to all files accessed
 """
 
 # Error codes.
