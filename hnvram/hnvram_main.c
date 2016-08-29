@@ -1,7 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 // Author: dgentry@google.com (Denny Gentry)
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,23 +19,28 @@
 // Number of bytes of GPN to be represented as hex data
 #define GPN_HEX_BYTES 4
 
+// Holds whether -w can create new variables in NVRAM. Set with -n
+int can_add_flag = 0;
+
 /* To avoid modifying the HMX code, we supply dummy versions of two
  * missing routines to satisfy the linker. These are used when writing
  * the complete NVRAM partiton, which we do not need in this utility. */
 DRV_Error DRV_NANDFLASH_GetNvramHandle(int handle) {
   return DRV_ERR;
 }
-DRV_Error DRV_FLASH_Write(int offset, char *data, int nDataSize) {
+DRV_Error DRV_FLASH_Write(int offset, char* data, int nDataSize) {
   return DRV_ERR;
 }
 
 void usage(const char* progname) {
-  printf("Usage: %s [-d | [-q|-b] -r VARNAME] [-w VARNAME=value]\n", progname);
+  printf("Usage: %s [-d | [-q|-b] [-r|-k] VARNAME] [ [-n] -w VARNAME=value]\n", progname);
   printf("\t-d : dump all NVRAM variables\n");
   printf("\t-r VARNAME : read VARNAME from NVRAM\n");
   printf("\t-q : quiet mode, suppress the variable name and equal sign\n");
   printf("\t-b : read VARNAME from NVRAM in raw binary format, e.g. dumping a binary key\n");
   printf("\t-w VARNAME=value : write value to VARNAME in NVRAM.\n");
+  printf("\t-n : toggles whether -w can create new variables. Default is off\n");
+  printf("\t-k VARNAME : delete existing key/value pair from NVRAM.\n");
 }
 
 // Format of data in the NVRAM
@@ -104,28 +112,25 @@ const hnvram_field_t* get_nvram_field(const char* name) {
 // ------------------ READ NVRAM -----------------------------
 
 
-void format_string(const char* data, char* output, int outlen) {
+void format_string(const unsigned char* data, char* output, int outlen) {
   snprintf(output, outlen, "%s", data);
 }
 
-void format_mac(const char* data, char* output, int outlen) {
-  const unsigned char* mac = (const unsigned char*) data;
+void format_mac(const unsigned char* data, char* output, int outlen) {
   snprintf(output, outlen, "%02hx:%02hx:%02hx:%02hx:%02hx:%02hx",
-           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+           data[0], data[1], data[2], data[3], data[4], data[5]);
 }
 
-void format_hmxswvers(const char* data, char* output, int outlen) {
-  const unsigned char* udata = (const unsigned char*) data;
-  snprintf(output, outlen, "%hhu.%hhu", udata[1], udata[0]);
+void format_hmxswvers(const unsigned char* data, char* output, int outlen) {
+  snprintf(output, outlen, "%hhu.%hhu", data[1], data[0]);
 }
 
-void format_uint8(const char* data, char* output, int outlen) {
-  const unsigned char* d = (const unsigned char*)data;
-  snprintf(output, outlen, "%u", d[0]);
+void format_uint8(const unsigned char* data, char* output, int outlen) {
+  snprintf(output, outlen, "%u", data[0]);
 }
 
-void format_hexstring(const char* data, int datalen, char* output, int outlen) {
-  const unsigned char* d = (const unsigned char*)data;
+void format_hexstring(const unsigned char* data, int datalen, char* output,
+                      int outlen) {
   int i;
   if (outlen < (datalen * 2 + 1)) {
     fprintf(stderr, "%s buffer too small %d < %d",
@@ -133,11 +138,11 @@ void format_hexstring(const char* data, int datalen, char* output, int outlen) {
     exit(1);
   }
   for (i = 0; i < datalen; ++i) {
-    snprintf(output + (i * 2), 3, "%02x", d[i]);
+    snprintf(output + (i * 2), 3, "%02x", data[i]);
   }
 }
 
-void format_gpn(const char* data, const int data_len, char* output,
+void format_gpn(const unsigned char* data, const int data_len, char* output,
                 int outlen) {
   // Format first 4 bytes as 8 digit hex.
   if (data_len == GPN_HEX_BYTES)
@@ -146,7 +151,7 @@ void format_gpn(const char* data, const int data_len, char* output,
     format_string(data, output, outlen);
 }
 
-char* format_nvram(hnvram_format_e format, const char* data,
+char* format_nvram(hnvram_format_e format, const unsigned char* data,
                    const int data_len, char* output, int outlen) {
   output[0] = '\0';
   switch(format) {
@@ -163,7 +168,7 @@ char* format_nvram(hnvram_format_e format, const char* data,
 
 int read_raw_nvram(const char* name, char* output, int outlen) {
   const hnvram_field_t* field = get_nvram_field(name);
-  int ret;
+  unsigned int ret;
   if (field == NULL) {
     return -1;
   }
@@ -180,23 +185,33 @@ int read_raw_nvram(const char* name, char* output, int outlen) {
     return -1;
   }
 
-  return ret;
+  return (int)ret;
 }
 
 char* read_nvram(const char* name, char* output, int outlen, int quiet) {
   const hnvram_field_t* field = get_nvram_field(name);
-  if (field == NULL) {
-    return NULL;
-  }
+  int is_field = (field != NULL);
 
-  char data[NVRAM_MAX_DATA] = {0};
-  int data_len = 0;
-  if (HMX_NVRAM_GetField(field->nvram_type, 0, data, sizeof(data)) != DRV_OK ||
-      HMX_NVRAM_GetLength(field->nvram_type, &data_len) != DRV_OK) {
-    return NULL;
+  unsigned char data[NVRAM_MAX_DATA] = {0};
+  unsigned int data_len = 0;
+  hnvram_format_e format_type;
+  if (is_field) {
+    format_type = field->format;
+    if (HMX_NVRAM_GetField(field->nvram_type, 0, data, sizeof(data)) != DRV_OK ||
+        HMX_NVRAM_GetLength(field->nvram_type, &data_len) != DRV_OK) {
+      return NULL;
+    }
+  } else {
+    format_type = HNVRAM_STRING;
+    DRV_Error e = HMX_NVRAM_Read(HMX_NVRAM_PARTITION_RW, (unsigned char*)name,
+                                 0, data, sizeof(data), &data_len);
+    if (e != DRV_OK) {
+      return NULL;
+    }
   }
   char formatbuf[NVRAM_MAX_DATA * 2];
-  char* nv = format_nvram(field->format, data, data_len, formatbuf, sizeof(formatbuf));
+  char* nv = format_nvram(format_type, data, data_len, formatbuf,
+                          sizeof(formatbuf));
   if (quiet) {
     snprintf(output, outlen, "%s", nv);
   } else {
@@ -204,13 +219,11 @@ char* read_nvram(const char* name, char* output, int outlen, int quiet) {
   }
   return output;
 }
-
-
 // ----------------- WRITE NVRAM -----------------------------
 
 
 unsigned char* parse_string(const char* input,
-                            unsigned char* output, int* outlen) {
+                            unsigned char* output, unsigned int* outlen) {
   int len = strlen(input);
   if (len > *outlen) {
     len = *outlen;
@@ -222,7 +235,7 @@ unsigned char* parse_string(const char* input,
 }
 
 unsigned char* parse_mac(const char* input,
-                         unsigned char* output, int* outlen) {
+                         unsigned char* output, unsigned int* outlen) {
   if (*outlen < 6) return NULL;
 
   if (sscanf(input, "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx",
@@ -235,7 +248,7 @@ unsigned char* parse_mac(const char* input,
 }
 
 unsigned char* parse_hmxswvers(const char* input,
-                               unsigned char* output, int* outlen) {
+                               unsigned char* output, unsigned int* outlen) {
   if (*outlen < 2) return NULL;
 
   if (sscanf(input, "%hhd.%hhd", &output[1], &output[0]) != 2) {
@@ -246,7 +259,7 @@ unsigned char* parse_hmxswvers(const char* input,
 }
 
 unsigned char* parse_uint8(const char* input,
-                           unsigned char* output, int* outlen) {
+                           unsigned char* output, unsigned int* outlen) {
   if (*outlen < 1) return NULL;
 
   output[0] = input[0] - '0';
@@ -264,8 +277,8 @@ int parse_hexdigit(unsigned char c) {
 }
 
 unsigned char* parse_hexstring(const char* input,
-                               unsigned char* output, int* outlen) {
-  int i, len = strlen(input) / 2;
+                               unsigned char* output, unsigned int* outlen) {
+  unsigned int i, len = strlen(input) / 2;
   if (*outlen < len) {
     len = *outlen;
   }
@@ -294,7 +307,7 @@ int is_hexstring(const char* input, int hex_len) {
 }
 
 unsigned char* parse_gpn(const char* input,
-                         unsigned char* output, int* outlen) {
+                         unsigned char* output, unsigned int* outlen) {
   if (*outlen < 4) return NULL;
 
   // Old GPN format: 8-digit hex string
@@ -312,7 +325,7 @@ unsigned char* parse_gpn(const char* input,
 }
 
 unsigned char* parse_nvram(hnvram_format_e format, const char* input,
-                           unsigned char* output, int* outlen) {
+                           unsigned char* output, unsigned int* outlen) {
   output[0] = '\0';
   switch(format) {
     case HNVRAM_STRING:
@@ -337,6 +350,15 @@ unsigned char* parse_nvram(hnvram_format_e format, const char* input,
   return NULL;
 }
 
+DRV_Error clear_nvram(char* optarg) {
+  DRV_Error e = HMX_NVRAM_Remove(HMX_NVRAM_PARTITION_RW,
+                                 (unsigned char*)optarg);
+  if (e == DRV_ERR) {
+    // Avoid throwing error message if variable already cleared
+    return DRV_OK;
+  }
+  return e;
+}
 
 int write_nvram(char* optarg) {
   char* equal = strchr(optarg, '=');
@@ -349,25 +371,45 @@ int write_nvram(char* optarg) {
   char* value = ++equal;
 
   const hnvram_field_t* field = get_nvram_field(name);
-  if (field == NULL) {
-    return -2;
+  int is_field = (field != NULL);
+
+  hnvram_format_e format_type;
+  if (is_field) {
+    format_type = field->format;
+  } else {
+    format_type = HNVRAM_STRING;
   }
 
   unsigned char nvram_value[NVRAM_MAX_DATA];
-  int nvram_len = sizeof(nvram_value);
-  if (parse_nvram(field->format, value, nvram_value, &nvram_len) == NULL) {
-    return -3;
+  unsigned int nvram_len = sizeof(nvram_value);
+  if (parse_nvram(format_type, value, nvram_value, &nvram_len) == NULL) {
+    return -2;
   }
 
-  if (HMX_NVRAM_SetField(field->nvram_type, 0,
-                         nvram_value, nvram_len) != DRV_OK) {
-    return -4;
+  if (!is_field) {
+    char tmp[NVRAM_MAX_DATA] = {0};
+    int key_exists = (read_nvram(name, tmp, NVRAM_MAX_DATA, 1) != NULL);
+    if (!can_add_flag && !key_exists) {
+      fprintf(stderr, "Key not found in NVRAM. Add -n to allow creation %s\n",
+              name);
+      return -3;
+    }
+    DRV_Error er = HMX_NVRAM_Write(HMX_NVRAM_PARTITION_RW, (unsigned char*)name,
+                                   0, nvram_value, nvram_len);
+    if (er != DRV_OK) {
+      return -4;
+    }
+  } else {
+    if (HMX_NVRAM_SetField(field->nvram_type, 0,
+                           nvram_value, nvram_len) != DRV_OK) {
+      return -5;
+    }
   }
 
   return 0;
 }
 
-int hnvram_main(int argc, char * const argv[]) {
+int hnvram_main(int argc, char* const argv[]) {
   DRV_Error err;
 
   libupgrade_verbose = 0;
@@ -383,7 +425,7 @@ int hnvram_main(int argc, char * const argv[]) {
   int b_flag = 0;  // binary: output the binary format
   char output[NVRAM_MAX_DATA];
   int c;
-  while ((c = getopt(argc, argv, "dbqrw:")) != -1) {
+  while ((c = getopt(argc, argv, "dbqrnw:k:")) != -1) {
     switch(c) {
       case 'b':
         b_flag = 1;
@@ -391,11 +433,25 @@ int hnvram_main(int argc, char * const argv[]) {
       case 'q':
         q_flag = 1;
         break;
+      case 'n':
+        can_add_flag = 1;
+        break;
       case 'w':
         {
           char* duparg = strdup(optarg);
           if (write_nvram(duparg) != 0) {
             fprintf(stderr, "Unable to write %s\n", duparg);
+            free(duparg);
+            exit(1);
+          }
+          free(duparg);
+        }
+        break;
+      case 'k':
+        {
+          char* duparg = strdup(optarg);
+          if (clear_nvram(duparg) != DRV_OK) {
+            fprintf(stderr, "Unable to remove key %s\n", duparg);
             free(duparg);
             exit(1);
           }
@@ -459,7 +515,7 @@ int hnvram_main(int argc, char * const argv[]) {
 }
 
 #ifndef TEST_MAIN
-int main(int argc, char * const argv[]) {
+int main(int argc, char* const argv[]) {
   return hnvram_main(argc, argv);
 }
 #endif  // TEST_MAIN
