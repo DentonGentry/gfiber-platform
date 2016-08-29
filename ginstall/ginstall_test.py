@@ -21,6 +21,7 @@ import os
 import shutil
 import StringIO
 import struct
+import sys
 import tempfile
 import unittest
 import ginstall
@@ -364,6 +365,21 @@ class GinstallTest(unittest.TestCase):
     ginstall.F['MEMINFO'] = 'testdata/proc/meminfo2'
     total = ginstall.GetMemTotal()
     self.assertTrue(total < 4*1e9)
+
+  def testOpenPathOrUrl(self):
+    # URL
+    two_oh_four = ginstall.OpenPathOrUrl('http://www.gstatic.com/generate_204')
+    self.assertEqual(204, two_oh_four.getcode())
+
+    # on-disk file
+    on_disk_file = tempfile.NamedTemporaryFile()
+    testdata = os.urandom(16)
+    on_disk_file.write(testdata)
+    on_disk_file.flush()
+    self.assertEqual(ginstall.OpenPathOrUrl(on_disk_file.name).read(), testdata)
+
+    # stdin (-)
+    self.assertEqual(ginstall.OpenPathOrUrl('-'), sys.stdin)
 
 
 if __name__ == '__main__':
