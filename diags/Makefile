@@ -7,6 +7,9 @@ endif
 ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfsc100)
  DIRS += spacecast
 endif
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gflt110)
+ DIRS += chameleon
+endif
 
 PYTHON?=python
 

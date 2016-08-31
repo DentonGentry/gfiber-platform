@@ -23,4 +23,6 @@ int get_text_from_file(char *text, int text_size, const char *filename);
 
 void system_cmd(const char *cmd);
 
+unsigned int get_num(char *numstr);
+
 #endif  // VENDOR_GOOGLE_DIAGS_WINDCHARGER_UTIL_H_

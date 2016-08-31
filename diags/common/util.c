@@ -77,3 +77,16 @@ void system_cmd(const char *cmd) {
     printf("ERROR: system command %s return %d\n", cmd, rc);
   }
 }
+
+unsigned int get_num(char *numstr) {
+  unsigned int value;
+
+  if (strlen(numstr) > 2) {
+    if (strncmp(numstr, "0x", 2) == 0) {
+      value = strtoul(numstr, NULL, 16);
+      return value;
+    }
+  }
+  value = strtoul(numstr, NULL, 10);
+  return value;
+}
