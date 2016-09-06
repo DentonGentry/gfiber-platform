@@ -40,7 +40,6 @@ def _get_interface(mode, suffix):
   # IDs start at 2). The client interface must map to wifi0, so it must have
   # VLAN ID 2.
   prefix = 'wlan' if mode == 'ap' else 'wcli'
-  suffix = '_' + suffix if suffix else ''
   for hif in _get_quantenna_interfaces():
     if re.match(prefix + r'\d*' + suffix, hif):
       vlan = _get_vlan(hif)

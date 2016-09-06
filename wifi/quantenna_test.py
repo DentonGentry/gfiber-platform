@@ -35,7 +35,7 @@ def get_interface_test():
   quantenna._get_vlan = lambda _: 3
   wvtest.WVPASSEQ(quantenna._get_interface('ap', ''),
                   ('wlan0', 'wifi1', '00:00:00:00:00:00', 3))
-  wvtest.WVPASSEQ(quantenna._get_interface('ap', 'portal'),
+  wvtest.WVPASSEQ(quantenna._get_interface('ap', '_portal'),
                   ('wlan0_portal', 'wifi1', '00:00:00:00:00:00', 3))
   wvtest.WVPASSEQ(quantenna._get_interface('sta', ''),
                   (None, None, None, None))
