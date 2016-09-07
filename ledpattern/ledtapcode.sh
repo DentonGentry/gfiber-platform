@@ -44,8 +44,15 @@ fi
 if [ -f "$LASER_STATUS_FILE" ]; then
   laser_status=$(cat "$LASER_STATUS_FILE")
   if [ "$laser_status" -ne 0 ]; then
-    echo "Playing SET_LASER_FAILED pattern"
-    PlayPatternAndExit SET_LASER_FAILED
+    # Blink out requested laser channel that we failed to tune to
+    laser_channel=$(cat "$LASER_CHANNEL_FILE")
+    if [ "$laser_channel" -eq -1 ]; then
+      echo "$LASER_STATUS_FILE indicates success but there is no requested
+        channel in $LASER_CHANNEL_FILE"
+      PlayPatternAndExit UNKNOWN_ERROR
+    fi
+    echo "Playing SET_LASER_FAILED_${laser_channel} pattern"
+    PlayPatternAndExit "SET_LASER_FAILED_${laser_channel}"
   fi
 fi
 
@@ -89,19 +96,35 @@ elif contains "$gpon_info" "RANGING"; then
   PlayPatternAndExit GPON_RANGING
 fi
 
-laser_channel=$(cat "$LASER_CHANNEL_FILE")
-if [ ! -f "$ACS_FILE" ] && [ "$laser_channel" -eq "-1" ]; then
-  echo "Playing NO_LASER_CHANNEL pattern"
-  PlayPatternAndExit NO_LASER_CHANNEL
-elif [ ! -f "$ACS_FILE" ] && [ $laser_channel -ne "-1" ]; then
-  echo "Playing WAIT_ACS pattern"
-  PlayPatternAndExit WAIT_ACS
-elif [ -f "$ACS_FILE" ] && [ $laser_channel -ne "-1" ]; then
-  echo "Playing ALL_OK pattern"
-  PlayPatternAndExit ALL_OK
-else
-  # If we get all the way here and nothing triggered on the way then this really
-  # is an unknown error...
-  echo "Nothing triggered? Playing UNKNOWN_ERROR pattern..."
-  PlayPatternAndExit UNKNOWN_ERROR
+# GFLT110 does not have tuneable laser
+tuneable_laser="false"
+if startswith "$(cat /etc/platform)" "GFLT3"; then
+  tuneable_laser="true"
 fi
+
+if [ "$tuneable_laser" = false ]; then
+  if [ ! -f "$ACS_FILE" ]; then
+    echo "Playing WAIT_ACS pattern"
+    PlayPatternAndExit WAIT_ACS
+  else
+    echo "Playing ALL_OK pattern"
+    PlayPatternAndExit ALL_OK
+  fi
+else
+  laser_channel=$(cat "$LASER_CHANNEL_FILE")
+  if [ ! -f "$ACS_FILE" ] && [ "$laser_channel" -eq "-1" ]; then
+    echo "Playing NO_LASER_CHANNEL pattern"
+    PlayPatternAndExit NO_LASER_CHANNEL
+  elif [ ! -f "$ACS_FILE" ] && [ "$laser_channel" -ne "-1" ]; then
+    echo "Playing WAIT_ACS pattern"
+    PlayPatternAndExit WAIT_ACS
+  elif [ -f "$ACS_FILE" ] && [ "$laser_channel" -eq "-1" ]; then
+    echo "Has ACS but no laser channel"
+    echo "Playing NO_LASER_CHANNEL pattern"
+    PlayPatternAndExit NO_LASER_CHANNEL
+  else
+    echo "Playing ALL_OK pattern"
+    PlayPatternAndExit ALL_OK
+  fi
+fi
+
