@@ -166,8 +166,8 @@ class Interface(object):
 
     subnet = current.get('subnet', {})
     if (self._subnet and
-        (subnet.get('via', None), subnet.get('metric', None)) !=
-        (self._gateway_ip, str(self.metric))):
+        (subnet.get('route', None), subnet.get('metric', None)) !=
+        (self._subnet, str(self.metric))):
       logging.debug('Adding subnet route for dev %s', self.name)
       self.delete_route('subnet')
       self._ip_route('add', self._subnet,
