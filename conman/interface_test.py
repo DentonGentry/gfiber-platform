@@ -5,6 +5,8 @@
 import logging
 import os
 import shutil
+import socket
+import struct
 import tempfile
 import time
 
@@ -46,6 +48,29 @@ class FakeInterfaceMixin(object):
       raise ValueError('Invalid fake connection_check script.')
 
   def _really_ip_route(self, *args):
+    def can_add_route():
+      def ip_to_int(ip):
+        return struct.unpack('!I', socket.inet_pton(socket.AF_INET, ip))[0]
+
+      if args[1] != 'default':
+        return True
+
+      via = ip_to_int(args[args.index('via') + 1])
+      for (ifc, route, _), _ in self.routing_table.iteritems():
+        if ifc != self.name:
+          continue
+
+        netmask = 0
+        if '/' in route:
+          route, netmask = route.split('/')
+          netmask = 32 - int(netmask)
+        route = ip_to_int(route)
+
+        if (route >> netmask) == (via >> netmask):
+          return True
+
+      return False
+
     if not args:
       return '\n'.join(self.routing_table.values() +
                        ['1.2.3.4/24 dev fake0 proto kernel scope link',
@@ -61,6 +86,9 @@ class FakeInterfaceMixin(object):
       route = args[1]
     key = (self.name, route, metric)
     if args[0] == 'add' and key not in self.routing_table:
+      if not can_add_route():
+        raise ValueError('Tried to add default route without subnet route: %r',
+                         self.routing_table)
       logging.debug('Adding route for %r', key)
       self.routing_table[key] = ' '.join(args[1:])
     elif args[0] == 'del':
@@ -94,8 +122,8 @@ class FakeWPACtrl(object):
   """Fake wpactrl.WPACtrl."""
 
   # pylint: disable=unused-argument
-  def __init__(self, socket):
-    self._socket = socket
+  def __init__(self, wpa_socket):
+    self._socket = wpa_socket
     self.events = []
     self.attached = False
     self.connected = False
@@ -344,8 +372,8 @@ def bridge_test():
 
     b.add_moca_station(0)
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
-    b.set_gateway_ip('192.168.1.1')
     b.set_subnet('192.168.1.0/24')
+    b.set_gateway_ip('192.168.1.1')
     wvtest.WVFAIL(os.path.exists(autoprov_filepath))
     # Everything should fail because the interface is not initialized.
     wvtest.WVFAIL(b.acs())
@@ -402,6 +430,9 @@ def bridge_test():
     wvtest.WVFAIL(b.get_ip_address())
     b.ip_testonly = '192.168.1.100'
     wvtest.WVPASSEQ(b.get_ip_address(), '192.168.1.100')
+
+    # Not on the subnet; adding IP should fail.
+    wvtest.WVEXCEPT(ValueError, b.set_gateway_ip, '192.168.2.1')
 
   finally:
     shutil.rmtree(tmp_dir)

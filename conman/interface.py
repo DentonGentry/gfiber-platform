@@ -154,33 +154,38 @@ class Interface(object):
     # If the current routes are the same, there is nothing to do.  If either
     # exists but is different, delete it before adding an updated one.
     current = self.current_routes()
-    default = current.get('default', {})
-    if ((default.get('via', None), default.get('metric', None)) !=
-        (self._gateway_ip, str(self.metric))):
-      logging.debug('Adding default route for dev %s', self.name)
-      self.delete_route('default')
-      self._ip_route('add', 'default',
-                     'via', self._gateway_ip,
-                     'dev', self.name,
-                     'metric', str(self.metric))
+
+    to_add = []
 
     subnet = current.get('subnet', {})
     if (self._subnet and
         (subnet.get('route', None), subnet.get('metric', None)) !=
         (self._subnet, str(self.metric))):
       logging.debug('Adding subnet route for dev %s', self.name)
-      self.delete_route('subnet')
-      self._ip_route('add', self._subnet,
-                     'dev', self.name,
-                     'metric', str(self.metric))
+      to_add.append(('subnet', ('add', self._subnet, 'dev', self.name,
+                                'metric', str(self.metric))))
+      subnet = self._subnet
+
+    default = current.get('default', {})
+    if (subnet and
+        (default.get('via', None), default.get('metric', None)) !=
+        (self._gateway_ip, str(self.metric))):
+      logging.debug('Adding default route for dev %s', self.name)
+      to_add.append(('default', ('add', 'default', 'via', self._gateway_ip,
+                                 'dev', self.name, 'metric', str(self.metric))))
 
     # RFC2365 multicast route.
     if current.get('multicast', {}).get('metric', None) != str(self.metric):
       logging.debug('Adding multicast route for dev %s', self.name)
-      self.delete_route('multicast')
-      self._ip_route('add', RFC2385_MULTICAST_ROUTE,
-                     'dev', self.name,
-                     'metric', str(self.metric))
+      to_add.append(('multicast', ('add', RFC2385_MULTICAST_ROUTE,
+                                   'dev', self.name,
+                                   'metric', str(self.metric))))
+
+    for route_type, _ in to_add[::-1]:
+      self.delete_route(route_type)
+
+    for _, cmd in to_add:
+      self._ip_route(*cmd)
 
   def delete_route(self, *args):
     """Delete default and/or subnet routes for this interface.
@@ -198,7 +203,8 @@ class Interface(object):
       raise ValueError(
           'Must specify at least one of default, subnet, multicast to delete.')
 
-    for route_type in args:
+    # Use a sorted list to ensure that default comes before subnet.
+    for route_type in sorted(list(args)):
       while route_type in self.current_routes():
         logging.debug('Deleting %s route for dev %s', route_type, self.name)
         self._ip_route('del', self.current_routes()[route_type]['route'],
