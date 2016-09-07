@@ -79,7 +79,7 @@ class WLANConfiguration(object):
         '-s': 'ssid',
         '--ssid': 'ssid',
         '-S': 'interface_suffix',
-        '--interface_suffix': 'interface_suffix',
+        '--interface-suffix': 'interface_suffix',
     }
     attr = None
     for line in self.command:
@@ -91,7 +91,7 @@ class WLANConfiguration(object):
       attr = binwifi_option_attrs.get(line, None)
 
       if line.startswith('WIFI_PSK='):
-        self.passphrase = line.split('WIFI_PSK=')[-1]
+        self.passphrase = line[len('WIFI_PSK='):]
 
     if self.ssid is None:
       raise ValueError('Command file does not specify SSID')

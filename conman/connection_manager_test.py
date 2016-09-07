@@ -248,6 +248,21 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
       f.write(value)
 
 
+@wvtest.wvtest
+def WLANConfigurationParseTest():  # pylint: disable=invalid-name
+  """Test WLANConfiguration parsing."""
+  cmd = '\n'.join([
+      'WIFI_PSK=abcdWIFI_PSK=qwer', 'wifi', 'set', '-P', '-b', '5',
+      '--bridge=br0', '-s', 'my ssid=1', '--interface-suffix', '_suffix',
+  ])
+  config = WLANConfiguration('5', interface_test.Wifi('wcli0', 20), cmd, None,
+                             None)
+
+  wvtest.WVPASSEQ('my ssid=1', config.ssid)
+  wvtest.WVPASSEQ('abcdWIFI_PSK=qwer', config.passphrase)
+  wvtest.WVPASSEQ('_suffix', config.interface_suffix)
+
+
 class Wifi(interface_test.Wifi):
 
   def __init__(self, *args, **kwargs):
