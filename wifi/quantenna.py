@@ -34,19 +34,23 @@ def _get_vlan(hif):
   raise utils.BinWifiException('no VLAN ID for interface %s' % hif)
 
 
-def _get_interface(mode, suffix):
+def _get_interfaces(mode, suffix):
   # Each host interface (hif) maps to exactly one LHOST interface (lif) based on
   # the VLAN ID as follows: the lif is wifiX where X is the VLAN ID - 2 (VLAN
   # IDs start at 2). The client interface must map to wifi0, so it must have
   # VLAN ID 2.
   prefix = 'wlan' if mode == 'ap' else 'wcli'
+  suffix = r'.*' if suffix == 'ALL' else suffix
   for hif in _get_quantenna_interfaces():
-    if re.match(prefix + r'\d*' + suffix, hif):
+    if re.match(r'^' + prefix + r'\d*' + suffix + r'$', hif):
       vlan = _get_vlan(hif)
       lif = 'wifi%d' % (vlan - 2)
       mac = _get_external_mac(hif)
-      return hif, lif, mac, vlan
-  return None, None, None, None
+      yield hif, lif, mac, vlan
+
+
+def _get_interface(mode, suffix):
+  return next(_get_interfaces(mode, suffix), (None, None, None, None))
 
 
 def _ifplugd_action(hif, state):
@@ -197,34 +201,30 @@ def set_client_wifi(opt):
 
 def stop_ap_wifi(opt):
   """Disable AP."""
-  hif, lif, _, _ = _get_interface('ap', opt.interface_suffix)
-  if not hif:
-    return False
+  hif = None
+  for hif, lif, _, _ in _get_interfaces('ap', opt.interface_suffix):
+    try:
+      _qcsapi('wifi_remove_bss', lif)
+    except subprocess.CalledProcessError:
+      pass
 
-  try:
-    _qcsapi('wifi_remove_bss', lif)
-  except subprocess.CalledProcessError:
-    pass
+    _ifplugd_action(hif, 'down')
 
-  _ifplugd_action(hif, 'down')
-
-  return True
+  return hif is not None
 
 
 def stop_client_wifi(opt):
   """Disable client."""
-  hif, lif, _, _ = _get_interface('sta', opt.interface_suffix)
-  if not hif:
-    return False
+  hif = None
+  for hif, lif, _, _ in _get_interfaces('sta', opt.interface_suffix):
+    try:
+      _qcsapi('remove_ssid', lif, _qcsapi('get_ssid_list', lif, 1))
+    except subprocess.CalledProcessError:
+      pass
 
-  try:
-    _qcsapi('remove_ssid', lif, _qcsapi('get_ssid_list', lif, 1))
-  except subprocess.CalledProcessError:
-    pass
+    _ifplugd_action(hif, 'down')
 
-  _ifplugd_action(hif, 'down')
-
-  return True
+  return hif is not None
 
 
 def scan_wifi(_):
