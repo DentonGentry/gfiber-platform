@@ -20,5 +20,11 @@ message Status {
 
   // Public ipv6 address of onu
   optional string ipv6 = 6;
+
+  // Which channel fiber jack is supposed use
+  optional int64 requested_channel = 7;
+
+  // Which channel fiber jack is currently using
+  optional int64 current_channel = 8;
 };
 

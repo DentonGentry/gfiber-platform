@@ -158,6 +158,27 @@ std::string IPAddress() {
   return result;
 }
 
+int64_t RequestedONUChannel() {
+  int64_t ret = -1;
+  std::string req_channel = "";
+  ReadFile("/sys/devices/platform/gpon/misc/laserChannel", &req_channel);
+  std::istringstream(req_channel) >> ret;
+  return ret;
+}
+
+int64_t CurrentONUChannel() {
+  int64_t ret = -1;
+  // Read current channel from I2C byte
+  std::shared_ptr<FILE> pipe(popen("i2cget -y 0 0x51 0x91", "r"), pclose);
+  if (pipe) {
+    char buffer[128];
+    if (fgets(buffer, 128, pipe.get()) != NULL) {
+      std::istringstream(buffer) >> ret;
+    }
+  }
+  return ret;
+}
+
 void MakePacket(std::vector<uint8_t>* pkt) {
   devstatus::Status status;
 
@@ -169,6 +190,8 @@ void MakePacket(std::vector<uint8_t>* pkt) {
   status.set_uptime(Uptime());
   status.set_serial(serial_number);
   status.set_ipv6(IPAddress());
+  status.set_requested_channel(RequestedONUChannel());
+  status.set_current_channel(CurrentONUChannel());
 
   pkt->resize(status.ByteSize());
   status.SerializeToArray(&(*pkt)[0], status.ByteSize());
