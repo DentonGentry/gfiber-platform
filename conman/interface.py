@@ -17,7 +17,6 @@ import wpactrl
 METRIC_5GHZ = 20
 METRIC_24GHZ_5GHZ = 21
 METRIC_24GHZ = 22
-METRIC_TEMPORARY_CONNECTION_CHECK = 99
 
 RFC2385_MULTICAST_ROUTE = '239.0.0.0/8'
 
@@ -83,21 +82,7 @@ class Interface(object):
                    ' (ACS)' if check_acs else '', self.name)
       return False
 
-    # Temporarily add a route to make sure the connection check can be run.
-    # Give it a high metric so that it won't interfere with normal default
-    # routes.
-    added_temporary_route = False
-    if 'default' not in self.current_routes():
-      logging.debug('Adding temporary connection check routes for dev %s',
-                    self.name)
-      self._ip_route('add', self._gateway_ip,
-                     'dev', self.name,
-                     'metric', str(METRIC_TEMPORARY_CONNECTION_CHECK))
-      self._ip_route('add', 'default',
-                     'via', self._gateway_ip,
-                     'dev', self.name,
-                     'metric', str(METRIC_TEMPORARY_CONNECTION_CHECK))
-      added_temporary_route = True
+    self.add_routes()
 
     cmd = [self.CONNECTION_CHECK, '-I', self.name]
     if check_acs:
@@ -109,17 +94,6 @@ class Interface(object):
                    ' (ACS)' if check_acs else '',
                    self.name,
                    'passed' if result else 'failed')
-
-    # Delete the temporary route.
-    if added_temporary_route:
-      logging.debug('Deleting temporary connection check routes for dev %s',
-                    self.name)
-      self._ip_route('del', 'default',
-                     'dev', self.name,
-                     'metric', str(METRIC_TEMPORARY_CONNECTION_CHECK))
-      self._ip_route('del', self._gateway_ip,
-                     'dev', self.name,
-                     'metric', str(METRIC_TEMPORARY_CONNECTION_CHECK))
 
     return result
 
@@ -147,10 +121,6 @@ class Interface(object):
       logging.info('Cannot add route for %s without a metric.', self.name)
       return
 
-    if self._gateway_ip is None:
-      logging.info('Cannot add route for %s without a gateway IP.', self.name)
-      return
-
     # If the current routes are the same, there is nothing to do.  If either
     # exists but is different, delete it before adding an updated one.
     current = self.current_routes()
@@ -158,21 +128,28 @@ class Interface(object):
     to_add = []
 
     subnet = current.get('subnet', {})
-    if (self._subnet and
-        (subnet.get('route', None), subnet.get('metric', None)) !=
-        (self._subnet, str(self.metric))):
-      logging.debug('Adding subnet route for dev %s', self.name)
-      to_add.append(('subnet', ('add', self._subnet, 'dev', self.name,
-                                'metric', str(self.metric))))
-      subnet = self._subnet
+    if self._subnet:
+      if ((subnet.get('route', None), subnet.get('metric', None)) !=
+          (self._subnet, str(self.metric))):
+        logging.debug('Adding subnet route for dev %s', self.name)
+        to_add.append(('subnet', ('add', self._subnet, 'dev', self.name,
+                                  'metric', str(self.metric))))
+        subnet = self._subnet
+    else:
+      subnet = None
+      self.delete_route('default', 'subnet')
 
     default = current.get('default', {})
-    if (subnet and
-        (default.get('via', None), default.get('metric', None)) !=
-        (self._gateway_ip, str(self.metric))):
-      logging.debug('Adding default route for dev %s', self.name)
-      to_add.append(('default', ('add', 'default', 'via', self._gateway_ip,
-                                 'dev', self.name, 'metric', str(self.metric))))
+    if self._gateway_ip:
+      if (subnet and
+          (default.get('via', None), default.get('metric', None)) !=
+          (self._gateway_ip, str(self.metric))):
+        logging.debug('Adding default route for dev %s', self.name)
+        to_add.append(('default',
+                       ('add', 'default', 'via', self._gateway_ip,
+                        'dev', self.name, 'metric', str(self.metric))))
+    else:
+      self.delete_route('default')
 
     # RFC2365 multicast route.
     if current.get('multicast', {}).get('metric', None) != str(self.metric):
@@ -248,16 +225,16 @@ class Interface(object):
                    ' '.join(self.IP_ROUTE), ' '.join(args))
       return ''
 
-    return self._really_ip_route(*args)
-
-  def _really_ip_route(self, *args):
     try:
       logging.debug('%s calling ip route %s', self.name, ' '.join(args))
-      return subprocess.check_output(self.IP_ROUTE + list(args))
+      return self._really_ip_route(*args)
     except subprocess.CalledProcessError as e:
       logging.error('Failed to call "ip route" with args %r: %s', args,
                     e.message)
       return ''
+
+  def _really_ip_route(self, *args):
+    return subprocess.check_output(self.IP_ROUTE + list(args))
 
   def _ip_addr_show(self):
     try:

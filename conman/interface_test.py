@@ -7,6 +7,7 @@ import os
 import shutil
 import socket
 import struct
+import subprocess
 import tempfile
 import time
 
@@ -39,6 +40,13 @@ class FakeInterfaceMixin(object):
     self.set_connection_check_result('succeed')
     self.routing_table = {}
     self.ip_testonly = None
+
+  def _connection_check(self, *args, **kwargs):
+    result = super(FakeInterfaceMixin, self)._connection_check(*args, **kwargs)
+    if (self.current_routes().get('default', {}).get('via', None) !=
+        self._gateway_ip):
+      return False
+    return result
 
   def set_connection_check_result(self, result):
     if result in ['succeed', 'fail', 'restricted']:
@@ -87,8 +95,9 @@ class FakeInterfaceMixin(object):
     key = (self.name, route, metric)
     if args[0] == 'add' and key not in self.routing_table:
       if not can_add_route():
-        raise ValueError('Tried to add default route without subnet route: %r',
-                         self.routing_table)
+        raise subprocess.CalledProcessError(
+            'Tried to add default route without subnet route: %r',
+            self.routing_table)
       logging.debug('Adding route for %r', key)
       self.routing_table[key] = ' '.join(args[1:])
     elif args[0] == 'del':
@@ -431,8 +440,40 @@ def bridge_test():
     b.ip_testonly = '192.168.1.100'
     wvtest.WVPASSEQ(b.get_ip_address(), '192.168.1.100')
 
+    # Get a new gateway/subnet (e.g. due to joining a new network).
     # Not on the subnet; adding IP should fail.
-    wvtest.WVEXCEPT(ValueError, b.set_gateway_ip, '192.168.2.1')
+    b.set_gateway_ip('192.168.2.1')
+    wvtest.WVFAIL('default' in b.current_routes())
+    wvtest.WVPASS('subnet' in b.current_routes())
+    # Without a default route, the connection check should fail.
+    wvtest.WVFAIL(b.acs())
+
+    # Now we get the subnet and should add updated subnet and gateway routes.
+    b.set_subnet('192.168.2.0/24')
+    wvtest.WVPASSEQ(b.current_routes()['default']['via'], '192.168.2.1')
+    wvtest.WVPASSLE(int(b.current_routes()['default']['metric']), 50)
+    wvtest.WVPASSEQ(b.current_routes()['subnet']['route'], '192.168.2.0/24')
+    wvtest.WVPASSLE(int(b.current_routes()['subnet']['metric']), 50)
+    wvtest.WVPASS(b.acs())
+
+    # If we have no subnet, make sure that both subnet and default routes are
+    # removed.
+    b.set_subnet(None)
+    wvtest.WVFAIL('subnet' in b.current_routes())
+    wvtest.WVFAIL('default' in b.current_routes())
+
+    # Now repeat the new-network test, but with a faulty connection.  Make sure
+    # the metrics are set appropriately.
+    b.set_connection_check_result('fail')
+    b.set_subnet('192.168.3.0/24')
+    b.set_gateway_ip('192.168.3.1')
+    wvtest.WVPASSGE(int(b.current_routes()['default']['metric']), 50)
+    wvtest.WVPASSGE(int(b.current_routes()['subnet']['metric']), 50)
+
+    # Now test deleting only the gateway IP.
+    b.set_gateway_ip(None)
+    wvtest.WVPASS('subnet' in b.current_routes())
+    wvtest.WVFAIL('default' in b.current_routes())
 
   finally:
     shutil.rmtree(tmp_dir)
@@ -536,6 +577,7 @@ def simulate_wireless_test():
     b = Bridge('br0', '10', acs_autoprovisioning_filepath=autoprov_filepath)
     b.add_moca_station(0)
     b.set_gateway_ip('192.168.1.1')
+    b.set_subnet('192.168.1.0/24')
     b.set_connection_check_result('succeed')
     b.initialize()
 
