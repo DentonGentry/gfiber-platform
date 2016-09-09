@@ -589,9 +589,6 @@ class ConnectionManager(object):
       route = ifc.current_routes().get('default', None)
       if route:
         metric = route.get('metric', 0)
-        # Skip temporary connection_check routes.
-        if metric == '99':
-          continue
         candidate = (metric, ifc)
         if (lowest_metric_interface is None or
             candidate < lowest_metric_interface):
