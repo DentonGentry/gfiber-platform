@@ -601,6 +601,8 @@ class ConnectionManager(object):
     if lowest_metric_interface:
       ip = lowest_metric_interface[1].get_ip_address()
       ip_line = '%s %s\n' % (ip, HOSTNAME) if ip else ''
+      logging.info('Lowest metric default route is on dev %r',
+                   lowest_metric_interface[1].name)
 
     new_tmp_hosts = '%s127.0.0.1 localhost' % ip_line
 
