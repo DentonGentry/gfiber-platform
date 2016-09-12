@@ -41,6 +41,7 @@ struct PwmControl {
   unsigned int pwm_index;               // index of this pwm.
   unsigned int channel;
   int old_percent;
+  int period;
 };
 
 struct Temp {
@@ -100,9 +101,6 @@ extern int get_gpio(struct Gpio *);
 
 /* Set the provided PWM to the given duty cycle percent */
 extern void set_pwm(struct PwmControl *, int);
-
-/* Return the duty cycle for the given PWM */
-extern int get_pwm(struct PwmControl *);
 
 /* Init GPIO to input or output. */
 extern void set_direction(struct Gpio *);

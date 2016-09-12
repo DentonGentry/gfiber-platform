@@ -24,8 +24,6 @@ static void init_gfhd254(struct platform_info* p);
 static double get_avs_voltage_7252(struct Voltage* v);
 static double get_avs_temperature_7252(struct Temp* t);
 
-const int PWM_CYCLE_PERIOD = 0x63;
-
 /* This is an array. Of structs! It contains structs of
    the type platform_info. The platform_info struct provides
    much useful information for use in all sorts of fun
@@ -192,10 +190,10 @@ static void init_gfhd254(struct platform_info* p) {
 
   NEXUS_Pwm_CloseChannel(pwm);
 
-  /* Set the control word for the fan to 0x1. */
+  /* Set the control word for the fan to 0x2000. */
   NEXUS_Pwm_GetDefaultChannelSettings(&pwmSettings);
   pwm = NEXUS_Pwm_OpenChannel(3, &pwmSettings);
-  if (NEXUS_Pwm_SetControlWord(pwm, 0x1)) {
+  if (NEXUS_Pwm_SetControlWord(pwm, 0x2000)) {
     fprintf(stderr, "Failed setting control word for PWM.\n");
     platform_cleanup();
     exit(EXIT_FAILURE);
@@ -292,22 +290,27 @@ int get_gpio(struct Gpio *gpio) {
   return status.value != NEXUS_GpioValue_eLow;
 }
 
+/*
+  Set the pwm. See set_pwm in brcm-direct.c
+  for details.
+*/
 void set_pwm(struct PwmControl *f, int percent) {
   if (percent < 0) percent = 0;
   if (percent > 100) percent = 100;
   if (percent == f->old_percent) return;
   f->old_percent = percent;
+  uint32_t period = f->pwm_index % 2 ? 0x91 : 0x63;
 
   NEXUS_PwmChannelSettings pwmSettings;
   NEXUS_PwmChannelHandle pwm;
-  uint16_t onInterval = (PWM_CYCLE_PERIOD * percent)/100;
+  uint16_t onInterval = (period * percent)/100;
 
   NEXUS_Pwm_GetDefaultChannelSettings(&pwmSettings);
   pwmSettings.openDrain = f->open_drain;
   pwmSettings.eFreqMode = NEXUS_PwmFreqModeType_eConstant;
   pwm = NEXUS_Pwm_OpenChannel(f->pwm_index, &pwmSettings);
 
-  if (NEXUS_Pwm_SetOnAndPeriodInterval(pwm, onInterval, PWM_CYCLE_PERIOD)) {
+  if (NEXUS_Pwm_SetOnAndPeriodInterval(pwm, onInterval, period)) {
     fprintf(stderr, "Could not set ON and PERIOD for PWM. Aborting...\n");
     platform_cleanup();
     exit(EXIT_FAILURE);
