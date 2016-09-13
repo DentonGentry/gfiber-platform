@@ -13,8 +13,6 @@
 #define UNUSED        __attribute__((unused))
 #define DEVMEM       "/dev/mem"
 
-const int PWM_CYCLE_PERIOD = 0x63;
-
 static volatile void* mmap_addr = MAP_FAILED;
 static size_t mmap_size = 0;
 static int mmap_fd = -1;
@@ -104,6 +102,7 @@ struct platform_info platforms[] = {
       .offset_data = 0x6580,            // PWM_CTRL ...
       .channel = 0,
       .open_drain = 1,
+      .period = 0x63,
     },
     .temp_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
@@ -177,6 +176,7 @@ struct platform_info platforms[] = {
       .offset_data = 0x6580,            // PWM_CTRL ...
       .channel = 0,
       .open_drain = 1,
+      .period = 0x63,
     },
     .temp_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
@@ -293,6 +293,7 @@ struct platform_info platforms[] = {
         .offset_data = 0x9000,          // PWM_2
         .channel = 0,
         .old_percent = -1,
+        .period = 0x63,
       },
     },
     .reset_button = {
@@ -325,6 +326,7 @@ struct platform_info platforms[] = {
       .offset_data = 0x9000,            // PWM_CTRL ...
       .channel = 1,
       .open_drain = 0,
+      .period = 0x91,
     },
     .temp_monitor = {
       .is_present = 1,                  // 7252 AVS_RO_REGISTERS_0
@@ -421,8 +423,9 @@ static void init_gfhd254(struct platform_info* p) {
   // The fan is connected to PWM3, the register PWM3_CWORD_LSB is set to 1,
   // this is the frequency of the PWM, the other pwm register control
   // the duty cycle.
-  reg = mmap_addr + 0x9014;       // PWM3_CWORD_LSB
-  reg[0] = 1;
+  reg = mmap_addr + 0x9010;       // PWM3_CWORD_MSB
+  reg[0] = 0x20;
+  reg[1] = 0x0;                   // PWM3_CWORD_LSB
 
   // LEDs are connected to PWM2. Setting CWORD_LSB to 0xf to control
   // the output freq of the var rate clock.
@@ -571,6 +574,21 @@ int get_gpio(struct Gpio *g) {
   return (value == g->on_value);
 }
 
+/*
+  Set the PWM duty duty cycle. Percent bounded [0, 100].
+
+  The output period of the constant-freq PWM is calculated
+  by (period_programmed + 1) / Fv, where Fv is the output
+  of the variable-frequency PWM (in mhz).
+
+  Fv is calculated by the following formula:
+
+    Fv = (cword) * 2^-16 * 27MHz
+
+  cword is the programmed frequency control word.
+
+  The fan on lockdown must stay at a constant 23KHz
+*/
 void set_pwm(struct PwmControl *f, int percent) {
   volatile uint32_t* reg;
   uint32_t mask0, val0, mask1, val1, on;
@@ -600,21 +618,8 @@ void set_pwm(struct PwmControl *f, int percent) {
   }
   reg[0] = (reg[0] & mask0) | val0;
   reg[1] = (reg[1] & mask1) | val1;
-  reg[on] = (PWM_CYCLE_PERIOD * percent)/100;         // 0x63 is what old code used
-  reg[on+1] = PWM_CYCLE_PERIOD;
-}
-
-/* PWM operates on either channel 0 or 1. We want to get the duty cycle value
-   by calculating it from the "ON" register, located offset 6 for channel 0
-   and 8 for channel 1.
-
-   Duty cycle is calculated by ON / Period.
-*/
-int get_pwm(struct PwmControl *f) {
-  volatile uint32_t* reg = mmap_addr + f->offset_data;
-  uint8_t offset = f->channel ? 8 : 6;
-  uint32_t val = reg[offset];
-  return ((uint64_t)val * 100) / PWM_CYCLE_PERIOD;
+  reg[on] = (f->period * percent)/100;
+  reg[on+1] = f->period;
 }
 
 void set_direction(struct Gpio *g) {
