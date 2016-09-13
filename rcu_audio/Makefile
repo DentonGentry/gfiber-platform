@@ -32,3 +32,6 @@ install-libs:
 
 clean:
 	rm -f $(BINARIES) *.o
+
+test:
+	true
