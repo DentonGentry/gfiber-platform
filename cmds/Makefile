@@ -97,6 +97,10 @@ CFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=c99 -D_GNU_SOURCE $(EXTRACFLAGS)
 CXXFLAGS += -Wall -Wextra -Wswitch-enum -Werror -Wno-unused-parameter \
 	-g -O -std=gnu++0x -D_GNU_SOURCE $(EXTRACXXFLAGS)
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfrg240)
+CFLAGS += -Wno-error=format
+CXXFLAGS += -Wno-error=format
+endif
 LDFLAGS += $(EXTRALDFLAGS)
 HOST_INCS=-I$(HOSTDIR)/usr/include
 HOST_LIBS=-L$(HOSTDIR)/usr/lib -Wl,-rpath=$(HOSTDIR)/usr/lib
