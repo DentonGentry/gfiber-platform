@@ -7,6 +7,9 @@ STRIP:=$(CROSS_COMPILE)strip
 BINDIR=$(DESTDIR)/bin
 
 CFLAGS += -Wall -Werror $(EXTRACFLAGS)
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfrg240)
+CFLAGS += -Wno-error=format
+endif
 LDFLAGS += -lm -lrt $(EXTRALDFLAGS)
 
 all: spectral
