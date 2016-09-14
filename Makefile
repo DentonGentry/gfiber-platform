@@ -122,7 +122,7 @@ install:
 	$(MAKE) install-commonpy
 	mkdir -p $(BINDIR)
 	rm -fv $(BINDIR)/hnvram
-ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME), gfmn110)
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME), gfmn100)
 	ln -s /usr/bin/hnvram_wrapper $(BINDIR)/hnvram
 else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME), gflt110)
 	ln -s /usr/bin/hnvram_wrapper $(BINDIR)/hnvram
