@@ -13,7 +13,8 @@ fatal() {
 host=$(
   hostname -f |
     sed -e 's/\([^.]*\.[^.]*\).*/\1/' \
-        -e 's/\./_/g'
+        -e 's/\./_/g' \
+        -e 's/-//g'
 )
 full_cn="f88fca-Linux-$host"
 
