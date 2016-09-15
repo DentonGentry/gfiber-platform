@@ -83,6 +83,8 @@ class Interface(object):
       return False
 
     self.add_routes()
+    if 'default' not in self.current_routes():
+      return False
 
     cmd = [self.CONNECTION_CHECK, '-I', self.name]
     if check_acs:

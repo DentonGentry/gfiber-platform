@@ -686,6 +686,10 @@ class ConnectionManager(object):
     elif path == self._tmp_dir:
       if filename.startswith(self.GATEWAY_FILE_PREFIX):
         interface_name = filename.split(self.GATEWAY_FILE_PREFIX)[-1]
+        # If we get a new gateway file, we probably have a new subnet file, and
+        # we need the subnet in order to add the gateway route.  So try to
+        # process the subnet file before doing anything further with this file.
+        self._process_file(path, self.SUBNET_FILE_PREFIX + interface_name)
         ifc = self.interface_by_name(interface_name)
         if ifc:
           ifc.set_gateway_ip(contents)
