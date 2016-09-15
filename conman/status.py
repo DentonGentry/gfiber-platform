@@ -32,17 +32,25 @@ class P(object):
   PROVISIONING_FAILED = 'PROVISIONING_FAILED'
   ATTACHED_TO_WPA_SUPPLICANT = 'ATTACHED_TO_WPA_SUPPLICANT'
 
+  WAITING_FOR_PROVISIONING = 'WAITING_FOR_PROVISIONING'
+  WAITING_FOR_DHCP = 'WAITING_FOR_DHCP'
+  WAITING_FOR_CWMP_WAKEUP = 'WAITING_FOR_CWMP_WAKEUP'
+  WAITING_FOR_ACS_SESSION = 'WAITING_FOR_ACS_SESSION'
+  PROVISIONING_COMPLETED = 'PROVISIONING_COMPLETED'
+
 
 # Format:  { proposition: (implications, counter-implications), ... }
 # If you want to add a new proposition to the Status class, just edit this dict.
 IMPLICATIONS = {
     P.TRYING_OPEN: (
         (),
-        (P.CONNECTED_TO_OPEN, P.TRYING_WLAN, P.CONNECTED_TO_WLAN)
+        (P.CONNECTED_TO_OPEN, P.TRYING_WLAN, P.CONNECTED_TO_WLAN,
+         P.WAITING_FOR_PROVISIONING)
     ),
     P.TRYING_WLAN: (
         (),
-        (P.TRYING_OPEN, P.CONNECTED_TO_OPEN, P.CONNECTED_TO_WLAN)
+        (P.TRYING_OPEN, P.CONNECTED_TO_OPEN, P.CONNECTED_TO_WLAN,
+         P.WAITING_FOR_PROVISIONING)
     ),
     P.WLAN_FAILED: (
         (),
@@ -54,7 +62,8 @@ IMPLICATIONS = {
     ),
     P.CONNECTED_TO_WLAN: (
         (P.HAVE_WORKING_CONFIG,),
-        (P.CONNECTED_TO_OPEN, P.TRYING_OPEN, P.TRYING_WLAN)
+        (P.CONNECTED_TO_OPEN, P.TRYING_OPEN, P.TRYING_WLAN,
+         P.WAITING_FOR_PROVISIONING)
     ),
     P.CAN_REACH_ACS: (
         (P.COULD_REACH_ACS,),
@@ -62,11 +71,11 @@ IMPLICATIONS = {
     ),
     P.COULD_REACH_ACS: (
         (),
-        (P.PROVISIONING_FAILED,),
+        (),
     ),
     P.PROVISIONING_FAILED: (
         (),
-        (P.COULD_REACH_ACS,),
+        (P.WAITING_FOR_PROVISIONING, P.PROVISIONING_COMPLETED,),
     ),
     P.HAVE_WORKING_CONFIG: (
         (P.HAVE_CONFIG,),
@@ -75,24 +84,60 @@ IMPLICATIONS = {
     P.ATTACHED_TO_WPA_SUPPLICANT: (
         (),
         (),
-    )
+    ),
+    P.WAITING_FOR_PROVISIONING: (
+        (P.CONNECTED_TO_OPEN,),
+        (),
+    ),
+    P.WAITING_FOR_DHCP: (
+        (P.WAITING_FOR_PROVISIONING,),
+        (P.WAITING_FOR_CWMP_WAKEUP, P.WAITING_FOR_ACS_SESSION),
+    ),
+    P.WAITING_FOR_CWMP_WAKEUP: (
+        (P.WAITING_FOR_PROVISIONING,),
+        (P.WAITING_FOR_DHCP, P.WAITING_FOR_ACS_SESSION),
+    ),
+    P.WAITING_FOR_ACS_SESSION: (
+        (P.WAITING_FOR_PROVISIONING,),
+        (P.WAITING_FOR_DHCP, P.WAITING_FOR_CWMP_WAKEUP),
+    ),
+    P.PROVISIONING_COMPLETED: (
+        (),
+        (P.WAITING_FOR_PROVISIONING, P.PROVISIONING_FAILED,),
+    ),
 }
 
 
-class Proposition(object):
+class ExportedValue(object):
+
+  def __init__(self, name, export_path):
+    self._name = name
+    self._export_path = export_path
+
+  def export(self):
+    filepath = os.path.join(self._export_path, self._name)
+    if self.value():
+      if not os.path.exists(filepath):
+        open(filepath, 'w')
+    else:
+      if os.path.exists(filepath):
+        os.unlink(filepath)
+
+
+class Proposition(ExportedValue):
   """Represents a proposition.
 
   May imply truth or falsity of other propositions.
   """
 
-  def __init__(self, name, export_path):
-    self._name = name
-    self._export_path = export_path
+  def __init__(self, *args, **kwargs):
+    super(Proposition, self).__init__(*args, **kwargs)
     self._value = None
     self._implications = set()
     self._counter_implications = set()
     self._impliers = set()
     self._counter_impliers = set()
+    self.parents = set()
 
   def implies(self, implication):
     self._counter_implications.discard(implication)
@@ -115,11 +160,20 @@ class Proposition(object):
     self._counter_impliers.add(counter_implier)
 
   def set(self, value):
+    """Set this Proposition's value.
+
+    If the value changed, update any dependent values/files.
+
+    Args:
+      value:  The new value.
+    """
     if value == self._value:
       return
 
     self._value = value
     self.export()
+    for parent in self.parents:
+      parent.export()
     logging.debug('%s is now %s', self._name, self._value)
 
     if value:
@@ -135,14 +189,20 @@ class Proposition(object):
       for implier in self._impliers:
         implier.set(False)
 
-  def export(self):
-    filepath = os.path.join(self._export_path, self._name)
-    if self._value:
-      if not os.path.exists(filepath):
-        open(filepath, 'w')
-    else:
-      if os.path.exists(filepath):
-        os.unlink(filepath)
+  def value(self):
+    return self._value
+
+
+class Disjunction(ExportedValue):
+
+  def __init__(self, name, export_path, disjuncts):
+    super(Disjunction, self).__init__(name, export_path)
+    self.disjuncts = disjuncts
+    for disjunct in self.disjuncts:
+      disjunct.parents.add(self)
+
+  def value(self):
+    return any(d.value() for d in self.disjuncts)
 
 
 class Status(object):
@@ -154,6 +214,9 @@ class Status(object):
 
     self._export_path = export_path
 
+    self._set_up_propositions()
+
+  def _set_up_propositions(self):
     self._propositions = {
         p: Proposition(p, self._export_path)
         for p in dict(inspect.getmembers(P)) if not p.startswith('_')
@@ -166,7 +229,7 @@ class Status(object):
         self._propositions[p].implies_not(
             self._propositions[counter_implication])
 
-  def _proposition(self, p):
+  def proposition(self, p):
     return self._propositions[p]
 
   def __setattr__(self, attr, value):
@@ -187,3 +250,17 @@ class Status(object):
           return
 
     super(Status, self).__setattr__(attr, value)
+
+
+class CompositeStatus(Status):
+
+  def __init__(self, export_path, children):
+    self._children = children
+    super(CompositeStatus, self).__init__(export_path)
+
+  def _set_up_propositions(self):
+    self._propositions = {
+        p: Disjunction(p, self._export_path,
+                       [c.proposition(p) for c in self._children])
+        for p in dict(inspect.getmembers(P)) if not p.startswith('_')
+    }

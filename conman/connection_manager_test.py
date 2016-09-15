@@ -255,8 +255,7 @@ def WLANConfigurationParseTest():  # pylint: disable=invalid-name
       'WIFI_PSK=abcdWIFI_PSK=qwer', 'wifi', 'set', '-P', '-b', '5',
       '--bridge=br0', '-s', 'my ssid=1', '--interface-suffix', '_suffix',
   ])
-  config = WLANConfiguration('5', interface_test.Wifi('wcli0', 20), cmd, None,
-                             None)
+  config = WLANConfiguration('5', interface_test.Wifi('wcli0', 20), cmd, None)
 
   wvtest.WVPASSEQ('my ssid=1', config.ssid)
   wvtest.WVPASSEQ('abcdWIFI_PSK=qwer', config.passphrase)
@@ -291,6 +290,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
   IFPLUGD_ACTION = ['echo', 'ifplugd.action']
   BINWIFI = ['echo', 'wifi']
   UPLOAD_LOGS_AND_WAIT = ['echo', 'upload-logs-and-wait']
+  CWMP_WAKEUP = ['echo', 'cwmp', 'wakeup']
 
   def __init__(self, *args, **kwargs):
     self._binwifi_commands = []
@@ -326,6 +326,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
     # Will s3 fail to acquire a DHCP lease?
     self.dhcp_failure_on_s3 = False
     self.log_upload_count = 0
+    self.acs_session_fails = False
 
   def create_wifi_interfaces(self):
     super(ConnectionManager, self).create_wifi_interfaces()
@@ -461,6 +462,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
     gateway_file = os.path.join(self._tmp_dir,
                                 self.GATEWAY_FILE_PREFIX + interface_name)
     with open(gateway_file, 'w') as f:
+      logging.debug('Writing gateway file %s', gateway_file)
       # This value doesn't matter to conman, so it's fine to hard code it here.
       f.write('192.168.1.1')
 
@@ -468,6 +470,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
     subnet_file = os.path.join(self._tmp_dir,
                                self.SUBNET_FILE_PREFIX + interface_name)
     with open(subnet_file, 'w') as f:
+      logging.debug('Writing subnet file %s', subnet_file)
       # This value doesn't matter to conman, so it's fine to hard code it here.
       f.write('192.168.1.0/24')
 
@@ -508,6 +511,19 @@ class ConnectionManager(connection_manager.ConnectionManager):
 
   def has_status_files(self, files):
     return not set(files) - set(os.listdir(self._status_dir))
+
+  def cwmp_wakeup(self):
+    super(ConnectionManager, self).cwmp_wakeup()
+    self.write_acscontact()
+    if self.acs():
+      self.write_acsconnected()
+
+  def write_acscontact(self):
+    open(os.path.join(connection_manager.CWMP_PATH, 'acscontact'), 'w')
+
+  def write_acsconnected(self):
+    if not self.acs_session_fails:
+      open(os.path.join(connection_manager.CWMP_PATH, 'acsconnected'), 'w')
 
 
 def wlan_config_filename(path, band):
@@ -560,7 +576,10 @@ def connection_manager_test(radio_config, wlan_configs=None,
       interface_update_period = 5
       wifi_scan_period = 15
       wifi_scan_period_s = run_duration_s * wifi_scan_period
+      associate_wait_s = 0
       dhcp_wait_s = .5
+      acs_start_wait_s = 0
+      acs_finish_wait_s = 0
 
       # pylint: disable=protected-access
       old_wifi_show = connection_manager._wifi_show
@@ -579,6 +598,7 @@ def connection_manager_test(radio_config, wlan_configs=None,
         moca_tmp_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
         FrenzyWifi.WPACtrl.WIFIINFO_PATH = tempfile.mkdtemp()
+        connection_manager.CWMP_PATH = tempfile.mkdtemp()
 
         for band, access_point in wlan_configs.iteritems():
           write_wlan_config(config_dir, band, 'initial ssid', 'initial psk')
@@ -595,13 +615,12 @@ def connection_manager_test(radio_config, wlan_configs=None,
                               run_duration_s=run_duration_s,
                               interface_update_period=interface_update_period,
                               wifi_scan_period_s=wifi_scan_period_s,
+                              associate_wait_s=associate_wait_s,
                               dhcp_wait_s=dhcp_wait_s,
+                              acs_start_wait_s=acs_start_wait_s,
+                              acs_finish_wait_s=acs_finish_wait_s,
                               bssid_cycle_length_s=1,
                               **cm_kwargs)
-
-        c.test_interface_update_period = interface_update_period
-        c.test_wifi_scan_period = wifi_scan_period
-        c.test_dhcp_wait_s = dhcp_wait_s
 
         f(c)
       finally:
@@ -612,6 +631,7 @@ def connection_manager_test(radio_config, wlan_configs=None,
         shutil.rmtree(moca_tmp_dir)
         shutil.rmtree(wpa_control_interface)
         shutil.rmtree(FrenzyWifi.WPACtrl.WIFIINFO_PATH)
+        shutil.rmtree(connection_manager.CWMP_PATH)
         # pylint: disable=protected-access
         connection_manager._wifi_show = old_wifi_show
         connection_manager._get_quantenna_interfaces = old_gqi
@@ -889,7 +909,7 @@ def connection_manager_test_generic(c, band):
   c.can_connect_to_s2 = True
   # Give it time to try all BSSIDs.  This means sleeping long enough that
   # everything in the cycler is active, then doing n+1 loops (the n+1st loop is
-  # when we decided that the SSID in the nth loop was successful).
+  # when we decide that the SSID in the nth loop was successful).
   time.sleep(c._bssid_cycle_length_s)
   for _ in range(len(c.wifi_for_band(band).cycler) + 1):
     c.run_once()
@@ -931,12 +951,67 @@ def connection_manager_test_generic(c, band):
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
   wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
   wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+  wvtest.WVPASS(c.has_status_files([status.P.WAITING_FOR_DHCP,
+                                    status.P.WAITING_FOR_PROVISIONING]))
   # Third iteration: sleep for dhcp_wait_s and check that we try another AP.
-  time.sleep(c.test_dhcp_wait_s)
+  time.sleep(c._dhcp_wait_s)
   c.run_once()
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
   wvtest.WVPASSNE(last_bss_info.ssid, 's3')
   wvtest.WVPASSNE(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+
+  # Now repeat the above, but for an ACS session that takes a while.  We don't
+  # necessarily want to leave if it fails (so we don't want the third check),
+  # but we do want to make sure we don't leave while we're still waiting for it.
+  #
+  # Unlike DHCP, which we can always simulate working immediately above, it is
+  # wrong to simulate ACS sessions working for connections without ACS access.
+  # This means we can either always wait for the ACS session timeout in every
+  # test above, making the tests much slower, or we can set that timeout to 0
+  # and then be a little gross here and change it.  The latter is unfortunately
+  # the lesser evil, because slow tests are bad.
+  del c.wifi_for_band(band).cycler
+  c.dhcp_failure_on_s3 = False
+  c.acs_session_fails = True
+  # First iteration: check that we try s3.
+  c.run_until_scan(band)
+  last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
+  wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
+  wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+
+  # This is the gross part.
+  # pylint: disable=protected-access
+  c.wifi_for_band(band).provisioning_ratchet.steps[3].timeout = 0.5
+
+  # Second iteration: check that we don't leave while waiting.
+  c.run_once()
+  last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
+  wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
+  wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+  wvtest.WVPASS(c.has_status_files([status.P.WAITING_FOR_ACS_SESSION,
+                                    status.P.WAITING_FOR_PROVISIONING]))
+  time.sleep(0.5)
+  c.run_once()
+  wvtest.WVPASS(c.has_status_files([status.P.PROVISIONING_FAILED]))
+  c.wifi_for_band(band).provisioning_ratchet.steps[3].timeout = 0
+
+  # Finally, test successful provisioning.
+  del c.wifi_for_band(band).cycler
+  c.dhcp_failure_on_s3 = False
+  c.acs_session_fails = False
+  # First iteration: check that we try s3.
+  c.run_until_scan(band)
+  last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
+  wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
+  wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+
+  c.run_once()
+  last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
+  wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
+  wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+  wvtest.WVFAIL(c.has_status_files([status.P.WAITING_FOR_ACS_SESSION,
+                                    status.P.WAITING_FOR_PROVISIONING]))
+  wvtest.WVPASS(c.has_status_files([status.P.PROVISIONING_COMPLETED]))
 
 
 @wvtest.wvtest
