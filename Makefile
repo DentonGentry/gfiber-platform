@@ -90,6 +90,10 @@ ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gflt110)
 DIRS+=diags
 endif
 
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfrg240)
+DIRS+=diags
+endif
+
 ifeq ($(BUILD_CONMAN),y)
 DIRS+=conman
 endif
