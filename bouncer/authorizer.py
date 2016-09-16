@@ -16,12 +16,13 @@
 """authorizer: processes Terms of Service acceptance for users."""
 
 import logging
-import re
 import subprocess
 import sys
 import time
 
+import hash_mac_addr
 import options
+
 import tornado.escape
 import tornado.httpclient
 import tornado.ioloop
@@ -57,15 +58,16 @@ def ip46tables(*args):
 class Checker(object):
   """Manage checking and polling for Terms of Service acceptance."""
 
-  def __init__(self, mac_addr, url):
+  def __init__(self, mac_addr, hashed_mac_addr, url):
     self.mac_addr = mac_addr
-    self.url = url % {'mac': mac_addr}
+    self.hashed_mac_addr = hashed_mac_addr
+    self.url = url % {'mac': hashed_mac_addr}
     self.tries = 0
     self.callback = None
 
   def check(self):
     """Check if a remote service knows about a device with a supplied MAC."""
-    logging.info('Checking TOS for %s', self.mac_addr)
+    logging.info('Checking TOS for %s', self.hashed_mac_addr)
     http_client = tornado.httpclient.HTTPClient()
     response = http_client.fetch(self.url, ca_certs=opt.ca_certs)
     response_obj = tornado.escape.json_decode(response.body)
@@ -77,7 +79,7 @@ class Checker(object):
       if accepted_time + (opt.max_age * 86400) > time.time():
         accepted = True
         if self.callback: self.callback.stop()
-        logging.info('TOS accepted for %s', self.mac_addr)
+        logging.info('TOS accepted for %s', self.hashed_mac_addr)
 
         known_users[self.mac_addr] = response_obj
         result = ip46tables('-A', opt.filter_chain, '-m', 'mac',
@@ -88,12 +90,13 @@ class Checker(object):
           logging.error('Could not update firewall for device %s',
                         self.mac_addr)
       else:
-        logging.info('TOS accepted too long ago for %s: %r', self.mac_addr,
-                     accepted_time)
+        logging.info('TOS accepted too long ago for %s: %r',
+                     self.hashed_mac_addr, accepted_time)
 
     elif self.callback and self.tries > MAX_TRIES:
       if not accepted:
-        logging.info('TOS not accepted for %s before timeout.', self.mac_addr)
+        logging.info('TOS not accepted for %s before timeout.',
+                     self.hashed_mac_addr)
       self.callback.stop()
 
     return response, accepted
@@ -108,9 +111,9 @@ def accept(connection, unused_address):
   cf = connection.makefile()
 
   maybe_mac_addr = cf.readline().strip()
-  if re.match('([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', maybe_mac_addr):
-    mac_addr = maybe_mac_addr.lower()
-  else:
+  try:
+    mac_addr, hashed_mac_addr = hash_mac_addr.hash_mac_addr(maybe_mac_addr)
+  except ValueError:
     logging.warning('can only check authorization for a MAC address.')
     cf.write('{}')
     return
@@ -122,7 +125,7 @@ def accept(connection, unused_address):
     cf.write(tornado.escape.json_encode(cached_response))
     return
 
-  checker = Checker(mac_addr, opt.url)
+  checker = Checker(mac_addr, hashed_mac_addr, opt.url)
   response, accepted = checker.check()
   if not accepted:
     checker.poll()

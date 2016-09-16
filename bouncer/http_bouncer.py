@@ -21,7 +21,9 @@ import subprocess
 import sys
 import urllib2
 
+import hash_mac_addr
 import options
+
 import tornado.httpclient
 import tornado.ioloop
 import tornado.web
@@ -66,7 +68,8 @@ class Redirector(tornado.web.RequestHandler):
     else:
       if self.substitute_mac:
         mac = mac_for_ip(self.request.remote_ip)
-        self.redirect(opt.url % {'mac': mac})
+        _, hashed_mac = hash_mac_addr.hash_mac_addr(mac)
+        self.redirect(opt.url % {'mac': hashed_mac})
 
         if opt.unix_path:
           try:
