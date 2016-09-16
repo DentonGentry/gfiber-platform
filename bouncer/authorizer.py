@@ -67,7 +67,7 @@ class Checker(object):
 
   def check(self):
     """Check if a remote service knows about a device with a supplied MAC."""
-    logging.info('Checking TOS for %s', self.hashed_mac_addr)
+    logging.info('Checking TOS for %s', self.mac_addr)
     http_client = tornado.httpclient.HTTPClient()
     response = http_client.fetch(self.url, ca_certs=opt.ca_certs)
     response_obj = tornado.escape.json_decode(response.body)
@@ -79,7 +79,7 @@ class Checker(object):
       if accepted_time + (opt.max_age * 86400) > time.time():
         accepted = True
         if self.callback: self.callback.stop()
-        logging.info('TOS accepted for %s', self.hashed_mac_addr)
+        logging.info('TOS accepted for %s', self.mac_addr)
 
         known_users[self.mac_addr] = response_obj
         result = ip46tables('-A', opt.filter_chain, '-m', 'mac',
@@ -91,12 +91,12 @@ class Checker(object):
                         self.mac_addr)
       else:
         logging.info('TOS accepted too long ago for %s: %r',
-                     self.hashed_mac_addr, accepted_time)
+                     self.mac_addr, accepted_time)
 
     elif self.callback and self.tries > MAX_TRIES:
       if not accepted:
         logging.info('TOS not accepted for %s before timeout.',
-                     self.hashed_mac_addr)
+                     self.mac_addr)
       self.callback.stop()
 
     return response, accepted
