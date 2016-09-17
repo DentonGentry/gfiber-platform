@@ -68,8 +68,7 @@ class Redirector(tornado.web.RequestHandler):
     else:
       if self.substitute_mac:
         mac = mac_for_ip(self.request.remote_ip)
-        _, hashed_mac = hash_mac_addr.hash_mac_addr(mac)
-        self.redirect(opt.url % {'mac': hashed_mac})
+        self.redirect(opt.url % {'mac': hash_mac_addr.hash_mac_addr(mac)})
 
         if opt.unix_path:
           try:

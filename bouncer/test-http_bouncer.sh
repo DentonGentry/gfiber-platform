@@ -5,7 +5,7 @@
 
 . ./wvtest/wvtest.sh
 
-HTTP_BOUNCER=./host-http_bouncer
+HTTP_BOUNCER=./http_bouncer.py
 PORT="1337"
 URL="http://example.com"
 

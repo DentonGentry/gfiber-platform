@@ -43,6 +43,7 @@ u,url=          URL to query for authentication [https://fiber-managed-wifi-tos.
 
 MAX_TRIES = 300
 
+in_progress_users = {}
 known_users = {}
 
 
@@ -55,13 +56,22 @@ def ip46tables(*args):
   return x | y
 
 
+def is_valid_acceptance(response_obj):
+  accepted_time = response_obj.get('accepted')
+  return accepted_time + (opt.max_age * 86400) > time.time()
+
+
+def allow_mac_rule(mac_addr):
+  # iptables, unlike other Linux utilities, capitalizes MAC addresses
+  return ('-m', 'mac', '--mac-source', mac_addr.upper(), '-j', 'ACCEPT')
+
+
 class Checker(object):
   """Manage checking and polling for Terms of Service acceptance."""
 
-  def __init__(self, mac_addr, hashed_mac_addr, url):
+  def __init__(self, mac_addr, url):
     self.mac_addr = mac_addr
-    self.hashed_mac_addr = hashed_mac_addr
-    self.url = url % {'mac': hashed_mac_addr}
+    self.url = url % {'mac': hash_mac_addr.hash_mac_addr(self.mac_addr)}
     self.tries = 0
     self.callback = None
 
@@ -69,41 +79,43 @@ class Checker(object):
     """Check if a remote service knows about a device with a supplied MAC."""
     logging.info('Checking TOS for %s', self.mac_addr)
     http_client = tornado.httpclient.HTTPClient()
-    response = http_client.fetch(self.url, ca_certs=opt.ca_certs)
-    response_obj = tornado.escape.json_decode(response.body)
-    accepted_time = response_obj.get('accepted')
     self.tries += 1
 
-    accepted = False
-    if accepted_time:
-      if accepted_time + (opt.max_age * 86400) > time.time():
-        accepted = True
-        if self.callback: self.callback.stop()
-        logging.info('TOS accepted for %s', self.mac_addr)
+    try:
+      response = http_client.fetch(self.url, ca_certs=opt.ca_certs)
+      response_obj = tornado.escape.json_decode(response.body)
+      valid = is_valid_acceptance(response_obj)
+    except tornado.httpclient.HTTPError as e:
+      logging.warning('Error checking authorization: %r', e)
+      valid = False
 
-        known_users[self.mac_addr] = response_obj
-        result = ip46tables('-A', opt.filter_chain, '-m', 'mac',
-                            '--mac-source', self.mac_addr, '-j', 'ACCEPT')
-        result |= ip46tables('-t', 'nat', '-A', opt.nat_chain, '-m', 'mac',
-                             '--mac-source', self.mac_addr, '-j', 'ACCEPT')
-        if result:
-          logging.error('Could not update firewall for device %s',
-                        self.mac_addr)
-      else:
-        logging.info('TOS accepted too long ago for %s: %r',
-                     self.mac_addr, accepted_time)
+    if valid:
+      logging.info('TOS accepted for %s', self.mac_addr)
 
-    elif self.callback and self.tries > MAX_TRIES:
-      if not accepted:
-        logging.info('TOS not accepted for %s before timeout.',
-                     self.mac_addr)
-      self.callback.stop()
+      known_users[self.mac_addr] = response_obj
+      result = ip46tables('-A', opt.filter_chain,
+                          *allow_mac_rule(self.mac_addr))
+      result |= ip46tables('-t', 'nat', '-A', opt.nat_chain,
+                           *allow_mac_rule(self.mac_addr))
+      if result:
+        logging.error('Could not update firewall for device %s',
+                      self.mac_addr)
 
-    return response, accepted
+    if valid or self.tries > MAX_TRIES:
+      if self.callback:
+        self.callback.stop()
+      if self.mac_addr in in_progress_users:
+        del in_progress_users[self.mac_addr]
+    else:
+      in_progress_users[self.mac_addr] = self
+      self.poll()
+
+    return response
 
   def poll(self):
-    self.callback = tornado.ioloop.PeriodicCallback(self.check, 1000)
-    self.callback.start()
+    if not self.callback:
+      self.callback = tornado.ioloop.PeriodicCallback(self.check, 1000)
+      self.callback.start()
 
 
 def accept(connection, unused_address):
@@ -112,25 +124,44 @@ def accept(connection, unused_address):
 
   maybe_mac_addr = cf.readline().strip()
   try:
-    mac_addr, hashed_mac_addr = hash_mac_addr.hash_mac_addr(maybe_mac_addr)
+    mac_addr = hash_mac_addr.normalize_mac_addr(maybe_mac_addr)
   except ValueError:
     logging.warning('can only check authorization for a MAC address.')
     cf.write('{}')
     return
 
   if mac_addr in known_users:
-    logging.info('TOS accepted (cached) for %s', mac_addr)
     cached_response = known_users[mac_addr]
-    cached_response['cached'] = True
-    cf.write(tornado.escape.json_encode(cached_response))
-    return
+    if is_valid_acceptance(cached_response):
+      logging.info('TOS accepted (cached) for %s', mac_addr)
+      cached_response['cached'] = True
+      cf.write(tornado.escape.json_encode(cached_response))
+      return
 
-  checker = Checker(mac_addr, hashed_mac_addr, opt.url)
-  response, accepted = checker.check()
-  if not accepted:
-    checker.poll()
+  if mac_addr in in_progress_users:
+    checker = in_progress_users[mac_addr]
+  else:
+    checker = Checker(mac_addr, opt.url)
 
+  response = checker.check()
   cf.write(response.body)
+
+
+def expire_cache():
+  """Remove users whose authorization has expired from the cache."""
+  expired_users = set(mac_addr for mac_addr, cached_response
+                      in known_users.items()
+                      if not is_valid_acceptance(cached_response))
+
+  for mac_addr in expired_users:
+    logging.info('Removing expired user %s', mac_addr)
+    del known_users[mac_addr]
+
+    result = ip46tables('-D', opt.filter_chain, *allow_mac_rule(mac_addr))
+    result |= ip46tables('-t', 'nat', '-D', opt.nat_chain,
+                         *allow_mac_rule(mac_addr))
+    if result:
+      logging.warning('Error removing expired user %s !', mac_addr)
 
 
 if __name__ == '__main__':
@@ -156,4 +187,7 @@ if __name__ == '__main__':
 
   logging.info('Started authorizer.')
   ioloop.start()
+
+  expirer = tornado.ioloop.PeriodicCallback(expire_cache, 60 * 60 * 1000)
+  expirer.start()
 

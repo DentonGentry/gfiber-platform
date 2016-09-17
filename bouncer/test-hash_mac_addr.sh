@@ -4,7 +4,7 @@
 
 WVSTART "hash_mac_addr test"
 
-HASH_MAC_ADDR=./host-hash_mac_addr
+HASH_MAC_ADDR=./hash_mac_addr.py
 
 WVFAIL $HASH_MAC_ADDR
 WVFAIL $HASH_MAC_ADDR -a nonsense

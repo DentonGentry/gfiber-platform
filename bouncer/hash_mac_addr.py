@@ -15,13 +15,16 @@ a,addr= MAC address to hash
 """
 
 
-def hash_mac_addr(maybe_mac_addr):
+def normalize_mac_addr(maybe_mac_addr):
   if re.match('([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', maybe_mac_addr):
-    mac_addr = maybe_mac_addr.lower()
+    return maybe_mac_addr.lower()
   else:
     raise ValueError('%r not a MAC address' % maybe_mac_addr)
 
-  return mac_addr, hashlib.sha1(mac_addr).hexdigest()
+
+def hash_mac_addr(maybe_mac_addr):
+  mac_addr = normalize_mac_addr(maybe_mac_addr)
+  return hashlib.sha1(mac_addr).hexdigest()
 
 
 if __name__ == '__main__':
@@ -32,7 +35,7 @@ if __name__ == '__main__':
     o.usage()
 
   try:
-    _, hashed_mac_addr = hash_mac_addr(str(opt.addr))
+    hashed_mac_addr = hash_mac_addr(str(opt.addr))
     print hashed_mac_addr
   except ValueError as e:
     print >>sys.stderr, 'error:', e.message

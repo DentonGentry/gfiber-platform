@@ -1,6 +1,8 @@
 default: all
 
+INSTALL?=install
 BINDIR=$(DESTDIR)/bin
+LIBDIR=$(DESTDIR)/usr/bouncer
 GPYLINT=$(shell \
     if which gpylint >/dev/null; then \
       echo gpylint; \
@@ -8,25 +10,20 @@ GPYLINT=$(shell \
       echo 'echo "(gpylint-missing)" >&2'; \
     fi \
 )
+NOINSTALL=options.py
 
-TARGETS=authorizer hash_mac_addr http_bouncer
-
-HOST_TARGETS=$(addprefix host-,$(TARGETS))
-
-all: $(TARGETS) $(HOST_TARGETS)
+all:
 
 install:
-	mkdir -p $(BINDIR)
-	cp $(TARGETS) $(BINDIR)
+	mkdir -p $(LIBDIR) $(BINDIR)
+	$(INSTALL) -m 0644 $(filter-out $(NOINSTALL) $(TARGETS), $(wildcard *.py)) $(LIBDIR)/
+	for t in authorizer hash_mac_addr http_bouncer; do \
+		$(INSTALL) -m 0755 $$t.py $(LIBDIR)/; \
+		ln -fs /usr/bouncer/$$t.py $(BINDIR)/$$t; \
+	done
 
 install-libs:
 	@echo "No libs to install."
-
-%: %.py
-	ln -s $< $@
-
-host-%: %.py
-	ln -s $< $@
 
 TESTS = $(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py)
 runtests: all $(TESTS)
