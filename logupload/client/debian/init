@@ -36,10 +36,11 @@ case "$1" in
     # Our hostnames are something like hostname.cluster.whatever.com.
     # We want the hostname.cluster part to be part of the certname, but
     # sadly the name field in our certs isn't super happy about that, so
-    # let's use _ instead of dot, where relevant.
+    # let's use _ instead of dot and strip hyphens, where relevant.
     hostname -f |
       sed -e 's/\([^.]*\.[^.]*\).*/\1/' \
-          -e 's/\./_/g' |
+          -e 's/\./_/g' \
+          -e 's/-//g' |
       atomic_stdin /tmp/serial
     cd /
     upload-logs-loop </dev/null &
