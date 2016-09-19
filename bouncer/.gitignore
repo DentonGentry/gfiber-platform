@@ -1,4 +1,6 @@
 authorizer
 host-authorizer
+hash_mac_addr
+host-hash_mac_addr
 http_bouncer
 host-http_bouncer

@@ -9,7 +9,7 @@ GPYLINT=$(shell \
     fi \
 )
 
-TARGETS=authorizer http_bouncer
+TARGETS=authorizer hash_mac_addr http_bouncer
 
 HOST_TARGETS=$(addprefix host-,$(TARGETS))
 
