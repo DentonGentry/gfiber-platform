@@ -164,12 +164,7 @@ class FakeWPACtrl(object):
     if request_type == 'STATUS':
       if self.request_status_fails:
         raise wpactrl.error('test error')
-      if self.connected:
-        return ('foo\nwpa_state=COMPLETED\nssid=%s\nkey_mgmt=%s\nbar' %
-                (self.ssid_testonly,
-                 'WPA2-PSK' if self.secure_testonly else 'NONE'))
-      else:
-        return 'wpa_state=SCANNING\naddress=12:34:56:78:90:ab'
+      return self.wpa_cli_status_testonly()
     else:
       raise ValueError('Invalid request_type %s' % request_type)
 
@@ -197,6 +192,14 @@ class FakeWPACtrl(object):
   def check_socket_exists(self, msg='Fake socket does not exist'):
     if not os.path.exists(self._socket):
       raise wpactrl.error(msg)
+
+  def wpa_cli_status_testonly(self):
+    if self.connected:
+      return ('foo\nwpa_state=COMPLETED\nssid=%s\nkey_mgmt=%s\nbar' %
+              (self.ssid_testonly,
+               'WPA2-PSK' if self.secure_testonly else 'NONE'))
+    else:
+      return 'wpa_state=SCANNING\naddress=12:34:56:78:90:ab'
 
 
 class Wifi(FakeInterfaceMixin, interface.Wifi):
@@ -247,6 +250,11 @@ class Wifi(FakeInterfaceMixin, interface.Wifi):
     self._secure_testonly = False
     super(Wifi, self).detach_wpa_control()
 
+  def wpa_cli_status(self):
+    # This is just a convenient way of keeping things dry; the actual wpa_cli
+    # status makes a subprocess call which returns the same string.
+    return self._wpa_control.wpa_cli_status_testonly()
+
   def start_wpa_supplicant_testonly(self, path):
     wpa_socket = os.path.join(path, self.name)
     logging.debug('Starting fake wpa_supplicant for %s: %s',
@@ -295,12 +303,6 @@ class FrenzyWPACtrl(interface.FrenzyWPACtrl):
   def detach(self):
     self.add_terminating_event()
     super(FrenzyWPACtrl, self).detach()
-
-  def request(self, request_type):
-    if request_type == 'STATUS' and self.request_status_fails:
-      raise wpactrl.error('test error')
-
-    return super(FrenzyWPACtrl, self).request(request_type)
 
 
 class FrenzyWifi(FakeInterfaceMixin, interface.FrenzyWifi):
@@ -520,7 +522,7 @@ def generic_wifi_test(w, wpa_path):
 
   wvtest.WVPASSNE(w.wpa_status(), {})
   w._wpa_control.request_status_fails = True
-  wvtest.WVPASSEQ(w.wpa_status(), {})
+  wvtest.WVPASSNE(w.wpa_status(), {})
 
   # The wpa_supplicant process disconnects and terminates.
   wpa_control.add_disconnected_event()

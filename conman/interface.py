@@ -500,6 +500,7 @@ class Wifi(Interface):
       except wpactrl.error as e:
         logging.error('wpa_control STATUS request failed %s args %s',
                       e.message, e.args)
+        lines = self.wpa_cli_status().splitlines()
       for line in lines:
         if '=' not in line:
           continue
@@ -552,6 +553,15 @@ class Wifi(Interface):
   def connected_to_open(self):
     return (self.wpa_status().get('wpa_state', None) == 'COMPLETED' and
             self.wpa_status().get('key_mgmt', None) == 'NONE')
+
+  # TODO(rofrankel):  Remove this if and when the wpactrl failures are fixed.
+  def wpa_cli_status(self):
+    """Fallback for wpa_supplicant control interface status requests."""
+    try:
+      return subprocess.check_output(['wpa_cli', '-i', self.name, 'status'])
+    except subprocess.CalledProcessError:
+      logging.error('wpa_cli status request failed')
+      return ''
 
 
 class FrenzyWPACtrl(object):
