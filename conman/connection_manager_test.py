@@ -181,17 +181,24 @@ class WLANConfiguration(connection_manager.WLANConfiguration):
   WIFI_SETCLIENT = ['echo', 'setclient']
   WIFI_STOPCLIENT = ['echo', 'stopclient']
 
+  def __init__(self, *args, **kwargs):
+    super(WLANConfiguration, self).__init__(*args, **kwargs)
+    self.stale = False
+
   def _actually_start_client(self):
     self.client_was_up = self.client_up
     self.was_attached = self.wifi.attached()
     self.wifi._secure_testonly = True
-    # Do this before calling the super method so that the attach call at the end
-    # succeeds.
+
+    super(WLANConfiguration, self)._actually_start_client()
+
     if not self.client_was_up and not self.was_attached:
       self.wifi._initial_ssid_testonly = self.ssid
       self.wifi.start_wpa_supplicant_testonly(self._wpa_control_interface)
 
-    return True
+    if self.wifi._wpa_control:
+      self.wifi._wpa_control.connected = not self.stale
+    return not self.stale
 
   def _post_start_client(self):
     if not self.client_was_up:
@@ -327,6 +334,8 @@ class ConnectionManager(connection_manager.ConnectionManager):
     self.dhcp_failure_on_s3 = False
     self.log_upload_count = 0
     self.acs_session_fails = False
+    for wifi in self.wifi:
+      wifi.bssids_tried_testonly = 0
 
   def create_wifi_interfaces(self):
     super(ConnectionManager, self).create_wifi_interfaces()
@@ -349,10 +358,13 @@ class ConnectionManager(connection_manager.ConnectionManager):
         wifi.add_terminating_event()
 
   def _try_bssid(self, wifi, bss_info):
-    wifi.add_disconnected_event()
+    if wifi.wpa_status().get('wpa_state', None) == 'COMPLETED':
+      wifi.add_disconnected_event()
     self.last_provisioning_attempt = bss_info
 
     super(ConnectionManager, self)._try_bssid(wifi, bss_info)
+
+    wifi.bssids_tried_testonly += 1
 
     def connect(connection_check_result, dhcp_failure=False):
       # pylint: disable=protected-access
@@ -445,6 +457,11 @@ class ConnectionManager(connection_manager.ConnectionManager):
     return super(ConnectionManager, self)._try_upload_logs()
 
   # Test methods
+
+  def tried_to_upload_logs(self):
+    result = getattr(self, 'last_log_upload_count', 0) < self.log_upload_count
+    self.last_log_upload_count = self.log_upload_count
+    return result
 
   def delete_wlan_config(self, band):
     delete_wlan_config(self._config_dir, band)
@@ -614,6 +631,7 @@ def connection_manager_test(radio_config, wlan_configs=None,
                               wpa_control_interface=wpa_control_interface,
                               run_duration_s=run_duration_s,
                               interface_update_period=interface_update_period,
+                              wlan_retry_s=0,
                               wifi_scan_period_s=wifi_scan_period_s,
                               associate_wait_s=associate_wait_s,
                               dhcp_wait_s=dhcp_wait_s,
@@ -752,7 +770,7 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.internet())
   wvtest.WVFAIL(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_routes())
-  wvtest.WVPASSEQ(c.log_upload_count, 1)
+  wvtest.WVPASS(c.tried_to_upload_logs())
   # Disable scan results again.
   c.interface_with_scan_results = None
   c.run_until_interface_update()
@@ -774,10 +792,34 @@ def connection_manager_test_generic(c, band):
   c.wifi_for_band(band).kill_wpa_supplicant_testonly(c._wpa_control_interface)
   wvtest.WVFAIL(c.client_up(band))
   wvtest.WVFAIL(c._connected_to_wlan(c.wifi_for_band(band)))
+  # Make sure we stay connected to s2, rather than disconnecting and
+  # reconnecting.
   c.run_once()
   wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c._connected_to_wlan(c.wifi_for_band(band)))
+
+  # Now, update the WLAN configuration and make sure we reprovision.
+
+  # The AP restarts with a new configuration, kicking us off.  We should
+  # reprovision.
+  c._wlan_configuration[band].stale = True
+  c.wifi_for_band(band).add_disconnected_event()
+  c.run_once()
+  wvtest.WVFAIL(c.client_up(band))
+  wvtest.WVPASS(c._connected_to_open(c.wifi_for_band(band)))
+  wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's2')
+
+  # Now that we're on the provisioning network, create the new WLAN
+  # configuration, which should be connected to.
+  ssid = 'wlan2'
+  psk = 'password2'
+  c.write_wlan_config(band, ssid, psk)
+  c.run_once()
+  wvtest.WVPASS(c.client_up(band))
+  wvtest.WVPASS(c.wifi_for_band(band).wpa_status()['ssid'] == ssid)
+  wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
+  wvtest.WVPASS(c.wifi_for_band(band).current_routes())
 
   # Now, remove the WLAN configuration and make sure we are disconnected.  Then
   # disable the previously used ACS connection via s2, re-enable scan results,
@@ -796,14 +838,11 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASSEQ(c.last_provisioning_attempt.bssid, 'ff:ee:dd:cc:bb:aa')
   # The log upload happens on the next main loop after joining s3.
   c.run_once()
-  wvtest.WVPASSEQ(c.log_upload_count, 2)
+  wvtest.WVPASS(c.tried_to_upload_logs())
 
   # Now, recreate the same WLAN configuration, which should be connected to.
   # Also, test that atomic writes/renames work.
-  ssid = 'wlan'
-  psk = 'password'
   c.write_wlan_config(band, ssid, psk, atomic=True)
-  c.disable_access_point(band)
   c.run_once()
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_routes())
@@ -872,7 +911,7 @@ def connection_manager_test_generic(c, band):
   # Make sure we didn't scan on `band`.
   wvtest.WVPASSEQ(scan_count_for_band, c.wifi_for_band(band).wifi_scan_counter)
   c.run_once()
-  wvtest.WVPASSEQ(c.log_upload_count, 3)
+  wvtest.WVPASS(c.tried_to_upload_logs())
 
   # Now re-create the WLAN config, connect to the WLAN, and make sure that s3 is
   # unset as last_successful_bss_info, since it is no longer available.
@@ -898,6 +937,9 @@ def connection_manager_test_generic(c, band):
   # 4) Connect to s2 but get no ACS access; see that last_successful_bss_info is
   #    unset.
   c.write_wlan_config(band, ssid, psk)
+  # Connect
+  c.run_once()
+  # Process DHCP results
   c.run_once()
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())
@@ -916,7 +958,7 @@ def connection_manager_test_generic(c, band):
   s2_bss = iw.BssInfo('01:23:45:67:89:ab', 's2')
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, s2_bss)
   c.run_once()
-  wvtest.WVPASSEQ(c.log_upload_count, 4)
+  wvtest.WVPASS(c.tried_to_upload_logs())
 
   c.s2_fail = True
   c.write_wlan_config(band, ssid, psk)
@@ -925,9 +967,12 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.internet())
 
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, s2_bss)
-  c.delete_wlan_config(band)
+  c._wlan_configuration[band].stale = True
+  c.wifi_for_band(band).add_disconnected_event()
   # Run once so that c will reconnect to s2.
   c.run_once()
+  wvtest.WVPASS(c.wifi_for_band(band).connected_to_open())
+  wvtest.WVPASSEQ(c.wifi_for_band(band).wpa_status().get('ssid'), 's2')
   # Now run until it sees the lack of ACS access.
   c.run_until_interface_update()
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, None)
@@ -935,7 +980,8 @@ def connection_manager_test_generic(c, band):
   # Test that we wait dhcp_wait_s seconds for a DHCP lease before trying the
   # next BSSID.  The scan results contain an s3 AP with vendor IEs that fails to
   # send a DHCP lease.  This ensures that s3 will be tried before any other AP,
-  # which lets us force a timeout and proceed to the next AP.
+  # which lets us force a timeout and proceed to the next AP.  Having a stale
+  # WLAN configuration shouldn't interrupt provisioning.
   del c.wifi_for_band(band).cycler
   c.interface_with_scan_results = c.wifi_for_band(band).name
   c.scan_results_include_hidden = True
@@ -946,6 +992,7 @@ def connection_manager_test_generic(c, band):
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
   wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
   wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+  c.write_wlan_config(band, ssid, psk)
   # Second iteration: check that we try s3 again since there's no gateway yet.
   c.run_once()
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
@@ -959,6 +1006,9 @@ def connection_manager_test_generic(c, band):
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
   wvtest.WVPASSNE(last_bss_info.ssid, 's3')
   wvtest.WVPASSNE(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
+
+  # We can delete the stale WLAN config now, to simplify subsequent tests.
+  c.delete_wlan_config(band)
 
   # Now repeat the above, but for an ACS session that takes a while.  We don't
   # necessarily want to leave if it fails (so we don't want the third check),
@@ -1151,7 +1201,7 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVPASS(c.wifi_for_band('2.4').current_routes())
   wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
   c.run_once()
-  wvtest.WVPASSEQ(c.log_upload_count, 1)
+  wvtest.WVPASS(c.tried_to_upload_logs())
 
 
 @wvtest.wvtest
@@ -1285,6 +1335,9 @@ def connection_manager_test_marvell8897_no_5ghz(c):
 
   # Make sure 2.4 still works.
   c.write_wlan_config('2.4', 'my ssid', 'my psk')
+  # Connect
+  c.run_once()
+  # Process DHCP results
   c.run_once()
   wvtest.WVPASS(c.wifi_for_band('2.4').acs())
   wvtest.WVPASS(c.wifi_for_band('2.4').internet())
