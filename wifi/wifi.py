@@ -1082,20 +1082,23 @@ def _run(argv):
         'stopclient': stop_client_wifi,
         'stopap': stop_ap_wifi,
         'scan': scan_wifi,
-    }[extra[0]]
+    }[command]
   except KeyError:
-    parser.fatal('Unrecognized command %s' % extra[0])
+    parser.fatal('Unrecognized command %s' % command)
 
-  if not lockfile_taken:
-    utils.lock(_LOCKFILE, int(opt.lock_timeout))
-    atexit.register(utils.unlock, _LOCKFILE)
-    lockfile_taken = True
+  read_only_commands = ('show',)
+
+  if command not in read_only_commands:
+    if not lockfile_taken:
+      utils.lock(_LOCKFILE, int(opt.lock_timeout))
+      atexit.register(utils.unlock, _LOCKFILE)
+      lockfile_taken = True
 
   success = function(opt)
 
   if success:
-    if extra[0] in ('set', 'setclient'):
-      program = 'hostapd' if extra[0] == 'set' else 'wpa_supplicant'
+    if command in ('set', 'setclient'):
+      program = 'hostapd' if command == 'set' else 'wpa_supplicant'
       if opt.persist:
         phy = iw.find_phy(opt.band, opt.channel)
         for band in iw.phy_bands(phy):
