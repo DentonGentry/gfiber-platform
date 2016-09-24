@@ -17,6 +17,7 @@
  * it exists in order to interface with the RAS_LIB.c implementation
  * provided by TI which is not licensed under Apache. */
 
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -39,6 +40,7 @@ int main(int argc, char **argv)
 {
   int is = -1, os = -1, connected = 0;
   struct sockaddr_un sun;
+  struct sockaddr_in sin;
   uint8 prev = 0;
   int msgs = 0, missed = 0, errors = 0;
 
@@ -51,13 +53,14 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  memset(&sun, 0, sizeof(sun));
-  sun.sun_family = AF_UNIX;
-  strncpy(&sun.sun_path[1], RCU_AUDIO_PATH, sizeof(sun.sun_path) - 2);
+  memset(&sin, 0, sizeof(sin));
+  sin.sin_family = AF_INET;
+  sin.sin_port = htons(RCU_AUDIO_PORT);
+  sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
   while (1) {
     uint8 ibuf[MAX_INPUT_BUF_SIZE + 6 + 1 + 4];
-    size_t ilen;
+    ssize_t ilen;
 
     ilen = recv(is, ibuf, sizeof(ibuf), 0);
     if (ilen < 23) {
@@ -121,7 +124,7 @@ int main(int argc, char **argv)
         }
 
         if (!connected) {
-          if (connect(os, (const struct sockaddr *) &sun, sizeof(sun)) == 0) {
+          if (connect(os, (const struct sockaddr *) &sin, sizeof(sin)) == 0) {
             connected = 1;
           } else {
             sleep(2);  /* rate limit how often we try */

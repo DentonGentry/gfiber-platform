@@ -53,8 +53,8 @@ int get_socket_or_die()
 {
   int s;
 
-  if ((s = socket(AF_UNIX, SOCK_NONBLOCK | SOCK_DGRAM, 0)) < 0) {
-    perror("socket(AF_UNIX)");
+  if ((s = socket(AF_INET, SOCK_NONBLOCK | SOCK_DGRAM, 0)) < 0) {
+    perror("socket(AF_INET)");
     exit(1);
   }
 

@@ -17,13 +17,13 @@
 #ifndef RCU_AUDIO_H
 #define RCU_AUDIO_H
 
-#define RCU_AUDIO_PATH "rcu_audio"
+#define RCU_AUDIO_PORT  1995
 
 /* Return 1 if at least one second has passed since the
  * last successful call to pacing(). */
 extern int pacing();
 
-/* Return an AF_UNIX socket, or die trying. */
+/* Return an AF_INET socket, or die trying. */
 extern int get_socket_or_die();
 
 #endif  /* RCU_AUDIO_H */

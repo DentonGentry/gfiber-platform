@@ -27,6 +27,7 @@
  * applications using hidraw.
  */
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/hidraw.h>
@@ -40,7 +41,6 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/un.h>
 #include <unistd.h>
 
 #include <vector>
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
 {
   int in = -1, out = -1, connected = 0;
   const char *device;
-  struct sockaddr_un sun;
+  struct sockaddr_in sin;
   char name[16];
   char address[64];
 
@@ -68,9 +68,10 @@ int main(int argc, char **argv)
     exit(1);
   }
 
-  memset(&sun, 0, sizeof(sun));
-  sun.sun_family = AF_UNIX;
-  strncpy(&sun.sun_path[1], RCU_AUDIO_PATH, sizeof(sun.sun_path) - 2);
+  memset(&sin, 0, sizeof(sin));
+  sin.sin_family = AF_INET;
+  sin.sin_port = htons(RCU_AUDIO_PORT);
+  sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
   if (ioctl(in, HIDIOCGRAWNAME(sizeof(name)), name) < 0) {
     perror("HIDIOCGRAWNAME");
@@ -96,7 +97,7 @@ int main(int argc, char **argv)
 
   while (1) {
     uint8_t data[2048];
-    size_t len = read(in, data, sizeof(data));
+    ssize_t len = read(in, data, sizeof(data));
 
     if (len < 0) {
       fprintf(stderr, "GFRM100 has disconnected. Exiting.\n");
@@ -132,7 +133,7 @@ int main(int argc, char **argv)
       }
 
       if (!connected) {
-        if (connect(out, (const struct sockaddr *) &sun, sizeof(sun)) == 0) {
+        if (connect(out, (const struct sockaddr *) &sin, sizeof(sin)) == 0) {
           connected = 1;
         } else {
           sleep(2);  /* rate limit how often we retry. */

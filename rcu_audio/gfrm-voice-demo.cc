@@ -15,6 +15,7 @@
  */
 
 #define _BSD_SOURCE
+#include <arpa/inet.h>
 #include <endian.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -25,7 +26,6 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/un.h>
 #include <unistd.h>
 
 #include "rcu-audio.h"
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 {
   mode_t mode = S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP;
   int fd;
-  struct sockaddr_un sun;
+  struct sockaddr_in sin;
   const char *outfile = "/tmp/audio.wav";
   int outfd;
   uint8_t buf[8192];
@@ -88,15 +88,17 @@ int main(int argc, char **argv)
     }
   }
 
-  if ((fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
-    perror("socket(AF_UNIX) RCU_AUDIO_PATH");
+  if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    perror("socket(AF_INET) RCU_AUDIO");
     exit(1);
   }
-  memset(&sun, 0, sizeof(sun));
-  sun.sun_family = AF_UNIX;
-  strncpy(&sun.sun_path[1], RCU_AUDIO_PATH, sizeof(sun.sun_path) - 2);
-  if (bind(fd, (const struct sockaddr *) &sun, sizeof(sun)) < 0) {
-    perror("bind(AF_UNIX) RCU_AUDIO_PATH");
+  memset(&sin, 0, sizeof(sin));
+  sin.sin_family = AF_INET;
+  sin.sin_port = htons(RCU_AUDIO_PORT);
+  sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+  if (bind(fd, (const struct sockaddr *) &sin, sizeof(sin)) < 0) {
+    perror("bind(AF_INET) RCU_AUDIO_PORT");
     exit(1);
   }
 
