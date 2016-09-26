@@ -42,7 +42,10 @@
 // conserve.
 #define ZLIB_COMPRESS_LEVEL 1
 
-static const char *interfaces_to_check[] = { "br0", "eth0", "man", "pon0" };
+static const char *interfaces_to_check[] = {
+  "br0", "br1", "eth0", "man", "pon0", "wcli0", "wcli1",
+  "wlan0_portal", "wlan1_portal"
+};
 static int num_interfaces = sizeof(interfaces_to_check) /
   sizeof(interfaces_to_check[0]);
 
