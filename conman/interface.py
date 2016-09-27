@@ -470,7 +470,7 @@ class Wifi(Interface):
       self._wpa_control = self.get_wpa_control(socket)
       self._wpa_control.attach()
       logging.debug('%s successfully attached', self.name)
-    except wpactrl.error as e:
+    except (wpactrl.error, OSError) as e:
       logging.error('Error attaching to wpa_supplicant: %s', e)
       return False
 
@@ -497,7 +497,7 @@ class Wifi(Interface):
       lines = []
       try:
         lines = self._wpa_control.request('STATUS').splitlines()
-      except wpactrl.error as e:
+      except (wpactrl.error, OSError) as e:
         logging.error('wpa_control STATUS request failed %s args %s',
                       e.message, e.args)
         lines = self.wpa_cli_status().splitlines()
@@ -517,7 +517,7 @@ class Wifi(Interface):
     if self.attached():
       try:
         self._wpa_control.detach()
-      except wpactrl.error:
+      except (wpactrl.error, OSError):
         logging.error('Failed to detach from wpa_supplicant interface. This '
                       'may mean something else killed wpa_supplicant.')
         self._wpa_control = None
