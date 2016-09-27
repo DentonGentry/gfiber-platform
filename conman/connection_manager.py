@@ -317,29 +317,34 @@ class ConnectionManager(object):
       for filepath in glob.glob(os.path.join(path, prefix + '*')):
         self._process_file(path, os.path.split(filepath)[-1])
 
-    # Make sure no unwanted APs or clients are running.
-    for wifi in self.wifi:
-      for band in wifi.bands:
-        config = self._wlan_configuration.get(band, None)
-        if config:
-          if config.access_point:
-            # If we have a config and want an AP, we don't want a client.
-            self._stop_wifi(band, False, True)
-          else:
-            # If we have a config but don't want an AP, make sure we aren't
-            # running one.
-            self._stop_wifi(band, True, False)
-          break
-      else:
-        # If we have no config for this radio, neither a client nor an AP should
-        # be running.
-        self._stop_wifi(wifi.bands[0], True, True)
-
     # Now that we've read any existing state, it's okay to let interfaces touch
     # the routing table.
     for ifc in self.interfaces():
       ifc.initialize()
       logging.info('%s initialized', ifc.name)
+
+    # Make sure no unwanted APs or clients are running.
+    for wifi in self.wifi:
+      for band in wifi.bands:
+        config = self._wlan_configuration.get(band, None)
+        if config:
+          if config.access_point and self.bridge.internet():
+            # If we have a config and want an AP, we don't want a client.
+            logging.info('Stopping pre-existing %s client on %s',
+                         band, wifi.name)
+            self._stop_wifi(band, False, True)
+          else:
+            # If we have a config but don't want an AP, make sure we aren't
+            # running one.
+            logging.info('Stopping pre-existing %s AP on %s', band, wifi.name)
+            self._stop_wifi(band, True, False)
+          break
+      else:
+        # If we have no config for this radio, neither a client nor an AP should
+        # be running.
+        logging.info('Stopping pre-existing %s AP and clienton %s',
+                     band, wifi.name)
+        self._stop_wifi(wifi.bands[0], True, True)
 
     self._interface_update_counter = 0
     self._try_wlan_after = {'5': 0, '2.4': 0}
