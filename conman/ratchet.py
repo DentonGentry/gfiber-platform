@@ -140,8 +140,11 @@ class Ratchet(Condition):
     for step in self.steps:
       step.reset()
       self._set_step_status(step, False)
-    self._set_current_step_status(True)
     super(Ratchet, self).reset()
+
+  def start(self):
+    self.reset()
+    self._set_current_step_status(True)
 
   # Override check rather than evaluate because we don't want the Ratchet to
   # time out unless one of its steps does.

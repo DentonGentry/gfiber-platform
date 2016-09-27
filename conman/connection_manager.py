@@ -931,7 +931,7 @@ class ConnectionManager(object):
   def start_provisioning(self, wifi):
     wifi.set_gateway_ip(None)
     wifi.set_subnet(None)
-    wifi.provisioning_ratchet.reset()
+    wifi.provisioning_ratchet.start()
 
   def provisioning_failed(self, wifi):
     try:

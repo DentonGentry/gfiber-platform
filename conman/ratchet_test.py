@@ -103,6 +103,10 @@ def ratchet_test():
     # Test that timeouts are not just summed, but start whenever the previous
     # step completed.
     wvtest.WVPASSEQ(r._current_step, 0)  # pylint: disable=protected-access
+    wvtest.WVFAIL(os.path.isfile(os.path.join(status_export_path, 'X')))
+    wvtest.WVFAIL(os.path.isfile(os.path.join(status_export_path, 'Y')))
+    wvtest.WVFAIL(os.path.isfile(os.path.join(status_export_path, 'Z')))
+    r.start()
     wvtest.WVPASS(os.path.isfile(os.path.join(status_export_path, 'X')))
     wvtest.WVFAIL(os.path.isfile(os.path.join(status_export_path, 'Y')))
     wvtest.WVFAIL(os.path.isfile(os.path.join(status_export_path, 'Z')))
