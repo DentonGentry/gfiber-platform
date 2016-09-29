@@ -676,6 +676,9 @@ def connection_manager_test_generic(c, band):
   # correct; more thorough tests are in bridge_test in interface_test.py.
   acs_autoprov_filepath = os.path.join(c._tmp_dir, 'acs_autoprovisioning')
 
+  # Each Wifi's provisioning ratchet has beeen created, but not started.
+  wvtest.WVFAIL(c.has_status_files([status.P.TRYING_OPEN]))
+
   # Initially, there is ethernet access (via explicit check of ethernet status,
   # rather than the interface status file).
   wvtest.WVPASS(c.acs())
