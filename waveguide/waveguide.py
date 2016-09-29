@@ -16,6 +16,7 @@
 # pylint:disable=invalid-name
 """Wifi channel selection and roaming daemon."""
 
+import collections
 import errno
 import gc
 import json
@@ -204,10 +205,22 @@ def WriteFileIfMissing(filename, content):
 
 
 class WlanManager(object):
-  """A class representing one wifi interface on the local host."""
+  """A class representing one wifi interface on the local host.
+
+  Args:
+    phyname (str): name of the phy, like phy0
+    vdevname (str): name of the vdev, like wlan0 or wlan1_portal
+    high_power (bool): advertise the AP as high power
+    tv_box (bool): advertise the AP as a TV box
+    wifiblaster_controller(:obj:`WifiblasterController`): a shared
+      WifiblasterController to probe associating STAs
+    primary (bool): True if the primary AP on a radio, False otherwise.
+      If False, defers most functionality to the WlanManager for the primary AP
+      and logs associated stations only.
+  """
 
   def __init__(self, phyname, vdevname, high_power, tv_box,
-               wifiblaster_controller):
+               wifiblaster_controller, primary=True):
     self.phyname = phyname
     self.vdevname = vdevname
     self.mac = '\0\0\0\0\0\0'
@@ -234,6 +247,7 @@ class WlanManager(object):
     self.auto_disabled = None
     self.autochan_2g = self.autochan_5g = self.autochan_free = 0
     self.wifiblaster_controller = wifiblaster_controller
+    self.primary = primary
     helpers.Unlink(self.Filename('disabled'))
 
   def Filename(self, suffix):
@@ -253,7 +267,10 @@ class WlanManager(object):
 
   # TODO(apenwarr): when we have async subprocs, add those here
   def GetReadFds(self):
-    return [self.mcast.rsock]
+    if self.primary:
+      return [self.mcast.rsock]
+    else:
+      return []
 
   def NextTimeout(self):
     return self.next_scan_time
@@ -365,8 +382,10 @@ class WlanManager(object):
 
   def UpdateStationInfo(self):
     # These change in the background, not as the result of a scan
-    RunProc(callback=self._SurveyResults,
-            args=['iw', 'dev', self.vdevname, 'survey', 'dump'])
+    if self.primary:
+      RunProc(callback=self._SurveyResults,
+              args=['iw', 'dev', self.vdevname, 'survey', 'dump'])
+
     RunProc(callback=self._AssocResults,
             args=['iw', 'dev', self.vdevname, 'station', 'dump'])
 
@@ -837,15 +856,12 @@ def CreateManagers(managers, high_power, tv_box, wifiblaster_controller):
       raise Exception('failed (%d) getting wifi dev list: %r' %
                       (errcode, stderr))
     phy = dev = devtype = None
-    phy_devs = {}
+    phy_devs = collections.defaultdict(list)
 
     def AddEntry():
       if phy and dev:
         if devtype == 'AP':
-          # We only want one vdev per PHY.  Special-purpose vdevs are
-          # probably the same name with an extension, so use the shortest one.
-          if phy not in phy_devs or len(phy_devs[phy]) > len(dev):
-            phy_devs[phy] = dev
+          phy_devs[phy].append(dev)
         else:
           log.Debug('Skipping dev %r because type %r != AP', dev, devtype)
 
@@ -867,17 +883,30 @@ def CreateManagers(managers, high_power, tv_box, wifiblaster_controller):
       if g:
         devtype = g.group(1)
     AddEntry()
+
     existing_devs = dict((m.vdevname, m) for m in managers)
+    new_devs = set()
+
+    for phy, devs in phy_devs.items():
+      new_devs.update(devs)
+
+      # We only want one full-fledged vdev per PHY.  Special-purpose vdevs are
+      # probably the same name with an extension, so treat the vdev with the
+      # shortest name as the full-fledged one.
+      devs.sort(key=lambda dev: (len(dev), dev))
+      for i, dev in enumerate(devs):
+        primary = i == 0
+        if dev not in existing_devs:
+          log.Debug('Creating wlan manager for (%r, %r)', phy, dev)
+          managers.append(
+              WlanManager(phy, dev, high_power=high_power, tv_box=tv_box,
+                          wifiblaster_controller=wifiblaster_controller,
+                          primary=primary))
+
     for dev, m in existing_devs.iteritems():
-      if dev not in phy_devs.values():
+      if dev not in new_devs:
         log.Log('Forgetting interface %r.', dev)
         managers.remove(m)
-    for phy, dev in phy_devs.iteritems():
-      if dev not in existing_devs:
-        log.Debug('Creating wlan manager for (%r, %r)', phy, dev)
-        managers.append(
-            WlanManager(phy, dev, high_power=high_power, tv_box=tv_box,
-                        wifiblaster_controller=wifiblaster_controller))
 
   RunProc(callback=ParseDevList, args=['iw', 'dev'])
 
@@ -1171,7 +1200,9 @@ def main():
     #   node joins, so it can learn about the other nodes as quickly as
     #   possible.  But if we do that, we need to rate limit it somehow.
     for m in managers:
-      m.DoScans()
+      if m.primary:
+        m.DoScans()
+
     if ((opt.tx_interval and now - last_sent > opt.tx_interval) or (
         opt.autochan_interval and now - last_autochan > opt.autochan_interval)):
       if not opt.fake:
@@ -1182,12 +1213,15 @@ def main():
     if opt.tx_interval and now - last_sent > opt.tx_interval:
       last_sent = now
       for m in managers:
-        m.SendUpdate()
-        log.WriteEventFile('sentpacket')
+        if m.primary:
+          m.SendUpdate()
+          log.WriteEventFile('sentpacket')
     if opt.autochan_interval and now - last_autochan > opt.autochan_interval:
       last_autochan = now
       for m in managers:
-        m.ChooseChannel()
+        if m.primary:
+          m.ChooseChannel()
+
     if opt.print_interval and now - last_print > opt.print_interval:
       last_print = now
       selfmacs = set()
@@ -1249,10 +1283,10 @@ def main():
             else:
               can2G_count += 1
               capability = '2.4'
-            log.Log('Connected station %s supports %s GHz', station, capability)
+            m.Log('Connected station %s supports %s GHz', station, capability)
           species = clientinfo.taxonomize(station)
           if species:
-            log.Log('Connected station %s taxonomy: %s', station, species)
+            m.Log('Connected station %s taxonomy: %s', station, species)
       if log_sta_band_capabilities:
         log.Log('Connected stations: total %d, 5 GHz %d, 2.4 GHz %d',
                 can5G_count + can2G_count, can5G_count, can2G_count)

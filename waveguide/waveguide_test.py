@@ -19,6 +19,13 @@ import waveguide
 from wvtest import wvtest
 
 
+class FakeOptDict(object):
+  """A fake options.OptDict containing default values."""
+
+  def __init__(self):
+    self.status_dir = '/tmp/waveguide'
+
+
 @wvtest.wvtest
 def IwTimeoutTest():
   old_timeout = waveguide.IW_TIMEOUT_SECS
@@ -29,6 +36,29 @@ def IwTimeoutTest():
                     ['iw', 'sleepn', str(waveguide.IW_TIMEOUT_SECS + 1)])
   os.environ['PATH'] = old_path
   waveguide.IW_TIMEOUT_SECS = old_timeout
+
+
+@wvtest.wvtest
+def ParseDevListTest():
+  waveguide.opt = FakeOptDict()
+
+  old_path = os.environ['PATH']
+  os.environ['PATH'] = 'fake:' + os.environ['PATH']
+  managers = []
+  waveguide.CreateManagers(managers, False, False, None)
+
+  got_manager_summary = set((m.phyname, m.vdevname, m.primary)
+                            for m in managers)
+  want_manager_summary = set((
+      ('phy1', 'wlan1', True),
+      ('phy1', 'wlan1_portal', False),
+      ('phy0', 'wlan0', True),
+      ('phy0', 'wlan0_portal', False)))
+
+  wvtest.WVPASSEQ(got_manager_summary, want_manager_summary)
+
+  os.environ['PATH'] = old_path
+
 
 if __name__ == '__main__':
   wvtest.wvtest_main()

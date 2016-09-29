@@ -1,0 +1,30 @@
+phy#1
+        Interface wlan1_portal
+                ifindex 13
+                wdev 0x100000002
+                addr aa:32:ed:07:7f:a8
+                ssid GFiberSetupAutomation
+                type AP
+                channel 153 (5765 MHz), width: 80 MHz, center1: 5775 MHz
+        Interface wlan1
+                ifindex 10
+                wdev 0x100000001
+                addr 88:dc:96:21:13:a1
+                ssid Tangent
+                type AP
+                channel 153 (5765 MHz), width: 80 MHz, center1: 5775 MHz
+phy#0
+        Interface wlan0_portal
+                ifindex 12
+                wdev 0x2
+                addr aa:3b:1c:64:41:93
+                ssid GFiberSetupAutomation
+                type AP
+                channel 1 (2412 MHz), width: 20 MHz, center1: 2412 MHz
+        Interface wlan0
+                ifindex 6
+                wdev 0x1
+                addr f4:f5:e8:81:54:77
+                ssid Tangent
+                type AP
+                channel 1 (2412 MHz), width: 20 MHz, center1: 2412 MHz

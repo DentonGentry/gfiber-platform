@@ -52,6 +52,10 @@ case "$words" in
     [ -r "stationdump.$dev" ] && cat "stationdump.$dev"
     exit 0
     ;;
+  dev)
+    [ -r "devlist" ] && cat "devlist"
+    exit 0
+    ;;
   *)
     exit 1
     ;;
