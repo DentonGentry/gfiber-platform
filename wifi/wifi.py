@@ -19,6 +19,7 @@ import experiment
 import iw
 import options
 import persist
+import qca9880_cal
 import quantenna
 import utils
 
@@ -253,6 +254,9 @@ def set_wifi(opt):
     raise utils.BinWifiException(
         'no wifi interface found for band=%s channel=%s suffix=%s',
         band, channel, opt.interface_suffix)
+
+  # Check for calibration errors on ath10k.
+  qca9880_cal.qca8990_calibration()
 
   found_active_config = False
   for other_interface in (set(iw.find_all_interfaces_from_phy(phy)) -
