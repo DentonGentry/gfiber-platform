@@ -507,7 +507,6 @@ class Wifi(Interface):
         k, v = line.strip().split('=', 1)
         status[k] = v
 
-    logging.debug('%s wpa status is %s', self.name, status)
     return status
 
   def get_wpa_control(self, socket):
@@ -533,6 +532,7 @@ class Wifi(Interface):
       match = self.WPA_EVENT_RE.match(self._wpa_control.recv())
       if match:
         event = match.group('event')
+        logging.debug('%s got wpa_supplicant event %s', self.name, event)
         if event == 'CONNECTED':
           self.wpa_supplicant = True
         elif event in ('DISCONNECTED', 'TERMINATING', 'ASSOC-REJECT',

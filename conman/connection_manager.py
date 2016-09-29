@@ -179,6 +179,7 @@ class WLANConfiguration(object):
     return True
 
   def _post_start_client(self):
+    self.wifi.handle_wpa_events()
     self.wifi.status.connected_to_wlan = True
     logging.info('Started wifi client on %s GHz', self.band)
     self.wifi.attach_wpa_control(self._wpa_control_interface)
@@ -196,6 +197,7 @@ class WLANConfiguration(object):
       # TODO(rofrankel): Make this work for dual-radio devices.
       self.wifi.status.connected_to_wlan = False
       logging.info('Stopped wifi client on %s GHz', self.band)
+      self.wifi.handle_wpa_events()
     except subprocess.CalledProcessError as e:
       logging.error('Failed to stop wifi client: %s', e.output)
 
@@ -233,7 +235,7 @@ class ConnectionManager(object):
                moca_tmp_dir='/tmp/cwmp/monitoring/moca2',
                wpa_control_interface='/var/run/wpa_supplicant',
                run_duration_s=1, interface_update_period=5,
-               wifi_scan_period_s=120, wlan_retry_s=15, associate_wait_s=15,
+               wifi_scan_period_s=120, wlan_retry_s=120, associate_wait_s=15,
                dhcp_wait_s=10, acs_start_wait_s=20, acs_finish_wait_s=120,
                bssid_cycle_length_s=30):
 
@@ -452,6 +454,11 @@ class ConnectionManager(object):
 
     for wifi in self.wifi:
       continue_wifi = False
+      provisioning_failed = self.provisioning_failed(wifi)
+      if self.currently_provisioning(wifi):
+        continue
+
+      provisioning_failed = self.provisioning_failed(wifi)
 
       # Only one wlan_configuration per interface will have access_point ==
       # True.  Try 5 GHz first, then 2.4 GHz.  If both bands are supported by
@@ -489,11 +496,11 @@ class ConnectionManager(object):
       if self._connected_to_wlan(wifi):
         wifi.status.connected_to_wlan = True
         logging.debug('Connected to WLAN on %s, nothing else to do.', wifi.name)
-        break
+        continue
 
       # This interface is not connected to the WLAN, so scan for potential
       # routes to the ACS for provisioning.
-      if ((not self.acs() or self.provisioning_failed(wifi)) and
+      if ((not self.acs() or provisioning_failed) and
           not getattr(wifi, 'last_successful_bss_info', None) and
           time.time() > wifi.last_wifi_scan_time + self._wifi_scan_period_s):
         logging.debug('Performing scan on %s.', wifi.name)
@@ -506,7 +513,7 @@ class ConnectionManager(object):
       # case 5 is unavailable for some reason.
       for band in wifi.bands:
         wlan_configuration = self._wlan_configuration.get(band, None)
-        if wlan_configuration and time.time() > self._try_wlan_after[band]:
+        if wlan_configuration and time.time() >= self._try_wlan_after[band]:
           logging.info('Trying to join WLAN on %s.', wifi.name)
           wlan_configuration.start_client()
           if self._connected_to_wlan(wifi):
@@ -527,7 +534,6 @@ class ConnectionManager(object):
         #    isn't registered to any accounts.
         logging.debug('Unable to join WLAN on %s', wifi.name)
         wifi.status.connected_to_wlan = False
-        provisioning_failed = self.provisioning_failed(wifi)
         if self.acs():
           logging.debug('Connected to ACS')
           if self._try_to_upload_logs:
@@ -811,6 +817,8 @@ class ConnectionManager(object):
       self.start_provisioning(wifi)
       connected = self._try_bssid(wifi, bss_info)
       if connected:
+        wifi.attach_wpa_control(self._wpa_control_interface)
+        wifi.handle_wpa_events()
         wifi.status.connected_to_open = True
         now = time.time()
         wifi.complain_about_acs_at = now + 5
@@ -945,6 +953,14 @@ class ConnectionManager(object):
       logging.info('%s failed to provision: %s', wifi.name,
                    wifi.provisioning_ratchet.current_step().name)
       return True
+
+  def provisioning_completed(self, wifi):
+    return bool(wifi.provisioning_ratchet.done_after)
+
+  def currently_provisioning(self, wifi):
+    return (self._connected_to_open(wifi) and
+            (not (self.provisioning_failed(wifi) or
+                  self.provisioning_completed(wifi))))
 
   def provisioning_since(self, wifi):
     return wifi.provisioning_ratchet.t0

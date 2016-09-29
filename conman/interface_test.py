@@ -43,6 +43,8 @@ class FakeInterfaceMixin(object):
 
   def _connection_check(self, *args, **kwargs):
     result = super(FakeInterfaceMixin, self)._connection_check(*args, **kwargs)
+    if not self.links:
+      return False
     if (self.current_routes().get('default', {}).get('via', None) !=
         self._gateway_ip):
       return False
