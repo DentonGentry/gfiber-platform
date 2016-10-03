@@ -54,7 +54,7 @@ def _get_interface(mode, suffix):
 
 
 def _set_link_state(hif, state):
-  subprocess.check_output(['ip', 'link', 'set', 'dev', hif, state])
+  subprocess.check_output(['if' + state, hif])
 
 
 def _ifplugd_action(hif, state):
