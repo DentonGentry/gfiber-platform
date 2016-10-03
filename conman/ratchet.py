@@ -6,6 +6,15 @@ import logging
 import os
 import time
 
+try:
+  import monotime  # pylint: disable=unused-import,g-import-not-at-top
+except ImportError:
+  pass
+try:
+  _gettime = time.monotonic
+except AttributeError:
+  _gettime = time.time
+
 # This has to be called before another module calls it with a higher log level.
 # pylint: disable=g-import-not-at-top
 logging.basicConfig(level=logging.DEBUG)
@@ -37,8 +46,8 @@ class Condition(object):
       t0:  The timestamp after which to evaluate the condition.
       start_at:  The timestamp from which to compute the timeout.
     """
-    self.t0 = t0 or time.time()
-    self.start_at = start_at or time.time()
+    self.t0 = t0 or _gettime()
+    self.start_at = start_at or _gettime()
     self.done_after = None
     self.done_by = None
     self.timed_out = False
@@ -56,21 +65,21 @@ class Condition(object):
       self.mark_done()
       return True
 
-    now = time.time()
+    now = _gettime()
     if now > self.start_at + self.timeout:
       self.timed_out = True
       self.logger.info('%s timed out after %.2f seconds',
                        self.name, now - self.t0)
       raise TimeoutException()
 
-    self.not_done_before = time.time()
+    self.not_done_before = _gettime()
     return False
 
   def mark_done(self):
     # In general, we don't know when a condition finished, but we know it was
     # *after* whenever it was most recently not done.
     self.done_after = self.not_done_before
-    self.done_by = time.time()
+    self.done_by = _gettime()
     self.logger.info('%s completed after %.2f seconds',
                      self.name, self.done_by - self.t0)
 

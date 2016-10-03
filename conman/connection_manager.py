@@ -26,6 +26,15 @@ import iw
 import ratchet
 import status
 
+try:
+  import monotime  # pylint: disable=unused-import,g-import-not-at-top
+except ImportError:
+  pass
+try:
+  _gettime = time.monotonic
+except AttributeError:
+  _gettime = time.time
+
 
 HOSTNAME = socket.gethostname()
 TMP_HOSTS = '/tmp/hosts'
@@ -446,7 +455,7 @@ class ConnectionManager(object):
        to join the WLAN again.
     7. Sleep for the rest of the duration of _run_duration_s.
     """
-    start_time = time.time()
+    start_time = _gettime()
     self.notifier.process_events()
     while self.notifier.check_events():
       self.notifier.read_events()
@@ -507,7 +516,7 @@ class ConnectionManager(object):
       # routes to the ACS for provisioning.
       if ((not self.acs() or provisioning_failed) and
           not getattr(wifi, 'last_successful_bss_info', None) and
-          time.time() > wifi.last_wifi_scan_time + self._wifi_scan_period_s):
+          _gettime() > wifi.last_wifi_scan_time + self._wifi_scan_period_s):
         logging.debug('Performing scan on %s.', wifi.name)
         self._wifi_scan(wifi)
 
@@ -518,7 +527,7 @@ class ConnectionManager(object):
       # case 5 is unavailable for some reason.
       for band in wifi.bands:
         wlan_configuration = self._wlan_configuration.get(band, None)
-        if wlan_configuration and time.time() >= self._try_wlan_after[band]:
+        if wlan_configuration and _gettime() >= self._try_wlan_after[band]:
           logging.info('Trying to join WLAN on %s.', wifi.name)
           wlan_configuration.start_client()
           if self._connected_to_wlan(wifi):
@@ -529,7 +538,7 @@ class ConnectionManager(object):
           else:
             logging.error('Failed to connect to WLAN on %s.', wifi.name)
             wifi.status.connected_to_wlan = False
-            self._try_wlan_after[band] = time.time() + self._wlan_retry_s
+            self._try_wlan_after[band] = _gettime() + self._wlan_retry_s
       else:
         # If we are aren't on the WLAN, can ping the ACS, and haven't gotten a
         # new WLAN configuration yet, there are two possibilities:
@@ -552,7 +561,7 @@ class ConnectionManager(object):
             if provisioning_failed:
               wifi.last_successful_bss_info = None
 
-          now = time.time()
+          now = _gettime()
           if self._wlan_configuration:
             logging.info('ACS has not updated WLAN configuration; will retry '
                          ' with old config.')
@@ -571,7 +580,7 @@ class ConnectionManager(object):
         # If we didn't manage to join the WLAN, and we don't have an ACS
         # connection or the ACS session failed, we should try another open AP.
         if not self.acs() or provisioning_failed:
-          now = time.time()
+          now = _gettime()
           if self._connected_to_open(wifi) and not provisioning_failed:
             logging.debug('Waiting for provisioning for %ds.',
                           now - self.provisioning_since(wifi))
@@ -579,7 +588,7 @@ class ConnectionManager(object):
             logging.debug('Not connected to ACS or provisioning failed')
             self._try_next_bssid(wifi)
 
-    time.sleep(max(0, self._run_duration_s - (time.time() - start_time)))
+    time.sleep(max(0, self._run_duration_s - (_gettime() - start_time)))
 
   def acs(self):
     result = False
@@ -784,7 +793,7 @@ class ConnectionManager(object):
   def _wifi_scan(self, wifi):
     """Perform a wifi scan and update wifi.cycler."""
     logging.info('Scanning on %s...', wifi.name)
-    wifi.last_wifi_scan_time = time.time()
+    wifi.last_wifi_scan_time = _gettime()
     subprocess.call(self.IFUP + [wifi.name])
     # /bin/wifi takes a --band option but then finds the right interface for it,
     # so it's okay to just pick the first band here.
@@ -825,7 +834,7 @@ class ConnectionManager(object):
         wifi.attach_wpa_control(self._wpa_control_interface)
         wifi.handle_wpa_events()
         wifi.status.connected_to_open = True
-        now = time.time()
+        now = _gettime()
         wifi.complain_about_acs_at = now + 5
         logging.info('Attempting to provision via SSID %s', bss_info.ssid)
         self._try_to_upload_logs = True

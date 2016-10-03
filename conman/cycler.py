@@ -4,6 +4,15 @@
 
 import time
 
+try:
+  import monotime  # pylint: disable=unused-import,g-import-not-at-top
+except ImportError:
+  pass
+try:
+  _gettime = time.monotonic
+except AttributeError:
+  _gettime = time.time
+
 
 class AgingPriorityCycler(object):
   """A modified priority queue.
@@ -40,7 +49,7 @@ class AgingPriorityCycler(object):
     try:
       self._items[item][0] = priority
     except KeyError:
-      self._items[item] = [priority, time.time()]
+      self._items[item] = [priority, _gettime()]
 
   def remove(self, item):
     if item in self._items:
@@ -65,7 +74,7 @@ class AgingPriorityCycler(object):
     if self.empty():
       return
 
-    now = time.time()
+    now = _gettime()
 
     def aged_priority(key_value):
       _, (priority, birth) = key_value
@@ -86,7 +95,7 @@ class AgingPriorityCycler(object):
     Args:
       items:  An iterable of (item, priority).
     """
-    now = time.time()
+    now = _gettime()
     new_items = {}
     for item, priority in items:
       t = now
