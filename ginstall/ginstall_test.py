@@ -276,6 +276,14 @@ class GinstallTest(unittest.TestCase):
     ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline3'
     self.assertEqual(ginstall.GetBootedPartition(), 1)
 
+    # Test prowl and gfactive
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline4'
+    self.assertEqual(ginstall.GetBootedPartition(), None)
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline5'
+    self.assertEqual(ginstall.GetBootedPartition(), 0)
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline6'
+    self.assertEqual(ginstall.GetBootedPartition(), 1)
+
   def testUloaderSigned(self):
     magic_num = 0xDEADBEEF
     timestamp = 0x5627148C

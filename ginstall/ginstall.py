@@ -178,6 +178,12 @@ def GetBootedPartition():
         return 0
       elif partition == 'rootfs1':
         return 1
+    elif arg.startswith('gfactive='):
+      partition = arg.split('=')[1]
+      if partition == 'kernel0':
+        return 0
+      elif partition == 'kernel1':
+        return 1
   return None
 
 
