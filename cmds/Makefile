@@ -53,7 +53,8 @@ LIB_TARGETS=\
 	stdoutline.so
 HOST_TEST_TARGETS=\
 	host-netusage_test \
-	host-utils_test
+	host-utils_test \
+	host-isoping_test
 SCRIPT_TARGETS=\
 	is-secure-boot
 ARCH_TARGETS=\
@@ -148,6 +149,9 @@ host-%.o: %.c
 host-%.o: %.cc
 	$(HOST_CXX) $(CXXFLAGS) $(INCS) $(HOST_INCS) -DCOMPILE_FOR_HOST=1 -o $@ -c $<
 
+host-%.o: ../wvtest/cpp/%.cc
+	$(HOST_CXX) $(CXXFLAGS) -D WVTEST_CONFIGURED -o $@ -c $<
+
 %: %.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS) -lc
 
@@ -171,8 +175,12 @@ host-%.pb.cc: %.proto
 	echo "Building .pb.cc"
 	$(HOST_PROTOC) --cpp_out=. $<
 
-
-host-isoping isoping: LIBS+=$(RT) -lm
+host-isoping isoping: LIBS+=$(RT) -lm -lstdc++
+host-isoping: host-isoping.o host-isoping_main.o
+host-isoping_test.o: CXXFLAGS += -D WVTEST_CONFIGURED -I ../wvtest/cpp
+host-isoping_test.o: isoping.cc
+host-isoping_test: LIBS+=$(HOST_LIBS) -lm -lstdc++
+host-isoping_test: host-isoping_test.o host-isoping.o host-wvtestmain.o host-wvtest.o
 host-isostream isostream: LIBS+=$(RT)
 host-diskbench diskbench: LIBS+=-lpthread $(RT)
 host-dnsck: LIBS+=$(HOST_LIBS) -lcares $(RT)
@@ -187,7 +195,7 @@ host-realtime realtime: LIBS+=-lpthread
 host-alivemonitor alivemonitor: LIBS+=$(RT)
 host-buttonmon buttonmon: LIBS+=$(RT)
 alivemonitor: alivemonitor.o
-isoping: isoping.o
+isoping: isoping.o isoping_main.o
 isostream: isostream.o
 diskbench: diskbench.o
 dnsck: LIBS+=-lcares $(RT)
