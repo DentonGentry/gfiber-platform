@@ -62,10 +62,13 @@ SGDISK = 'sgdisk'
 
 F = {
     'ETCPLATFORM': '/etc/platform',
+    'ETCOS': '/etc/os',
     'ETCVERSION': '/etc/version',
     'DEV': '/dev',
     'MMCBLK0': '/dev/mmcblk0',
+    'MMCBLK0-ANDROID': '/dev/block/mmcblk0',
     'MTD_PREFIX': '/dev/mtd',
+    'MTD_PREFIX-ANDROID': '/dev/mtd/mtd',
     'PROC_CMDLINE': '/proc/cmdline',
     'PROC_MTD': '/proc/mtd',
     'SECUREBOOT': '/tmp/gpio/ledcontrol/secure_boot',
@@ -74,12 +77,22 @@ F = {
     'SYSBLOCK': '/sys/block',
     'MMCBLK0BOOT0': '/dev/mmcblk0boot0',
     'MMCBLK0BOOT1': '/dev/mmcblk0boot1',
+    'MMCBLK0BOOT0-ANDROID': '/dev/block/mmcblk0boot0',
+    'MMCBLK0BOOT1-ANDROID': '/dev/block/mmcblk0boot1',
     'MEMINFO': '/proc/meminfo',
 }
+
+ANDROID_BSU_PARTITION = 'bsu'
+ANDROID_BOOT_PARTITIONS = ['boot_a', 'boot_b']
+ANDROID_SYSTEM_PARTITIONS = ['system_a', 'system_b']
+ANDROID_IMAGES = ['boot.img', 'system.img.raw']
+ANDROID_IMG_SUFFIX = ['a', 'b']
 
 MMC_RO_LOCK = {
     'MMCBLK0BOOT0': '/sys/block/mmcblk0boot0/force_ro',
     'MMCBLK0BOOT1': '/sys/block/mmcblk0boot1/force_ro',
+    'MMCBLK0BOOT0-ANDROID': '/sys/block/mmcblk0boot0/force_ro',
+    'MMCBLK0BOOT1-ANDROID': '/sys/block/mmcblk0boot1/force_ro',
 }
 
 # Verbosity of output
@@ -131,6 +144,26 @@ def GetPlatform():
   return open(F['ETCPLATFORM']).read().strip()
 
 
+def GetOs():
+  # not all platforms provide ETCOS, default to 'fiberos' in that case
+  try:
+    return open(F['ETCOS']).read().strip()
+  except IOError:
+    return 'fiberos'
+
+
+def GetMtdPrefix():
+  if GetOs() == 'android':
+    return F['MTD_PREFIX-ANDROID']
+  return F['MTD_PREFIX']
+
+
+def GetMmcblk0Prefix():
+  if GetOs() == 'android':
+    return F['MMCBLK0-ANDROID']
+  return F['MMCBLK0']
+
+
 def GetVersion():
   return open(F['ETCVERSION']).read().strip()
 
@@ -154,17 +187,47 @@ def GetInternalHarddisk():
   return None
 
 
-def SetBootPartition(partition):
-  VerbosePrint('Setting boot partition to kernel%d\n', partition)
-  cmd = [HNVRAM, '-q', '-w', 'ACTIVATED_KERNEL_NAME=kernel%d' % partition]
-  return subprocess.call(cmd)
+def SetBootPartition(target_os, partition):
+  """Set active boot partition for the given OS and switch the OS if needed.
+
+  Args:
+    target_os: 'fiberos' or 'android'
+    partition: 0 or 1
+
+  Returns:
+    0 if successful, else an error code.
+  """
+  if target_os == 'android':
+    param = 'ANDROID_ACTIVE_PARTITION=%s' % ANDROID_IMG_SUFFIX[partition]
+  else:
+    param = 'ACTIVATED_KERNEL_NAME=kernel%d' % partition
+
+  VerbosePrint('Setting boot partition: %s\n', param)
+  try:
+    ret = subprocess.call([HNVRAM, '-q', '-w', param])
+  except OSError:
+    ret = 127
+  if ret:
+    VerbosePrint('Failed setting boot partition!\n')
+    return ret
+
+  if target_os != GetOs():
+    VerbosePrint('Switch OS to %s\n', target_os)
+    try:
+      ret = subprocess.call([HNVRAM, '-q', '-w', 'BOOT_TARGET=%s' % target_os])
+    except OSError:
+      ret = 127
+    if ret:
+      VerbosePrint('Failed switching OS!\n')
+
+  return ret
 
 
 def GetBootedPartition():
   """Get the role of partition where the running system is booted from.
 
   Returns:
-    0 or 1 for rootfs0 and rootfs1, or None if not booted from flash.
+    0 or 1, or None if not booted from flash.
   """
   try:
     with open(F['PROC_CMDLINE']) as f:
@@ -184,6 +247,41 @@ def GetBootedPartition():
         return 0
       elif partition == 'kernel1':
         return 1
+    elif arg.startswith('androidboot.gfiber_system_img='):
+      partition = arg.split('=')[1]
+      if partition == ANDROID_SYSTEM_PARTITIONS[0]:
+        return 0
+      elif partition == ANDROID_SYSTEM_PARTITIONS[1]:
+        return 1
+  return None
+
+
+def GetActivePartitionFromHNVRAM(target_os):
+  """Get the active partion for the given OS as set in HNVRAM.
+
+  Args:
+    target_os: 'fiberos' or 'android'
+
+  Returns:
+    0 or 1 if the active partition could be determined, None if not.
+  """
+  if target_os == 'fiberos':
+    cmd = [HNVRAM, '-q', '-r', 'ACTIVATED_KERNEL_NAME']
+  elif target_os == 'android':
+    cmd = [HNVRAM, '-q', '-r', 'ANDROID_ACTIVE_PARTITION']
+  else:
+    return None
+
+  try:
+    partition_name = subprocess.check_output(cmd).strip()
+  except subprocess.CalledProcessError:
+    return None
+
+  if partition_name in ['0', 'a']:
+    return 0
+  elif partition_name in ['1', 'b']:
+    return 1
+
   return None
 
 
@@ -219,12 +317,12 @@ def GetMtdDevForNameOrNone(partname):
     if len(fields) >= 4 and fields[3] == quotedname:
       assert fields[0].startswith('mtd')
       assert fields[0].endswith(':')
-      return '%s%d' % (F['MTD_PREFIX'], int(fields[0][3:-1]))
+      return '%s%d' % (GetMtdPrefix(), int(fields[0][3:-1]))
   return None  # no match
 
 
 def IsMtdNand(mtddevname):
-  mtddevname = re.sub(r'^' + F['MTD_PREFIX'], 'mtd', mtddevname)
+  mtddevname = re.sub(r'^' + GetMtdPrefix(), 'mtd', mtddevname)
   path = F['SYSCLASSMTD'] + '/{0}/type'.format(mtddevname)
   data = open(path).read()
   return 'nand' in data
@@ -275,7 +373,8 @@ def GetGptPartitionForName(blk_dev, name):
   Returns:
     Device file of named partition
   """
-  cmd = [SGDISK, '-p', blk_dev]
+  # Note: Android doesn't support '-p' option, need to use '--print'
+  cmd = [SGDISK, '--print', blk_dev]
   devnull = open('/dev/null', 'w')
   try:
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=devnull)
@@ -641,6 +740,24 @@ def CheckMultiLoader(manifest):
   return True
 
 
+def GetOsFromManifest(manifest):
+  """Determine which OS (FiberOS, Android) the image is for from the manifest.
+
+  Args:
+    manifest: the manifest from an image file
+
+  Returns:
+    'android' if any Android specific image name is found in the manifest,
+    otherwise it returns 'fiberos' (default).
+
+  """
+  for key in manifest.keys():
+    if key.endswith('-sha1'):
+      if key[:-5] in ANDROID_IMAGES:
+        return 'android'
+  return 'fiberos'
+
+
 class ProgressBar(object):
   """Progress bar that prints one dot per 1MB."""
 
@@ -695,26 +812,37 @@ def LogCallerInfo():
     Log('W: psback/logos unavailable for tracing.\n')
 
 
-def GetPartition(opt):
-  """Return the partiton to install to, given the command line options."""
-  if opt.partition == 'other':
-    boot = GetBootedPartition()
+def GetPartition(partition_name, target_os):
+  """Return the partition to install to.
+
+  Args:
+    partition_name: partition name from command-line
+                    {'primary', 'secondary', 'other'}
+    target_os: 'fiberos' or 'android'
+
+  Returns:
+    0 or 1
+
+  Raises:
+    Fatal: if no partition could be determined
+  """
+  if partition_name == 'other':
+    if target_os == GetOs():
+      boot = GetBootedPartition()
+    else:
+      boot = GetActivePartitionFromHNVRAM(target_os)
     assert boot in [None, 0, 1]
     if boot is None:
       # Policy decision: if we're booted from NFS, install to secondary
       return 1
     else:
       return boot ^ 1
-  elif opt.partition in ['primary', 0]:
+  elif partition_name in ['primary', 0]:
     return 0
-  elif opt.partition in ['secondary', 1]:
+  elif partition_name in ['secondary', 1]:
     return 1
-  elif opt.partition:
-    raise Fatal('--partition must be one of: primary, secondary, other')
-  elif opt.tar:
-    raise Fatal('A --partition option must be provided with --tar')
   else:
-    return None
+    raise Fatal('--partition must be one of: primary, secondary, other')
 
 
 def InstallKernel(kern, partition):
@@ -729,7 +857,7 @@ def InstallKernel(kern, partition):
 
   partition_name = 'kernel%d' % partition
   mtd = GetMtdDevForNameOrNone(partition_name)
-  gpt = GetGptPartitionForName(F['MMCBLK0'], partition_name)
+  gpt = GetGptPartitionForName(GetMmcblk0Prefix(), partition_name)
   if mtd:
     VerbosePrint('Writing kernel to %r\n' % mtd)
     InstallToMtd(kern, mtd)
@@ -759,7 +887,7 @@ def InstallRootfs(rootfs, partition):
       if gpt:
         mtd = None
   else:
-    gpt = GetGptPartitionForName(F['MMCBLK0'], partition_name)
+    gpt = GetGptPartitionForName(GetMmcblk0Prefix(), partition_name)
   if mtd:
     if GetPlatform().startswith('GFMN'):
       VerbosePrint('Writing rootfs to %r\n' % mtd)
@@ -773,6 +901,72 @@ def InstallRootfs(rootfs, partition):
     InstallToFile(rootfs, gpt)
   else:
     raise Fatal('no partition named %r is available' % partition_name)
+
+
+def InstallAndroidBoot(boot, partition):
+  """Install an Android boot.img file.
+
+  Args:
+    boot: a FileWithSecureHash object.
+    partition: the partition to install to, 0 or 1.
+
+  Raises:
+    Fatal: if install fails
+  """
+
+  partition_name = ANDROID_BOOT_PARTITIONS[partition]
+  gpt = GetGptPartitionForName(GetMmcblk0Prefix(), partition_name)
+  if gpt:
+    VerbosePrint('Writing boot.img to %r\n' % gpt)
+    InstallToFile(boot, gpt)
+  else:
+    raise Fatal('no partition named %r is available' % partition_name)
+
+
+def InstallAndroidSystem(system, partition):
+  """Install an Android system.img file.
+
+  Args:
+    system: a FileWithSecureHash object.
+    partition: the partition to install to, 0 or 1.
+
+  Raises:
+    Fatal: if install fails
+  """
+
+  partition_name = ANDROID_SYSTEM_PARTITIONS[partition]
+  gpt = GetGptPartitionForName(GetMmcblk0Prefix(), partition_name)
+  if gpt:
+    VerbosePrint('Writing system.img.raw to %r\n' % gpt)
+    InstallToFile(system, gpt)
+  else:
+    raise Fatal('no partition named %r is available' % partition_name)
+
+
+def InstallAndroidBsu(bsu):
+  """Install an Android BSU file.
+
+  Args:
+    bsu: a FileWithSecureHash object.
+
+  Raises:
+    Fatal: if install fails
+  """
+
+  is_bsu_current = False
+  gpt = GetGptPartitionForName(GetMmcblk0Prefix(), ANDROID_BSU_PARTITION)
+  if gpt:
+    with open(gpt, 'rb') as gptfile:
+      VerbosePrint('Checking if android_bsu is up to date.\n')
+      is_bsu_current = IsIdentical('android_bsu', bsu.filelike, gptfile)
+    if is_bsu_current:
+      VerbosePrint('android_bsu is the latest.\n')
+    else:
+      bsu.filelike.seek(0, os.SEEK_SET)
+      VerbosePrint('Writing android_bsu.elf to %r\n' % gpt)
+      InstallToFile(bsu, gpt)
+  else:
+    raise Fatal('no partition named %r is available' % ANDROID_BSU_PARTITION)
 
 
 def UnlockMMC(mmc_name):
@@ -805,7 +999,11 @@ def InstallLoader(loader):
       WriteLoaderToMtd(loader, loader_start, mtd, 'loader')
       installed = True
   # For hd254 we also write the loader to the emmc boot partitions.
-  for emmc_name in ['MMCBLK0BOOT0', 'MMCBLK0BOOT1']:
+  if GetOs() == 'android':
+    emmc_list = ['MMCBLK0BOOT0-ANDROID', 'MMCBLK0BOOT1-ANDROID']
+  else:
+    emmc_list = ['MMCBLK0BOOT0', 'MMCBLK0BOOT1']
+  for emmc_name in emmc_list:
     emmc_dev = F[emmc_name]
     if os.path.exists(emmc_dev):
       UnlockMMC(emmc_name)
@@ -843,19 +1041,23 @@ def InstallUloader(uloader):
     WriteLoaderToMtd(uloader, uloader_start, mtd, 'uloader')
 
 
-def InstallImage(f, partition, skiploader=False, skiploadersig=False):
+def InstallImage(opt):
   """Install an image.
 
   Args:
-    f: a file-like objected expected to provide a stream in tar format
-    partition: integer 0 or 1 of the partition to install into
-    skiploader: skip installation of a bootloader
-    skiploadersig: skip checking of bootloader signature
+    opt: command-line options
 
+  Returns:
+    0 for success, else an error code
   Raises:
     Fatal: if install fails
   """
 
+  if not opt.partition:
+    # default to the safe option if not given
+    opt.partition = 'other'
+
+  f = OpenPathOrUrl(opt.tar)
   tar = tarfile.open(mode='r|*', fileobj=f)
   first = tar.next()
 
@@ -879,13 +1081,16 @@ def InstallImage(f, partition, skiploader=False, skiploadersig=False):
   CheckMinimumVersion(manifest)
   CheckMisc(manifest)
 
+  target_os = GetOsFromManifest(manifest)
+  partition = GetPartition(opt.partition, target_os)
+
   loader_bin_list = ['loader.img', 'loader.bin']
   loader_sig_list = ['loader.sig']
   if CheckMultiLoader(manifest):
     loader_bin_list = ['loader.%s.bin' % GetPlatform().lower()]
     loader_sig_list = ['loader.%s.sig' % GetPlatform().lower()]
 
-  uloader = loader = None
+  uloader = loader = android_bsu = None
   uloadersig = FileWithSecureHash(StringIO.StringIO(''), 'badsig')
   loadersig = FileWithSecureHash(StringIO.StringIO(''), 'badsig')
 
@@ -895,11 +1100,29 @@ def InstallImage(f, partition, skiploader=False, skiploadersig=False):
       # already processed
       pass
     elif ti.name in ['kernel.img', 'vmlinuz', 'vmlinux', 'uImage']:
-      fh = FileWithSecureHash(tar.extractfile(ti), secure_hash)
-      InstallKernel(fh, partition)
+      if target_os != 'fiberos':
+        VerbosePrint('Cannot install kernel img in Android!\n')
+      else:
+        fh = FileWithSecureHash(tar.extractfile(ti), secure_hash)
+        InstallKernel(fh, partition)
     elif ti.name.startswith('rootfs.'):
-      fh = FileWithSecureHash(tar.extractfile(ti), secure_hash)
-      InstallRootfs(fh, partition)
+      if target_os != 'fiberos':
+        VerbosePrint('Cannot install rootfs img in Android!\n')
+      else:
+        fh = FileWithSecureHash(tar.extractfile(ti), secure_hash)
+        InstallRootfs(fh, partition)
+    elif ti.name == 'boot.img':
+      if target_os != 'android':
+        VerbosePrint('Cannot install boot img in FiberOS!\n')
+      else:
+        fh = FileWithSecureHash(tar.extractfile(ti), secure_hash)
+        InstallAndroidBoot(fh, partition)
+    elif ti.name == 'system.img.raw':
+      if target_os != 'android':
+        VerbosePrint('Cannot install system img in FiberOS!\n')
+      else:
+        fh = FileWithSecureHash(tar.extractfile(ti), secure_hash)
+        InstallAndroidSystem(fh, partition)
     elif ti.name in loader_bin_list:
       buf = StringIO.StringIO(tar.extractfile(ti).read())
       loader = FileWithSecureHash(buf, secure_hash)
@@ -912,33 +1135,48 @@ def InstallImage(f, partition, skiploader=False, skiploadersig=False):
     elif ti.name == 'uloader.sig':
       buf = StringIO.StringIO(tar.extractfile(ti).read())
       uloadersig = FileWithSecureHash(buf, secure_hash)
+    elif ti.name == 'android_bsu.elf':
+      buf = StringIO.StringIO(tar.extractfile(ti).read())
+      android_bsu = FileWithSecureHash(buf, secure_hash)
     else:
       print 'Unknown install file %s' % ti.name
 
-  if skiploadersig:
+  if opt.skiploadersig:
     loadersig = uloadersig = None
 
   key = GetKey()
-  if loadersig and loader and not skiploader:
+  if loadersig and loader and not opt.skiploader:
     if not Verify(loader.filelike, loadersig.filelike, key):
       raise Fatal('Loader signing check failed.')
     loader.filelike.seek(0, os.SEEK_SET)
-  if uloadersig and uloader and not skiploader:
+  if uloadersig and uloader and not opt.skiploader:
     if not Verify(uloader.filelike, uloadersig.filelike, key):
       raise Fatal('Uloader signing check failed.')
     uloader.filelike.seek(0, os.SEEK_SET)
 
   if loader:
-    if skiploader:
+    if opt.skiploader:
       VerbosePrint('Skipping loader installation.\n')
     else:
       InstallLoader(loader)
 
   if uloader:
-    if skiploader:
+    if opt.skiploader:
       VerbosePrint('Skipping uloader installation.\n')
     else:
       InstallUloader(uloader)
+
+  if android_bsu:
+    if opt.skiploader:
+      VerbosePrint('Skipping android_bsu installation.\n')
+    else:
+      InstallAndroidBsu(android_bsu)
+
+  if SetBootPartition(target_os, partition) != 0:
+    VerbosePrint('Unable to set boot partition\n')
+    return HNVRAM_ERR
+
+  return 0
 
 
 def OpenPathOrUrl(path):
@@ -968,6 +1206,16 @@ def main():
   if not (opt.drm or opt.tar or opt.partition):
     o.fatal('Expected at least one of --partition, --tar, or --drm')
 
+  # handle 'ginstall -p <partition>' separately
+  if not opt.drm and not opt.tar:
+    partition = GetPartition(opt, GetOs())
+    if SetBootPartition(GetOs(), partition) != 0:
+      VerbosePrint('Unable to set boot partition\n')
+      return HNVRAM_ERR
+    return 0
+
+  # from here: ginstall [-t <tarfile>] [--drm <blob>] [options...]
+
   quiet = opt.quiet
 
   if opt.basepath:
@@ -977,21 +1225,11 @@ def main():
   if opt.drm:
     WriteDrm(opt)
 
-  if opt.tar and not opt.partition:
-    # default to the safe option if not given
-    opt.partition = 'other'
-
-  partition = GetPartition(opt)
+  ret = 0
   if opt.tar:
-    f = OpenPathOrUrl(opt.tar)
-    InstallImage(f, partition, skiploader=opt.skiploader,
-                 skiploadersig=opt.skiploadersig)
+    ret = InstallImage(opt)
 
-  if partition is not None and SetBootPartition(partition) != 0:
-    VerbosePrint('Unable to set boot partition\n')
-    return HNVRAM_ERR
-
-  return 0
+  return ret
 
 
 def BroadcomDeviceIsSecure():

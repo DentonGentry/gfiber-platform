@@ -1,0 +1,1 @@
+mem=1024m@0m mem=1024m@2048m bmem=336m@672m bmem=256m@2048m brcm_cma=768m@2304m ramoops.mem_address=0x3F800000 ramoops.mem_size=0x800000 ramoops.console_size=0x400000 pmem=8m@1016m androidboot.selinux=permissive androidboot.hardware=gfhd254 androidboot.gfiber_system_img=system_a bootreason=main_chip_input
