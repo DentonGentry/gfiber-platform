@@ -14,7 +14,7 @@
 #include "hmx_upgrade_nvram.h"
 
 // Max length of data in an NVRAM field
-#define NVRAM_MAX_DATA  4096
+#define NVRAM_MAX_DATA  (64*1024)
 
 // Number of bytes of GPN to be represented as hex data
 #define GPN_HEX_BYTES 4
@@ -228,7 +228,8 @@ unsigned char* parse_string(const char* input,
                             unsigned char* output, unsigned int* outlen) {
   int len = strlen(input);
   if (len > *outlen) {
-    len = *outlen;
+    // Data is too large, don't permit a partial write.
+    return NULL;
   }
 
   strncpy((char*)output, input, len);
@@ -380,6 +381,12 @@ int write_nvram(char* optarg) {
     format_type = field->format;
   } else {
     format_type = HNVRAM_STRING;
+  }
+
+  if (strlen(value) > NVRAM_MAX_DATA) {
+    fprintf(stderr, "Value length %d exceeds maximum data size of %d\n",
+      strlen(value), NVRAM_MAX_DATA);
+    return -2;
   }
 
   unsigned char nvram_value[NVRAM_MAX_DATA];
