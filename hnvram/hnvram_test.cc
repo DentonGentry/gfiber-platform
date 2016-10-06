@@ -85,7 +85,7 @@ DRV_Error HMX_NVRAM_SetField(NVRAM_FIELD_T field, unsigned int offset,
   return HMX_NVRAM_SetField_Return;
 }
 
-DRV_Error HMX_NVRAM_Init(void) {
+DRV_Error HMX_NVRAM_Init(const char* target_mtd) {
   return DRV_OK;
 }
 
