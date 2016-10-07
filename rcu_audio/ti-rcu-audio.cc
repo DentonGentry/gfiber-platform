@@ -44,7 +44,11 @@ int main(int argc, char **argv)
   uint8 prev = 0;
   int msgs = 0, missed = 0, errors = 0;
 
-  is = get_socket_or_die();
+  if ((is = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
+    perror("socket(AF_UNIX)");
+    exit(1);
+  }
+
   memset(&sun, 0, sizeof(sun));
   sun.sun_family = AF_UNIX;
   snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", TI_AUDIO_PATH);
