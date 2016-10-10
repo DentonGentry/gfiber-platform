@@ -33,13 +33,14 @@ DRV_Error DRV_FLASH_Write(int offset, char* data, int nDataSize) {
 }
 
 void usage(const char* progname) {
-  printf("Usage: %s [-d | [-q|-b] [-r|-k] VARNAME] [ [-n] -w VARNAME=value]\n", progname);
+  printf("Usage: %s [-d | [-q|-b] [-r|-k] VARNAME] [ [-n [-p [RO|RW]]] -w VARNAME=value]\n", progname);
   printf("\t-d : dump all NVRAM variables\n");
   printf("\t-r VARNAME : read VARNAME from NVRAM\n");
   printf("\t-q : quiet mode, suppress the variable name and equal sign\n");
   printf("\t-b : read VARNAME from NVRAM in raw binary format, e.g. dumping a binary key\n");
   printf("\t-w VARNAME=value : write value to VARNAME in NVRAM.\n");
   printf("\t-n : toggles whether -w can create new variables. Default is off\n");
+  printf("\t-p [RW|RO] : toggles what partition new writes (-n) used. Default is RW\n");
   printf("\t-k VARNAME : delete existing key/value pair from NVRAM.\n");
 }
 
@@ -190,7 +191,14 @@ int read_raw_nvram(const char* name, char* output, int outlen) {
   return (int)ret;
 }
 
-char* read_nvram(const char* name, char* output, int outlen, int quiet) {
+// name - name of key to be read
+// output - buffer for value of key
+// outlen - length of buffer
+// quiet - whether buffer is KEY=VAL or VAL
+// part_used - in the case of dynamically added variables (is_field = false),
+//     returns what partition we found the key in
+char* read_nvram(const char* name, char* output, int outlen, int quiet,
+                 HMX_NVRAM_PARTITION_E* part_used) {
   const hnvram_field_t* field = get_nvram_field(name);
   int is_field = (field != NULL);
 
@@ -205,10 +213,18 @@ char* read_nvram(const char* name, char* output, int outlen, int quiet) {
     }
   } else {
     format_type = HNVRAM_STRING;
-    DRV_Error e = HMX_NVRAM_Read(HMX_NVRAM_PARTITION_RW, (unsigned char*)name,
-                                 0, data, sizeof(data), &data_len);
+
+    // Try both partitions
+    *part_used = HMX_NVRAM_PARTITION_RW;
+    DRV_Error e = HMX_NVRAM_Read(*part_used, (unsigned char*)name, 0, data,
+                                 sizeof(data), &data_len);
     if (e != DRV_OK) {
-      return NULL;
+      *part_used = HMX_NVRAM_PARTITION_RO;
+      e = HMX_NVRAM_Read(*part_used, (unsigned char*)name, 0, data,
+                         sizeof(data), &data_len);
+      if (e != DRV_OK) {
+        return NULL;
+      }
     }
   }
   char formatbuf[NVRAM_MAX_DATA * 2];
@@ -354,25 +370,24 @@ unsigned char* parse_nvram(hnvram_format_e format, const char* input,
 }
 
 DRV_Error clear_nvram(char* optarg) {
-  DRV_Error e = HMX_NVRAM_Remove(HMX_NVRAM_PARTITION_RW,
-                                 (unsigned char*)optarg);
-  if (e == DRV_ERR) {
-    // Avoid throwing error message if variable already cleared
+  DRV_Error err1 = HMX_NVRAM_Remove(HMX_NVRAM_PARTITION_RW,
+                                    (unsigned char*)optarg);
+  DRV_Error err2 = HMX_NVRAM_Remove(HMX_NVRAM_PARTITION_RO,
+                                    (unsigned char*)optarg);
+
+  // Avoid throwing error message if variable already cleared
+  if ((err1 == DRV_ERR || err1 == DRV_OK) &&
+      (err2 == DRV_ERR || err2 == DRV_OK)) {
     return DRV_OK;
   }
-  return e;
+
+  fprintf(stderr, "Error while deleting key %s. RW: %d RO: %d.\n", optarg,
+          err1, err2);
+  return DRV_ERR;
 }
 
-int write_nvram(char* optarg) {
-  char* equal = strchr(optarg, '=');
-  if (equal == NULL) {
-    return -1;
-  }
 
-  char* name = optarg;
-  *equal = '\0';
-  char* value = ++equal;
-
+int write_nvram(char* name, char* value, HMX_NVRAM_PARTITION_E desired_part) {
   const hnvram_field_t* field = get_nvram_field(name);
   int is_field = (field != NULL);
 
@@ -397,22 +412,61 @@ int write_nvram(char* optarg) {
 
   if (!is_field) {
     char tmp[NVRAM_MAX_DATA] = {0};
-    int key_exists = (read_nvram(name, tmp, NVRAM_MAX_DATA, 1) != NULL);
-    if (!can_add_flag && !key_exists) {
-      fprintf(stderr, "Key not found in NVRAM. Add -n to allow creation %s\n",
-              name);
-      return -3;
+    HMX_NVRAM_PARTITION_E part_used;
+    if (read_nvram(name, tmp, NVRAM_MAX_DATA, 1, &part_used) == NULL) {
+      return -3; // Write failed: Variable not found
     }
-    DRV_Error er = HMX_NVRAM_Write(HMX_NVRAM_PARTITION_RW, (unsigned char*)name,
-                                   0, nvram_value, nvram_len);
-    if (er != DRV_OK) {
+
+    if (desired_part != HMX_NVRAM_PARTITION_UNSPECIFIED &&
+        desired_part != part_used) {
+      fprintf(stderr, "Variable already exists in other partition: %s\n", name);
       return -4;
     }
-  } else {
-    if (HMX_NVRAM_SetField(field->nvram_type, 0,
-                           nvram_value, nvram_len) != DRV_OK) {
+
+    DRV_Error er = HMX_NVRAM_Write(part_used, (unsigned char*)name, 0,
+                                   nvram_value, nvram_len);
+    if (er != DRV_OK) {
       return -5;
     }
+  } else {
+    if (desired_part != HMX_NVRAM_PARTITION_UNSPECIFIED) {
+      fprintf(stderr, "Partition was specified (%d) on a field variable: %s\n",
+              desired_part, name);
+      return -6;
+    }
+    if (HMX_NVRAM_SetField(field->nvram_type, 0,
+                           nvram_value, nvram_len) != DRV_OK) {
+      return -7;
+    }
+  }
+
+  return 0;
+}
+
+// Adds new variable to HNVRAM in desired_partition as STRING
+int write_nvram_new(char* name, char* value,
+                    HMX_NVRAM_PARTITION_E desired_part) {
+  char tmp[NVRAM_MAX_DATA] = {0};
+  unsigned char nvram_value[NVRAM_MAX_DATA];
+  unsigned int nvram_len = sizeof(nvram_value);
+  if (parse_nvram(HNVRAM_STRING, value, nvram_value, &nvram_len) == NULL) {
+    return -1;
+  }
+
+  if (!can_add_flag) {
+    fprintf(stderr, "Key not found in NVRAM. Add -n to allow creation %s\n",
+            name);
+    return -2;
+  }
+
+  if (desired_part == HMX_NVRAM_PARTITION_UNSPECIFIED) {
+    desired_part = HMX_NVRAM_PARTITION_RW;
+  }
+
+  DRV_Error er = HMX_NVRAM_Write(desired_part, (unsigned char*)name, 0,
+                                 nvram_value, nvram_len);
+  if (er != DRV_OK) {
+    return -3;
   }
 
   return 0;
@@ -432,9 +486,11 @@ int hnvram_main(int argc, char* const argv[]) {
   int op_cnt = 0;  // operation
   int q_flag = 0;  // quiet: don't output name of variable.
   int b_flag = 0;  // binary: output the binary format
+  // Desired partition for new writes.
+  HMX_NVRAM_PARTITION_E desired_part = HMX_NVRAM_PARTITION_UNSPECIFIED;
   char output[NVRAM_MAX_DATA];
   int c;
-  while ((c = getopt(argc, argv, "dbqrnw:k:")) != -1) {
+  while ((c = getopt(argc, argv, "dbqrnp:w:k:")) != -1) {
     switch(c) {
       case 'b':
         b_flag = 1;
@@ -445,10 +501,35 @@ int hnvram_main(int argc, char* const argv[]) {
       case 'n':
         can_add_flag = 1;
         break;
+      case 'p':
+        if (strcmp(optarg, "RO") == 0) {
+          desired_part = HMX_NVRAM_PARTITION_RO;
+        } else if (strcmp(optarg, "RW") == 0) {
+          desired_part = HMX_NVRAM_PARTITION_RW;
+        } else {
+          fprintf(stderr, "Invalid partition: %s. Use RW or RO\n", optarg);
+          exit(1);
+        }
+        break;
       case 'w':
         {
           char* duparg = strdup(optarg);
-          if (write_nvram(duparg) != 0) {
+          char* equal = strchr(duparg, '=');
+          if (equal == NULL) {
+            return -1;
+          }
+
+          char* name = duparg;
+          *equal = '\0';
+          char* value = equal + 1;
+
+          int ret = write_nvram(name, value, desired_part);
+          if (ret == -3 && can_add_flag) {
+            // key not found, and we are authorized to add a new one
+            ret = write_nvram_new(name, value, desired_part);
+          }
+
+          if (ret != 0) {
             fprintf(stderr, "Unable to write %s\n", duparg);
             free(duparg);
             exit(1);
@@ -510,7 +591,8 @@ int hnvram_main(int argc, char* const argv[]) {
           }
           fwrite(output, 1, len, stdout);
         } else {
-          if (read_nvram(argv[optind], output, sizeof(output), q_flag) == NULL) {
+          HMX_NVRAM_PARTITION_E part_used;
+          if (read_nvram(argv[optind], output, sizeof(output), q_flag, &part_used) == NULL) {
             fprintf(stderr, "Unable to read %s\n", argv[optind]);
             exit(1);
           }

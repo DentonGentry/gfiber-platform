@@ -8,16 +8,31 @@
 
 int libupgrade_verbose = 1;
 
-char* HMX_NVRAM_Read_Data = NULL;
+char* HMX_NVRAM_Read_Data_RO = NULL;
+char* HMX_NVRAM_Read_Data_RW = NULL;
+
+char* get_Read_Data(HMX_NVRAM_PARTITION_E partition) {
+  if (partition == HMX_NVRAM_PARTITION_RO) {
+    return HMX_NVRAM_Read_Data_RO;
+  } else {
+    return HMX_NVRAM_Read_Data_RW;
+  }
+}
+
 DRV_Error HMX_NVRAM_Read(HMX_NVRAM_PARTITION_E partition,
                          unsigned char* pName, unsigned int offset,
                          unsigned char* pValue, unsigned int ulSize,
                          unsigned int* pLen) {
-  if (HMX_NVRAM_Read_Data == NULL) {
+  if (get_Read_Data(partition) == NULL) {
     return DRV_ERR;
+  }
+  if (partition == HMX_NVRAM_PARTITION_RO) {
+    snprintf((char*)pValue, ulSize, "%s", HMX_NVRAM_Read_Data_RO);
+    *pLen = strlen(HMX_NVRAM_Read_Data_RO);
+    return DRV_OK;
   } else {
-    snprintf((char*)pValue, ulSize, "%s", HMX_NVRAM_Read_Data);
-    *pLen = strlen(HMX_NVRAM_Read_Data);
+    snprintf((char*)pValue, ulSize, "%s", HMX_NVRAM_Read_Data_RW);
+    *pLen = strlen(HMX_NVRAM_Read_Data_RW);
     return DRV_OK;
   }
 }
@@ -25,17 +40,26 @@ DRV_Error HMX_NVRAM_Read(HMX_NVRAM_PARTITION_E partition,
 DRV_Error HMX_NVRAM_Write(HMX_NVRAM_PARTITION_E partition,
                          unsigned char* pName, unsigned int offset,
                          unsigned char* pValue, unsigned int ulSize) {
-  HMX_NVRAM_Read_Data = (char*)malloc(ulSize);
-  snprintf(HMX_NVRAM_Read_Data, sizeof(pValue), "%s", (char*)pValue);
+  if (partition == HMX_NVRAM_PARTITION_RO) {
+    HMX_NVRAM_Read_Data_RO = (char*)malloc(ulSize);
+    snprintf(HMX_NVRAM_Read_Data_RO, sizeof(pValue), "%s", (char*)pValue);
+  } else {
+    HMX_NVRAM_Read_Data_RW = (char*)malloc(ulSize);
+    snprintf(HMX_NVRAM_Read_Data_RW, sizeof(pValue), "%s", (char*)pValue);
+  }
   return DRV_OK;
 }
 
 DRV_Error HMX_NVRAM_Remove(HMX_NVRAM_PARTITION_E partition,
                            unsigned char* pName) {
-  if (HMX_NVRAM_Read_Data == NULL) {
+  if (get_Read_Data(partition) == NULL) {
     return DRV_ERR;
   }
-  HMX_NVRAM_Read_Data = NULL;
+  if (partition == HMX_NVRAM_PARTITION_RO) {
+    HMX_NVRAM_Read_Data_RO = NULL;
+  } else {
+    HMX_NVRAM_Read_Data_RW = NULL;
+  }
   return DRV_OK;
 }
 
@@ -84,7 +108,8 @@ class HnvramTest : public ::testing::Test {
     virtual ~HnvramTest() {}
 
     virtual void SetUp() {
-      HMX_NVRAM_Read_Data = NULL;
+      HMX_NVRAM_Read_Data_RO = NULL;
+      HMX_NVRAM_Read_Data_RW = NULL;
       HMX_NVRAM_GetField_Data = NULL;
       HMX_NVRAM_SetField_Data = NULL;
       HMX_NVRAM_SetField_Len = -1;
@@ -184,104 +209,145 @@ TEST_F(HnvramTest, TestGetNvramField) {
 
 TEST_F(HnvramTest, TestReadFieldNvram) {
   char output[256];
+  HMX_NVRAM_PARTITION_E part;
   HMX_NVRAM_GetField_Data = "TestSystemId";
   EXPECT_STREQ("SYSTEM_ID=TestSystemId",
-               read_nvram("SYSTEM_ID", output, sizeof(output), 0));
+               read_nvram("SYSTEM_ID", output, sizeof(output), 0, &part));
   EXPECT_STREQ("TestSystemId",
-               read_nvram("SYSTEM_ID", output, sizeof(output), 1));
+               read_nvram("SYSTEM_ID", output, sizeof(output), 1, &part));
   HMX_NVRAM_GetField_Data = NULL;
-  EXPECT_EQ(NULL, read_nvram("FAKE_SYSTEM_ID", output, sizeof(output), 1));
+  EXPECT_EQ(NULL, read_nvram("FAKE_SYSTEM_ID", output, sizeof(output), 1,
+                             &part));
 }
 
 TEST_F(HnvramTest, TestReadVariableNvram) {
   char output[256];
-  HMX_NVRAM_Read_Data = strdup("ABC123");
+  HMX_NVRAM_PARTITION_E part;
+  HMX_NVRAM_Read_Data_RW = strdup("ABC123");
   EXPECT_STREQ("TEST_VARIABLE=ABC123",
-               read_nvram("TEST_VARIABLE", output, sizeof(output), 0));
+               read_nvram("TEST_VARIABLE", output, sizeof(output), 0, &part));
+  EXPECT_EQ((int)HMX_NVRAM_PARTITION_RW, part);
   EXPECT_STREQ("ABC123",
-               read_nvram("TEST_VARIABLE", output, sizeof(output), 1));
-  HMX_NVRAM_Read_Data = NULL;
-  EXPECT_STREQ(NULL, read_nvram("TEST_VARIABLE", output, sizeof(output), 1));
+               read_nvram("TEST_VARIABLE", output, sizeof(output), 1, &part));
+  EXPECT_EQ((int)HMX_NVRAM_PARTITION_RW, part);
+  HMX_NVRAM_Read_Data_RW = NULL;
+  EXPECT_STREQ(NULL, read_nvram("TEST_VARIABLE", output, sizeof(output), 1,
+                                &part));
 }
 
 TEST_F(HnvramTest, TestWriteFieldNvram) {
   // Type integer
-  char* testdata = strdup("ACTIVATED_KERNEL_NUM=1");
-  EXPECT_EQ(DRV_OK, write_nvram(testdata));
+  char* key = strdup("ACTIVATED_KERNEL_NUM");
+  char* val = strdup("1");
+  EXPECT_EQ(DRV_OK, write_nvram(key, val, HMX_NVRAM_PARTITION_UNSPECIFIED));
   EXPECT_EQ(0x01, *HMX_NVRAM_SetField_Data);
   EXPECT_EQ(1, HMX_NVRAM_SetField_Len);
 
   // Type string
-  testdata = strdup("ACTIVATED_KERNEL_NAME=kernel1");
-  EXPECT_EQ(DRV_OK, write_nvram(testdata));
+  key = strdup("ACTIVATED_KERNEL_NAME");
+  val = strdup("kernel1");
+  EXPECT_EQ(DRV_OK, write_nvram(key, val, HMX_NVRAM_PARTITION_UNSPECIFIED));
   EXPECT_STREQ("kernel1", (char*)HMX_NVRAM_SetField_Data);
   EXPECT_EQ(7, HMX_NVRAM_SetField_Len);
 
   // Make sure it called SetField and not HMX_NVRAM_Write
-  EXPECT_EQ (NULL, HMX_NVRAM_Read_Data);
+  EXPECT_EQ (NULL, HMX_NVRAM_Read_Data_RW);
+  EXPECT_EQ (NULL, HMX_NVRAM_Read_Data_RO);
 
   // Should fail trying to change value of non-exsting field
-  testdata = strdup("FAKE_FIELD=abc123");
-  EXPECT_NE(0, write_nvram(testdata));
-  free(testdata);
+  key = strdup("FAKE_FIELD");
+  val = strdup("abc123");
+  EXPECT_NE(0, write_nvram(key, val, HMX_NVRAM_PARTITION_UNSPECIFIED));
+  free(key);
+  free(val);
 }
 
-TEST_F(HnvramTest, TestWriteVariableNvram) {
+void testWriteVariableNvram(HMX_NVRAM_PARTITION_E partition, HMX_NVRAM_PARTITION_E other) {
   char* key = strdup("TEST_FIELD");
   char* val = strdup("abc123");
-  char* keyval = strdup("TEST_FIELD=abc123");
 
   // Fail to add new one without -n
-  EXPECT_NE(0, write_nvram(strdup(keyval)));
+  EXPECT_NE(0, write_nvram(key, val, HMX_NVRAM_PARTITION_UNSPECIFIED));
+  EXPECT_NE(0, write_nvram(key, val, HMX_NVRAM_PARTITION_RW));
+  EXPECT_NE(0, write_nvram(key, val, HMX_NVRAM_PARTITION_RO));
 
-  // Add new one successfully
   can_add_flag = 1;
-  EXPECT_EQ(0, write_nvram(keyval));
-  EXPECT_STREQ(val,HMX_NVRAM_Read_Data);
+  EXPECT_EQ(-3, write_nvram(key, val, HMX_NVRAM_PARTITION_UNSPECIFIED));
+  EXPECT_EQ(-3, write_nvram(key, val, HMX_NVRAM_PARTITION_RO));
+  EXPECT_EQ(-3, write_nvram(key, val, HMX_NVRAM_PARTITION_RW));
+  // Add new one successfully
+  EXPECT_EQ(0, write_nvram_new(key, val, partition));
+  EXPECT_STREQ(val, get_Read_Data(partition));
 
   // Should be able to read value
   char output[256];
-  EXPECT_STREQ(val, read_nvram(key, output, sizeof(output), 1));
+  HMX_NVRAM_PARTITION_E part_used;
+  EXPECT_STREQ(val, read_nvram(key, output, sizeof(output), 1, &part_used));
+
+  // Make sure read came from right partition
+  EXPECT_EQ(partition, part_used);
 
   char* val2 = strdup("987def");
-  char* keyval2 = strdup("TEST_FIELD=987def");
 
   // Should be able to change value
-  EXPECT_EQ(0, write_nvram(keyval2));
-  EXPECT_STREQ(val2,HMX_NVRAM_Read_Data);
+  EXPECT_EQ(0, write_nvram(key, val2, HMX_NVRAM_PARTITION_UNSPECIFIED));
+  EXPECT_STREQ(val2, get_Read_Data(partition));
+
+  // And back again, this time with correct partition specified
+  EXPECT_EQ(0, write_nvram(key, val, partition));
+  EXPECT_STREQ(val, get_Read_Data(partition));
+
+  // Should fail when specifying wrong partition
+  EXPECT_EQ(-4, write_nvram(key, val2, other));
+  EXPECT_EQ(-4, write_nvram(key, val2, HMX_NVRAM_PARTITION_W_RAWFS));
 
   free(key);
   free(val);
-  free(keyval);
   free(val2);
-  free(keyval2);
 }
 
-TEST_F(HnvramTest, TestClearNvram) {
+TEST_F(HnvramTest, TestWriteVariableNvramRO) {
+  testWriteVariableNvram(HMX_NVRAM_PARTITION_RO, HMX_NVRAM_PARTITION_RW);
+}
+
+TEST_F(HnvramTest, TestWriteVariableNvramRW) {
+  testWriteVariableNvram(HMX_NVRAM_PARTITION_RW, HMX_NVRAM_PARTITION_RO);
+}
+
+void testClearNvram(HMX_NVRAM_PARTITION_E partition) {
   char* key = strdup("TEST_FIELD2");
   char* val = strdup("abc123");
-  char* keyval = strdup("TEST_FIELD2=abc123");
   // No error if variable already cleared
   EXPECT_EQ(DRV_OK, clear_nvram(key));
 
-  // Create new one
+  // Create new var
   can_add_flag = 1;
-  EXPECT_EQ(0, write_nvram(keyval));
-  EXPECT_STREQ(val, HMX_NVRAM_Read_Data);
+  EXPECT_EQ(-3, write_nvram(key, val, HMX_NVRAM_PARTITION_UNSPECIFIED));
+  EXPECT_EQ(0, write_nvram_new(key, val, partition));
+  EXPECT_STREQ(val, get_Read_Data(partition));
 
   // Should be able to read value
   char output[256];
-  EXPECT_STREQ(val, read_nvram(key, output, sizeof(output), 1));
+  HMX_NVRAM_PARTITION_E part_used;
+  EXPECT_STREQ(val, read_nvram(key, output, sizeof(output), 1, &part_used));
+  EXPECT_EQ((int)partition, part_used);
 
   // Should be able to kill it
   EXPECT_EQ(DRV_OK, clear_nvram(key));
 
   // Should fail reading value
-  EXPECT_STREQ(NULL, read_nvram(key, output, sizeof(output), 1));
+  EXPECT_STREQ(NULL, read_nvram(key, output, sizeof(output), 1, &part_used));
 
   free(key);
   free(val);
-  free(keyval);
+}
+
+TEST_F(HnvramTest, TestClearNvramRO) {
+  testClearNvram(HMX_NVRAM_PARTITION_RO);
+}
+
+TEST_F(HnvramTest, TestClearNvramRW) {
+  testClearNvram(HMX_NVRAM_PARTITION_RW);
 }
 
 int main(int argc, char** argv) {
