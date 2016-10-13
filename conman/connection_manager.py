@@ -245,7 +245,8 @@ class ConnectionManager(object):
                wpa_control_interface='/var/run/wpa_supplicant',
                run_duration_s=1, interface_update_period=5,
                wifi_scan_period_s=120, wlan_retry_s=120, associate_wait_s=15,
-               dhcp_wait_s=10, acs_start_wait_s=20, acs_finish_wait_s=120,
+               dhcp_wait_s=10, acs_connection_check_wait_s=1,
+               acs_start_wait_s=20, acs_finish_wait_s=120,
                bssid_cycle_length_s=30):
 
     self._tmp_dir = tmp_dir
@@ -260,6 +261,7 @@ class ConnectionManager(object):
     self._wlan_retry_s = wlan_retry_s
     self._associate_wait_s = associate_wait_s
     self._dhcp_wait_s = dhcp_wait_s
+    self._acs_connection_check_wait_s = acs_connection_check_wait_s
     self._acs_start_wait_s = acs_start_wait_s
     self._acs_finish_wait_s = acs_finish_wait_s
     self._bssid_cycle_length_s = bssid_cycle_length_s
@@ -366,7 +368,10 @@ class ConnectionManager(object):
           ratchet.Condition('trying_open', wifi.connected_to_open,
                             self._associate_wait_s,
                             callback=wifi.expire_connection_status_cache),
-          ratchet.Condition('waiting_for_dhcp', wifi.gateway, self._dhcp_wait_s,
+          ratchet.Condition('waiting_for_dhcp', wifi.gateway,
+                            self._dhcp_wait_s),
+          ratchet.Condition('acs_connection_check', wifi.acs,
+                            self._acs_connection_check_wait_s,
                             callback=self.cwmp_wakeup),
           ratchet.FileTouchedCondition('waiting_for_cwmp_wakeup',
                                        os.path.join(CWMP_PATH, 'acscontact'),
@@ -445,16 +450,18 @@ class ConnectionManager(object):
     1. Process any changes in watched files.
     2. Check interfaces for changed connectivity, if
        update_interfaces_and_routes is true.
-    3. Start, stop, or restart access points as appropriate.  If running an
+    3. Try to upload logs, if we just joined a new open network.
+    4. Start, stop, or restart access points as appropriate.  If running an
        access point, skip all remaining wifi steps for that band.
-    3. Handle any wpa_supplicant events.
-    4. Periodically, perform a wifi scan.
-    5. If not connected to the WLAN or to the ACS, try to connect to something.
-    6. If connected to the ACS but not the WLAN, and enough time has passed
+    5. Handle any wpa_supplicant events.
+    6. Periodically, perform a wifi scan.
+    7. If not connected to the WLAN or to the ACS, try to connect to something.
+    8. If connected to the ACS but not the WLAN, and enough time has passed
        since connecting that we should expect a current WLAN configuration, try
        to join the WLAN again.
-    7. Sleep for the rest of the duration of _run_duration_s.
+    9. Sleep for the rest of the duration of _run_duration_s.
     """
+
     start_time = _gettime()
     self.notifier.process_events()
     while self.notifier.check_events():
@@ -466,12 +473,22 @@ class ConnectionManager(object):
       self._interface_update_counter = 0
       self._update_interfaces_and_routes()
 
+    if self.acs() and self._try_to_upload_logs:
+      self._try_upload_logs()
+      self._try_to_upload_logs = False
+
     for wifi in self.wifi:
-      continue_wifi = False
       if self.currently_provisioning(wifi):
+        logging.debug('Currently provisioning, nothing else to do.')
         continue
 
       provisioning_failed = self.provisioning_failed(wifi)
+      if provisioning_failed and (
+          getattr(wifi, 'last_attempted_bss_info', None) ==
+          getattr(wifi, 'last_successful_bss_info', None)):
+        wifi.last_successful_bss_info = None
+
+      continue_wifi = False
 
       # Only one wlan_configuration per interface will have access_point ==
       # True.  Try 5 GHz first, then 2.4 GHz.  If both bands are supported by
@@ -549,9 +566,6 @@ class ConnectionManager(object):
         wifi.status.connected_to_wlan = False
         if self.acs():
           logging.debug('Connected to ACS')
-          if self._try_to_upload_logs:
-            self._try_upload_logs()
-            self._try_to_upload_logs = False
 
           if wifi.acs():
             wifi.last_successful_bss_info = getattr(wifi,
@@ -858,7 +872,7 @@ class ConnectionManager(object):
     wifi.last_attempted_bss_info = bss_info
     return subprocess.call(self.WIFI_SETCLIENT +
                            ['--ssid', bss_info.ssid,
-                            '--band', wifi.bands[0],
+                            '--band', bss_info.band,
                             '--bssid', bss_info.bssid]) == 0
 
   def _connected_to_wlan(self, wifi):
@@ -876,6 +890,7 @@ class ConnectionManager(object):
     band = wlan_configuration.band
     current = self._wlan_configuration.get(band, None)
     if current is None or wlan_configuration.command != current.command:
+      logging.debug('Received new WLAN configuration for band %s', band)
       if current is not None:
         wlan_configuration.access_point = current.access_point
       else:

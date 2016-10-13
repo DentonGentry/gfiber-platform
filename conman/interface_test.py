@@ -5,8 +5,6 @@
 import logging
 import os
 import shutil
-import socket
-import struct
 import subprocess
 import tempfile
 import time
@@ -14,11 +12,6 @@ import time
 # This has to be called before another module calls it with a higher log level.
 # pylint: disable=g-import-not-at-top
 logging.basicConfig(level=logging.DEBUG)
-
-# This is in site-packages on the device, but not when running tests, and so
-# raises lint errors.
-# pylint: disable=g-bad-import-order
-import wpactrl
 
 import experiment_testutils
 import interface
@@ -38,87 +31,13 @@ class FakeInterfaceMixin(object):
   def __init__(self, *args, **kwargs):
     super(FakeInterfaceMixin, self).__init__(*args, **kwargs)
     self.set_connection_check_result('succeed')
-    self.routing_table = {}
-    self.ip_testonly = None
-
-  def _connection_check(self, *args, **kwargs):
-    result = super(FakeInterfaceMixin, self)._connection_check(*args, **kwargs)
-    if not self.links:
-      return False
-    if (self.current_routes().get('default', {}).get('via', None) !=
-        self._gateway_ip):
-      return False
-    return result
+    subprocess.ip.register_testonly(self.name)
 
   def set_connection_check_result(self, result):
     if result in ['succeed', 'fail', 'restricted']:
-      # pylint: disable=invalid-name
-      self.CONNECTION_CHECK = './test/' + result
+      subprocess.mock(self.CONNECTION_CHECK, self.name, result)
     else:
-      raise ValueError('Invalid fake connection_check script.')
-
-  def _really_ip_route(self, *args):
-    def can_add_route():
-      def ip_to_int(ip):
-        return struct.unpack('!I', socket.inet_pton(socket.AF_INET, ip))[0]
-
-      if args[1] != 'default':
-        return True
-
-      via = ip_to_int(args[args.index('via') + 1])
-      for (ifc, route, _), _ in self.routing_table.iteritems():
-        if ifc != self.name:
-          continue
-
-        netmask = 0
-        if '/' in route:
-          route, netmask = route.split('/')
-          netmask = 32 - int(netmask)
-        route = ip_to_int(route)
-
-        if (route >> netmask) == (via >> netmask):
-          return True
-
-      return False
-
-    if not args:
-      return '\n'.join(self.routing_table.values() +
-                       ['1.2.3.4/24 dev fake0 proto kernel scope link',
-                        # Non-subnet route, e.g. to NFS host.
-                        '1.2.3.1 dev %s proto kernel scope link' % self.name,
-                        'default via 1.2.3.4 dev fake0',
-                        'random junk'])
-
-    metric = None
-    if 'metric' in args:
-      metric = args[args.index('metric') + 1]
-    if args[0] in ('add', 'del'):
-      route = args[1]
-    key = (self.name, route, metric)
-    if args[0] == 'add' and key not in self.routing_table:
-      if not can_add_route():
-        raise subprocess.CalledProcessError(
-            'Tried to add default route without subnet route: %r',
-            self.routing_table)
-      logging.debug('Adding route for %r', key)
-      self.routing_table[key] = ' '.join(args[1:])
-    elif args[0] == 'del':
-      if key in self.routing_table:
-        logging.debug('Deleting route for %r', key)
-        del self.routing_table[key]
-      elif key[2] is None:
-        # pylint: disable=g-builtin-op
-        for k in self.routing_table.keys():
-          if k[:-1] == key[:-1]:
-            logging.debug('Deleting route for %r (generalized from %s)', k, key)
-            del self.routing_table[k]
-            break
-
-  def _ip_addr_show(self):
-    if self.ip_testonly:
-      return _IP_ADDR_SHOW_TPL.format(name=self.name, ip=self.ip_testonly)
-
-    return ''
+      raise ValueError('Invalid fake connection_check value.')
 
   def current_routes_normal_testonly(self):
     result = self.current_routes()
@@ -129,244 +48,13 @@ class Bridge(FakeInterfaceMixin, interface.Bridge):
   pass
 
 
-class FakeWPACtrl(object):
-  """Fake wpactrl.WPACtrl."""
-
-  # pylint: disable=unused-argument
-  def __init__(self, wpa_socket):
-    self._socket = wpa_socket
-    self.events = []
-    self.attached = False
-    self.connected = False
-    self.ssid_testonly = None
-    self.secure_testonly = False
-    self.request_status_fails = False
-
-  def pending(self):
-    self.check_socket_exists('pending: socket does not exist')
-    return bool(self.events)
-
-  def recv(self):
-    self.check_socket_exists('recv: socket does not exist')
-    return self.events.pop(0)
-
-  def attach(self):
-    if not os.path.exists(self._socket):
-      raise wpactrl.error('wpactrl_attach failed')
-    self.attached = True
-
-  def detach(self):
-    self.attached = False
-    self.ssid_testonly = None
-    self.secure_testonly = False
-    self.connected = False
-    self.check_socket_exists('wpactrl_detach failed')
-
-  def request(self, request_type):
-    if request_type == 'STATUS':
-      if self.request_status_fails:
-        raise wpactrl.error('test error')
-      return self.wpa_cli_status_testonly()
-    else:
-      raise ValueError('Invalid request_type %s' % request_type)
-
-  @property
-  def ctrl_iface_path(self):
-    return os.path.split(self._socket)[0]
-
-  # Below methods are not part of WPACtrl.
-
-  def add_event(self, event):
-    self.events.append(event)
-
-  def add_connected_event(self):
-    self.connected = True
-    self.add_event(Wifi.CONNECTED_EVENT)
-
-  def add_disconnected_event(self):
-    self.connected = False
-    self.add_event(Wifi.DISCONNECTED_EVENT)
-
-  def add_terminating_event(self):
-    self.connected = False
-    self.add_event(Wifi.TERMINATING_EVENT)
-
-  def check_socket_exists(self, msg='Fake socket does not exist'):
-    if not os.path.exists(self._socket):
-      raise wpactrl.error(msg)
-
-  def wpa_cli_status_testonly(self):
-    if self.connected:
-      return ('foo\nwpa_state=COMPLETED\nssid=%s\nkey_mgmt=%s\nbar' %
-              (self.ssid_testonly,
-               'WPA2-PSK' if self.secure_testonly else 'NONE'))
-    else:
-      return 'wpa_state=SCANNING\naddress=12:34:56:78:90:ab'
-
-
 class Wifi(FakeInterfaceMixin, interface.Wifi):
   """Fake Wifi for testing."""
-
-  CONNECTED_EVENT = '<2>CTRL-EVENT-CONNECTED'
-  DISCONNECTED_EVENT = '<2>CTRL-EVENT-DISCONNECTED'
-  TERMINATING_EVENT = '<2>CTRL-EVENT-TERMINATING'
-
-  WPACtrl = FakeWPACtrl
-
-  def __init__(self, *args, **kwargs):
-    super(Wifi, self).__init__(*args, **kwargs)
-    self._initial_ssid_testonly = None
-    self._secure_testonly = False
-
-  def attach_wpa_control(self, path):
-    if self._initial_ssid_testonly and self._wpa_control:
-      self._wpa_control.connected = True
-    super(Wifi, self).attach_wpa_control(path)
-
-  def get_wpa_control(self, *args, **kwargs):
-    result = super(Wifi, self).get_wpa_control(*args, **kwargs)
-    if self._initial_ssid_testonly:
-      result.connected = True
-      result.ssid_testonly = self._initial_ssid_testonly
-      result.secure_testonly = self._secure_testonly
-    return result
-
-  def add_connected_event(self):
-    if self.attached():
-      self._wpa_control.add_connected_event()
-
-  def add_disconnected_event(self):
-    self._initial_ssid_testonly = None
-    self._secure_testonly = False
-    if self.attached():
-      self._wpa_control.add_disconnected_event()
-
-  def add_terminating_event(self):
-    self._initial_ssid_testonly = None
-    self._secure_testonly = False
-    if self.attached():
-      self._wpa_control.add_terminating_event()
-
-  def detach_wpa_control(self):
-    self._initial_ssid_testonly = None
-    self._secure_testonly = False
-    super(Wifi, self).detach_wpa_control()
-
-  def wpa_cli_status(self):
-    # This is just a convenient way of keeping things dry; the actual wpa_cli
-    # status makes a subprocess call which returns the same string.
-    return self._wpa_control.wpa_cli_status_testonly()
-
-  def start_wpa_supplicant_testonly(self, path):
-    wpa_socket = os.path.join(path, self.name)
-    logging.debug('Starting fake wpa_supplicant for %s: %s',
-                  self.name, wpa_socket)
-    open(wpa_socket, 'w')
-
-  def kill_wpa_supplicant_testonly(self, path):
-    logging.debug('Killing fake wpa_supplicant for %s', self.name)
-    if self.attached():
-      self.detach_wpa_control()
-      os.unlink(os.path.join(path, self.name))
-    else:
-      raise RuntimeError('Trying to kill wpa_supplicant while not attached')
-
-
-class FrenzyWPACtrl(interface.FrenzyWPACtrl):
-
-  def __init__(self, *args, **kwargs):
-    super(FrenzyWPACtrl, self).__init__(*args, **kwargs)
-    self.ssid_testonly = None
-    self.secure_testonly = False
-    self.request_status_fails = False
-
-  def _qcsapi(self, *command):
-    return self.fake_qcsapi.get(command[0], None)
-
-  def add_connected_event(self):
-    self.fake_qcsapi['get_mode'] = 'Station'
-    self.fake_qcsapi['get_ssid'] = self.ssid_testonly
-    security = 'PSKAuthentication' if self.secure_testonly else 'NONE'
-    self.fake_qcsapi['ssid_get_authentication_mode'] = security
-
-  def add_disconnected_event(self):
-    self.ssid_testonly = None
-    self.secure_testonly = False
-    self.fake_qcsapi['get_ssid'] = None
-    self.fake_qcsapi['ssid_get_authentication_mode'] = 'NONE'
-
-  def add_terminating_event(self):
-    self.ssid_testonly = None
-    self.secure_testonly = False
-    self.fake_qcsapi['get_ssid'] = None
-    self.fake_qcsapi['get_mode'] = 'AP'
-    self.fake_qcsapi['ssid_get_authentication_mode'] = 'NONE'
-
-  def detach(self):
-    self.add_terminating_event()
-    super(FrenzyWPACtrl, self).detach()
+  pass
 
 
 class FrenzyWifi(FakeInterfaceMixin, interface.FrenzyWifi):
-  WPACtrl = FrenzyWPACtrl
-
-  def __init__(self, *args, **kwargs):
-    super(FrenzyWifi, self).__init__(*args, **kwargs)
-    self._initial_ssid_testonly = None
-    self._secure_testonly = False
-    self.fake_qcsapi = {}
-
-  def attach_wpa_control(self, *args, **kwargs):
-    super(FrenzyWifi, self).attach_wpa_control(*args, **kwargs)
-    if self._wpa_control:
-      self._wpa_control.ssid_testonly = self._initial_ssid_testonly
-      self._wpa_control.secure_testonly = self._secure_testonly
-      if self._initial_ssid_testonly:
-        self._wpa_control.add_connected_event()
-
-  def get_wpa_control(self, *args, **kwargs):
-    result = super(FrenzyWifi, self).get_wpa_control(*args, **kwargs)
-    result.fake_qcsapi = self.fake_qcsapi
-    if self._initial_ssid_testonly:
-      result.fake_qcsapi['get_mode'] = 'Station'
-      result.ssid_testonly = self._initial_ssid_testonly
-      result.secure_testonly = self._secure_testonly
-      result.add_connected_event()
-    return result
-
-  def add_connected_event(self):
-    if self.attached():
-      self._wpa_control.add_connected_event()
-
-  def add_disconnected_event(self):
-    self._initial_ssid_testonly = None
-    self._secure_testonly = False
-    if self.attached():
-      self._wpa_control.add_disconnected_event()
-
-  def add_terminating_event(self):
-    self._initial_ssid_testonly = None
-    self._secure_testonly = False
-    if self.attached():
-      self._wpa_control.add_terminating_event()
-
-  def detach_wpa_control(self):
-    self._initial_ssid_testonly = None
-    self._secure_testonly = False
-    super(FrenzyWifi, self).detach_wpa_control()
-
-  def start_wpa_supplicant_testonly(self, unused_path):
-    logging.debug('Starting fake wpa_supplicant for %s', self.name)
-    self.fake_qcsapi['get_mode'] = 'Station'
-
-  def kill_wpa_supplicant_testonly(self, unused_path):
-    logging.debug('Killing fake wpa_supplicant for %s', self.name)
-    if self.attached():
-      # This happens to do what we need.
-      self.add_terminating_event()
-      self.detach_wpa_control()
-    else:
-      raise RuntimeError('Trying to kill wpa_supplicant while not attached')
+  pass
 
 
 @wvtest.wvtest
@@ -443,7 +131,7 @@ def bridge_test():
     wvtest.WVPASS(os.path.exists(autoprov_filepath))
 
     wvtest.WVFAIL(b.get_ip_address())
-    b.ip_testonly = '192.168.1.100'
+    subprocess.call(['ip', 'addr', 'add', '192.168.1.100', 'dev', b.name])
     wvtest.WVPASSEQ(b.get_ip_address(), '192.168.1.100')
 
     # Get a new gateway/subnet (e.g. due to joining a new network).
@@ -487,38 +175,40 @@ def bridge_test():
 
 def generic_wifi_test(w, wpa_path):
   # Not currently connected.
-  w.start_wpa_supplicant_testonly(wpa_path)
+  # w.start_wpa_supplicant_testonly(wpa_path)
+  subprocess.wifi.WPA_PATH = wpa_path
   w.attach_wpa_control(wpa_path)
   wvtest.WVFAIL(w.wpa_supplicant)
 
-  # pylint: disable=protected-access
-  wpa_control = w._wpa_control
-
   # wpa_supplicant connects.
-  wpa_control.ssid_testonly = 'my=ssid'
-  wpa_control.add_connected_event()
+  ssid = 'my=ssid'
+  psk = 'passphrase'
+  subprocess.mock('wifi', 'remote_ap', ssid=ssid, psk=psk, band='5',
+                  bssid='00:00:00:00:00:00', connection_check_result='succeed')
+  subprocess.check_call(['wifi', 'setclient', '--ssid', ssid, '--band', '5'],
+                        env={'WIFI_CLIENT_PSK': psk})
   wvtest.WVFAIL(w.wpa_supplicant)
+  w.attach_wpa_control(wpa_path)
   w.handle_wpa_events()
   wvtest.WVPASS(w.wpa_supplicant)
   w.set_gateway_ip('192.168.1.1')
 
   # wpa_supplicant disconnects.
-  wpa_control.add_disconnected_event()
+  subprocess.mock('wifi', 'disconnected_event', '5')
   w.handle_wpa_events()
   wvtest.WVFAIL(w.wpa_supplicant)
 
   # Now, start over so we can test what happens when wpa_supplicant is already
   # connected when we attach.
   w.detach_wpa_control()
-  # pylint: disable=protected-access
-  w._initial_ssid_testonly = 'my=ssid'
   w._initialized = False
+  subprocess.check_call(['wifi', 'setclient', '--ssid', ssid, '--band', '5'],
+                        env={'WIFI_CLIENT_PSK': psk})
   w.attach_wpa_control(wpa_path)
-  wpa_control = w._wpa_control
 
   # wpa_supplicant was already connected when we attached.
   wvtest.WVPASS(w.wpa_supplicant)
-  wvtest.WVPASSEQ(w.initial_ssid, 'my=ssid')
+  wvtest.WVPASSEQ(w.initial_ssid, ssid)
   w.initialize()
   wvtest.WVPASSEQ(w.initial_ssid, None)
 
@@ -527,8 +217,7 @@ def generic_wifi_test(w, wpa_path):
   wvtest.WVPASSNE(w.wpa_status(), {})
 
   # The wpa_supplicant process disconnects and terminates.
-  wpa_control.add_disconnected_event()
-  wpa_control.add_terminating_event()
+  subprocess.check_call(['wifi', 'stopclient', '--band', '5'])
   w.handle_wpa_events()
   wvtest.WVFAIL(w.wpa_supplicant)
 
@@ -537,32 +226,42 @@ def generic_wifi_test(w, wpa_path):
 def wifi_test():
   """Test Wifi."""
   w = Wifi('wcli0', '21')
-  w.set_connection_check_result('succeed')
   w.initialize()
 
   try:
     wpa_path = tempfile.mkdtemp()
+    conman_path = tempfile.mkdtemp()
+    subprocess.set_conman_paths(conman_path, None)
+    subprocess.mock('wifi', 'interfaces',
+                    subprocess.wifi.MockInterface(phynum='0', bands=['5'],
+                                                  driver='cfg80211'))
     generic_wifi_test(w, wpa_path)
 
   finally:
     shutil.rmtree(wpa_path)
+    shutil.rmtree(conman_path)
 
 
 @wvtest.wvtest
 def frenzy_wifi_test():
   """Test FrenzyWifi."""
   w = FrenzyWifi('wlan0', '20')
-  w.set_connection_check_result('succeed')
   w.initialize()
 
   try:
     wpa_path = tempfile.mkdtemp()
+    conman_path = tempfile.mkdtemp()
+    subprocess.set_conman_paths(conman_path, None)
+    subprocess.mock('wifi', 'interfaces',
+                    subprocess.wifi.MockInterface(phynum='0', bands=['5'],
+                                                  driver='frenzy'))
     FrenzyWifi.WPACtrl.WIFIINFO_PATH = wifiinfo_path = tempfile.mkdtemp()
 
     generic_wifi_test(w, wpa_path)
 
   finally:
     shutil.rmtree(wpa_path)
+    shutil.rmtree(conman_path)
     shutil.rmtree(wifiinfo_path)
 
 

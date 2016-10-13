@@ -5,8 +5,10 @@
 import logging
 import os
 import shutil
+import subprocess  # Fake subprocess module in test/fake_python.
 import tempfile
 import time
+import traceback
 
 import connection_manager
 import experiment_testutils
@@ -29,92 +31,26 @@ FAKE_MOCA_NODE1_FILE_DISCONNECTED = """{
 }
 """
 
-WIFI_SHOW_OUTPUT_MARVELL8897 = """Band: 2.4
-RegDomain: US
-Interface: wlan0  # 2.4 GHz ap
-Channel: 149
-BSSID: f4:f5:e8:81:1b:a0
-AutoChannel: True
-AutoType: NONDFS
-Station List for band: 2.4
 
-Client Interface: wcli0  # 2.4 GHz client
-Client BSSID: f4:f5:e8:81:1b:a1
-
-Band: 5
-RegDomain: US
-Interface: wlan0  # 5 GHz ap
-Channel: 149
-BSSID: f4:f5:e8:81:1b:a0
-AutoChannel: True
-AutoType: NONDFS
-Station List for band: 5
-
-Client Interface: wcli0  # 5 GHz client
-Client BSSID: f4:f5:e8:81:1b:a1
-"""
-
-WIFI_SHOW_OUTPUT_ATH9K_ATH10K = """Band: 2.4
-RegDomain: US
-Interface: wlan0  # 2.4 GHz ap
-Channel: 149
-BSSID: f4:f5:e8:81:1b:a0
-AutoChannel: True
-AutoType: NONDFS
-Station List for band: 2.4
-
-Client Interface: wcli0  # 2.4 GHz client
-Client BSSID: f4:f5:e8:81:1b:a1
-
-Band: 5
-RegDomain: US
-Interface: wlan1  # 5 GHz ap
-Channel: 149
-BSSID: f4:f5:e8:81:1b:a0
-AutoChannel: True
-AutoType: NONDFS
-Station List for band: 5
-
-Client Interface: wcli1  # 5 GHz client
-Client BSSID: f4:f5:e8:81:1b:a1
-"""
-
+WIFI_SHOW_OUTPUT_MARVELL8897 = (
+    subprocess.wifi.MockInterface(phynum='0', bands=['2.4', '5'],
+                                  driver='cfg80211'),
+)
+WIFI_SHOW_OUTPUT_ATH9K_ATH10K = (
+    subprocess.wifi.MockInterface(phynum='0', bands=['2.4'], driver='cfg80211'),
+    subprocess.wifi.MockInterface(phynum='1', bands=['5'], driver='cfg80211'),
+)
 # See b/27328894.
-WIFI_SHOW_OUTPUT_MARVELL8897_NO_5GHZ = """Band: 2.4
-RegDomain: 00
-Interface: wlan0  # 2.4 GHz ap
-BSSID: 00:50:43:02:fe:01
-AutoChannel: False
-Station List for band: 2.4
-
-Client Interface: wcli0  # 2.4 GHz client
-Client BSSID: 00:50:43:02:fe:02
-
-Band: 5
-RegDomain: 00
-"""
-
-WIFI_SHOW_OUTPUT_ATH9K_FRENZY = """Band: 2.4
-RegDomain: US
-Interface: wlan0  # 2.4 GHz ap
-Channel: 149
-BSSID: f4:f5:e8:81:1b:a0
-AutoChannel: True
-AutoType: NONDFS
-Station List for band: 2.4
-
-Client Interface: wcli0  # 2.4 GHz client
-Client BSSID: f4:f5:e8:81:1b:a1
-
-Band: 5
-RegDomain: 00
-"""
-
-WIFI_SHOW_OUTPUT_FRENZY = """Band: 2.4
-RegDomain: 00
-Band: 5
-RegDomain: 00
-"""
+WIFI_SHOW_OUTPUT_MARVELL8897_NO_5GHZ = (
+    subprocess.wifi.MockInterface(phynum='0', bands=['2.4'], driver='cfg80211'),
+)
+WIFI_SHOW_OUTPUT_ATH9K_FRENZY = (
+    subprocess.wifi.MockInterface(phynum='0', bands=['2.4'], driver='cfg80211'),
+    subprocess.wifi.MockInterface(phynum='1', bands=['5'], driver='frenzy'),
+)
+WIFI_SHOW_OUTPUT_FRENZY = (
+    subprocess.wifi.MockInterface(phynum='0', bands=['5'], driver='frenzy'),
+)
 
 IW_SCAN_DEFAULT_OUTPUT = """BSS 00:11:22:33:44:55(on wcli0)
   SSID: s1
@@ -133,22 +69,13 @@ IW_SCAN_HIDDEN_OUTPUT = """BSS ff:ee:dd:cc:bb:aa(on wcli0)
 @wvtest.wvtest
 def get_client_interfaces_test():
   """Test get_client_interfaces."""
-  wifi_show = None
-  quantenna_interfaces = None
+  subprocess.reset()
 
-  # pylint: disable=protected-access
-  old_wifi_show = connection_manager._wifi_show
-  old_get_quantenna_interfaces = connection_manager._get_quantenna_interfaces
-  connection_manager._wifi_show = lambda: wifi_show
-  connection_manager._get_quantenna_interfaces = lambda: quantenna_interfaces
-
-  wifi_show = WIFI_SHOW_OUTPUT_MARVELL8897
-  quantenna_interfaces = []
+  subprocess.mock('wifi', 'interfaces', *WIFI_SHOW_OUTPUT_MARVELL8897)
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
                   {'wcli0': {'bands': set(['2.4', '5'])}})
 
-  wifi_show = WIFI_SHOW_OUTPUT_ATH9K_ATH10K
-  quantenna_interfaces = []
+  subprocess.mock('wifi', 'interfaces', *WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(), {
       'wcli0': {'bands': set(['2.4'])},
       'wcli1': {'bands': set(['5'])}
@@ -156,113 +83,30 @@ def get_client_interfaces_test():
 
   # Test Quantenna devices.
 
-  # 2.4 GHz cfg80211 radio + 5 GHz Frenzy (Optimus Prime).
-  wifi_show = WIFI_SHOW_OUTPUT_ATH9K_FRENZY
-  quantenna_interfaces = ['wlan1', 'wlan1_portal', 'wcli1']
+  # 2.4 GHz cfg80211 radio + 5 GHz Frenzy (e.g. Optimus Prime).
+  subprocess.mock('wifi', 'interfaces', *WIFI_SHOW_OUTPUT_ATH9K_FRENZY)
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(), {
       'wcli0': {'bands': set(['2.4'])},
       'wcli1': {'frenzy': True, 'bands': set(['5'])}
   })
 
   # Only Frenzy (e.g. Lockdown).
-  wifi_show = WIFI_SHOW_OUTPUT_FRENZY
-  quantenna_interfaces = ['wlan0', 'wlan0_portal', 'wcli0']
+  subprocess.mock('wifi', 'interfaces', *WIFI_SHOW_OUTPUT_FRENZY)
   wvtest.WVPASSEQ(connection_manager.get_client_interfaces(),
                   {'wcli0': {'frenzy': True, 'bands': set(['5'])}})
-
-  connection_manager._wifi_show = old_wifi_show
-  connection_manager._get_quantenna_interfaces = old_get_quantenna_interfaces
-
-
-class WLANConfiguration(connection_manager.WLANConfiguration):
-  """WLANConfiguration subclass for testing."""
-
-  WIFI_STOPAP = ['echo', 'stopap']
-  WIFI_SETCLIENT = ['echo', 'setclient']
-  WIFI_STOPCLIENT = ['echo', 'stopclient']
-
-  def __init__(self, *args, **kwargs):
-    super(WLANConfiguration, self).__init__(*args, **kwargs)
-    self.stale = False
-
-  def _actually_start_client(self):
-    self.client_was_up = self.client_up
-    self.was_attached = self.wifi.attached()
-    self.wifi._secure_testonly = True
-
-    super(WLANConfiguration, self)._actually_start_client()
-
-    if not self.client_was_up and not self.was_attached:
-      self.wifi._initial_ssid_testonly = self.ssid
-      self.wifi.start_wpa_supplicant_testonly(self._wpa_control_interface)
-
-    if self.wifi._wpa_control:
-      self.wifi._wpa_control.connected = not self.stale
-    return not self.stale
-
-  def _post_start_client(self):
-    if not self.client_was_up:
-      self.wifi.set_connection_check_result('succeed')
-
-      if self.was_attached:
-        self.wifi._wpa_control.ssid_testonly = self.ssid
-        self.wifi._wpa_control.secure_testonly = True
-        self.wifi.add_connected_event()
-
-      # Normally, wpa_supplicant would bring up the client interface, which
-      # would trigger ifplugd, which would run ifplugd.action, which would do
-      # two things:
-      #
-      # 1)  Write an interface status file.
-      # 2)  Call run-dhclient, which would call dhclient-script, which would
-      #     call ipapply, which would write gateway and subnet files.
-      #
-      # Fake both of these things instead.
-      self.write_interface_status_file('1')
-      self.write_gateway_file()
-      self.write_subnet_file()
-
-  def stop_client(self):
-    client_was_up = self.client_up
-
-    super(WLANConfiguration, self).stop_client()
-
-    if client_was_up:
-      self.wifi.add_terminating_event()
-      self.wifi.set_connection_check_result('fail')
-
-    # See comments in start_client.
-    self.write_interface_status_file('0')
-
-  def write_gateway_file(self):
-    gateway_file = os.path.join(self.tmp_dir,
-                                self.gateway_file_prefix + self.wifi.name)
-    with open(gateway_file, 'w') as f:
-      # This value doesn't matter to conman, so it's fine to hard code it here.
-      f.write('192.168.1.1')
-
-  def write_subnet_file(self):
-    subnet_file = os.path.join(self.tmp_dir,
-                               self.subnet_file_prefix + self.wifi.name)
-    with open(subnet_file, 'w') as f:
-      # This value doesn't matter to conman, so it's fine to hard code it here.
-      f.write('192.168.1.0/24')
-
-  def write_interface_status_file(self, value):
-    status_file = os.path.join(self.interface_status_dir, self.wifi.name)
-    with open(status_file, 'w') as f:
-      # This value doesn't matter to conman, so it's fine to hard code it here.
-      f.write(value)
 
 
 @wvtest.wvtest
 def WLANConfigurationParseTest():  # pylint: disable=invalid-name
   """Test WLANConfiguration parsing."""
+  subprocess.reset()
+
   cmd = '\n'.join([
       'WIFI_PSK=abcdWIFI_PSK=qwer', 'wifi', 'set', '-P', '-b', '5',
       '--bridge=br0', '-s', 'my ssid=1', '--interface-suffix', '_suffix',
   ])
-  config = WLANConfiguration('5', interface_test.Wifi('wcli0', 20), cmd, None)
+  config = connection_manager.WLANConfiguration(
+      '5', interface_test.Wifi('wcli0', 20), cmd, None)
 
   wvtest.WVPASSEQ('my ssid=1', config.ssid)
   wvtest.WVPASSEQ('abcdWIFI_PSK=qwer', config.passphrase)
@@ -290,149 +134,40 @@ class ConnectionManager(connection_manager.ConnectionManager):
   Bridge = interface_test.Bridge
   Wifi = Wifi
   FrenzyWifi = FrenzyWifi
-  WLANConfiguration = WLANConfiguration
-
-  WIFI_SETCLIENT = ['echo', 'setclient']
-  IFUP = ['echo', 'ifup']
-  IFPLUGD_ACTION = ['echo', 'ifplugd.action']
-  BINWIFI = ['echo', 'wifi']
-  UPLOAD_LOGS_AND_WAIT = ['echo', 'upload-logs-and-wait']
-  CWMP_WAKEUP = ['echo', 'cwmp', 'wakeup']
 
   def __init__(self, *args, **kwargs):
     self._binwifi_commands = []
 
-    self.interfaces_already_up = kwargs.pop('__test_interfaces_already_up',
-                                            ['eth0'])
+    for interface_name in kwargs.pop('__test_interfaces_already_up', ['eth0']):
+      subprocess.call(['ifup', interface_name])
+      if interface_name.startswith('w'):
+        phynum = interface_name[-1]
+        for band, interface in subprocess.wifi.INTERFACE_FOR_BAND.iteritems():
+          if interface.phynum == phynum:
+            break
+        else:
+          raise ValueError('Could not find matching interface for '
+                           '__test_interfaces_already_up')
+        ssid = 'my ssid'
+        psk = 'passphrase'
+        # If band is undefined then a ValueError will be raised above.  pylint
+        # isn't smart enough to figure that out.
+        # pylint: disable=undefined-loop-variable
+        subprocess.mock('cwmp', band, ssid=ssid, psk=psk, write_now=True)
+        subprocess.mock('wifi', 'remote_ap', band=band, ssid=ssid, psk=psk,
+                        bssid='00:00:00:00:00:00')
 
-    self.wifi_interfaces_already_up = [ifc for ifc in self.interfaces_already_up
-                                       if ifc.startswith('w')]
-    for wifi in self.wifi_interfaces_already_up:
-      # wcli1 is always 5 GHz.  wcli0 always *includes* 2.4.  wlan* client
-      # interfaces are Frenzy interfaces and therefore 5 GHz-only.
-      band = '5' if wifi in ('wlan0', 'wlan1', 'wcli1') else '2.4'
-      # This will happen in the super function, but in order for
-      # write_wlan_config to work we have to do it now.  This has to happen
-      # before the super function so that the files exist before the inotify
-      # registration.
-      self._config_dir = kwargs['config_dir']
-      self.write_wlan_config(band, 'my ssid', 'passphrase')
-
-      # Also create the wpa_supplicant socket to which to attach.
-      open(os.path.join(kwargs['wpa_control_interface'], wifi), 'w')
+        # Also create the wpa_supplicant socket to which to attach.
+        open(os.path.join(kwargs['wpa_control_interface'], interface_name),
+             'w')
 
     super(ConnectionManager, self).__init__(*args, **kwargs)
-
-    self.interface_with_scan_results = None
-    self.scan_results_include_hidden = False
-    # Should we be able to connect to open network s2?
-    self.can_connect_to_s2 = True
-    self.can_connect_to_s3 = True
-    # Will s2 fail rather than providing ACS access?
-    self.s2_fail = False
-    # Will s3 fail to acquire a DHCP lease?
-    self.dhcp_failure_on_s3 = False
-    self.log_upload_count = 0
-    self.acs_session_fails = False
-    for wifi in self.wifi:
-      wifi.bssids_tried_testonly = 0
-
-  def create_wifi_interfaces(self):
-    super(ConnectionManager, self).create_wifi_interfaces()
-    for wifi in self.wifi_interfaces_already_up:
-      # pylint: disable=protected-access
-      self.interface_by_name(wifi)._initial_ssid_testonly = 'my ssid'
-      self.interface_by_name(wifi)._secure_testonly = True
-
-  @property
-  def IP_LINK(self):
-    return ['echo'] + ['%s LOWER_UP' % ifc
-                       for ifc in self.interfaces_already_up]
-
-  def _update_access_point(self, wlan_configuration):
-    client_was_up = wlan_configuration.client_up
-    super(ConnectionManager, self)._update_access_point(wlan_configuration)
-    if wlan_configuration.access_point_up:
-      if client_was_up:
-        wifi = self.wifi_for_band(wlan_configuration.band)
-        wifi.add_terminating_event()
-
-  def _try_bssid(self, wifi, bss_info):
-    if wifi.wpa_status().get('wpa_state', None) == 'COMPLETED':
-      wifi.add_disconnected_event()
-    self.last_provisioning_attempt = bss_info
-
-    super(ConnectionManager, self)._try_bssid(wifi, bss_info)
-
-    wifi.bssids_tried_testonly += 1
-
-    def connect(connection_check_result, dhcp_failure=False):
-      # pylint: disable=protected-access
-      if wifi.attached():
-        wifi._wpa_control.ssid_testonly = bss_info.ssid
-        wifi._wpa_control.secure_testonly = False
-        wifi.add_connected_event()
-      else:
-        wifi._initial_ssid_testonly = bss_info.ssid
-        wifi._secure_testonly = False
-        wifi.start_wpa_supplicant_testonly(self._wpa_control_interface)
-      wifi.set_connection_check_result(connection_check_result)
-      self.ifplugd_action(wifi.name, True, dhcp_failure)
-
-    if bss_info and bss_info.ssid == 's1':
-      connect('fail')
-      return True
-
-    if bss_info and bss_info.ssid == 's2' and self.can_connect_to_s2:
-      connect('fail' if self.s2_fail else 'succeed')
-      return True
-
-    if bss_info and bss_info.ssid == 's3' and self.can_connect_to_s3:
-      connect('restricted', self.dhcp_failure_on_s3)
-      return True
-
-    return False
-
-  # pylint: disable=unused-argument,protected-access
-  def _find_bssids(self, band):
-    scan_output = ''
-    if (self.interface_with_scan_results and
-        band in self.interface_by_name(self.interface_with_scan_results).bands):
-      scan_output = IW_SCAN_DEFAULT_OUTPUT
-      if self.scan_results_include_hidden:
-        scan_output += IW_SCAN_HIDDEN_OUTPUT
-    iw._scan = lambda interface: scan_output
-    return super(ConnectionManager, self)._find_bssids(band)
-
-  def _update_wlan_configuration(self, wlan_configuration):
-    wlan_configuration.command.insert(0, 'echo')
-    wlan_configuration._wpa_control_interface = self._wpa_control_interface
-    wlan_configuration.tmp_dir = self._tmp_dir
-    wlan_configuration.interface_status_dir = self._interface_status_dir
-    wlan_configuration.gateway_file_prefix = self.GATEWAY_FILE_PREFIX
-    wlan_configuration.subnet_file_prefix = self.SUBNET_FILE_PREFIX
-
-    super(ConnectionManager, self)._update_wlan_configuration(
-        wlan_configuration)
 
   # Just looking for last_wifi_scan_time to change doesn't work because the
   # tests run too fast.
   def _wifi_scan(self, wifi):
     super(ConnectionManager, self)._wifi_scan(wifi)
     wifi.wifi_scan_counter += 1
-
-  def ifplugd_action(self, interface_name, up, dhcp_failure=False):
-    # Typically, when moca comes up, conman calls ifplugd.action, which writes
-    # this file.  Also, when conman starts, it calls ifplugd.action for eth0.
-    self.write_interface_status_file(interface_name, '1' if up else '0')
-
-    # ifplugd calls run-dhclient, which results in a gateway file if the link is
-    # up (and working).
-    if up and not dhcp_failure:
-      self.write_gateway_file('br0' if interface_name in ('eth0', 'moca0')
-                              else interface_name)
-      self.write_subnet_file('br0' if interface_name in ('eth0', 'moca0')
-                             else interface_name)
 
   def _binwifi(self, *command):
     super(ConnectionManager, self)._binwifi(*command)
@@ -452,50 +187,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
 
     return self._wlan_configuration[band].client_up
 
-  def _try_upload_logs(self):
-    self.log_upload_count += 1
-    return super(ConnectionManager, self)._try_upload_logs()
-
-  # Test methods
-
-  def tried_to_upload_logs(self):
-    result = getattr(self, 'last_log_upload_count', 0) < self.log_upload_count
-    self.last_log_upload_count = self.log_upload_count
-    return result
-
-  def delete_wlan_config(self, band):
-    delete_wlan_config(self._config_dir, band)
-
-  def write_wlan_config(self, *args, **kwargs):
-    write_wlan_config(self._config_dir, *args, **kwargs)
-
-  def enable_access_point(self, band):
-    enable_access_point(self._config_dir, band)
-
-  def disable_access_point(self, band):
-    disable_access_point(self._config_dir, band)
-
-  def write_gateway_file(self, interface_name):
-    gateway_file = os.path.join(self._tmp_dir,
-                                self.GATEWAY_FILE_PREFIX + interface_name)
-    with open(gateway_file, 'w') as f:
-      logging.debug('Writing gateway file %s', gateway_file)
-      # This value doesn't matter to conman, so it's fine to hard code it here.
-      f.write('192.168.1.1')
-
-  def write_subnet_file(self, interface_name):
-    subnet_file = os.path.join(self._tmp_dir,
-                               self.SUBNET_FILE_PREFIX + interface_name)
-    with open(subnet_file, 'w') as f:
-      logging.debug('Writing subnet file %s', subnet_file)
-      # This value doesn't matter to conman, so it's fine to hard code it here.
-      f.write('192.168.1.0/24')
-
-  def write_interface_status_file(self, interface_name, value):
-    status_file = os.path.join(self._interface_status_dir, interface_name)
-    with open(status_file, 'w') as f:
-      # This value doesn't matter to conman, so it's fine to hard code it here.
-      f.write(value)
+  # # Test methods
 
   def set_ethernet(self, up):
     self.ifplugd_action('eth0', up)
@@ -514,6 +206,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
       self.run_once()
 
   def run_until_scan(self, band):
+    logging.debug('running until scan on band %r', band)
     wifi = self.wifi_for_band(band)
     wifi_scan_counter = wifi.wifi_scan_counter
     while wifi_scan_counter == wifi.wifi_scan_counter:
@@ -529,58 +222,12 @@ class ConnectionManager(connection_manager.ConnectionManager):
   def has_status_files(self, files):
     return not set(files) - set(os.listdir(self._status_dir))
 
-  def cwmp_wakeup(self):
-    super(ConnectionManager, self).cwmp_wakeup()
-    self.write_acscontact()
-    if self.acs():
-      self.write_acsconnected()
-
-  def write_acscontact(self):
-    open(os.path.join(connection_manager.CWMP_PATH, 'acscontact'), 'w')
-
-  def write_acsconnected(self):
-    if not self.acs_session_fails:
-      open(os.path.join(connection_manager.CWMP_PATH, 'acsconnected'), 'w')
-
-
-def wlan_config_filename(path, band):
-  return os.path.join(path, 'command.%s' % band)
-
-
-def access_point_filename(path, band):
-  return os.path.join(path, 'access_point.%s' % band)
-
-
-def write_wlan_config(path, band, ssid, psk, atomic=False):
-  final_filename = wlan_config_filename(path, band)
-  filename = final_filename + ('.tmp' if atomic else '')
-  with open(filename, 'w') as f:
-    f.write('\n'.join(['env', 'WIFI_PSK=%s' % psk,
-                       'wifi', 'set', '-b', band, '--ssid', ssid]))
-  if atomic:
-    os.rename(filename, final_filename)
-
-
-def delete_wlan_config(path, band):
-  os.unlink(wlan_config_filename(path, band))
-
-
-def enable_access_point(path, band):
-  open(access_point_filename(path, band), 'w')
-
-
-def disable_access_point(path, band):
-  ap_filename = access_point_filename(path, band)
-  if os.path.isfile(ap_filename):
-    os.unlink(ap_filename)
-
 
 def check_tmp_hosts(expected_contents):
   wvtest.WVPASSEQ(open(connection_manager.TMP_HOSTS).read(), expected_contents)
 
 
-def connection_manager_test(radio_config, wlan_configs=None,
-                            quantenna_interfaces=None, **cm_kwargs):
+def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
   """Returns a decorator that does ConnectionManager test boilerplate."""
   if wlan_configs is None:
     wlan_configs = {}
@@ -589,38 +236,39 @@ def connection_manager_test(radio_config, wlan_configs=None,
     """The actual decorator."""
     def actual_test():
       """The actual test function."""
+      subprocess.reset()
+
       run_duration_s = .01
       interface_update_period = 5
       wifi_scan_period = 15
       wifi_scan_period_s = run_duration_s * wifi_scan_period
       associate_wait_s = 0
       dhcp_wait_s = .5
+      acs_cc_wait_s = 0
       acs_start_wait_s = 0
-      acs_finish_wait_s = 0
+      acs_finish_wait_s = 0.25
 
-      # pylint: disable=protected-access
-      old_wifi_show = connection_manager._wifi_show
-      connection_manager._wifi_show = lambda: radio_config
-
-      old_gqi = connection_manager._get_quantenna_interfaces
-      connection_manager._get_quantenna_interfaces = (
-          lambda: quantenna_interfaces or [])
+      subprocess.mock('wifi', 'interfaces', *radio_config)
 
       try:
         # No initial state.
         connection_manager.TMP_HOSTS = tempfile.mktemp()
         tmp_dir = tempfile.mkdtemp()
         config_dir = tempfile.mkdtemp()
-        os.mkdir(os.path.join(tmp_dir, 'interfaces'))
+        interfaces_dir = os.path.join(tmp_dir, 'interfaces')
+        if not os.path.exists(interfaces_dir):
+          os.mkdir(interfaces_dir)
         moca_tmp_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
+        subprocess.mock('wifi', 'wpa_path', wpa_control_interface)
         FrenzyWifi.WPACtrl.WIFIINFO_PATH = tempfile.mkdtemp()
         connection_manager.CWMP_PATH = tempfile.mkdtemp()
+        subprocess.set_conman_paths(tmp_dir, config_dir,
+                                    connection_manager.CWMP_PATH)
 
         for band, access_point in wlan_configs.iteritems():
-          write_wlan_config(config_dir, band, 'initial ssid', 'initial psk')
-          if access_point:
-            open(os.path.join(config_dir, 'access_point.%s' % band), 'w')
+          subprocess.mock('cwmp', band, ssid='initial ssid', psk='initial psk',
+                          access_point=access_point, write_now=True)
 
         # Test that missing directories are created by ConnectionManager.
         shutil.rmtree(tmp_dir)
@@ -635,12 +283,17 @@ def connection_manager_test(radio_config, wlan_configs=None,
                               wifi_scan_period_s=wifi_scan_period_s,
                               associate_wait_s=associate_wait_s,
                               dhcp_wait_s=dhcp_wait_s,
+                              acs_connection_check_wait_s=acs_cc_wait_s,
                               acs_start_wait_s=acs_start_wait_s,
                               acs_finish_wait_s=acs_finish_wait_s,
                               bssid_cycle_length_s=1,
                               **cm_kwargs)
 
         f(c)
+      except Exception:
+        logging.error('Uncaught exception!')
+        traceback.print_exc()
+        raise
       finally:
         if os.path.exists(connection_manager.TMP_HOSTS):
           os.unlink(connection_manager.TMP_HOSTS)
@@ -650,14 +303,25 @@ def connection_manager_test(radio_config, wlan_configs=None,
         shutil.rmtree(wpa_control_interface)
         shutil.rmtree(FrenzyWifi.WPACtrl.WIFIINFO_PATH)
         shutil.rmtree(connection_manager.CWMP_PATH)
-        # pylint: disable=protected-access
-        connection_manager._wifi_show = old_wifi_show
-        connection_manager._get_quantenna_interfaces = old_gqi
 
     actual_test.func_name = f.func_name
     return actual_test
 
   return inner
+
+
+def _enable_basic_scan_results(band):
+  for bssid, ssid, ccr in (('00:11:22:33:44:55', 's1', 'fail'),
+                           ('66:77:88:99:aa:bb', 's1', 'fail'),
+                           ('01:23:45:67:89:ab', 's2', 'succeed')):
+    subprocess.mock('wifi', 'remote_ap', bssid=bssid, ssid=ssid,
+                    band=band, security=None, connection_check_result=ccr)
+
+
+def _disable_basic_scan_results(band):
+  for bssid in (('00:11:22:33:44:55'), ('66:77:88:99:aa:bb'),
+                ('01:23:45:67:89:ab')):
+    subprocess.mock('wifi', 'remote_ap_remove', bssid=bssid, band=band)
 
 
 def connection_manager_test_generic(c, band):
@@ -754,16 +418,28 @@ def connection_manager_test_generic(c, band):
   check_tmp_hosts('127.0.0.1 localhost')
 
   # Now there are some scan results.
-  c.interface_with_scan_results = c.wifi_for_band(band).name
-  # Wait for a scan, plus 3 cycles, so that s2 will have been tried.
+  _enable_basic_scan_results(band)
+
+  # Create a WLAN configuration which should eventually be connected to.
+  ssid = 'wlan'
+  psk = 'password'
+  subprocess.mock('wifi', 'remote_ap',
+                  bssid='11:22:33:44:55:66',
+                  ssid=ssid, psk=psk, band=band, security='WPA2')
+  subprocess.mock('cwmp', band, ssid=ssid, psk=psk, access_point=False)
+
+  wvtest.WVFAIL(subprocess.upload_logs_and_wait.uploaded_logs())
+  # Wait for a scan, then until s2 is tried.
   c.run_until_scan(band)
-  wvtest.WVPASSEQ(c.log_upload_count, 0)
-  c.wifi_for_band(band).ip_testonly = '192.168.1.100'
+  subprocess.call(['ip', 'addr', 'add', '192.168.1.100',
+                   'dev', c.wifi_for_band(band).name])
   for _ in range(len(c.wifi_for_band(band).cycler)):
     c.run_once()
     wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
+    last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
+    if last_bss_info.ssid == 's2':
+      break
 
-  last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
   wvtest.WVPASSEQ(last_bss_info.ssid, 's2')
   wvtest.WVPASSEQ(last_bss_info.bssid, '01:23:45:67:89:ab')
 
@@ -773,17 +449,10 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.internet())
   wvtest.WVFAIL(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_routes())
-  wvtest.WVPASS(c.tried_to_upload_logs())
-  # Disable scan results again.
-  c.interface_with_scan_results = None
+  wvtest.WVPASS(subprocess.upload_logs_and_wait.uploaded_logs())
   c.run_until_interface_update()
   check_tmp_hosts('192.168.1.100 %s\n127.0.0.1 localhost' % hostname)
 
-  # Now, create a WLAN configuration which should be connected to.
-  ssid = 'wlan'
-  psk = 'password'
-  c.write_wlan_config(band, ssid, psk)
-  c.disable_access_point(band)
   c.run_once()
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_routes())
@@ -792,7 +461,7 @@ def connection_manager_test_generic(c, band):
   # Kill wpa_supplicant.  conman should restart it.
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c._connected_to_wlan(c.wifi_for_band(band)))
-  c.wifi_for_band(band).kill_wpa_supplicant_testonly(c._wpa_control_interface)
+  subprocess.mock('wifi', 'kill_wpa_supplicant', band)
   wvtest.WVFAIL(c.client_up(band))
   wvtest.WVFAIL(c._connected_to_wlan(c.wifi_for_band(band)))
   # Make sure we stay connected to s2, rather than disconnecting and
@@ -806,18 +475,25 @@ def connection_manager_test_generic(c, band):
 
   # The AP restarts with a new configuration, kicking us off.  We should
   # reprovision.
-  c._wlan_configuration[band].stale = True
-  c.wifi_for_band(band).add_disconnected_event()
+  ssid = 'wlan2'
+  psk = 'password2'
+  subprocess.mock('cwmp', band, ssid=ssid, psk=psk)
+  subprocess.mock('wifi', 'remote_ap',
+                  bssid='11:22:33:44:55:66',
+                  ssid=ssid, psk=psk, band=band, security='WPA2')
+  subprocess.mock('wifi', 'disconnected_event', band)
   c.run_once()
   wvtest.WVFAIL(c.client_up(band))
   wvtest.WVPASS(c._connected_to_open(c.wifi_for_band(band)))
-  wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's2')
+  wvtest.WVPASSEQ(c.wifi_for_band(band).last_attempted_bss_info.ssid, 's2')
 
-  # Now that we're on the provisioning network, create the new WLAN
-  # configuration, which should be connected to.
-  ssid = 'wlan2'
-  psk = 'password2'
-  c.write_wlan_config(band, ssid, psk)
+  # Overwrites previous one due to same BSSID.
+  subprocess.mock('wifi', 'remote_ap',
+                  bssid='11:22:33:44:55:66',
+                  ssid=ssid, psk=psk, band=band, security='WPA2')
+  # Run once for cwmp wakeup to get called, then once more for the new config to
+  # be received.
+  c.run_once()
   c.run_once()
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).wpa_status()['ssid'] == ssid)
@@ -829,23 +505,26 @@ def connection_manager_test_generic(c, band):
   # add the user's WLAN to the scan results, and scan again.  This time, the
   # first SSID tried should be 's3', which is now present in the scan results
   # (with its SSID hidden, but included via vendor IE).
-  c.delete_wlan_config(band)
-  c.can_connect_to_s2 = False
-  c.interface_with_scan_results = c.wifi_for_band(band).name
-  c.scan_results_include_hidden = True
-  c.run_until_interface_update_and_scan(band)
-  wvtest.WVFAIL(c.has_status_files([status.P.CONNECTED_TO_WLAN]))
-  c.run_until_interface_update()
-  wvtest.WVPASS(c.has_status_files([status.P.CONNECTED_TO_OPEN]))
-  wvtest.WVPASSEQ(c.last_provisioning_attempt.ssid, 's3')
-  wvtest.WVPASSEQ(c.last_provisioning_attempt.bssid, 'ff:ee:dd:cc:bb:aa')
-  # The log upload happens on the next main loop after joining s3.
-  c.run_once()
-  wvtest.WVPASS(c.tried_to_upload_logs())
+  subprocess.mock('cwmp', band, delete_config=True, write_now=True)
+  del c.wifi_for_band(band).cycler
+  _enable_basic_scan_results(band)
+  # Remove s2.
+  subprocess.mock('wifi', 'remote_ap_remove',
+                  bssid='01:23:45:67:89:ab', band=band)
+  # Create s3.
+  subprocess.mock('wifi', 'remote_ap', bssid='ff:ee:dd:cc:bb:aa', ssid='s3',
+                  band=band, security=None, hidden=True,
+                  vendor_ies=(('f4:f5:e8', '01'), ('f4:f5:e8', '03 73 33')))
+  #### Now, recreate the same WLAN configuration, which should be connected to.
+  subprocess.mock('cwmp', band, ssid=ssid, psk=psk)
 
-  # Now, recreate the same WLAN configuration, which should be connected to.
-  # Also, test that atomic writes/renames work.
-  c.write_wlan_config(band, ssid, psk, atomic=True)
+  c.run_until_interface_update_and_scan(band)
+  c.run_until_interface_update()
+  wvtest.WVPASSEQ(c.wifi_for_band(band).last_attempted_bss_info.ssid, 's3')
+  wvtest.WVPASSEQ(c.wifi_for_band(band).last_attempted_bss_info.bssid,
+                  'ff:ee:dd:cc:bb:aa')
+  wvtest.WVPASS(subprocess.upload_logs_and_wait.uploaded_logs())
+
   c.run_once()
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_routes())
@@ -853,7 +532,7 @@ def connection_manager_test_generic(c, band):
 
   # Now enable the AP.  Since we have no wired connection, this should have no
   # effect.
-  c.enable_access_point(band)
+  subprocess.mock('cwmp', band, access_point=True, write_now=True)
   c.run_once()
   wvtest.WVPASS(c.client_up(band))
   wvtest.WVPASS(c.wifi_for_band(band).current_routes())
@@ -865,7 +544,7 @@ def connection_manager_test_generic(c, band):
   # an AP.
   c.set_ethernet(True)
   c.bridge.set_connection_check_result('succeed')
-  c.bridge.ip_testonly = '192.168.1.101'
+  subprocess.call(['ip', 'addr', 'add', '192.168.1.101', 'dev', c.bridge.name])
   c.run_until_interface_update()
   wvtest.WVPASS(c.access_point_up(band))
   wvtest.WVFAIL(c.client_up(band))
@@ -876,7 +555,7 @@ def connection_manager_test_generic(c, band):
   # Now move (rather than delete) the configuration file.  The AP should go
   # away, and we should not be able to join the WLAN.  Routes should not be
   # affected.
-  filename = wlan_config_filename(c._config_dir, band)
+  filename = subprocess.cwmp.wlan_config_filename(band)
   other_filename = filename + '.bak'
   os.rename(filename, other_filename)
   c.run_once()
@@ -896,7 +575,7 @@ def connection_manager_test_generic(c, band):
 
   # Now delete the config and bring down the bridge and make sure we reprovision
   # via the last working BSS.
-  c.delete_wlan_config(band)
+  subprocess.mock('cwmp', band, delete_config=True, write_now=True)
   c.bridge.set_connection_check_result('fail')
   scan_count_for_band = c.wifi_for_band(band).wifi_scan_counter
   c.run_until_interface_update()
@@ -907,6 +586,7 @@ def connection_manager_test_generic(c, band):
   check_tmp_hosts('192.168.1.101 %s\n127.0.0.1 localhost' % hostname)
   # s3 is not what the cycler would suggest trying next.
   wvtest.WVPASSNE('s3', c.wifi_for_band(band).cycler.peek())
+  subprocess.mock('cwmp', band, ssid=ssid, psk=psk)
   # Run only once, so that only one BSS can be tried.  It should be the s3 one,
   # since that worked previously.
   c.run_once()
@@ -914,18 +594,23 @@ def connection_manager_test_generic(c, band):
   # Make sure we didn't scan on `band`.
   wvtest.WVPASSEQ(scan_count_for_band, c.wifi_for_band(band).wifi_scan_counter)
   c.run_once()
-  wvtest.WVPASS(c.tried_to_upload_logs())
+  wvtest.WVPASS(subprocess.upload_logs_and_wait.uploaded_logs())
 
-  # Now re-create the WLAN config, connect to the WLAN, and make sure that s3 is
-  # unset as last_successful_bss_info, since it is no longer available.
-  c.write_wlan_config(band, ssid, psk)
+  # Now wait for the WLAN config to be created, connect to the WLAN, and make
+  # sure that s3 is unset as last_successful_bss_info, since it is no longer
+  # available.
   c.run_once()
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())
 
-  c.can_connect_to_s3 = False
-  c.scan_results_include_hidden = False
-  c.delete_wlan_config(band)
+  # Remove s3.
+  subprocess.mock('wifi', 'remote_ap_remove',
+                  bssid='ff:ee:dd:cc:bb:aa', band=band)
+  # Bring s2 back.
+  subprocess.mock('wifi', 'remote_ap', bssid='01:23:45:67:89:ab', ssid='s2',
+                  band=band, security=None)
+
+  subprocess.mock('cwmp', band, delete_config=True, write_now=True)
   c.run_once()
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, None)
 
@@ -939,7 +624,7 @@ def connection_manager_test_generic(c, band):
   #    disconnecting.
   # 4) Connect to s2 but get no ACS access; see that last_successful_bss_info is
   #    unset.
-  c.write_wlan_config(band, ssid, psk)
+  subprocess.mock('cwmp', band, ssid=ssid, psk=psk, write_now=True)
   # Connect
   c.run_once()
   # Process DHCP results
@@ -947,31 +632,37 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())
 
-  c.delete_wlan_config(band)
+  subprocess.mock('cwmp', band, delete_config=True, write_now=True)
   c.run_once()
   wvtest.WVFAIL(c.wifi_for_band(band).acs())
 
-  c.can_connect_to_s2 = True
   # Give it time to try all BSSIDs.  This means sleeping long enough that
   # everything in the cycler is active, then doing n+1 loops (the n+1st loop is
   # when we decide that the SSID in the nth loop was successful).
   time.sleep(c._bssid_cycle_length_s)
+  subprocess.mock('cwmp', band, ssid=ssid, psk=psk)
   for _ in range(len(c.wifi_for_band(band).cycler) + 1):
     c.run_once()
-  s2_bss = iw.BssInfo('01:23:45:67:89:ab', 's2')
+  s2_bss = iw.BssInfo(bssid='01:23:45:67:89:ab', ssid='s2', band=band)
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, s2_bss)
   c.run_once()
-  wvtest.WVPASS(c.tried_to_upload_logs())
+  wvtest.WVPASS(subprocess.upload_logs_and_wait.uploaded_logs())
 
-  c.s2_fail = True
-  c.write_wlan_config(band, ssid, psk)
+  # Make s2's connection check fail.
+  subprocess.mock('wifi', 'remote_ap', bssid='01:23:45:67:89:ab', ssid='s2',
+                  band=band, security=None, connection_check_result='fail')
+
   c.run_once()
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())
-
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_successful_bss_info, s2_bss)
-  c._wlan_configuration[band].stale = True
-  c.wifi_for_band(band).add_disconnected_event()
+  # Disconnect.
+  ssid = 'wlan3'
+  psk = 'password3'
+  subprocess.mock('wifi', 'remote_ap',
+                  bssid='11:22:33:44:55:66',
+                  ssid=ssid, psk=psk, band=band, security='WPA2')
+  subprocess.mock('wifi', 'disconnected_event', band)
   # Run once so that c will reconnect to s2.
   c.run_once()
   wvtest.WVPASS(c.wifi_for_band(band).connected_to_open())
@@ -986,16 +677,18 @@ def connection_manager_test_generic(c, band):
   # which lets us force a timeout and proceed to the next AP.  Having a stale
   # WLAN configuration shouldn't interrupt provisioning.
   del c.wifi_for_band(band).cycler
-  c.interface_with_scan_results = c.wifi_for_band(band).name
-  c.scan_results_include_hidden = True
-  c.can_connect_to_s3 = True
-  c.dhcp_failure_on_s3 = True
+  subprocess.mock('wifi', 'remote_ap', bssid='ff:ee:dd:cc:bb:aa', ssid='s3',
+                  band=band, security=None, hidden=True,
+                  vendor_ies=(('f4:f5:e8', '01'), ('f4:f5:e8', '03 73 33')))
+  subprocess.mock('run-dhclient', c.wifi_for_band(band).name, failure=True)
+
   # First iteration: check that we try s3.
   c.run_until_scan(band)
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
   wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
   wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
-  c.write_wlan_config(band, ssid, psk)
+  # Attempt to interrupt provisioning, make sure it doesn't work.
+  c._try_wlan_after[band] = 0
   # Second iteration: check that we try s3 again since there's no gateway yet.
   c.run_once()
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
@@ -1011,7 +704,8 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASSNE(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
 
   # We can delete the stale WLAN config now, to simplify subsequent tests.
-  c.delete_wlan_config(band)
+  # c.delete_wlan_config(band)
+  subprocess.mock('cwmp', band, delete_config=True, write_now=True)
 
   # Now repeat the above, but for an ACS session that takes a while.  We don't
   # necessarily want to leave if it fails (so we don't want the third check),
@@ -1020,12 +714,13 @@ def connection_manager_test_generic(c, band):
   # Unlike DHCP, which we can always simulate working immediately above, it is
   # wrong to simulate ACS sessions working for connections without ACS access.
   # This means we can either always wait for the ACS session timeout in every
-  # test above, making the tests much slower, or we can set that timeout to 0
-  # and then be a little gross here and change it.  The latter is unfortunately
-  # the lesser evil, because slow tests are bad.
+  # test above, making the tests much slower, or we can set that timeout very
+  # low and then be a little gross here and change it.  The latter is
+  # unfortunately the lesser evil, because slow tests are bad.
   del c.wifi_for_band(band).cycler
-  c.dhcp_failure_on_s3 = False
-  c.acs_session_fails = True
+  subprocess.mock('run-dhclient', c.wifi_for_band(band).name, failure=False)
+  subprocess.mock('cwmp', band, acs_session_fails=True)
+
   # First iteration: check that we try s3.
   c.run_until_scan(band)
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
@@ -1050,8 +745,7 @@ def connection_manager_test_generic(c, band):
 
   # Finally, test successful provisioning.
   del c.wifi_for_band(band).cycler
-  c.dhcp_failure_on_s3 = False
-  c.acs_session_fails = False
+  subprocess.mock('cwmp', band, acs_session_fails=False)
   # First iteration: check that we try s3.
   c.run_until_scan(band)
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
@@ -1092,25 +786,19 @@ def connection_manager_test_generic_ath9k_ath10k_5g(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
-                         quantenna_interfaces=['wlan1', 'wlan1_portal', 'wcli1']
-                        )
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY)
 def connection_manager_test_generic_ath9k_frenzy_2g(c):
   connection_manager_test_generic(c, '2.4')
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
-                         quantenna_interfaces=['wlan1', 'wlan1_portal', 'wcli1']
-                        )
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY)
 def connection_manager_test_generic_ath9k_frenzy_5g(c):
   connection_manager_test_generic(c, '5')
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_FRENZY,
-                         quantenna_interfaces=['wlan0', 'wlan0_portal', 'wcli0']
-                        )
+@connection_manager_test(WIFI_SHOW_OUTPUT_FRENZY)
 def connection_manager_test_generic_frenzy_5g(c):
   connection_manager_test_generic(c, '5')
 
@@ -1123,9 +811,17 @@ def connection_manager_test_dual_band_two_radios(c):
   Args:
     c:  The ConnectionManager set up by @connection_manager_test.
   """
+  ssid = 'my ssid'
+  psk = 'passphrase'
+
   wvtest.WVPASSEQ(len(c._binwifi_commands), 2)
+
   for band in ['2.4', '5']:
     wvtest.WVPASS(('stop', '--band', band, '--persist') in c._binwifi_commands)
+
+    subprocess.mock('wifi', 'remote_ap',
+                    bssid='11:22:33:44:55:66',
+                    ssid=ssid, psk=psk, band=band, security='WPA2')
 
   # Bring up ethernet, access.
   c.set_ethernet(True)
@@ -1133,14 +829,10 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVPASS(c.acs())
   wvtest.WVPASS(c.internet())
 
-  ssid = 'my ssid'
-  psk = 'passphrase'
-
   # Bring up both access points.
-  c.write_wlan_config('2.4', ssid, psk)
-  c.enable_access_point('2.4')
-  c.write_wlan_config('5', ssid, psk)
-  c.enable_access_point('5')
+  for band in ('2.4', '5'):
+    subprocess.mock('cwmp', band, ssid=ssid, psk=psk, access_point=True,
+                    write_now=True)
   c.run_once()
   wvtest.WVPASS(c.access_point_up('2.4'))
   wvtest.WVPASS(c.access_point_up('5'))
@@ -1152,7 +844,7 @@ def connection_manager_test_dual_band_two_radios(c):
 
   # Disable the 2.4 GHz AP, make sure the 5 GHz AP stays up.  2.4 GHz should
   # join the WLAN.
-  c.disable_access_point('2.4')
+  subprocess.mock('cwmp', '2.4', access_point=False, write_now=True)
   c.run_until_interface_update()
   wvtest.WVFAIL(c.access_point_up('2.4'))
   wvtest.WVPASS(c.access_point_up('5'))
@@ -1163,7 +855,7 @@ def connection_manager_test_dual_band_two_radios(c):
 
   # Delete the 2.4 GHz WLAN configuration; it should leave the WLAN but nothing
   # else should change.
-  c.delete_wlan_config('2.4')
+  subprocess.mock('cwmp', '2.4', delete_config=True, write_now=True)
   c.run_until_interface_update()
   wvtest.WVFAIL(c.access_point_up('2.4'))
   wvtest.WVPASS(c.access_point_up('5'))
@@ -1175,7 +867,7 @@ def connection_manager_test_dual_band_two_radios(c):
   # Disable the wired connection and remove the WLAN configurations.  Both
   # radios should scan.  Wait for 5 GHz to scan, then enable scan results for
   # 2.4. This should lead to ACS access.
-  c.delete_wlan_config('5')
+  subprocess.mock('cwmp', '5', delete_config=True, write_now=True)
   c.set_ethernet(False)
   c.run_once()
   wvtest.WVFAIL(c.acs())
@@ -1193,7 +885,7 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # The next 2.4 GHz scan will have results.
-  c.interface_with_scan_results = c.wifi_for_band('2.4').name
+  _enable_basic_scan_results('2.4')
   c.run_until_scan('2.4')
   # Now run for enough cycles that s2 will have been tried.
   for _ in range(len(c.wifi_for_band('2.4').cycler)):
@@ -1204,7 +896,7 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVPASS(c.wifi_for_band('2.4').current_routes())
   wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
   c.run_once()
-  wvtest.WVPASS(c.tried_to_upload_logs())
+  wvtest.WVPASS(subprocess.upload_logs_and_wait.uploaded_logs())
 
 
 @wvtest.wvtest
@@ -1214,9 +906,7 @@ def connection_manager_test_dual_band_two_radios_ath9k_ath10k(c):
 
 
 @wvtest.wvtest
-@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY,
-                         quantenna_interfaces=['wlan1', 'wlan1_portal', 'wcli1']
-                        )
+@connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY)
 def connection_manager_test_dual_band_two_radios_ath9k_frenzy(c):
   connection_manager_test_dual_band_two_radios(c)
 
@@ -1243,10 +933,10 @@ def connection_manager_test_dual_band_one_radio(c):
   psk = 'passphrase'
 
   # Enable both access points.  Only 5 should be up.
-  c.write_wlan_config('2.4', ssid, psk)
-  c.enable_access_point('2.4')
-  c.write_wlan_config('5', ssid, psk)
-  c.enable_access_point('5')
+  subprocess.mock('cwmp', '2.4', ssid=ssid, psk=psk, access_point=True,
+                  write_now=True)
+  subprocess.mock('cwmp', '5', ssid=ssid, psk=psk, access_point=True,
+                  write_now=True)
   c.run_once()
   wvtest.WVFAIL(c.access_point_up('2.4'))
   wvtest.WVPASS(c.access_point_up('5'))
@@ -1256,7 +946,7 @@ def connection_manager_test_dual_band_one_radio(c):
 
   # Disable the 2.4 GHz AP; nothing should change.  The 2.4 GHz client should
   # not be up because the same radio is being used to run a 5 GHz AP.
-  c.disable_access_point('2.4')
+  subprocess.mock('cwmp', '2.4', access_point=False, write_now=True)
   c.run_until_interface_update()
   wvtest.WVFAIL(c.access_point_up('2.4'))
   wvtest.WVPASS(c.access_point_up('5'))
@@ -1266,7 +956,7 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # Delete the 2.4 GHz WLAN configuration; nothing should change.
-  c.delete_wlan_config('2.4')
+  subprocess.mock('cwmp', '2.4', delete_config=True, write_now=True)
   c.run_once()
   wvtest.WVFAIL(c.access_point_up('2.4'))
   wvtest.WVPASS(c.access_point_up('5'))
@@ -1279,7 +969,7 @@ def connection_manager_test_dual_band_one_radio(c):
   # should be a single scan that leads to ACS access.  (It doesn't matter which
   # band we specify in run_until_scan, since both bands point to the same
   # interface.)
-  c.delete_wlan_config('5')
+  subprocess.mock('cwmp', '5', delete_config=True, write_now=True)
   c.set_ethernet(False)
   c.run_once()
   wvtest.WVFAIL(c.acs())
@@ -1288,7 +978,7 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVFAIL(c.wifi_for_band('5').current_routes_normal_testonly())
 
   # The scan will have results that will lead to ACS access.
-  c.interface_with_scan_results = c.wifi_for_band('2.4').name
+  _enable_basic_scan_results('2.4')
   c.run_until_scan('5')
   for _ in range(len(c.wifi_for_band('2.4').cycler)):
     c.run_once()
@@ -1298,7 +988,7 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVPASS(c.wifi_for_band('2.4').current_routes())
   wvtest.WVPASS(c.wifi_for_band('5').current_routes())
   c.run_once()
-  wvtest.WVPASSEQ(c.log_upload_count, 1)
+  wvtest.WVPASS(subprocess.upload_logs_and_wait.uploaded_logs())
 
 
 @wvtest.wvtest
@@ -1320,6 +1010,12 @@ def connection_manager_test_marvell8897_no_5ghz(c):
   """
   # Make sure we've correctly set up the test; that there is no 5 GHz wifi
   # interface.
+  ssid = 'my ssid'
+  psk = 'my psk'
+  subprocess.mock('wifi', 'remote_ap', band='2.4', ssid=ssid, psk=psk,
+                  bssid='00:00:00:00:00:00', security='WPA2',
+                  connection_check_result='succeed')
+
   wvtest.WVPASSEQ(c.wifi_for_band('5'), None)
 
   c.set_ethernet(True)
@@ -1327,17 +1023,17 @@ def connection_manager_test_marvell8897_no_5ghz(c):
   wvtest.WVPASS(c.internet())
 
   # Make sure this doesn't crash.
-  c.write_wlan_config('5', 'my ssid', 'my psk')
+  subprocess.mock('cwmp', '5', ssid=ssid, psk=psk, write_now=True)
   c.run_once()
-  c.enable_access_point('5')
+  subprocess.mock('cwmp', '5', access_point=True, write_now=True)
   c.run_once()
-  c.disable_access_point('5')
+  subprocess.mock('cwmp', '5', access_point=False, write_now=True)
   c.run_once()
-  c.delete_wlan_config('5')
+  subprocess.mock('cwmp', '5', delete_config=True, write_now=True)
   c.run_once()
 
   # Make sure 2.4 still works.
-  c.write_wlan_config('2.4', 'my ssid', 'my psk')
+  subprocess.mock('cwmp', '2.4', ssid=ssid, psk=psk, write_now=True)
   # Connect
   c.run_once()
   # Process DHCP results
@@ -1394,19 +1090,23 @@ def connection_manager_conman_no_2g_wlan(c):
 
   # First, establish that we connect on 2.4 without the experiment, to make sure
   # this test doesn't spuriously pass.
-  c.write_wlan_config('2.4', 'my ssid', 'my psk')
+  ssid = 'my ssid'
+  psk = 'my psk'
+  subprocess.mock('wifi', 'remote_ap', ssid=ssid, psk=psk, band='2.4',
+                  bssid='00:00:00:00:00:00')
+  subprocess.mock('cwmp', '2.4', ssid=ssid, psk=psk, write_now=True)
   c.run_once()
   wvtest.WVPASS(c.client_up('2.4'))
 
   # Now, force a disconnect by deleting the config.
-  c.delete_wlan_config('2.4')
+  subprocess.mock('cwmp', '2.4', delete_config=True, write_now=True)
   c.run_once()
   wvtest.WVFAIL(c.client_up('2.4'))
 
   # Now enable the experiment, recreate the config, and make sure we don't
   # connect.
   experiment_testutils.enable('WifiNo2GClient')
-  c.write_wlan_config('2.4', 'my ssid', 'my psk')
+  subprocess.mock('cwmp', '2.4', ssid=ssid, psk=psk, write_now=True)
   c.run_once()
   wvtest.WVFAIL(c.client_up('2.4'))
 

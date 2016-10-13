@@ -137,8 +137,11 @@ def test_status():
     check_exported(True, False, status.P.CONNECTED_TO_OPEN)
     check_exported(True, False, status.P.WAITING_FOR_PROVISIONING)
     check_exported(True, False, status.P.WAITING_FOR_DHCP)
-    s.waiting_for_cwmp_wakeup = True
+    s.acs_connection_check = True
     check_exported(False, False, status.P.WAITING_FOR_DHCP)
+    check_exported(True, False, status.P.ACS_CONNECTION_CHECK)
+    s.waiting_for_cwmp_wakeup = True
+    check_exported(False, False, status.P.ACS_CONNECTION_CHECK)
     check_exported(True, False, status.P.WAITING_FOR_CWMP_WAKEUP)
     s.waiting_for_acs_session = True
     check_exported(False, False, status.P.WAITING_FOR_DHCP)
@@ -147,6 +150,7 @@ def test_status():
     s.provisioning_completed = True
     check_exported(False, False, status.P.WAITING_FOR_PROVISIONING)
     check_exported(False, False, status.P.WAITING_FOR_DHCP)
+    check_exported(False, False, status.P.ACS_CONNECTION_CHECK)
     check_exported(False, False, status.P.WAITING_FOR_CWMP_WAKEUP)
     check_exported(False, False, status.P.WAITING_FOR_CWMP_WAKEUP)
 

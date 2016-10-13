@@ -15,6 +15,7 @@ DEFAULT_GFIBERSETUP_SSID = 'GFiberSetupAutomation'
 _BSSID_RE = r'BSS (?P<BSSID>([0-9a-f]{2}:?){6})\(on .*\)'
 _SSID_RE = r'SSID: (?P<SSID>.*)'
 _RSSI_RE = r'signal: (?P<RSSI>.*) dBm'
+_FREQ_RE = r'freq: (?P<freq>\d+)'
 _VENDOR_IE_RE = (r'Vendor specific: OUI (?P<OUI>([0-9a-f]{2}:?){3}), '
                  'data:(?P<data>( [0-9a-f]{2})+)')
 
@@ -29,16 +30,17 @@ def _scan(band, **kwargs):
 class BssInfo(object):
   """Contains info about a BSS, parsed from 'iw scan'."""
 
-  def __init__(self, bssid='', ssid='', rssi=-100, security=None,
+  def __init__(self, bssid='', ssid='', rssi=0, band=None, security=None,
                vendor_ies=None):
     self.bssid = bssid
     self.ssid = ssid
     self.rssi = rssi
+    self.band = band
     self.vendor_ies = vendor_ies or []
     self.security = security or []
 
   def __attrs(self):
-    return (self.bssid, self.ssid, tuple(sorted(self.vendor_ies)),
+    return (self.bssid, self.ssid, self.band, tuple(sorted(self.vendor_ies)),
             tuple(sorted(self.security)), self.rssi)
 
   def __eq__(self, other):
@@ -52,9 +54,9 @@ class BssInfo(object):
     return hash(self.__attrs())
 
   def __repr__(self):
-    return '<BssInfo: SSID=%s BSSID=%s Security=%s Vendor IEs=%s>' % (
-        self.ssid, self.bssid, ','.join(self.security),
-        ','.join('|'.join(ie) for ie in self.vendor_ies))
+    return ('<BssInfo: SSID=%s BSSID=%s Band=%s Security=%s Vendor IEs=%s>'
+            % (self.ssid, self.bssid, self.band, ','.join(self.security),
+               ','.join('|'.join(ie) for ie in self.vendor_ies)))
 
 
 # TODO(rofrankel): waveguide also scans. Can we find a way to avoid two programs
@@ -78,6 +80,10 @@ def scan_parsed(band, **kwargs):
     match = re.match(_RSSI_RE, line)
     if match:
       bss_info.rssi = float(match.group('RSSI'))
+      continue
+    match = re.match(_FREQ_RE, line)
+    if match:
+      bss_info.band = '2.4' if match.group('freq').startswith('2') else '5'
       continue
     match = re.match(_VENDOR_IE_RE, line)
     if match:

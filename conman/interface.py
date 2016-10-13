@@ -229,14 +229,11 @@ class Interface(object):
 
     try:
       logging.debug('%s calling ip route %s', self.name, ' '.join(args))
-      return self._really_ip_route(*args)
+      return subprocess.check_output(self.IP_ROUTE + list(args))
     except subprocess.CalledProcessError as e:
       logging.error('Failed to call "ip route" with args %r: %s', args,
                     e.message)
       return ''
-
-  def _really_ip_route(self, *args):
-    return subprocess.check_output(self.IP_ROUTE + list(args))
 
   def _ip_addr_show(self):
     try:
@@ -546,13 +543,13 @@ class Wifi(Interface):
 
   def initialize(self):
     """Unset self.initial_ssid, which is only relevant during initialization."""
-
     self.initial_ssid = None
     super(Wifi, self).initialize()
 
   def connected_to_open(self):
-    return (self.wpa_status().get('wpa_state', None) == 'COMPLETED' and
-            self.wpa_status().get('key_mgmt', None) == 'NONE')
+    status = self.wpa_status()
+    return (status.get('wpa_state', None) == 'COMPLETED' and
+            status.get('key_mgmt', None) == 'NONE')
 
   # TODO(rofrankel):  Remove this if and when the wpactrl failures are fixed.
   def wpa_cli_status(self):
@@ -600,6 +597,7 @@ class FrenzyWPACtrl(object):
     return self._client_mode
 
   def detach(self):
+    self._events = []
     raise wpactrl.error('Real WPACtrl always raises this when detaching.')
 
   def pending(self):

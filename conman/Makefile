@@ -15,7 +15,7 @@ all:
 
 %.test: %_test.py
 	echo ./$<
-	PYTHONPATH=..:./test/fake_wpactrl:$(PYTHONPATH) ./$<
+	PYTHONPATH=..:./test/fake_python:$(PYTHONPATH) ./$<
 
 runtests: \
 	$(patsubst %_test.py,%.test,$(wildcard *_test.py))
