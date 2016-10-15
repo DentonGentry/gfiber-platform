@@ -96,11 +96,19 @@ int main(int argc, char **argv)
        *
        * The first three bytes of payload are some kind of RAS header.
        * RAS_Decode() says the data pointer must include the three bytes
-       * of header, but the length must not include those 3 bytes.
-       * So the length is decremented by 6+1+1+3 for a total of 11.
+       * of header, but that the length must not include those 3 bytes.
+       *
+       * HOWEVER, the documentation is a filthy liar. RAS_Decode decrements
+       * its inputLength by three to account for the header length.
+       * If we obey the instructions and omit those 3 bytes from the
+       * length, the audio quality is noticeably worse because it starts
+       * throwing away three bytes of audio data.
+       *
+       * So both the pointer and the length passed to RAS_Decode *include*
+       * the header bytes.
        */
       data = &ibuf[6 + 1 + 1];
-      data_len = ilen - (6 + 1 + 1 + 3);
+      data_len = ilen - (6 + 1 + 1);
       if (RAS_Decode(RAS_DECODE_TI_TYPE1, data, data_len, obuf, &olen) == 0) {
         rcaudio::AudioSamples samples;
         char bdaddr[18];
