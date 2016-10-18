@@ -312,13 +312,13 @@ class ConnectionManager(object):
     # the wpa_supplicant link is up, attempt to attach to the wpa_supplicant
     # control interface.
     for wifi in self.wifi:
+      wifi_up = self.is_interface_up(wifi.name)
       if not os.path.exists(
           os.path.join(self._interface_status_dir, wifi.name)):
-        wifi_up = self.is_interface_up(wifi.name)
         self.ifplugd_action(wifi.name, wifi_up)
-        if wifi_up:
-          wifi.status.attached_to_wpa_supplicant = wifi.attach_wpa_control(
-              self._wpa_control_interface)
+      if wifi_up:
+        wifi.status.attached_to_wpa_supplicant = wifi.attach_wpa_control(
+            self._wpa_control_interface)
 
     for path, prefix in ((self._tmp_dir, self.GATEWAY_FILE_PREFIX),
                          (self._tmp_dir, self.SUBNET_FILE_PREFIX),
