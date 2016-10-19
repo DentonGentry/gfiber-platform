@@ -142,7 +142,8 @@ LOG_INFO = 2
 LOG_VERB = 3
 LOG_ALL  = 99
 
-SLEEP_BEFORE_RELEASE_TIME = 0.1  # secs
+SLEEP_BEFORE_RELEASE_TIME = 0.1   # secs
+SLEEP_BETWEEN_DIGITS_TIME = 0.25  # secs
 
 optspec = """
 soft_rc.py [options]
@@ -523,6 +524,7 @@ class RcServer(object):
           for d in token:
             tok = "DIGIT_" + d
             self.SendKeyCode(tok, keymap.get(tok))
+            time.sleep(SLEEP_BETWEEN_DIGITS_TIME)
           self.SendKeyCode("OK", keymap.get("OK"))
 
         # regular key
