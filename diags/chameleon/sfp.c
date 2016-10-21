@@ -175,7 +175,7 @@ int sfp_info(int argc, char *argv[]) {
     temp = value[0] + ((float)value[1]) / 256.0;
   }
   vcc = ((float)((value[2] << 8) + value[3])) / 10000.0;
-  tx_bias = ((float)((value[4] << 8) + value[5])) / 1000.0;
+  tx_bias = (((float)((value[4] << 8) + value[5])) * 2) / 1000.0;
   tx_power = ((float)((value[6] << 8) + value[7])) / 10000.0;
   rx_power = ((float)((value[8] << 8) + value[9])) / 10000.0;
   mod_curr = ((float)((value[12] << 8) + value[13])) / 1000.0;
