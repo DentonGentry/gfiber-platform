@@ -122,7 +122,7 @@ def ratchet_test():
     wvtest.WVEXCEPT(ratchet.TimeoutException, r.check)
 
     x = y = z = 1
-    r.reset()
+    r.start()
     wvtest.WVPASS(r.check())
   finally:
     shutil.rmtree(status_export_path)

@@ -146,6 +146,7 @@ class Ratchet(Condition):
 
   def reset(self):
     self._current_step = 0
+    self.active = False
     for step in self.steps:
       step.reset()
       self._set_step_status(step, False)
@@ -153,11 +154,18 @@ class Ratchet(Condition):
 
   def start(self):
     self.reset()
+    self.active = True
     self._set_current_step_status(True)
+
+  def stop(self):
+    self.active = False
 
   # Override check rather than evaluate because we don't want the Ratchet to
   # time out unless one of its steps does.
   def check(self):
+    if not self.active:
+      return
+
     if not self.done_after:
       while self.current_step().check():
         if not self.advance():

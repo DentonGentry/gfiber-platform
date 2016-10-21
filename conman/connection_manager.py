@@ -468,7 +468,6 @@ class ConnectionManager(object):
 
     for wifi in self.wifi:
       continue_wifi = False
-      provisioning_failed = self.provisioning_failed(wifi)
       if self.currently_provisioning(wifi):
         continue
 
@@ -960,6 +959,7 @@ class ConnectionManager(object):
       wifi.provisioning_ratchet.check()
       if wifi.provisioning_ratchet.done_after:
         wifi.status.provisioning_completed = True
+        wifi.provisioning_ratchet.stop()
         logging.info('%s successfully provisioned', wifi.name)
       return False
     except ratchet.TimeoutException:
