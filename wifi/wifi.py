@@ -898,8 +898,12 @@ def _set_wpa_supplicant_config(interface, config, opt):
           "Couldn't stop hostapd to start wpa_supplicant.")
 
   if already_running:
+    subprocess.check_call(['ifdown', interface])
+    subprocess.check_call(['/etc/ifplugd/ifplugd.action', interface, 'down'])
     if not _reconfigure_wpa_supplicant(interface):
       raise utils.BinWifiException('Failed to reconfigure wpa_supplicant.')
+    subprocess.check_call(['ifup', interface])
+    subprocess.check_call(['/etc/ifplugd/ifplugd.action', interface, 'up'])
   elif not _start_wpa_supplicant(interface, tmp_config_filename):
     raise utils.BinWifiException(
         'wpa_supplicant failed to start.  Look at wpa_supplicant logs for '

@@ -54,11 +54,11 @@ def _get_interface(mode, suffix):
 
 
 def _set_link_state(hif, state):
-  subprocess.check_output(['if' + state, hif])
+  subprocess.check_call(['if' + state, hif])
 
 
 def _ifplugd_action(hif, state):
-  subprocess.check_output(['/etc/ifplugd/ifplugd.action', hif, state])
+  subprocess.check_call(['/etc/ifplugd/ifplugd.action', hif, state])
 
 
 def _parse_scan_result(line):
