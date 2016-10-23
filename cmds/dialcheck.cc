@@ -290,7 +290,7 @@ int main(int argc, char **argv)
   int s4, s6;
 
   setlinebuf(stdout);
-  alarm(30);
+  alarm(10);
 
   while ((c = getopt(argc, argv, "t:")) != -1) {
     switch(c) {
