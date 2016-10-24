@@ -61,6 +61,7 @@ supports-provisioning             Indicate via vendor IE that this AP supports p
 
 _FINGERPRINTS_DIRECTORY = '/tmp/wifi/fingerprints'
 _LOCKFILE = '/tmp/wifi/wifi'
+_PLATFORM_FILE = '/etc/platform'
 lockfile_taken = False
 
 
@@ -587,6 +588,18 @@ def _get_hostapd_band(interface):
         return None
 
 
+def _is_wind_charger():
+  try:
+    etc_platform = open(_PLATFORM_FILE).read()
+    if etc_platform[:-1] == 'GFMN100':
+      return True
+    else:
+      return False
+  except IOError as e:
+    print('_is_wind_charger: cant open %s: %s' % (_PLATFORM_FILE, e.strerror))
+    return False
+
+
 def _start_hostapd(interface, config_filename, band, ssid):
   """Starts a babysat hostapd.
 
@@ -622,9 +635,15 @@ def _start_hostapd(interface, config_filename, band, ssid):
   alivemonitor_filename = utils.get_filename(
       'hostapd', utils.FILENAME_KIND.alive, interface, tmp=True)
 
+  # Don't use alivemonitor on Windcharger since no waveguide. b/32376077
+  if _is_wind_charger() or experiment.enabled('WifiNoAliveMonitor'):
+    alive_monitor = []
+  else:
+    alive_monitor = ['alivemonitor', alivemonitor_filename, '30', '2', '65']
+
   utils.log('Starting hostapd.')
-  utils.babysit(['alivemonitor', alivemonitor_filename, '30', '2', '65',
-                 'hostapd',
+  utils.babysit(alive_monitor +
+                ['hostapd',
                  '-A', alivemonitor_filename,
                  '-F', _FINGERPRINTS_DIRECTORY] +
                 bandsteering.hostapd_options(band, ssid) +
