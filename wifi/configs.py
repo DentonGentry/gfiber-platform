@@ -22,6 +22,7 @@ EXPERIMENTS = [
     'WifiHostapdDebug',
     'WifiShortAggTimeout',
     'WifiNoAggTimeout',
+    'WifiNoAliveMonitor',
 ]
 for _i in EXPERIMENTS:
   experiment.register(_i)
