@@ -887,7 +887,19 @@ def InstallImage(f, partition, skiploader=False, skiploadersig=False):
 
   uloader = loader = None
   uloadersig = FileWithSecureHash(StringIO.StringIO(''), 'badsig')
-  loadersig = FileWithSecureHash(StringIO.StringIO(''), 'badsig')
+
+  # TODO(cgibson): Modern ginstall images contain a loadersig. However, some
+  # releases, such as 42.33 for the FiberJack, do not have a loadersig. In 42.33
+  # this was okay since cwmp calls ginstall with the '--skiploadersig' flag.
+  # However, in later versions this flag was removed. Now if a new ginstall
+  # were to be used to downgrade to an older ginstall image, the install would
+  # fail. This seems to only affect the FiberJack platform, which is still
+  # running 42.33. This can safely be removed once all FiberJacks have been
+  # upgraded to gfiber-47 and are not anticipated to need to be downgraded back
+  # to 42.33.
+  loadersig = None
+  if not GetPlatform().startswith('GFLT'):
+    loadersig = FileWithSecureHash(StringIO.StringIO(''), 'badsig')
 
   for ti in tar:
     secure_hash = manifest.get('%s-sha1' % ti.name)
