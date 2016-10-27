@@ -551,7 +551,7 @@ def scan_wifi(opt):
 
 def _is_hostapd_running(interface):
   return utils.subprocess_quiet(
-      ('hostapd_cli', '-i', interface, 'status'), no_stdout=True) == 0
+      ('hostapd_cli', '-i', interface, 'quit'), no_stdout=True) == 0
 
 
 def _wpa_cli(program, interface, command):
