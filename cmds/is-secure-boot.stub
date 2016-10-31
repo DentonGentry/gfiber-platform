@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "$0: this is just a stub; enabling leds."
+exit 0
