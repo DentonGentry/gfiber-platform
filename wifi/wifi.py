@@ -537,12 +537,12 @@ def scan_wifi(opt):
     raise utils.BinWifiException('No client interface for band %s', band)
 
   scan_args = []
+  if opt.scan_freq:
+    scan_args += ['freq', str(opt.scan_freq)]
   if opt.scan_ap_force:
     scan_args += ['ap-force']
   if opt.scan_passive:
     scan_args += ['passive']
-  if opt.scan_freq:
-    scan_args += ['freq', opt.scan_freq]
 
   print(iw.scan(interface, scan_args))
 
