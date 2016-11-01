@@ -177,6 +177,7 @@ int main(int argc, char **argv)
     usage(argv[0]);
   }
 
+  memset(anonid, 0, sizeof(anonid));
   get_anonid_for_mac(addr, anonid);
   printf("%s\n", anonid);
 
