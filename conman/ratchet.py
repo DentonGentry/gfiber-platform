@@ -15,6 +15,7 @@ try:
 except AttributeError:
   _gettime = time.time
 
+
 # This has to be called before another module calls it with a higher log level.
 # pylint: disable=g-import-not-at-top
 logging.basicConfig(level=logging.DEBUG)
@@ -69,7 +70,7 @@ class Condition(object):
     if now > self.start_at + self.timeout:
       self.timed_out = True
       self.logger.info('%s timed out after %.2f seconds',
-                       self.name, now - self.t0)
+                       self.name, now - self.start_at)
       raise TimeoutException()
 
     self.not_done_before = _gettime()
@@ -81,7 +82,7 @@ class Condition(object):
     self.done_after = self.not_done_before
     self.done_by = _gettime()
     self.logger.info('%s completed after %.2f seconds',
-                     self.name, self.done_by - self.t0)
+                     self.name, self.done_by - self.start_at)
 
     if self.callback:
       self.callback()
@@ -90,47 +91,35 @@ class Condition(object):
 class FileExistsCondition(Condition):
   """A condition that checks for the existence of a file."""
 
-  def __init__(self, name, filename, timeout):
-    self._filename = filename
+  def __init__(self, name, filepath, timeout):
+    self._filepath = filepath
     super(FileExistsCondition, self).__init__(name, None, timeout)
 
   def evaluate(self):
-    return os.path.exists(self._filename)
-
-  def mtime(self):
-    if os.path.exists(self._filename):
-      return os.stat(self._filename).st_mtime
-
-    return None
-
-  def mark_done(self):
-    super(FileExistsCondition, self).mark_done()
-    # We have to check this because the file could have been deleted while this
-    # was being called.  But this condition should almost always be true.
-    mtime = self.mtime()
-    if mtime:
-      self.done_after = self.done_by = mtime
+    return os.path.exists(self._filepath)
 
 
 class FileTouchedCondition(FileExistsCondition):
-  """A condition that checks that a file was touched after a certain time."""
+  """A condition that checks that a file is touched.
 
-  def reset(self, t0=None, start_at=None):
-    mtime = self.mtime
-    if t0 and mtime and mtime < t0:
-      self.initial_mtime = self.mtime()
-    else:
-      self.initial_mtime = None
-    super(FileTouchedCondition, self).reset(t0, start_at)
+  Because the clock may be adjusted, we can't compare the file's mtime to a
+  timestamp.  So just look for mtime changes instead.  This means that t0 and
+  start_at aren't respected; instead, look for touches after whenever the
+  FileTouchedCondition is reset.
+  """
+
+  def reset(self, *args, **kwargs):
+    super(FileTouchedCondition, self).reset(*args, **kwargs)
+    self.initial_mtime = self.mtime()
 
   def evaluate(self):
     if not super(FileTouchedCondition, self).evaluate():
       return False
+    return self.mtime() != self.initial_mtime
 
-    if self.initial_mtime:
-      return self.mtime() > self.initial_mtime
-
-    return self.mtime() >= self.t0
+  def mtime(self):
+    if os.path.exists(self._filepath):
+      return os.stat(self._filepath).st_mtime
 
 
 class Ratchet(Condition):

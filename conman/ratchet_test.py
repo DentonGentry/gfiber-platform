@@ -45,38 +45,29 @@ def condition_test():
 @wvtest.wvtest
 def file_condition_test():
   """Test File*Condition functionality."""
-  try:
-    _, filename = tempfile.mkstemp()
-    c_exists = ratchet.FileExistsCondition('c exists', filename, 0.1)
-    c_mtime = ratchet.FileTouchedCondition('c mtime', filename, 0.1)
-    wvtest.WVPASS(c_exists.check())
-    wvtest.WVFAIL(c_mtime.check())
-    # mtime precision is too low to notice that we're touching the file *after*
-    # capturing its initial mtime rather than at the same time, so take a short
-    # nap before touching it.
-    time.sleep(0.01)
-    open(filename, 'w')
-    wvtest.WVPASS(c_mtime.check())
+  _, filename = tempfile.mkstemp()
+  c_exists = ratchet.FileExistsCondition('c exists', filename, 0.1)
+  c_touched = ratchet.FileTouchedCondition('c touched', filename, 0.1)
+  wvtest.WVPASS(c_exists.check())
+  wvtest.WVFAIL(c_touched.check())
+  # File mtime resolution isn't fine enough to see the difference between this
+  # write and the previous one, so sleep for a short time before writing to
+  # ensure a different mtime.
+  time.sleep(0.01)
+  open(filename, 'w')
+  wvtest.WVPASS(c_touched.check())
 
-    # Test that old mtimes don't count.
-    time.sleep(0.01)
-    c_mtime.reset()
-    wvtest.WVFAIL(c_mtime.check())
-    time.sleep(0.1)
-    wvtest.WVEXCEPT(ratchet.TimeoutException, c_mtime.check)
+  # Test that pre-existing files don't count.
+  c_touched.reset()
+  wvtest.WVFAIL(c_touched.check())
+  time.sleep(0.1)
+  wvtest.WVEXCEPT(ratchet.TimeoutException, c_touched.check)
 
-    # Test t0 and start_at.
-    os.unlink(filename)
-    now = time.time()
-    c_mtime.reset(t0=now, start_at=now + 0.2)
-    wvtest.WVFAIL(c_mtime.check())
-    time.sleep(0.15)
-    wvtest.WVFAIL(c_mtime.check())
-    open(filename, 'w')
-    wvtest.WVPASS(c_mtime.check())
-
-  finally:
-    os.unlink(filename)
+  # Test that deleting files doesn't count.
+  c_touched.reset()
+  wvtest.WVFAIL(c_touched.check())
+  os.unlink(filename)
+  wvtest.WVFAIL(c_touched.check())
 
 
 @wvtest.wvtest
