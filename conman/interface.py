@@ -488,9 +488,7 @@ class Wifi(Interface):
     """
     status = {}
 
-    if self._wpa_control and self._wpa_control.attached:
-      logging.debug('%s ctrl_iface_path %s',
-                    self, self._wpa_control.ctrl_iface_path)
+    if self.attached():
       lines = []
       try:
         lines = self._wpa_control.request('STATUS').splitlines()
@@ -504,6 +502,7 @@ class Wifi(Interface):
         k, v = line.strip().split('=', 1)
         status[k] = v
 
+    logging.debug('wpa_status is %r', status)
     return status
 
   def get_wpa_control(self, socket):
@@ -524,6 +523,9 @@ class Wifi(Interface):
     if not self.attached():
       self.wpa_supplicant = False
       return
+
+    # b/31261343:  Make sure we didn't miss wpa_supplicant being up.
+    self.wpa_supplicant = self.wpa_status().get('wpa_state', '') == 'COMPLETED'
 
     while self._wpa_control.pending():
       match = self.WPA_EVENT_RE.match(self._wpa_control.recv())
