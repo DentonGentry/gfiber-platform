@@ -59,6 +59,7 @@ GZIP_HEADER = '\x1f\x8b\x08'  # encoded as string to ignore endianness
 HNVRAM = 'hnvram'
 NANDDUMP = ['nanddump']
 SGDISK = 'sgdisk'
+PROGRESS_EXPORT_PATH = '/tmp/ginstall'
 
 F = {
     'ETCPLATFORM': '/etc/platform',
@@ -761,18 +762,36 @@ def GetOsFromManifest(manifest):
 class ProgressBar(object):
   """Progress bar that prints one dot per 1MB."""
 
+  # Can be overridden by unit tests.
+  DOTSIZE = 1024 * 1024
+
   def __init__(self):
     self.bytes = 0
+    if not os.path.exists(PROGRESS_EXPORT_PATH):
+      try:
+        os.makedirs(PROGRESS_EXPORT_PATH)
+      except OSError as e:
+        VerbosePrint('Could not create %r: %s', PROGRESS_EXPORT_PATH, e)
 
   def MadeProgress(self, b):
     self.bytes += b
-    dotsize = 1024 * 1024
-    if self.bytes > dotsize:
+    if self.bytes >= self.DOTSIZE:
       VerbosePrint('.')
-      self.bytes -= dotsize
+      self.ExportProgress('.')
+      self.bytes -= self.DOTSIZE
 
   def Done(self):
+    self.ExportProgress('\n')
     VerbosePrint('\n')
+
+  def _ProgressExportFile(self):
+    return os.path.join(PROGRESS_EXPORT_PATH, 'progress')
+
+  def ExportProgress(self, msg):
+    try:
+      open(self._ProgressExportFile(), 'a').write(msg)
+    except (OSError, IOError) as e:
+      VerbosePrint('Failed to write progress bar to file: %s', e)
 
 
 class FileWithSecureHash(object):

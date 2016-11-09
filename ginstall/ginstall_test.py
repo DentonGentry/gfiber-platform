@@ -71,6 +71,7 @@ class GinstallTest(unittest.TestCase):
         self.tmpdir + '/mmcblk0boot0/force_ro')
     ginstall.MMC_RO_LOCK['MMCBLK0BOOT1'] = (
         self.tmpdir + '/mmcblk0boot1/force_ro')
+    ginstall.PROGRESS_EXPORT_PATH = os.path.join(self.tmpdir, 'ginstall')
 
     # default OS to 'fiberos'
     self.WriteOsFile('fiberos')
@@ -115,11 +116,26 @@ class GinstallTest(unittest.TestCase):
         open('testdata/img/loader_bad.sig'),
         open('testdata/etc/google_public.der')))
 
-  def testIsIdentical(self):
+  def testIsIdenticalAndProgressBar(self):
+    ginstall.BUFSIZE = 1
+    ginstall.ProgressBar.DOTSIZE = 1
+    loader = 'testdata/img/loader.bin'
+    loader1 = 'testdata/img/loader1.bin'
+    self.assertTrue(ginstall.IsIdentical(
+        'testloader', open(loader), open(loader)))
     self.assertFalse(ginstall.IsIdentical(
-        'testloader',
-        open('testdata/img/loader.bin'),
-        open('testdata/img/loader1.bin')))
+        'testloader', open(loader), open(loader1)))
+
+    # Test exported progress bar.
+    success_line = '.' * (len(open(loader).read()) - 1) + '\n'
+    failure_line = ''
+    for a, b in zip(open(loader).read(), open(loader1).read()):
+      if a != b:
+        break
+      failure_line += '.'
+    progress_file = open(
+        os.path.join(ginstall.PROGRESS_EXPORT_PATH, 'progress')).read()
+    self.assertEqual(progress_file, success_line + failure_line)
 
   def testVerifyAndIsIdentical(self):
     loader = open('testdata/img/loader.bin')
