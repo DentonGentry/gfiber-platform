@@ -74,7 +74,7 @@ class WLANConfiguration(object):
   WIFI_SETCLIENT = ['wifi', 'setclient', '--persist']
   WIFI_STOPCLIENT = ['wifi', 'stopclient', '--persist']
 
-  def __init__(self, band, wifi, command_lines, wpa_control_interface):
+  def __init__(self, band, wifi, command_lines):
     self.band = band
     self.wifi = wifi
     self.command = command_lines.splitlines()
@@ -83,7 +83,6 @@ class WLANConfiguration(object):
     self.passphrase = None
     self.interface_suffix = None
     self.access_point = None
-    self._wpa_control_interface = wpa_control_interface
 
     binwifi_option_attrs = {
         '-s': 'ssid',
@@ -106,16 +105,12 @@ class WLANConfiguration(object):
     if self.ssid is None:
       raise ValueError('Command file does not specify SSID')
 
-    if self.wifi.initial_ssid == self.ssid:
+    if self.client_up:
       logging.info('Connected to WLAN at startup')
 
   @property
   def client_up(self):
-    wpa_status = self.wifi.wpa_status()
-    return (wpa_status.get('wpa_state') == 'COMPLETED'
-            # NONE indicates we're on a provisioning network; anything else
-            # suggests we're already on the WLAN.
-            and wpa_status.get('key_mgmt') != 'NONE')
+    return self.ssid and self.ssid == self.wifi.current_secure_ssid()
 
   def start_access_point(self):
     """Start an access point."""
@@ -163,7 +158,8 @@ class WLANConfiguration(object):
       return
 
     if self._actually_start_client():
-      self._post_start_client()
+      self.wifi.status.connected_to_wlan = True
+      logging.info('Started wifi client on %s GHz', self.band)
 
   def _actually_start_client(self):
     """Actually run wifi setclient.
@@ -187,18 +183,10 @@ class WLANConfiguration(object):
 
     return True
 
-  def _post_start_client(self):
-    self.wifi.handle_wpa_events()
-    self.wifi.status.connected_to_wlan = True
-    logging.info('Started wifi client on %s GHz', self.band)
-    self.wifi.attach_wpa_control(self._wpa_control_interface)
-
   def stop_client(self):
     if not self.client_up:
       logging.debug('Wifi client already stopped on %s GHz', self.band)
       return
-
-    self.wifi.detach_wpa_control()
 
     try:
       subprocess.check_output(self.WIFI_STOPCLIENT + ['-b', self.band],
@@ -206,7 +194,7 @@ class WLANConfiguration(object):
       # TODO(rofrankel): Make this work for dual-radio devices.
       self.wifi.status.connected_to_wlan = False
       logging.info('Stopped wifi client on %s GHz', self.band)
-      self.wifi.handle_wpa_events()
+      self.wifi.update()
     except subprocess.CalledProcessError as e:
       logging.error('Failed to stop wifi client: %s', e.output)
 
@@ -242,7 +230,6 @@ class ConnectionManager(object):
                tmp_dir='/tmp/conman',
                config_dir='/config/conman',
                moca_tmp_dir='/tmp/cwmp/monitoring/moca2',
-               wpa_control_interface='/var/run/wpa_supplicant',
                run_duration_s=1, interface_update_period=5,
                wifi_scan_period_s=120, wlan_retry_s=120, associate_wait_s=15,
                dhcp_wait_s=10, acs_connection_check_wait_s=1,
@@ -254,7 +241,6 @@ class ConnectionManager(object):
     self._interface_status_dir = os.path.join(tmp_dir, 'interfaces')
     self._status_dir = os.path.join(tmp_dir, 'status')
     self._moca_tmp_dir = moca_tmp_dir
-    self._wpa_control_interface = wpa_control_interface
     self._run_duration_s = run_duration_s
     self._interface_update_period = interface_update_period
     self._wifi_scan_period_s = wifi_scan_period_s
@@ -310,17 +296,13 @@ class ConnectionManager(object):
       self.ifplugd_action('eth0', ethernet_up)
       self.bridge.ethernet = ethernet_up
 
-    # Do the same for wifi interfaces , but rather than explicitly setting that
-    # the wpa_supplicant link is up, attempt to attach to the wpa_supplicant
-    # control interface.
+    # Do the same for wifi interfaces.
     for wifi in self.wifi:
       wifi_up = self.is_interface_up(wifi.name)
+      wifi.wpa_supplicant = wifi_up
       if not os.path.exists(
           os.path.join(self._interface_status_dir, wifi.name)):
         self.ifplugd_action(wifi.name, wifi_up)
-      if wifi_up:
-        wifi.status.attached_to_wpa_supplicant = wifi.attach_wpa_control(
-            self._wpa_control_interface)
 
     for path, prefix in ((self._tmp_dir, self.GATEWAY_FILE_PREFIX),
                          (self._tmp_dir, self.SUBNET_FILE_PREFIX),
@@ -438,8 +420,6 @@ class ConnectionManager(object):
       while True:
         self.run_once()
     finally:
-      for wifi in self.wifi:
-        wifi.detach_wpa_control()
       self.notifier.stop()
 
   def run_once(self):
@@ -510,12 +490,7 @@ class ConnectionManager(object):
           if wlan_configuration.access_point_up:
             continue_wifi = True
 
-      if not wifi.attached():
-        logging.debug('Attempting to attach to wpa control interface for %s',
-                      wifi.name)
-        wifi.status.attached_to_wpa_supplicant = wifi.attach_wpa_control(
-            self._wpa_control_interface)
-      wifi.handle_wpa_events()
+      wifi.update()
 
       if continue_wifi:
         logging.debug('Running AP on %s, nothing else to do.', wifi.name)
@@ -735,8 +710,7 @@ class ConnectionManager(object):
           wifi = self.wifi_for_band(band)
           if wifi:
             self._update_wlan_configuration(
-                self.WLANConfiguration(band, wifi, contents,
-                                       self._wpa_control_interface))
+                self.WLANConfiguration(band, wifi, contents))
       elif filename.startswith(self.ACCESS_POINT_FILE_PREFIX):
         match = re.match(self.ACCESS_POINT_FILE_REGEXP, filename)
         if match:
@@ -844,8 +818,7 @@ class ConnectionManager(object):
       self.start_provisioning(wifi)
       connected = self._try_bssid(wifi, bss_info)
       if connected:
-        wifi.attach_wpa_control(self._wpa_control_interface)
-        wifi.handle_wpa_events()
+        wifi.update()
         wifi.status.connected_to_open = True
         now = _gettime()
         wifi.complain_about_acs_at = now + 5

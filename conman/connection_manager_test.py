@@ -106,7 +106,7 @@ def WLANConfigurationParseTest():  # pylint: disable=invalid-name
       '--bridge=br0', '-s', 'my ssid=1', '--interface-suffix', '_suffix',
   ])
   config = connection_manager.WLANConfiguration(
-      '5', interface_test.Wifi('wcli0', 20), cmd, None)
+      '5', interface_test.Wifi('wcli0', 20), cmd)
 
   wvtest.WVPASSEQ('my ssid=1', config.ssid)
   wvtest.WVPASSEQ('abcdWIFI_PSK=qwer', config.passphrase)
@@ -156,10 +156,6 @@ class ConnectionManager(connection_manager.ConnectionManager):
         subprocess.mock('cwmp', band, ssid=ssid, psk=psk, write_now=True)
         subprocess.mock('wifi', 'remote_ap', band=band, ssid=ssid, psk=psk,
                         bssid='00:00:00:00:00:00')
-
-        # Also create the wpa_supplicant socket to which to attach.
-        open(os.path.join(kwargs['wpa_control_interface'], interface_name),
-             'w')
 
     super(ConnectionManager, self).__init__(*args, **kwargs)
 
@@ -261,7 +257,6 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
         moca_tmp_dir = tempfile.mkdtemp()
         wpa_control_interface = tempfile.mkdtemp()
         subprocess.mock('wifi', 'wpa_path', wpa_control_interface)
-        FrenzyWifi.WPACtrl.WIFIINFO_PATH = tempfile.mkdtemp()
         connection_manager.CWMP_PATH = tempfile.mkdtemp()
         subprocess.set_conman_paths(tmp_dir, config_dir,
                                     connection_manager.CWMP_PATH)
@@ -276,7 +271,6 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
         c = ConnectionManager(tmp_dir=tmp_dir,
                               config_dir=config_dir,
                               moca_tmp_dir=moca_tmp_dir,
-                              wpa_control_interface=wpa_control_interface,
                               run_duration_s=run_duration_s,
                               interface_update_period=interface_update_period,
                               wlan_retry_s=0,
@@ -301,7 +295,6 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
         shutil.rmtree(config_dir)
         shutil.rmtree(moca_tmp_dir)
         shutil.rmtree(wpa_control_interface)
-        shutil.rmtree(FrenzyWifi.WPACtrl.WIFIINFO_PATH)
         shutil.rmtree(connection_manager.CWMP_PATH)
 
     actual_test.func_name = f.func_name
@@ -478,6 +471,7 @@ def connection_manager_test_generic(c, band):
   ssid = 'wlan2'
   psk = 'password2'
   subprocess.mock('cwmp', band, ssid=ssid, psk=psk)
+  # Overwrites previous one due to same BSSID.
   subprocess.mock('wifi', 'remote_ap',
                   bssid='11:22:33:44:55:66',
                   ssid=ssid, psk=psk, band=band, security='WPA2')
@@ -487,10 +481,6 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c._connected_to_open(c.wifi_for_band(band)))
   wvtest.WVPASSEQ(c.wifi_for_band(band).last_attempted_bss_info.ssid, 's2')
 
-  # Overwrites previous one due to same BSSID.
-  subprocess.mock('wifi', 'remote_ap',
-                  bssid='11:22:33:44:55:66',
-                  ssid=ssid, psk=psk, band=band, security='WPA2')
   # Run once for cwmp wakeup to get called, then once more for the new config to
   # be received.
   c.run_once()

@@ -176,7 +176,6 @@ def bridge_test():
 def generic_wifi_test(w, wpa_path):
   # Not currently connected.
   subprocess.wifi.WPA_PATH = wpa_path
-  w.attach_wpa_control(wpa_path)
   wvtest.WVFAIL(w.wpa_supplicant)
 
   # wpa_supplicant connects.
@@ -186,38 +185,15 @@ def generic_wifi_test(w, wpa_path):
                   bssid='00:00:00:00:00:00', connection_check_result='succeed')
   subprocess.check_call(['wifi', 'setclient', '--ssid', ssid, '--band', '5'],
                         env={'WIFI_CLIENT_PSK': psk})
-  wvtest.WVFAIL(w.wpa_supplicant)
-  w.attach_wpa_control(wpa_path)
-  w.handle_wpa_events()
   wvtest.WVPASS(w.wpa_supplicant)
   w.set_gateway_ip('192.168.1.1')
 
   # wpa_supplicant disconnects.
   subprocess.mock('wifi', 'disconnected_event', '5')
-  w.handle_wpa_events()
   wvtest.WVFAIL(w.wpa_supplicant)
-
-  # Now, start over so we can test what happens when wpa_supplicant is already
-  # connected when we attach.
-  w.detach_wpa_control()
-  w._initialized = False
-  subprocess.check_call(['wifi', 'setclient', '--ssid', ssid, '--band', '5'],
-                        env={'WIFI_CLIENT_PSK': psk})
-  w.attach_wpa_control(wpa_path)
-
-  # wpa_supplicant was already connected when we attached.
-  wvtest.WVPASS(w.wpa_supplicant)
-  wvtest.WVPASSEQ(w.initial_ssid, ssid)
-  w.initialize()
-  wvtest.WVPASSEQ(w.initial_ssid, None)
-
-  wvtest.WVPASSNE(w.wpa_status(), {})
-  w._wpa_control.request_status_fails = True
-  wvtest.WVPASSNE(w.wpa_status(), {})
 
   # The wpa_supplicant process disconnects and terminates.
   subprocess.check_call(['wifi', 'stopclient', '--band', '5'])
-  w.handle_wpa_events()
   wvtest.WVFAIL(w.wpa_supplicant)
 
 
@@ -254,14 +230,11 @@ def frenzy_wifi_test():
     subprocess.mock('wifi', 'interfaces',
                     subprocess.wifi.MockInterface(phynum='0', bands=['5'],
                                                   driver='frenzy'))
-    FrenzyWifi.WPACtrl.WIFIINFO_PATH = wifiinfo_path = tempfile.mkdtemp()
-
     generic_wifi_test(w, wpa_path)
 
   finally:
     shutil.rmtree(wpa_path)
     shutil.rmtree(conman_path)
-    shutil.rmtree(wifiinfo_path)
 
 
 @wvtest.wvtest
@@ -327,63 +300,6 @@ def simulate_wireless_test():
   finally:
     shutil.rmtree(tmp_dir)
     shutil.rmtree(interface.CWMP_PATH)
-
-
-@wvtest.wvtest
-def b31261343_test():
-  """Test Wifi."""
-  w = Wifi('wcli0', '21')
-  w.initialize()
-
-  try:
-    wpa_path = tempfile.mkdtemp()
-    conman_path = tempfile.mkdtemp()
-    subprocess.set_conman_paths(conman_path, None)
-    subprocess.mock('wifi', 'interfaces',
-                    subprocess.wifi.MockInterface(phynum='0', bands=['5'],
-                                                  driver='cfg80211'))
-    subprocess.wifi.WPA_PATH = wpa_path
-
-    w.attach_wpa_control(wpa_path)
-    wvtest.WVFAIL(w.wpa_supplicant)
-
-    # Set up.
-    ssid = 'my=ssid'
-    psk = 'passphrase'
-    subprocess.mock('wifi', 'remote_ap', ssid=ssid, psk=psk, band='5',
-                    bssid='00:00:00:00:00:00', connection_check_result='succeed')
-    subprocess.check_call(['wifi', 'setclient', '--ssid', ssid, '--band', '5'],
-                          env={'WIFI_CLIENT_PSK': psk})
-
-    w.set_gateway_ip('192.168.1.1')
-    w.set_subnet('192.168.1.0/24')
-    wvtest.WVFAIL(w.wpa_supplicant)
-    w.attach_wpa_control(wpa_path)
-    w.handle_wpa_events()
-
-    def check_working():
-      w.update_routes(True)
-      wvtest.WVPASS(w.wpa_supplicant)
-      wvtest.WVPASS('default' in w.current_routes())
-
-    def check_broken():
-      w.update_routes(True)
-      wvtest.WVFAIL(w.wpa_supplicant)
-      wvtest.WVFAIL('default' in w.current_routes())
-
-    check_working()
-
-    # This is the buggy state.
-    w.wpa_supplicant = False
-    check_broken()
-
-    # Should fix itself when we next run handle_wpa_events.
-    w.handle_wpa_events()
-    check_working()
-
-  finally:
-    shutil.rmtree(wpa_path)
-    shutil.rmtree(conman_path)
 
 
 if __name__ == '__main__':
