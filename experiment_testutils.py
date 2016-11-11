@@ -9,12 +9,14 @@ import tempfile
 
 import experiment
 
+logger = logging.getLogger(__name__)
+
 
 def enable(name):
   """Enable an experiment.  For unit tests only."""
   open(os.path.join(experiment.EXPERIMENTS_TMP_DIR, name + '.available'), 'w')
   open(os.path.join(experiment.EXPERIMENTS_DIR, name + '.active'), 'w')
-  logging.debug('Enabled %s for unit tests', name)
+  logger.debug('Enabled %s for unit tests', name)
 
 
 def disable(name):
@@ -22,7 +24,7 @@ def disable(name):
   filename = os.path.join(experiment.EXPERIMENTS_DIR, name + '.active')
   if os.path.exists(filename):
     os.unlink(filename)
-  logging.debug('Disabled %s for unit tests', name)
+  logger.debug('Disabled %s for unit tests', name)
 
 
 class MakeExperimentDirs(object):

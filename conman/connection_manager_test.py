@@ -15,9 +15,11 @@ import experiment_testutils
 import interface_test
 import iw
 import status
+import test_common
 from wvtest import wvtest
 
-logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 
 FAKE_MOCA_NODE1_FILE = """{
   "NodeId": 1,
@@ -66,7 +68,7 @@ IW_SCAN_HIDDEN_OUTPUT = """BSS ff:ee:dd:cc:bb:aa(on wcli0)
 """
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def get_client_interfaces_test():
   """Test get_client_interfaces."""
   subprocess.reset()
@@ -96,7 +98,7 @@ def get_client_interfaces_test():
                   {'wcli0': {'frenzy': True, 'bands': set(['5'])}})
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def WLANConfigurationParseTest():  # pylint: disable=invalid-name
   """Test WLANConfiguration parsing."""
   subprocess.reset()
@@ -202,7 +204,7 @@ class ConnectionManager(connection_manager.ConnectionManager):
       self.run_once()
 
   def run_until_scan(self, band):
-    logging.debug('running until scan on band %r', band)
+    logger.debug('running until scan on band %r', band)
     wifi = self.wifi_for_band(band)
     wifi_scan_counter = wifi.wifi_scan_counter
     while wifi_scan_counter == wifi.wifi_scan_counter:
@@ -285,7 +287,7 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
 
         f(c)
       except Exception:
-        logging.error('Uncaught exception!')
+        logger.error('Uncaught exception!')
         traceback.print_exc()
         raise
       finally:
@@ -751,43 +753,43 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASS(c.has_status_files([status.P.PROVISIONING_COMPLETED]))
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
 def connection_manager_test_generic_marvell8897_2g(c):
   connection_manager_test_generic(c, '2.4')
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
 def connection_manager_test_generic_marvell8897_5g(c):
   connection_manager_test_generic(c, '5')
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
 def connection_manager_test_generic_ath9k_ath10k_2g(c):
   connection_manager_test_generic(c, '2.4')
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
 def connection_manager_test_generic_ath9k_ath10k_5g(c):
   connection_manager_test_generic(c, '5')
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY)
 def connection_manager_test_generic_ath9k_frenzy_2g(c):
   connection_manager_test_generic(c, '2.4')
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY)
 def connection_manager_test_generic_ath9k_frenzy_5g(c):
   connection_manager_test_generic(c, '5')
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_FRENZY)
 def connection_manager_test_generic_frenzy_5g(c):
   connection_manager_test_generic(c, '5')
@@ -889,13 +891,13 @@ def connection_manager_test_dual_band_two_radios(c):
   wvtest.WVPASS(subprocess.upload_logs_and_wait.uploaded_logs())
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K)
 def connection_manager_test_dual_band_two_radios_ath9k_ath10k(c):
   connection_manager_test_dual_band_two_radios(c)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_FRENZY)
 def connection_manager_test_dual_band_two_radios_ath9k_frenzy(c):
   connection_manager_test_dual_band_two_radios(c)
@@ -981,13 +983,13 @@ def connection_manager_test_dual_band_one_radio(c):
   wvtest.WVPASS(subprocess.upload_logs_and_wait.uploaded_logs())
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
 def connection_manager_test_dual_band_one_radio_marvell8897(c):
   connection_manager_test_dual_band_one_radio(c)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897_NO_5GHZ)
 def connection_manager_test_marvell8897_no_5ghz(c):
   """Test ConnectionManager for the case documented in b/27328894.
@@ -1033,7 +1035,7 @@ def connection_manager_test_marvell8897_no_5ghz(c):
   wvtest.WVPASS(c.wifi_for_band('2.4').current_routes())
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897,
                          __test_interfaces_already_up=['eth0', 'wcli0'])
 def connection_manager_test_wifi_already_up(c):
@@ -1046,7 +1048,7 @@ def connection_manager_test_wifi_already_up(c):
   wvtest.WVPASS(c.wifi_for_band('2.4').current_routes())
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897, wlan_configs={'5': True})
 def connection_manager_one_radio_marvell8897_existing_config_5g_ap(c):
   wvtest.WVPASSEQ(len(c._binwifi_commands), 1)
@@ -1054,7 +1056,7 @@ def connection_manager_one_radio_marvell8897_existing_config_5g_ap(c):
                   c._binwifi_commands[0])
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897,
                          wlan_configs={'5': False})
 def connection_manager_one_radio_marvell8897_existing_config_5g_no_ap(c):
@@ -1063,7 +1065,7 @@ def connection_manager_one_radio_marvell8897_existing_config_5g_no_ap(c):
                   c._binwifi_commands[0])
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_ATH9K_ATH10K,
                          wlan_configs={'5': True})
 def connection_manager_two_radios_ath9k_ath10k_existing_config_5g_ap(c):
@@ -1073,7 +1075,7 @@ def connection_manager_two_radios_ath9k_ath10k_existing_config_5g_ap(c):
                 in c._binwifi_commands)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 @connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
 def connection_manager_conman_no_2g_wlan(c):
   unused_raii = experiment_testutils.MakeExperimentDirs()

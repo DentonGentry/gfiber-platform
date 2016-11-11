@@ -132,6 +132,7 @@ class Proposition(ExportedValue):
   """
 
   def __init__(self, *args, **kwargs):
+    self._scope = kwargs.pop('scope', '')
     super(Proposition, self).__init__(*args, **kwargs)
     self._value = None
     self._implications = set()
@@ -175,7 +176,8 @@ class Proposition(ExportedValue):
     self.export()
     for parent in self.parents:
       parent.export()
-    logging.debug('%s is now %s', self._name, self._value)
+    logging.getLogger(self._scope).getChild(self._name).debug(
+        'now %s', self._value)
 
     if value:
       for implication in self._implications:
@@ -209,7 +211,8 @@ class Disjunction(ExportedValue):
 class Status(object):
   """Provides a convenient API for conman to describe system status."""
 
-  def __init__(self, export_path):
+  def __init__(self, name, export_path):
+    self._name = name
     if not os.path.isdir(export_path):
       os.makedirs(export_path)
 
@@ -219,7 +222,7 @@ class Status(object):
 
   def _set_up_propositions(self):
     self._propositions = {
-        p: Proposition(p, self._export_path)
+        p: Proposition(p, self._export_path, scope=self._name)
         for p in dict(inspect.getmembers(P)) if not p.startswith('_')
     }
 
@@ -255,9 +258,9 @@ class Status(object):
 
 class CompositeStatus(Status):
 
-  def __init__(self, export_path, children):
+  def __init__(self, name, export_path, children):
     self._children = children
-    super(CompositeStatus, self).__init__(export_path)
+    super(CompositeStatus, self).__init__(name, export_path)
 
   def _set_up_propositions(self):
     self._propositions = {

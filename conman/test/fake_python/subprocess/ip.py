@@ -9,6 +9,8 @@ import struct
 import ifup
 
 
+logger = logging.getLogger(__name__)
+
 _ROUTING_TABLE = {}
 _IP_TABLE = {}
 
@@ -74,17 +76,17 @@ def _ip_route(args):
     if not can_add_route(dev):
       return (1, 'Tried to add default route without subnet route: %r' %
               _ROUTING_TABLE)
-    logging.debug('Adding route for %r', key)
+    logger.debug('Adding route for %r', key)
     _ROUTING_TABLE[key] = ' '.join(args[1:])
   elif args[0] == 'del':
     if key in _ROUTING_TABLE:
-      logging.debug('Deleting route for %r', key)
+      logger.debug('Deleting route for %r', key)
       del _ROUTING_TABLE[key]
     elif key[2] is None:
       # pylint: disable=g-builtin-op
       for k in _ROUTING_TABLE.keys():
         if k[:-1] == key[:-1]:
-          logging.debug('Deleting route for %r (generalized from %s)', k, key)
+          logger.debug('Deleting route for %r (generalized from %s)', k, key)
           del _ROUTING_TABLE[k]
           break
 

@@ -16,11 +16,6 @@ except AttributeError:
   _gettime = time.time
 
 
-# This has to be called before another module calls it with a higher log level.
-# pylint: disable=g-import-not-at-top
-logging.basicConfig(level=logging.DEBUG)
-
-
 class TimeoutException(Exception):
   pass
 
@@ -33,7 +28,7 @@ class Condition(object):
     if evaluate:
       self.evaluate = evaluate
     self.timeout = timeout
-    self.logger = logger or logging
+    self.logger = logger or logging.getLogger(self.name)
     self.callback = callback
     self.reset()
 
@@ -129,7 +124,7 @@ class Ratchet(Condition):
     self.name = name
     self.steps = steps
     for step in self.steps:
-      step.logger = logging.getLogger(self.name)
+      step.logger = logging.getLogger(self.name).getChild(step.name)
     self._status = status
     super(Ratchet, self).__init__(name, None, 0)
 

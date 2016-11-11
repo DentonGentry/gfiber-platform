@@ -5,6 +5,7 @@
 import subprocess
 
 import iw
+import test_common
 from wvtest import wvtest
 
 
@@ -34,7 +35,7 @@ SCAN_RESULTS = (
 )
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def find_bssids_test():
   """Test iw.find_bssids."""
   subprocess.mock('wifi', 'interfaces',

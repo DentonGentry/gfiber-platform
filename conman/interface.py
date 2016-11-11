@@ -7,10 +7,6 @@ import os
 import re
 import subprocess
 
-# This has to be called before another module calls it with a higher log level.
-# pylint: disable=g-import-not-at-top
-logging.basicConfig(level=logging.DEBUG)
-
 import experiment
 
 METRIC_5GHZ = 20
@@ -36,6 +32,7 @@ class Interface(object):
 
   def __init__(self, name, base_metric):
     self.name = name
+    self.logger = logging.getLogger(self.name)
 
     # Currently connected links for this interface, e.g. ethernet.
     self.links = set()
@@ -67,18 +64,18 @@ class Interface(object):
     """
     # Until initialized, we want to act as if the interface is down.
     if not self._initialized:
-      logging.info('%s not initialized; not running connection_check%s',
-                   self.name, ' (ACS)' if check_acs else '')
+      self.logger.info('not initialized; not running connection_check%s',
+                       ' (ACS)' if check_acs else '')
       return None
 
     if not self.links:
-      logging.info('Connection check for %s failed due to no links', self.name)
+      self.logger.info('Connection check failed due to no links')
       return False
 
-    logging.debug('Gateway IP for %s is %s', self.name, self._gateway_ip)
+    self.logger.debug('Gateway IP is %s', self._gateway_ip)
     if self._gateway_ip is None:
-      logging.info('Connection check%s for %s failed due to no gateway IP',
-                   ' (ACS)' if check_acs else '', self.name)
+      self.logger.info('Connection check%s failed due to no gateway IP',
+                       ' (ACS)' if check_acs else '')
       return False
 
     self.add_routes()
@@ -91,10 +88,9 @@ class Interface(object):
 
     with open(os.devnull, 'w') as devnull:
       result = subprocess.call(cmd, stdout=devnull, stderr=devnull) == 0
-      logging.info('Connection check%s for %s %s',
-                   ' (ACS)' if check_acs else '',
-                   self.name,
-                   'passed' if result else 'failed')
+      self.logger.info('Connection check%s %s',
+                       ' (ACS)' if check_acs else '',
+                       'passed' if result else 'failed')
 
     return result
 
@@ -119,7 +115,7 @@ class Interface(object):
     Remove any stale routes and add any missing desired routes.
     """
     if self.metric is None:
-      logging.info('Cannot add route for %s without a metric.', self.name)
+      self.logger.info('Cannot add route without a metric.')
       return
 
     # If the current routes are the same, there is nothing to do.  If either
@@ -132,7 +128,7 @@ class Interface(object):
     if self._subnet:
       if ((subnet.get('route', None), subnet.get('metric', None)) !=
           (self._subnet, str(self.metric))):
-        logging.debug('Adding subnet route for dev %s', self.name)
+        self.logger.debug('Adding subnet route')
         to_add.append(('subnet', ('add', self._subnet, 'dev', self.name,
                                   'metric', str(self.metric))))
         subnet = self._subnet
@@ -145,7 +141,7 @@ class Interface(object):
       if (subnet and
           (default.get('via', None), default.get('metric', None)) !=
           (self._gateway_ip, str(self.metric))):
-        logging.debug('Adding default route for dev %s', self.name)
+        self.logger.debug('Adding default route')
         to_add.append(('default',
                        ('add', 'default', 'via', self._gateway_ip,
                         'dev', self.name, 'metric', str(self.metric))))
@@ -154,7 +150,7 @@ class Interface(object):
 
     # RFC2365 multicast route.
     if current.get('multicast', {}).get('metric', None) != str(self.metric):
-      logging.debug('Adding multicast route for dev %s', self.name)
+      self.logger.debug('Adding multicast route')
       to_add.append(('multicast', ('add', RFC2385_MULTICAST_ROUTE,
                                    'dev', self.name,
                                    'metric', str(self.metric))))
@@ -184,7 +180,7 @@ class Interface(object):
     # Use a sorted list to ensure that default comes before subnet.
     for route_type in sorted(list(args)):
       while route_type in self.current_routes():
-        logging.debug('Deleting %s route for dev %s', route_type, self.name)
+        self.logger.debug('Deleting %s route', route_type)
         self._ip_route('del', self.current_routes()[route_type]['route'],
                        'dev', self.name)
 
@@ -222,23 +218,23 @@ class Interface(object):
 
   def _ip_route(self, *args):
     if not self._initialized:
-      logging.info('Not initialized, not running %s %s',
-                   ' '.join(self.IP_ROUTE), ' '.join(args))
+      self.logger.info('Not initialized, not running %s %s',
+                       ' '.join(self.IP_ROUTE), ' '.join(args))
       return ''
 
     try:
-      logging.debug('%s calling ip route %s', self.name, ' '.join(args))
+      self.logger.debug('calling ip route %s', ' '.join(args))
       return subprocess.check_output(self.IP_ROUTE + list(args))
     except subprocess.CalledProcessError as e:
-      logging.error('Failed to call "ip route" with args %r: %s', args,
-                    e.message)
+      self.logger.error('Failed to call "ip route" with args %r: %s', args,
+                        e.message)
       return ''
 
   def _ip_addr_show(self):
     try:
       return subprocess.check_output(self.IP_ADDR_SHOW + [self.name])
     except subprocess.CalledProcessError as e:
-      logging.error('Could not get IP address for %s: %s', self.name, e.message)
+      self.logger.error('Could not get IP address: %s', e.message)
       return None
 
   def get_ip_address(self):
@@ -247,12 +243,12 @@ class Interface(object):
     return match and match.group('IP') or None
 
   def set_gateway_ip(self, gateway_ip):
-    logging.info('New gateway IP %s for %s', gateway_ip, self.name)
+    self.logger.info('New gateway IP %s', gateway_ip)
     self._gateway_ip = gateway_ip
     self.update_routes(expire_cache=True)
 
   def set_subnet(self, subnet):
-    logging.info('New subnet %s for %s', subnet, self.name)
+    self.logger.info('New subnet %s', subnet)
     self._subnet = subnet
     self.update_routes(expire_cache=True)
 
@@ -264,10 +260,10 @@ class Interface(object):
     had_links = bool(self.links)
 
     if is_up:
-      logging.info('%s gained link %s', self.name, link)
+      self.logger.info('gained link %s', link)
       self.links.add(link)
     else:
-      logging.info('%s lost link %s', self.name, link)
+      self.logger.info('lost link %s', link)
       self.links.remove(link)
 
     # If a link goes away, we may have lost access to something but not gained
@@ -282,7 +278,7 @@ class Interface(object):
       self.update_routes(expire_cache=False)
 
   def expire_connection_status_cache(self):
-    logging.debug('Expiring connection status cache for %s', self.name)
+    self.logger.debug('Expiring connection status cache')
     self._has_internet = self._has_acs = None
 
   def update_routes(self, expire_cache=True):
@@ -296,7 +292,7 @@ class Interface(object):
       expire_cache:  If true, force a recheck of connection status before
       deciding how to prioritize routes.
     """
-    logging.debug('Updating routes for %s', self.name)
+    self.logger.debug('Updating routes')
     if expire_cache:
       self.expire_connection_status_cache()
 
@@ -318,7 +314,7 @@ class Interface(object):
     """
     if not self._initialized:
       return
-    logging.info('%s routes have normal priority', self.name)
+    self.logger.info('routes have normal priority')
     self.metric_offset = 0
     self.add_routes()
 
@@ -330,7 +326,7 @@ class Interface(object):
     """
     if not self._initialized:
       return
-    logging.info('%s routes have low priority', self.name)
+    self.logger.info('routes have low priority')
     self.metric_offset = 50
     self.add_routes()
 
@@ -401,9 +397,10 @@ class Bridge(Interface):
     failure_s = self._acs_session_failure_s()
     if (experiment.enabled('WifiSimulateWireless')
         and failure_s < MAX_ACS_FAILURE_S):
-      logging.info('WifiSimulateWireless: failing bridge connection check%s '
-                   '(no ACS contact for %d seconds, max %d seconds)',
-                   ' (ACS)' if check_acs else '', failure_s, MAX_ACS_FAILURE_S)
+      self.logger.info('WifiSimulateWireless: failing bridge connection check%s'
+                       ' (no ACS contact for %d seconds, max %d seconds)',
+                       ' (ACS)' if check_acs else '', failure_s,
+                       MAX_ACS_FAILURE_S)
       return False
 
     return super(Bridge, self)._connection_check(check_acs)
@@ -453,7 +450,7 @@ class Wifi(Interface):
       lines = subprocess.check_output(['wpa_cli', '-i', self.name,
                                        'status']).splitlines()
     except subprocess.CalledProcessError:
-      logging.error('wpa_cli status request failed')
+      self.logger.error('wpa_cli status request failed')
       return {}
 
     for line in lines:
@@ -462,7 +459,7 @@ class Wifi(Interface):
       k, v = line.strip().split('=', 1)
       status[k] = v
 
-    logging.debug('wpa_status is %r', status)
+    self.logger.debug('wpa_status is %r', status)
     return status
 
   def update(self):
@@ -495,7 +492,7 @@ class FrenzyWifi(Wifi):
     try:
       return subprocess.check_output(['qcsapi'] + list(command)).strip()
     except subprocess.CalledProcessError as e:
-      logging.error('QCSAPI call failed: %s: %s', e, e.output)
+      self.logger.error('QCSAPI call failed: %s: %s', e, e.output)
       raise
 
   def wpa_status(self):

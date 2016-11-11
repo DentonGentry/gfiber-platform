@@ -14,11 +14,9 @@ def call(*args):
 
 
 def mock(*args, **kwargs):
-  import logging
   if 'value' not in kwargs:
     raise ValueError('Must specify value for mock qcsapi call %r' % args)
   value = kwargs['value']
-  logging.debug  ('qcsapi %r mocked: %r', args, value)
   if value is None and args in STATE:
     del STATE[args]
   else:

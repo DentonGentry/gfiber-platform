@@ -26,6 +26,8 @@ import iw
 import ratchet
 import status
 
+logger = logging.getLogger(__name__)
+
 try:
   import monotime  # pylint: disable=unused-import,g-import-not-at-top
 except ImportError:
@@ -77,6 +79,7 @@ class WLANConfiguration(object):
   def __init__(self, band, wifi, command_lines):
     self.band = band
     self.wifi = wifi
+    self.logger = self.wifi.logger.getChild(self.band)
     self.command = command_lines.splitlines()
     self.access_point_up = False
     self.ssid = None
@@ -106,7 +109,7 @@ class WLANConfiguration(object):
       raise ValueError('Command file does not specify SSID')
 
     if self.client_up:
-      logging.info('Connected to WLAN at startup')
+      self.logger.info('Connected to WLAN at startup')
 
   @property
   def client_up(self):
@@ -126,9 +129,9 @@ class WLANConfiguration(object):
     try:
       subprocess.check_output(self.command, stderr=subprocess.STDOUT)
       self.access_point_up = True
-      logging.info('Started %s GHz AP', self.band)
+      self.logger.info('Started %s GHz AP', self.band)
     except subprocess.CalledProcessError as e:
-      logging.error('Failed to start access point: %s', e.output)
+      self.logger.error('Failed to start access point: %s', e.output)
 
   def stop_access_point(self):
     if not self.access_point_up:
@@ -141,25 +144,25 @@ class WLANConfiguration(object):
     try:
       subprocess.check_output(command, stderr=subprocess.STDOUT)
       self.access_point_up = False
-      logging.info('Stopped %s GHz AP', self.band)
+      self.logger.info('Stopped %s GHz AP', self.band)
     except subprocess.CalledProcessError as e:
-      logging.error('Failed to stop access point: %s', e.output)
+      self.logger.error('Failed to stop access point: %s', e.output)
       return
 
   def start_client(self):
     """Join the WLAN as a client."""
     if experiment.enabled('WifiNo2GClient') and self.band == '2.4':
-      logging.info('WifiNo2GClient enabled; not starting 2.4 GHz client.')
+      self.logger.info('WifiNo2GClient enabled; not starting 2.4 GHz client.')
       return
 
     up = self.client_up
     if up:
-      logging.debug('Wifi client already started on %s GHz', self.band)
+      self.logger.debug('Wifi client already started on %s GHz', self.band)
       return
 
     if self._actually_start_client():
       self.wifi.status.connected_to_wlan = True
-      logging.info('Started wifi client on %s GHz', self.band)
+      self.logger.info('Started wifi client on %s GHz', self.band)
 
   def _actually_start_client(self):
     """Actually run wifi setclient.
@@ -177,7 +180,7 @@ class WLANConfiguration(object):
       self.wifi.status.trying_wlan = True
       subprocess.check_output(command, stderr=subprocess.STDOUT, env=env)
     except subprocess.CalledProcessError as e:
-      logging.error('Failed to start wifi client: %s', e.output)
+      self.logger.error('Failed to start wifi client: %s', e.output)
       self.wifi.status.wlan_failed = True
       return False
 
@@ -185,7 +188,7 @@ class WLANConfiguration(object):
 
   def stop_client(self):
     if not self.client_up:
-      logging.debug('Wifi client already stopped on %s GHz', self.band)
+      self.logger.debug('Wifi client already stopped on %s GHz', self.band)
       return
 
     try:
@@ -193,10 +196,10 @@ class WLANConfiguration(object):
                               stderr=subprocess.STDOUT)
       # TODO(rofrankel): Make this work for dual-radio devices.
       self.wifi.status.connected_to_wlan = False
-      logging.info('Stopped wifi client on %s GHz', self.band)
+      self.logger.info('Stopped wifi client on %s GHz', self.band)
       self.wifi.update()
     except subprocess.CalledProcessError as e:
-      logging.error('Failed to stop wifi client: %s', e.output)
+      self.logger.error('Failed to stop wifi client: %s', e.output)
 
 
 class ConnectionManager(object):
@@ -259,7 +262,7 @@ class ConnectionManager(object):
                       self._interface_status_dir, self._moca_tmp_dir):
       if not os.path.exists(directory):
         os.makedirs(directory)
-        logging.info('Created monitored directory: %s', directory)
+        logger.info('Created monitored directory: %s', directory)
 
     acs_autoprov_filepath = os.path.join(self._tmp_dir,
                                          'acs_autoprovisioning')
@@ -273,8 +276,8 @@ class ConnectionManager(object):
       status_dir = os.path.join(self._status_dir, ifc.name)
       if not os.path.exists(status_dir):
         os.makedirs(status_dir)
-      ifc.status = status.Status(status_dir)
-    self._status = status.CompositeStatus(self._status_dir,
+      ifc.status = status.Status(ifc.name, status_dir)
+    self._status = status.CompositeStatus(__name__, self._status_dir,
                                           [i.status for i in self.interfaces()])
 
     wm = pyinotify.WatchManager()
@@ -316,7 +319,7 @@ class ConnectionManager(object):
     # the routing table.
     for ifc in self.interfaces():
       ifc.initialize()
-      logging.info('%s initialized', ifc.name)
+      logger.info('%s initialized', ifc.name)
 
     # Make sure no unwanted APs or clients are running.
     for wifi in self.wifi:
@@ -325,20 +328,20 @@ class ConnectionManager(object):
         if config:
           if config.access_point and self.bridge.internet():
             # If we have a config and want an AP, we don't want a client.
-            logging.info('Stopping pre-existing %s client on %s',
-                         band, wifi.name)
+            logger.info('Stopping pre-existing %s client on %s',
+                        band, wifi.name)
             self._stop_wifi(band, False, True)
           else:
             # If we have a config but don't want an AP, make sure we aren't
             # running one.
-            logging.info('Stopping pre-existing %s AP on %s', band, wifi.name)
+            logger.info('Stopping pre-existing %s AP on %s', band, wifi.name)
             self._stop_wifi(band, True, False)
           break
       else:
         # If we have no config for this radio, neither a client nor an AP should
         # be running.
-        logging.info('Stopping pre-existing %s AP and clienton %s',
-                     band, wifi.name)
+        logger.info('Stopping pre-existing %s AP and clienton %s',
+                    band, wifi.name)
         self._stop_wifi(wifi.bands[0], True, True)
 
     self._interface_update_counter = 0
@@ -459,7 +462,7 @@ class ConnectionManager(object):
 
     for wifi in self.wifi:
       if self.currently_provisioning(wifi):
-        logging.debug('Currently provisioning, nothing else to do.')
+        logger.debug('Currently provisioning, nothing else to do.')
         continue
 
       provisioning_failed = self.provisioning_failed(wifi)
@@ -493,14 +496,14 @@ class ConnectionManager(object):
       wifi.update()
 
       if continue_wifi:
-        logging.debug('Running AP on %s, nothing else to do.', wifi.name)
+        logger.debug('Running AP on %s, nothing else to do.', wifi.name)
         continue
 
       # If this interface is connected to the user's WLAN, there is nothing else
       # to do.
       if self._connected_to_wlan(wifi):
         wifi.status.connected_to_wlan = True
-        logging.debug('Connected to WLAN on %s, nothing else to do.', wifi.name)
+        logger.debug('Connected to WLAN on %s, nothing else to do.', wifi.name)
         continue
 
       # This interface is not connected to the WLAN, so scan for potential
@@ -508,7 +511,7 @@ class ConnectionManager(object):
       if ((not self.acs() or provisioning_failed) and
           not getattr(wifi, 'last_successful_bss_info', None) and
           _gettime() > wifi.last_wifi_scan_time + self._wifi_scan_period_s):
-        logging.debug('Performing scan on %s.', wifi.name)
+        logger.debug('Performing scan on %s.', wifi.name)
         self._wifi_scan(wifi)
 
       # Periodically retry rejoining the WLAN.  If the WLAN configuration is
@@ -519,15 +522,15 @@ class ConnectionManager(object):
       for band in wifi.bands:
         wlan_configuration = self._wlan_configuration.get(band, None)
         if wlan_configuration and _gettime() >= self._try_wlan_after[band]:
-          logging.info('Trying to join WLAN on %s.', wifi.name)
+          logger.info('Trying to join WLAN on %s.', wifi.name)
           wlan_configuration.start_client()
           if self._connected_to_wlan(wifi):
-            logging.info('Joined WLAN on %s.', wifi.name)
+            logger.info('Joined WLAN on %s.', wifi.name)
             wifi.status.connected_to_wlan = True
             self._try_wlan_after[band] = 0
             break
           else:
-            logging.error('Failed to connect to WLAN on %s.', wifi.name)
+            logger.error('Failed to connect to WLAN on %s.', wifi.name)
             wifi.status.connected_to_wlan = False
             self._try_wlan_after[band] = _gettime() + self._wlan_retry_s
       else:
@@ -537,10 +540,10 @@ class ConnectionManager(object):
         # 1) The configuration didn't change, and we should retry connecting.
         # 2) cwmpd isn't writing a configuration, possibly because the device
         #    isn't registered to any accounts.
-        logging.debug('Unable to join WLAN on %s', wifi.name)
+        logger.debug('Unable to join WLAN on %s', wifi.name)
         wifi.status.connected_to_wlan = False
         if self.acs():
-          logging.debug('Connected to ACS')
+          logger.debug('Connected to ACS')
 
           if wifi.acs():
             wifi.last_successful_bss_info = getattr(wifi,
@@ -551,8 +554,8 @@ class ConnectionManager(object):
 
           now = _gettime()
           if self._wlan_configuration:
-            logging.info('ACS has not updated WLAN configuration; will retry '
-                         ' with old config.')
+            logger.info('ACS has not updated WLAN configuration; will retry '
+                        ' with old config.')
             for w in self.wifi:
               for b in w.bands:
                 self._try_wlan_after[b] = now
@@ -562,18 +565,18 @@ class ConnectionManager(object):
           elif (hasattr(wifi, 'complain_about_acs_at')
                 and now >= wifi.complain_about_acs_at):
             wait = wifi.complain_about_acs_at - self.provisioning_since(wifi)
-            logging.info('Can ping ACS, but no WLAN configuration for %ds.',
-                         wait)
+            logger.info('Can ping ACS, but no WLAN configuration for %ds.',
+                        wait)
             wifi.complain_about_acs_at += wait
         # If we didn't manage to join the WLAN, and we don't have an ACS
         # connection or the ACS session failed, we should try another open AP.
         if not self.acs() or provisioning_failed:
           now = _gettime()
           if self._connected_to_open(wifi) and not provisioning_failed:
-            logging.debug('Waiting for provisioning for %ds.',
-                          now - self.provisioning_since(wifi))
+            logger.debug('Waiting for provisioning for %ds.',
+                         now - self.provisioning_since(wifi))
           else:
-            logging.debug('Not connected to ACS or provisioning failed')
+            logger.debug('Not connected to ACS or provisioning failed')
             self._try_next_bssid(wifi)
 
     time.sleep(max(0, self._run_duration_s - (_gettime() - start_time)))
@@ -637,8 +640,8 @@ class ConnectionManager(object):
     if lowest_metric_interface:
       ip = lowest_metric_interface[1].get_ip_address()
       ip_line = '%s %s\n' % (ip, HOSTNAME) if ip else ''
-      logging.info('Lowest metric default route is on dev %r',
-                   lowest_metric_interface[1].name)
+      logger.info('Lowest metric default route is on dev %r',
+                  lowest_metric_interface[1].name)
 
     new_tmp_hosts = '%s127.0.0.1 localhost' % ip_line
 
@@ -687,7 +690,7 @@ class ConnectionManager(object):
       if e.errno == errno.ENOENT:
         # Logging about failing to open .tmp files results in spammy logs.
         if not filename.endswith('.tmp'):
-          logging.error('Not a file: %s', filepath)
+          logger.error('Not a file: %s', filepath)
         return
       else:
         raise
@@ -696,10 +699,10 @@ class ConnectionManager(object):
       if filename == self.ETHERNET_STATUS_FILE:
         try:
           self.bridge.ethernet = bool(int(contents))
-          logging.info('Ethernet %s', 'up' if self.bridge.ethernet else 'down')
+          logger.info('Ethernet %s', 'up' if self.bridge.ethernet else 'down')
         except ValueError:
-          logging.error('Status file contents should be 0 or 1, not %s',
-                        contents)
+          logger.error('Status file contents should be 0 or 1, not %s',
+                       contents)
           return
 
     elif path == self._config_dir:
@@ -718,7 +721,7 @@ class ConnectionManager(object):
           wifi = self.wifi_for_band(band)
           if wifi and band in self._wlan_configuration:
             self._wlan_configuration[band].access_point = True
-          logging.info('AP enabled for %s GHz', band)
+          logger.info('AP enabled for %s GHz', band)
 
     elif path == self._tmp_dir:
       if filename.startswith(self.GATEWAY_FILE_PREFIX):
@@ -730,16 +733,16 @@ class ConnectionManager(object):
         ifc = self.interface_by_name(interface_name)
         if ifc:
           ifc.set_gateway_ip(contents)
-          logging.info('Received gateway %r for interface %s', contents,
-                       ifc.name)
+          logger.info('Received gateway %r for interface %s', contents,
+                      ifc.name)
 
       if filename.startswith(self.SUBNET_FILE_PREFIX):
         interface_name = filename.split(self.SUBNET_FILE_PREFIX)[-1]
         ifc = self.interface_by_name(interface_name)
         if ifc:
           ifc.set_subnet(contents)
-          logging.info('Received subnet %r for interface %s', contents,
-                       ifc.name)
+          logger.info('Received subnet %r for interface %s', contents,
+                      ifc.name)
 
     elif path == self._moca_tmp_dir:
       match = re.match(r'^%s\d+$' % self.MOCA_NODE_FILE_PREFIX, filename)
@@ -747,7 +750,7 @@ class ConnectionManager(object):
         try:
           json_contents = json.loads(contents)
         except ValueError:
-          logging.error('Cannot parse %s as JSON.', filepath)
+          logger.error('Cannot parse %s as JSON.', filepath)
           return
         node = json_contents['NodeId']
         had_moca = self.bridge.moca
@@ -769,9 +772,9 @@ class ConnectionManager(object):
       if band in wifi.bands:
         return wifi
 
-    logging.error('No wifi interface for %s GHz.  wlan interfaces:\n%s',
-                  band, '\n'.join('%s: %r' %
-                                  (w.name, w.bands) for w in self.wifi))
+    logger.error('No wifi interface for %s GHz.  wlan interfaces:\n%s',
+                 band, '\n'.join('%s: %r' %
+                                 (w.name, w.bands) for w in self.wifi))
 
   def ifplugd_action(self, interface_name, up):
     subprocess.call(self.IFPLUGD_ACTION + [interface_name,
@@ -779,13 +782,13 @@ class ConnectionManager(object):
 
   def _wifi_scan(self, wifi):
     """Perform a wifi scan and update wifi.cycler."""
-    logging.info('Scanning on %s...', wifi.name)
+    logger.info('Scanning on %s...', wifi.name)
     wifi.last_wifi_scan_time = _gettime()
     subprocess.call(self.IFUP + [wifi.name])
     # /bin/wifi takes a --band option but then finds the right interface for it,
     # so it's okay to just pick the first band here.
     items = self._find_bssids(wifi.bands[0])
-    logging.info('Done scanning on %s', wifi.name)
+    logger.info('Done scanning on %s', wifi.name)
     if not hasattr(wifi, 'cycler'):
       wifi.cycler = cycler.AgingPriorityCycler(
           cycle_length_s=self._bssid_cycle_length_s)
@@ -813,8 +816,8 @@ class ConnectionManager(object):
     last_successful_bss_info = getattr(wifi, 'last_successful_bss_info', None)
     bss_info = last_successful_bss_info or wifi.cycler.next()
     if bss_info is not None:
-      logging.info('Attempting to connect to SSID %s (%s) for provisioning',
-                   bss_info.ssid, bss_info.bssid)
+      logger.info('Attempting to connect to SSID %s (%s) for provisioning',
+                  bss_info.ssid, bss_info.bssid)
       self.start_provisioning(wifi)
       connected = self._try_bssid(wifi, bss_info)
       if connected:
@@ -822,7 +825,7 @@ class ConnectionManager(object):
         wifi.status.connected_to_open = True
         now = _gettime()
         wifi.complain_about_acs_at = now + 5
-        logging.info('Attempting to provision via SSID %s', bss_info.ssid)
+        logger.info('Attempting to provision via SSID %s', bss_info.ssid)
         self._try_to_upload_logs = True
       # If we can no longer connect to this, it's no longer successful.
       else:
@@ -836,7 +839,7 @@ class ConnectionManager(object):
       # Relatedly, once we find ACS access on an open network we may want to
       # save that SSID/BSSID and that first in future.  If we do that then we
       # can declare that provisioning has failed much more aggressively.
-      logging.info('Ran out of BSSIDs to try on %s', wifi.name)
+      logger.info('Ran out of BSSIDs to try on %s', wifi.name)
       wifi.status.provisioning_failed = True
 
     return False
@@ -863,7 +866,7 @@ class ConnectionManager(object):
     band = wlan_configuration.band
     current = self._wlan_configuration.get(band, None)
     if current is None or wlan_configuration.command != current.command:
-      logging.debug('Received new WLAN configuration for band %s', band)
+      logger.debug('Received new WLAN configuration for band %s', band)
       if current is not None:
         wlan_configuration.access_point = current.access_point
       else:
@@ -874,7 +877,7 @@ class ConnectionManager(object):
         wlan_configuration.access_point = os.path.exists(ap_file)
       self._wlan_configuration[band] = wlan_configuration
       self.wifi_for_band(band).status.have_config = True
-      logging.info('Updated WLAN configuration for %s GHz', band)
+      logger.info('Updated WLAN configuration for %s GHz', band)
       self._update_access_point(wlan_configuration)
 
   def _update_access_point(self, wlan_configuration):
@@ -911,7 +914,7 @@ class ConnectionManager(object):
     try:
       self._binwifi(*full_command)
     except subprocess.CalledProcessError as e:
-      logging.error('wifi %s failed: "%s"', ' '.join(full_command), e.output)
+      logger.error('wifi %s failed: "%s"', ' '.join(full_command), e.output)
 
   def _binwifi(self, *command):
     """Test seam for calls to /bin/wifi.
@@ -929,13 +932,13 @@ class ConnectionManager(object):
                             stderr=subprocess.STDOUT)
 
   def _try_upload_logs(self):
-    logging.info('Attempting to upload logs')
+    logger.info('Attempting to upload logs')
     if subprocess.call(self.UPLOAD_LOGS_AND_WAIT) != 0:
-      logging.error('Failed to upload logs')
+      logger.error('Failed to upload logs')
 
   def cwmp_wakeup(self):
     if subprocess.call(self.CWMP_WAKEUP) != 0:
-      logging.error('cwmp wakeup failed')
+      logger.error('cwmp wakeup failed')
 
   def start_provisioning(self, wifi):
     wifi.set_gateway_ip(None)
@@ -948,12 +951,12 @@ class ConnectionManager(object):
       if wifi.provisioning_ratchet.done_after:
         wifi.status.provisioning_completed = True
         wifi.provisioning_ratchet.stop()
-        logging.info('%s successfully provisioned', wifi.name)
+        logger.info('%s successfully provisioned', wifi.name)
       return False
     except ratchet.TimeoutException:
       wifi.status.provisioning_failed = True
-      logging.info('%s failed to provision: %s', wifi.name,
-                   wifi.provisioning_ratchet.current_step().name)
+      logger.info('%s failed to provision: %s', wifi.name,
+                  wifi.provisioning_ratchet.current_step().name)
       return True
 
   def provisioning_completed(self, wifi):
@@ -972,7 +975,7 @@ def _wifi_show():
   try:
     return subprocess.check_output(['wifi', 'show'])
   except subprocess.CalledProcessError as e:
-    logging.error('Failed to call "wifi show": %s', e)
+    logger.error('Failed to call "wifi show": %s', e)
     return ''
 
 
@@ -980,7 +983,7 @@ def _get_quantenna_interfaces():
   try:
     return subprocess.check_output(['get-quantenna-interfaces']).split()
   except subprocess.CalledProcessError:
-    logging.fatal('Failed to call get-quantenna-interfaces')
+    logger.fatal('Failed to call get-quantenna-interfaces')
     raise
 
 

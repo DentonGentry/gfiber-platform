@@ -5,10 +5,11 @@
 import time
 
 import cycler
+import test_common
 from wvtest import wvtest
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def cycler_test():
   c = cycler.AgingPriorityCycler()
   wvtest.WVPASS(c.next() is None)

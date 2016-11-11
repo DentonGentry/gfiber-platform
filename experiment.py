@@ -6,6 +6,7 @@ import logging
 import os
 import subprocess
 
+logger = logging.getLogger(__name__)
 
 EXPERIMENTS_TMP_DIR = '/tmp/experiments'
 EXPERIMENTS_DIR = '/config/experiments'
@@ -18,10 +19,10 @@ def register(name):
   try:
     rv = subprocess.call(['register_experiment', name])
   except OSError as e:
-    logging.info('register_experiment: %s', e)
+    logger.info('register_experiment: %s', e)
   else:
     if rv:
-      logging.error('Failed to register experiment %s.', name)
+      logger.error('Failed to register experiment %s.', name)
 
 
 def enabled(name):
@@ -39,14 +40,14 @@ def enabled(name):
                                      name + '.available')):
     if name not in _experiment_warned:
       _experiment_warned.add(name)
-      logging.warning('Warning: experiment %r not registered.', name)
+      logger.warning('Warning: experiment %r not registered.', name)
   else:
     is_enabled = os.path.exists(os.path.join(EXPERIMENTS_DIR,
                                              name + '.active'))
     if is_enabled and name not in _experiment_enabled:
       _experiment_enabled.add(name)
-      logging.info('Notice: using experiment %r.', name)
+      logger.info('Notice: using experiment %r.', name)
     elif not is_enabled and name in _experiment_enabled:
       _experiment_enabled.remove(name)
-      logging.info('Notice: stopping experiment %r.', name)
+      logger.info('Notice: stopping experiment %r.', name)
     return is_enabled

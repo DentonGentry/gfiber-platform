@@ -9,7 +9,7 @@ GPYLINT=$(shell \
       echo 'echo "(gpylint-missing)" >&2'; \
     fi \
 )
-NOINSTALL=%_test.py options.py experiment.py experiment_testutils.py
+NOINSTALL=%_test.py options.py experiment.py experiment_testutils.py test_common.py
 
 all:
 

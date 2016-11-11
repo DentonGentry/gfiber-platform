@@ -2,15 +2,13 @@
 
 """Tests for connection_manager.py."""
 
-import logging
 import os
 import shutil
 import tempfile
 
 import status
+import test_common
 from wvtest import wvtest
-
-logging.basicConfig(level=logging.DEBUG)
 
 
 def file_in(path, filename):
@@ -21,7 +19,7 @@ def has_file(s, filename):
   return file_in(s._export_path, filename)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def test_proposition():
   export_path = tempfile.mkdtemp()
 
@@ -73,16 +71,16 @@ def test_proposition():
     shutil.rmtree(export_path)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def test_status():
   export_path_s = tempfile.mkdtemp()
   export_path_t = tempfile.mkdtemp()
   export_path_st = tempfile.mkdtemp()
 
   try:
-    s = status.Status(export_path_s)
-    t = status.Status(export_path_t)
-    st = status.CompositeStatus(export_path_st, [s, t])
+    s = status.Status('s', export_path_s)
+    t = status.Status('t', export_path_t)
+    st = status.CompositeStatus('s_or t', export_path_st, [s, t])
 
     # Sanity check that there are no contradictions.
     for p, (want_true, want_false) in status.IMPLICATIONS.iteritems():

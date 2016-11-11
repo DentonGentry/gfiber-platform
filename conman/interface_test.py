@@ -2,19 +2,15 @@
 
 """Tests for connection_manager.py."""
 
-import logging
 import os
 import shutil
 import subprocess
 import tempfile
 import time
 
-# This has to be called before another module calls it with a higher log level.
-# pylint: disable=g-import-not-at-top
-logging.basicConfig(level=logging.DEBUG)
-
 import experiment_testutils
 import interface
+import test_common
 from wvtest import wvtest
 
 
@@ -57,7 +53,7 @@ class FrenzyWifi(FakeInterfaceMixin, interface.FrenzyWifi):
   pass
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def bridge_test():
   """Test Interface and Bridge."""
   tmp_dir = tempfile.mkdtemp()
@@ -197,7 +193,7 @@ def generic_wifi_test(w, wpa_path):
   wvtest.WVFAIL(w.wpa_supplicant)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def wifi_test():
   """Test Wifi."""
   w = Wifi('wcli0', '21')
@@ -217,7 +213,7 @@ def wifi_test():
     shutil.rmtree(conman_path)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def frenzy_wifi_test():
   """Test FrenzyWifi."""
   w = FrenzyWifi('wlan0', '20')
@@ -237,7 +233,7 @@ def frenzy_wifi_test():
     shutil.rmtree(conman_path)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def simulate_wireless_test():
   """Test the WifiSimulateWireless experiment."""
   unused_raii = experiment_testutils.MakeExperimentDirs()

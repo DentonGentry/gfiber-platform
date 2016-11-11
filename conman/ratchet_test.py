@@ -9,10 +9,11 @@ import time
 
 import ratchet
 import status
+import test_common
 from wvtest import wvtest
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def condition_test():
   """Test basic Condition functionality."""
   x = y = 0
@@ -42,7 +43,7 @@ def condition_test():
   wvtest.WVPASSEQ(len(callback_sink), 2)
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def file_condition_test():
   """Test File*Condition functionality."""
   _, filename = tempfile.mkstemp()
@@ -70,7 +71,7 @@ def file_condition_test():
   wvtest.WVFAIL(c_touched.check())
 
 
-@wvtest.wvtest
+@test_common.wvtest
 def ratchet_test():
   """Test Ratchet functionality."""
 
@@ -88,7 +89,7 @@ def ratchet_test():
         ratchet.Condition('x', lambda: x, 0.1),
         ratchet.Condition('y', lambda: y, 0.1),
         ratchet.Condition('z', lambda: z, 0.1),
-    ], status.Status(status_export_path))
+    ], status.Status('test ratchet', status_export_path))
     x = y = 1
 
     # Test that timeouts are not just summed, but start whenever the previous
