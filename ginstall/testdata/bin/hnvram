@@ -1,1 +1,38 @@
-write_args_to_file
+#!/bin/sh
+
+# log into out file
+exe=$(basename "$0")
+echo "$exe" $* >> "$GINSTALL_OUT_FILE"
+
+# simple cmdline parser
+for i in "$@"; do
+  if [ "$i" == "-q" ]; then
+    continue
+  elif [ "$i" == "-r" ]; then
+    read=1
+  elif [ "$i" == "-w" ]; then
+    write=1
+  else
+    attr_val="$i"
+  fi
+done
+
+IFS='=' read attr val <<< "$attr_val"
+
+GINSTALL_ATTR_FILE="${GINSTALL_HNVRAM_DIR}/${attr}"
+
+if [ -n "$write" ]; then
+  echo -n "$val" > "$GINSTALL_ATTR_FILE"
+elif [ -n "$read" ]; then
+  if [ ! -r "$GINSTALL_ATTR_FILE" ]; then
+    exit 1
+  else
+    cat "$GINSTALL_ATTR_FILE"
+  fi
+fi
+
+if [ ! -z "$GINSTALL_TEST_FAIL" ]; then
+  exit 1
+fi
+
+exit 0

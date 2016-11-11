@@ -4,20 +4,29 @@
 
 tmpdir="$(mktemp -d)"
 export PATH="$tmpdir/bin:${PATH}"
+export GINSTALL_HNVRAM_DIR="$tmpdir/hnvram"
 export GINSTALL_OUT_FILE="$tmpdir/out"
+export GINSTALL_PLATFORM_FILE="$tmpdir/etc/platform"
 psiz=$(stat --format=%s testdata/img/loader.gflt110.bin)
 lsiz=$(stat --format=%s testdata/img/loader.img)
 ksiz=$(stat --format=%s testdata/img/kernel.img)
 rsiz=$(stat --format=%s testdata/img/rootfs.img)
 usiz=$(stat --format=%s testdata/img/uloader.img)
+bsiz=$(stat --format=%s testdata/img/boot.img)
+ssiz=$(stat --format=%s testdata/img/system.img.raw)
+asiz=$(stat --format=%s testdata/img/android_bsu.elf)
 testdata/bin/http_server "$tmpdir/http_ctrl" &
 
 setup_fakeroot() {
   platform="$1"
+  running_os="fiberos"
+  [ $# -gt 1 ] && running_os="$2"
   rm -f "$GINSTALL_OUT_FILE"
   rm -rf "$tmpdir/*"
   mkdir -p "$tmpdir/bin" "$tmpdir/dev" "$tmpdir/etc"
+  mkdir -p "$tmpdir/dev/block" "$tmpdir/dev/mtd"
   mkdir -p "$tmpdir/sys/block/sda"
+  mkdir -p "$GINSTALL_HNVRAM_DIR"
   cp -r testdata/bin "$tmpdir"
   cp -r testdata/proc "$tmpdir"
   cp -r testdata/img "$tmpdir"
@@ -30,10 +39,18 @@ setup_fakeroot() {
   echo 0123456789abcdef0123456789abcdef >"$tmpdir/dev/mtd3"
   echo 0123456789abcdef0123456789abcdef >"$tmpdir/dev/mtd4"
 
+  # write a pre-existing android_bsu
+  echo 0123456789abcdef0123456789abcdef >"$tmpdir/dev/mmcblk0p2"
+  echo 0123456789abcdef0123456789abcdef >"$tmpdir/dev/block/mmcblk0p2"
+
   for i in {5..31}; do touch "$tmpdir/dev/mtd$i"; done
+
+  # duplicate /dev/mtd* to /dev/mtd/mtd* (used by Android)
+  cp ${tmpdir}/dev/mtd[0-9]* ${tmpdir}/dev/mtd/
 
   cp "testdata/proc/mtd.$platform" "$tmpdir/proc/mtd"
   echo "$platform" >"$tmpdir/etc/platform"
+  echo "$running_os" >"$tmpdir/etc/os"
   echo 0123456789abcdef0123456789abcdef >"$tmpdir/etc/gfiber_public.der"
 }
 
@@ -147,6 +164,74 @@ WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
 WVPASS cmp --bytes="$lsiz" "${tmpdir}/dev/mtd0" testdata/img/loader.img
 WVPASS cmp --bytes="$ksiz" "${tmpdir}/dev/mmcblk0p18" testdata/img/kernel.img
 WVPASS cmp --bytes="$rsiz" "${tmpdir}/dev/mmcblk0p19" testdata/img/rootfs.img
+
+
+
+# kernel in NAND, raw no bbt
+# rootfs on eMMC
+# (GFHD254)
+echo; echo; echo "GFHD254 (fiberos->fiberos)"
+setup_fakeroot GFHD254 fiberos
+expected="\
+psback
+logos ginstall
+flash_erase --quiet ${tmpdir}/dev/mtd0 0 0
+hnvram -q -w ACTIVATED_KERNEL_NAME=kernel1"
+
+WVPASS ./ginstall.py --basepath="$tmpdir" --tar=./testdata/img/image_v4.gi --partition=secondary --skiploadersig
+WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
+WVPASS cmp --bytes="$lsiz" "${tmpdir}/dev/mtd0" testdata/img/loader.img
+WVPASS cmp --bytes="$ksiz" "${tmpdir}/dev/mmcblk0p14" testdata/img/kernel.img
+WVPASS cmp --bytes="$rsiz" "${tmpdir}/dev/mmcblk0p15" testdata/img/rootfs.img
+
+# FiberOS->Android (GFHD254)
+echo; echo; echo "GFHD254 (fiberos->android)"
+setup_fakeroot GFHD254 fiberos
+expected="\
+psback
+logos ginstall
+flash_erase --quiet ${tmpdir}/dev/mtd0 0 0
+hnvram -q -w ANDROID_ACTIVE_PARTITION=b
+hnvram -q -w BOOT_TARGET=android"
+
+WVPASS ./ginstall.py --basepath="$tmpdir" --tar=./testdata/img/image_android_v4.gi --partition=secondary --skiploadersig
+WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
+WVPASS cmp --bytes="$lsiz" "${tmpdir}/dev/mtd0" testdata/img/loader.img
+WVPASS cmp --bytes="$asiz" "${tmpdir}/dev/mmcblk0p2" testdata/img/android_bsu.elf
+WVPASS cmp --bytes="$bsiz" "${tmpdir}/dev/mmcblk0p6" testdata/img/boot.img
+WVPASS cmp --bytes="$ssiz" "${tmpdir}/dev/mmcblk0p10" testdata/img/system.img.raw
+
+# Android->Android (GFHD254)
+echo; echo; echo "GFHD254 (android->android)"
+setup_fakeroot GFHD254 android
+expected="\
+psback
+logos ginstall
+flash_erase --quiet ${tmpdir}/dev/mtd/mtd0 0 0
+hnvram -q -w ANDROID_ACTIVE_PARTITION=a"
+
+WVPASS ./ginstall.py --basepath="$tmpdir" --tar=./testdata/img/image_android_v4.gi --partition=primary --skiploadersig
+WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
+WVPASS cmp --bytes="$lsiz" "${tmpdir}/dev/mtd/mtd0" testdata/img/loader.img
+WVPASS cmp --bytes="$asiz" "${tmpdir}/dev/block/mmcblk0p2" testdata/img/android_bsu.elf
+WVPASS cmp --bytes="$bsiz" "${tmpdir}/dev/block/mmcblk0p5" testdata/img/boot.img
+WVPASS cmp --bytes="$ssiz" "${tmpdir}/dev/block/mmcblk0p9" testdata/img/system.img.raw
+
+# Android->FiberOS (GFHD254)
+echo; echo; echo "GFHD254 (android->fiberos)"
+setup_fakeroot GFHD254 android
+expected="\
+psback
+logos ginstall
+flash_erase --quiet ${tmpdir}/dev/mtd/mtd0 0 0
+hnvram -q -w ACTIVATED_KERNEL_NAME=kernel0
+hnvram -q -w BOOT_TARGET=fiberos"
+
+WVPASS ./ginstall.py --basepath="$tmpdir" --tar=./testdata/img/image_v4.gi --partition=primary --skiploadersig
+WVPASSEQ "$expected" "$(cat $GINSTALL_OUT_FILE)"
+WVPASS cmp --bytes="$lsiz" "${tmpdir}/dev/mtd/mtd0" testdata/img/loader.img
+WVPASS cmp --bytes="$ksiz" "${tmpdir}/dev/block/mmcblk0p12" testdata/img/kernel.img
+WVPASS cmp --bytes="$rsiz" "${tmpdir}/dev/block/mmcblk0p13" testdata/img/rootfs.img
 
 
 

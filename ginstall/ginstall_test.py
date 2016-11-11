@@ -40,13 +40,16 @@ class GinstallTest(unittest.TestCase):
 
   def setUp(self):
     self.tmpdir = tempfile.mkdtemp()
+    self.hnvram_dir = self.tmpdir + '/hnvram'
     self.script_out = self.tmpdir + '/out'
     self.old_path = os.environ['PATH']
     self.old_bufsize = ginstall.BUFSIZE
     self.old_files = ginstall.F
+    os.environ['GINSTALL_HNVRAM_DIR'] = self.hnvram_dir
     os.environ['GINSTALL_OUT_FILE'] = self.script_out
     os.environ['GINSTALL_TEST_FAIL'] = ''
     os.environ['PATH'] = 'testdata/bin:' + self.old_path
+    os.makedirs(self.hnvram_dir)
     os.makedirs(self.tmpdir + '/dev')
     ginstall.F['ETCPLATFORM'] = 'testdata/etc/platform'
     ginstall.F['DEV'] = self.tmpdir + '/dev'
@@ -69,6 +72,9 @@ class GinstallTest(unittest.TestCase):
     ginstall.MMC_RO_LOCK['MMCBLK0BOOT1'] = (
         self.tmpdir + '/mmcblk0boot1/force_ro')
 
+    # default OS to 'fiberos'
+    self.WriteOsFile('fiberos')
+
   def tearDown(self):
     os.environ['PATH'] = self.old_path
     shutil.rmtree(self.tmpdir, ignore_errors=True)
@@ -79,6 +85,23 @@ class GinstallTest(unittest.TestCase):
     filename = self.tmpdir + '/version'
     open(filename, 'w').write(version)
     ginstall.F['ETCVERSION'] = filename
+
+  def WriteOsFile(self, os_name):
+    """Create a fake /etc/os file in /tmp."""
+    filename = self.tmpdir + '/os'
+    open(filename, 'w').write(os_name)
+    ginstall.F['ETCOS'] = filename
+
+  def WriteHnvramAttr(self, attr, val):
+    filename = self.hnvram_dir + '/%s' % attr
+    open(filename, 'w').write(val)
+
+  def ReadHnvramAttr(self, attr):
+    filename = self.hnvram_dir + '/%s' % attr
+    try:
+      return open(filename).read()
+    except IOError:
+      return None
 
   def testVerify(self):
     self.assertTrue(ginstall.Verify(
@@ -158,11 +181,44 @@ class GinstallTest(unittest.TestCase):
                       origfile, 'mtd0.tmp')
 
   def testSetBootPartition(self):
-    ginstall.SetBootPartition(0)
-    ginstall.SetBootPartition(1)
+    self.WriteOsFile('fiberos')
+    ginstall.SetBootPartition('fiberos', 0)
+    self.assertEqual('kernel0', self.ReadHnvramAttr('ACTIVATED_KERNEL_NAME'))
+    ginstall.SetBootPartition('fiberos', 1)
+    self.assertEqual('kernel1', self.ReadHnvramAttr('ACTIVATED_KERNEL_NAME'))
+    ginstall.SetBootPartition('android', 0)
+    self.assertEqual('a', self.ReadHnvramAttr('ANDROID_ACTIVE_PARTITION'))
+    self.assertEqual('android', self.ReadHnvramAttr('BOOT_TARGET'))
+    ginstall.SetBootPartition('android', 1)
+    self.assertEqual('b', self.ReadHnvramAttr('ANDROID_ACTIVE_PARTITION'))
+    self.assertEqual('android', self.ReadHnvramAttr('BOOT_TARGET'))
+
+    self.WriteOsFile('android')
+    ginstall.SetBootPartition('fiberos', 0)
+    self.assertEqual('kernel0', self.ReadHnvramAttr('ACTIVATED_KERNEL_NAME'))
+    self.assertEqual('fiberos', self.ReadHnvramAttr('BOOT_TARGET'))
+    ginstall.SetBootPartition('fiberos', 1)
+    self.assertEqual('kernel1', self.ReadHnvramAttr('ACTIVATED_KERNEL_NAME'))
+    self.assertEqual('fiberos', self.ReadHnvramAttr('BOOT_TARGET'))
+    ginstall.SetBootPartition('android', 0)
+    self.assertEqual('a', self.ReadHnvramAttr('ANDROID_ACTIVE_PARTITION'))
+    ginstall.SetBootPartition('android', 1)
+    self.assertEqual('b', self.ReadHnvramAttr('ANDROID_ACTIVE_PARTITION'))
+
+    # also verify the hnvram command history for good measures
     out = open(self.script_out).read().splitlines()
     self.assertEqual(out[0], 'hnvram -q -w ACTIVATED_KERNEL_NAME=kernel0')
     self.assertEqual(out[1], 'hnvram -q -w ACTIVATED_KERNEL_NAME=kernel1')
+    self.assertEqual(out[2], 'hnvram -q -w ANDROID_ACTIVE_PARTITION=a')
+    self.assertEqual(out[3], 'hnvram -q -w BOOT_TARGET=android')
+    self.assertEqual(out[4], 'hnvram -q -w ANDROID_ACTIVE_PARTITION=b')
+    self.assertEqual(out[5], 'hnvram -q -w BOOT_TARGET=android')
+    self.assertEqual(out[6], 'hnvram -q -w ACTIVATED_KERNEL_NAME=kernel0')
+    self.assertEqual(out[7], 'hnvram -q -w BOOT_TARGET=fiberos')
+    self.assertEqual(out[8], 'hnvram -q -w ACTIVATED_KERNEL_NAME=kernel1')
+    self.assertEqual(out[9], 'hnvram -q -w BOOT_TARGET=fiberos')
+    self.assertEqual(out[10], 'hnvram -q -w ANDROID_ACTIVE_PARTITION=a')
+    self.assertEqual(out[11], 'hnvram -q -w ANDROID_ACTIVE_PARTITION=b')
 
   def testParseManifest(self):
     l = ('installer_version: 99\nimage_type: fake\n'
@@ -188,6 +244,34 @@ class GinstallTest(unittest.TestCase):
     in_f = StringIO.StringIO('platforms: [ GFUNITTEST, GFFOOBAR ]\n')
     manifest = ginstall.ParseManifest(in_f)
     self.assertTrue(ginstall.CheckPlatform(manifest))
+
+  def testGetOs(self):
+    self.WriteOsFile('fiberos')
+    self.assertEqual('fiberos', ginstall.GetOs())
+    self.WriteOsFile('android')
+    self.assertEqual('android', ginstall.GetOs())
+    # in case file doesn't exist, default is 'fiberos'
+    os.remove(self.tmpdir + '/os')
+    self.assertEqual('fiberos', ginstall.GetOs())
+
+  def testGetMtdPrefix(self):
+    self.WriteOsFile('fiberos')
+    self.assertEqual(ginstall.F['MTD_PREFIX'], ginstall.GetMtdPrefix())
+    self.WriteOsFile('android')
+    self.assertEqual(ginstall.F['MTD_PREFIX-ANDROID'], ginstall.GetMtdPrefix())
+    # unknown OS returns 'fiberos'
+    self.WriteOsFile('windows')
+    self.assertEqual(ginstall.F['MTD_PREFIX'], ginstall.GetMtdPrefix())
+
+  def testGetMmcblk0Prefix(self):
+    self.WriteOsFile('fiberos')
+    self.assertEqual(ginstall.F['MMCBLK0'], ginstall.GetMmcblk0Prefix())
+    self.WriteOsFile('android')
+    self.assertEqual(ginstall.F['MMCBLK0-ANDROID'],
+                     ginstall.GetMmcblk0Prefix())
+    # unknown OS returns 'fiberos'
+    self.WriteOsFile('windows')
+    self.assertEqual(ginstall.F['MMCBLK0'], ginstall.GetMmcblk0Prefix())
 
   def testGetInternalHarddisk(self):
     self.assertEqual(ginstall.GetInternalHarddisk(), None)
@@ -268,20 +352,141 @@ class GinstallTest(unittest.TestCase):
       manifest = {'version': v}
       self.assertRaises(ginstall.Fatal, ginstall.CheckMisc, manifest)
 
-  def testGetBootedFromCmdLine(self):
-    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline1'
+  def MakeManifestWithFilenameSha1s(self, filename):
+    m = ('installer_version: 4\n'
+         'image_type: unlocked\n'
+         'version: gftv254-48-pre2-1100-g25ff8d0-ck\n'
+         'platforms: [ GFHD254 ]\n')
+    if filename is not None:
+      m += '%s-sha1: 9b5236c282b8c11b38a630361b6c690d6aaa50cb\n' % filename
+
+    in_f = StringIO.StringIO(m)
+    return ginstall.ParseManifest(in_f)
+
+  def testGetOsFromManifest(self):
+    # android specific image names return 'android'
+    for img in ginstall.ANDROID_IMAGES:
+      manifest = self.MakeManifestWithFilenameSha1s(img)
+      self.assertEqual('android', ginstall.GetOsFromManifest(manifest))
+
+    # fiberos image names or anything non-android returns 'fiberos'
+    for img in ['rootfs.img', 'kernel.img', 'whatever.img']:
+      manifest = self.MakeManifestWithFilenameSha1s(img)
+      self.assertEqual('fiberos', ginstall.GetOsFromManifest(manifest))
+
+    # no sha1 entry in the manifest returns 'fiberos'
+    manifest = self.MakeManifestWithFilenameSha1s(None)
+    self.assertEqual('fiberos', ginstall.GetOsFromManifest(manifest))
+
+  def testGetBootedPartition(self):
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.none'
+    self.assertEqual(None, ginstall.GetBootedPartition())
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.0'
+    self.assertEqual(0, ginstall.GetBootedPartition())
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.1'
+    self.assertEqual(1, ginstall.GetBootedPartition())
+
+    # Android
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.android.none'
+    self.assertEqual(None, ginstall.GetBootedPartition())
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.android.0'
+    self.assertEqual(0, ginstall.GetBootedPartition())
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.android.1'
+    self.assertEqual(1, ginstall.GetBootedPartition())
+
+    # Prowl
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.none'
     self.assertEqual(ginstall.GetBootedPartition(), None)
-    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline2'
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.0'
     self.assertEqual(ginstall.GetBootedPartition(), 0)
-    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline3'
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.1'
     self.assertEqual(ginstall.GetBootedPartition(), 1)
 
+  def testGetActivePartitionFromHNVRAM(self):
+    # FiberOS looks at ACTIVATED_KERNEL_NAME, not ANDROID_ACTIVE_PARTITION
+    # 0
+    self.WriteHnvramAttr('ACTIVATED_KERNEL_NAME', '0')
+    self.assertEqual(0, ginstall.GetActivePartitionFromHNVRAM('fiberos'))
+    self.WriteHnvramAttr('ANDROID_ACTIVE_PARTITION', '0')
+    self.assertEqual(0, ginstall.GetActivePartitionFromHNVRAM('fiberos'))
+    self.WriteHnvramAttr('ANDROID_ACTIVE_PARTITION', '1')
+    self.assertEqual(0, ginstall.GetActivePartitionFromHNVRAM('fiberos'))
+    # 1
+    self.WriteHnvramAttr('ACTIVATED_KERNEL_NAME', '1')
+    self.assertEqual(1, ginstall.GetActivePartitionFromHNVRAM('fiberos'))
+    self.WriteHnvramAttr('ANDROID_ACTIVE_PARTITION', '0')
+    self.assertEqual(1, ginstall.GetActivePartitionFromHNVRAM('fiberos'))
+
+    # Android looks at ANDROID_ACTIVE_PARTITION, not ACTIVATED_KERNEL_NAME
+    # 0
+    self.WriteHnvramAttr('ANDROID_ACTIVE_PARTITION', '0')
+    self.assertEqual(0, ginstall.GetActivePartitionFromHNVRAM('android'))
+    self.WriteHnvramAttr('ACTIVATED_KERNEL_NAME', '0')
+    self.assertEqual(0, ginstall.GetActivePartitionFromHNVRAM('android'))
+    self.WriteHnvramAttr('ACTIVATED_KERNEL_NAME', '1')
+    self.assertEqual(0, ginstall.GetActivePartitionFromHNVRAM('android'))
+    # 1
+    self.WriteHnvramAttr('ANDROID_ACTIVE_PARTITION', '1')
+    self.assertEqual(1, ginstall.GetActivePartitionFromHNVRAM('android'))
+    self.WriteHnvramAttr('ACTIVATED_KERNEL_NAME', '0')
+    self.assertEqual(1, ginstall.GetActivePartitionFromHNVRAM('android'))
+
+  def TestGetPartition(self):
+    self.assertEqual(0, ginstall.GetPartition('primary', 'fiberos'))
+    self.assertEqual(0, ginstall.GetPartition(0, 'fiberos'))
+    self.assertEqual(1, ginstall.GetPartition('secondary', 'fiberos'))
+    self.assertEqual(1, ginstall.GetPartition(1, 'fiberos'))
+    self.assertEqual(0, ginstall.GetPartition('primary', 'android'))
+    self.assertEqual(0, ginstall.GetPartition(0, 'android'))
+    self.assertEqual(1, ginstall.GetPartition('secondary', 'android'))
+    self.assertEqual(1, ginstall.GetPartition(1, 'android'))
+
+    # other: FiberOS->FiberOS
+    self.WriteOsFile('fiberos')
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.none'
+    self.assertEqual(1, ginstall.GetPartition('other', 'fiberos'))
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.0'
+    self.assertEqual(1, ginstall.GetPartition('other', 'fiberos'))
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.1'
+    self.assertEqual(0, ginstall.GetPartition('other', 'fiberos'))
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.none'
+    self.assertEqual(1, ginstall.GetPartition('other', 'fiberos'))
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.0'
+    self.assertEqual(1, ginstall.GetPartition('other', 'fiberos'))
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.1'
+    self.assertEqual(0, ginstall.GetPartition('other', 'fiberos'))
+
+    # other: FiberOS->Android
+    self.WriteHnvramAttr('ANDROID_ACTIVE_PARTITION', 'a')
+    self.assertEqual(1, ginstall.GetPartition('other', 'android'))
+    self.WriteHnvramAttr('ANDROID_ACTIVE_PARTITION', 'b')
+    self.assertEqual(0, ginstall.GetPartition('other', 'android'))
+    self.WriteHnvramAttr('ANDROID_ACTIVE_PARTITION', 'bla')
+    self.assertEqual(1, ginstall.GetPartition('other', 'android'))
+
+    # other: Android->FiberOS
+    self.WriteOsFile('android')
+    self.WriteHnvramAttr('ACTIVATED_KERNEL_NAME', '0')
+    self.assertEqual(1, ginstall.GetPartition('other', 'fiberos'))
+    self.WriteHnvramAttr('ACTIVATED_KERNEL_NAME', '1')
+    self.assertEqual(0, ginstall.GetPartition('other', 'fiberos'))
+    self.WriteHnvramAttr('ACTIVATED_KERNEL_NAME', 'bla')
+    self.assertEqual(1, ginstall.GetPartition('other', 'fiberos'))
+
+    # other: Android->Android
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.android.none'
+    self.assertEqual(1, ginstall.GetPartition('other', 'android'))
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.android.0'
+    self.assertEqual(1, ginstall.GetPartition('other', 'android'))
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.android.1'
+    self.assertEqual(0, ginstall.GetPartition('other', 'android'))
+
     # Test prowl and gfactive
-    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline4'
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.none'
     self.assertEqual(ginstall.GetBootedPartition(), None)
-    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline5'
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.0'
     self.assertEqual(ginstall.GetBootedPartition(), 0)
-    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline6'
+    ginstall.F['PROC_CMDLINE'] = 'testdata/proc/cmdline.prowl.1'
     self.assertEqual(ginstall.GetBootedPartition(), 1)
 
   def testUloaderSigned(self):

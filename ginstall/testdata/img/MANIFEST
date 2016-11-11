@@ -1,7 +1,7 @@
 installer_version: 4
 image_type: unittest
 version: gftv200-40.1
-platforms: [ GFUNITTEST, GFSC100, GFMN100, GFHD200, GFHD100, GFMS100, GFRG210, GFRG200 ]
+platforms: [ GFUNITTEST, GFSC100, GFMN100, GFHD200, GFHD254, GFHD100, GFMS100, GFRG210, GFRG200 ]
 loader.img-sha1: 228d83f86ba967704a94afce92e1e4cbba3b24a6
 uloader.img-sha1: 171e9a2e524c1f3a64f43ef7d254b85e764f1096
 kernel.img-sha1: fbd0ad4af43303c6b3001920689db2eb4d5212d0

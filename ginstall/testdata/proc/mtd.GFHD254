@@ -1,0 +1,3 @@
+dev:    size   erasesize  name
+mtd0: 00400000 00001000 "flash0.bolt"
+mtd1: 00400000 00001000 "flash0"
