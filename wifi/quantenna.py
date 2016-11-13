@@ -11,7 +11,7 @@ import utils
 
 
 def _get_quantenna_interfaces():
-  return subprocess.check_output(['get-quantenna-interfaces']).split()
+  return utils.read_or_empty('/sys/class/net/quantenna/vlan')
 
 
 def _qcsapi(*args):
@@ -27,13 +27,6 @@ def _get_external_mac(hif):
   return ':'.join(octets)
 
 
-def _get_vlan(hif):
-  m = re.search(r'VID: (\d+)', utils.read_or_empty('/proc/net/vlan/%s' % hif))
-  if m:
-    return int(m.group(1))
-  raise utils.BinWifiException('no VLAN ID for interface %s' % hif)
-
-
 def _get_interfaces(mode, suffix):
   # Each host interface (hif) maps to exactly one LHOST interface (lif) based on
   # the VLAN ID as follows: the lif is wifiX where X is the VLAN ID - 2 (VLAN
@@ -41,11 +34,12 @@ def _get_interfaces(mode, suffix):
   # VLAN ID 2.
   prefix = 'wlan' if mode == 'ap' else 'wcli'
   suffix = r'.*' if suffix == 'ALL' else suffix
-  for hif in _get_quantenna_interfaces():
+  for line in _get_quantenna_interfaces().splitlines():
+    hif, vlan = line.split()
+    vlan = int(vlan)
+    lif = 'wifi%d' % (vlan - 2)
+    mac = _get_external_mac(hif)
     if re.match(r'^' + prefix + r'\d*' + suffix + r'$', hif):
-      vlan = _get_vlan(hif)
-      lif = 'wifi%d' % (vlan - 2)
-      mac = _get_external_mac(hif)
       yield hif, lif, mac, vlan
 
 

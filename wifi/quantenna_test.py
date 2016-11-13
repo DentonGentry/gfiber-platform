@@ -16,30 +16,17 @@ def get_external_mac_test():
 
 
 @wvtest.wvtest
-def get_vlan_test():
-  old_read_or_empty = utils.read_or_empty
-  utils.read_or_empty = lambda _: 'wlan0  VID: 3    REORDER_HDR: 1'
-  wvtest.WVPASSEQ(quantenna._get_vlan('wlan0'), 3)
-  utils.read_or_empty = lambda _: ''
-  wvtest.WVEXCEPT(utils.BinWifiException, quantenna._get_vlan, 'wlan0')
-  utils.read_or_empty = old_read_or_empty
-
-
-@wvtest.wvtest
 def get_interface_test():
   old_get_quantenna_interfaces = quantenna._get_quantenna_interfaces
   old_get_external_mac = quantenna._get_external_mac
-  old_get_vlan = quantenna._get_vlan
-  quantenna._get_quantenna_interfaces = lambda: ['wlan0', 'wlan0_portal']
+  quantenna._get_quantenna_interfaces = lambda: 'wlan0 3\nwlan0_portal 4\n'
   quantenna._get_external_mac = lambda _: '00:00:00:00:00:00'
-  quantenna._get_vlan = lambda _: 3
   wvtest.WVPASSEQ(quantenna._get_interface('ap', ''),
                   ('wlan0', 'wifi1', '00:00:00:00:00:00', 3))
   wvtest.WVPASSEQ(quantenna._get_interface('ap', '_portal'),
-                  ('wlan0_portal', 'wifi1', '00:00:00:00:00:00', 3))
+                  ('wlan0_portal', 'wifi2', '00:00:00:00:00:00', 4))
   wvtest.WVPASSEQ(quantenna._get_interface('sta', ''),
                   (None, None, None, None))
-  quantenna._get_vlan = old_get_vlan
   quantenna._get_external_mac = old_get_external_mac
   quantenna._get_quantenna_interfaces = old_get_quantenna_interfaces
 
