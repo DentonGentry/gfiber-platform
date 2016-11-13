@@ -33,6 +33,7 @@ TARGETS=\
 	dnsck \
 	freemegs \
 	gfhd254_reboot \
+	gflldpd \
 	gstatic \
 	http_bouncer \
 	ionice \
@@ -52,6 +53,7 @@ HOST_TARGETS=$(addprefix host-,$(TARGETS))
 LIB_TARGETS=\
 	stdoutline.so
 HOST_TEST_TARGETS=\
+	host-gflldpd_test \
 	host-netusage_test \
 	host-utils_test \
 	host-isoping_test
@@ -272,6 +274,10 @@ host-hostnamelookup.tmp.o: CFLAGS += -Wno-missing-field-initializers
 anonid: anonid.o
 host-anonid: host-anonid.o
 anonid host-anonid: LIBS += -lcrypto
+host-gflldpd_test.o: CXXFLAGS += -D WVTEST_CONFIGURED -I ../wvtest/cpp
+host-gflldpd_test.o: gflldpd.c
+host-gflldpd_test: LIBS+=$(HOST_LIBS) -lm -lstdc++
+host-gflldpd_test: host-gflldpd_test.o host-wvtestmain.o host-wvtest.o
 
 
 TESTS = $(wildcard test-*.sh) $(wildcard test-*.py) $(wildcard *_test.py) $(TEST_TARGETS)
