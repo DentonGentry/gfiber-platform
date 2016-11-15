@@ -46,7 +46,8 @@ def get_interface_test():
 
 @wvtest.wvtest
 def parse_scan_result_test():
-  result = '  " ssid with "quotes" " 00:11:22:33:44:55 40 25 0 0 0 0 0 1 40  '
+  result = ('  " ssid with "quotes" " 00:11:22:33:44:55 40 25 0 0 0 0 0 1 40 '
+            '100 1 Infrastructure')
   wvtest.WVPASSEQ(quantenna._parse_scan_result(result),
                   (' ssid with "quotes" ', '00:11:22:33:44:55', 40, -25, 0, 0))
 
