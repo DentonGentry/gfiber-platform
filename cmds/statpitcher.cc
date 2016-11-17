@@ -173,7 +173,7 @@ int64_t CurrentONUChannel() {
   if (pipe) {
     char buffer[128];
     if (fgets(buffer, 128, pipe.get()) != NULL) {
-      std::istringstream(buffer) >> ret;
+      std::istringstream(buffer) >> std::hex >> ret;
     }
   }
   return ret;
