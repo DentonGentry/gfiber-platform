@@ -67,8 +67,9 @@ CLIENT_ASSOCIATIONS = {}
 class AccessPoint(object):
 
   def __init__(self, **kwargs):
-    for attr in ('ssid', 'psk', 'band', 'bssid', 'security', 'rssi',
-                 'vendor_ies', 'connection_check_result', 'hidden'):
+    self._attrs = ('ssid', 'psk', 'band', 'bssid', 'security', 'rssi',
+                   'vendor_ies', 'connection_check_result', 'hidden')
+    for attr in self._attrs:
       setattr(self, attr, kwargs.get(attr, None))
 
   def scan_str(self):
@@ -85,6 +86,13 @@ class AccessPoint(object):
                              for oui, data in (self.vendor_ies or [])),
         rssi='%.2f dBm' % (self.rssi or 0),
         security=security_strs.get(self.security, ''))
+
+  def __str__(self):
+    return 'AccessPoint<%s>' % ' '.join('%s=%s' % (attr, getattr(self, attr))
+                                        for attr in self._attrs)
+
+  def __repr__(self):
+    return str(self)
 
 
 def call(*args, **kwargs):
@@ -140,14 +148,14 @@ def _setclient(args, env=None):
     ap = REMOTE_ACCESS_POINTS[band].get(bssid, None)
     if not ap or ap.ssid != ssid:
       _setclient_error_not_found(interface_name, ssid, interface.driver)
-      return 1, ('AP with band %r and BSSID %r and ssid %s not found'
-                 % (band, bssid, ssid))
+      return 1, ('AP with band %r and BSSID %r and ssid %s not found: %s'
+                 % (band, bssid, ssid, REMOTE_ACCESS_POINTS))
   elif ssid:
     candidates = [ap for ap in REMOTE_ACCESS_POINTS[band].itervalues()
                   if ap.ssid == ssid]
     if not candidates:
       _setclient_error_not_found(interface_name, ssid, interface.driver)
-      return 1, 'AP with SSID %r not found' % ssid
+      return 1, 'AP with SSID %r not found: %s' % (ssid, REMOTE_ACCESS_POINTS)
     ap = random.choice(candidates)
   else:
     raise ValueError('Did not specify BSSID or SSID in %r' % args)
