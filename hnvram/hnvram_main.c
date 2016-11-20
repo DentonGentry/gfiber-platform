@@ -476,7 +476,7 @@ int write_nvram_new(const char* name, const char* value,
 }
 
 int init_nvram() {
-  const char* location = secure_getenv("HNVRAM_LOCATION");
+  const char* location = getenv("HNVRAM_LOCATION");
   return (int)HMX_NVRAM_Init(location);
 }
 
