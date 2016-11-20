@@ -11,7 +11,7 @@ PREFIX=/usr
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 
 HUMAX_UPGRADE_DIR ?= ../../../humax/misc/libupgrade
-CFLAGS += -g -Os -I$(HUMAX_UPGRADE_DIR) $(EXTRACFLAGS)
+CFLAGS += -g -Os -I$(HUMAX_UPGRADE_DIR) -I$(HUMAX_UPGRADE_DIR)/test $(EXTRACFLAGS)
 LDFLAGS += -L$(HUMAX_UPGRADE_DIR) $(EXTRALDFLAGS)
 
 all: hnvram
@@ -22,11 +22,15 @@ hnvram: $(SRCS) $(INCS)
 	$(CC) $(CFLAGS) $(SRCS) -o $@ $(LDFLAGS) -lhmxupgrade
 
 unit_test: test
-test: hnvram_test
-	./hnvram_test
+test: clean hnvram_unit_test hnvram_integration_test
+	./hnvram_unit_test
+	./hnvram_integration_test
 
-hnvram_test: hnvram_test.cc hnvram_main.c $(INCS)
+hnvram_unit_test: hnvram_test.cc hnvram_main.c $(INCS)
 	$(CPP) $(CFLAGS) hnvram_test.cc -o $@ $(LDFLAGS) -lgtest -lpthread
+
+hnvram_integration_test: hnvram_integration_test.cc
+	$(CPP) $(CFLAGS) hnvram_integration_test.cc -o $@ $(LDFLAGS) -lgtest -lpthread
 
 install:
 	mkdir -p $(BINDIR)
@@ -36,4 +40,4 @@ install-libs:
 	@echo "No libs to install."
 
 clean:
-	rm -f hnvram hnvram_test *.o
+	rm -f hnvram hnvram_unit_test hnvram_integration_test *.o

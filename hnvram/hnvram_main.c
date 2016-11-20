@@ -42,6 +42,8 @@ void usage(const char* progname) {
   printf("\t-n : toggles whether -w can create new variables. Default is off\n");
   printf("\t-p [RW|RO] : toggles what partition new writes (-n) used. Default is RW\n");
   printf("\t-k VARNAME : delete existing key/value pair from NVRAM.\n");
+  printf("\t Set environment variable: $HNVRAM_LOCATION to change where read/writes are performed.");
+  printf("\t By default hnvram uses '/dev/mtd/hnvram'\n");
 }
 
 // Format of data in the NVRAM
@@ -369,7 +371,7 @@ unsigned char* parse_nvram(hnvram_format_e format, const char* input,
   return NULL;
 }
 
-DRV_Error clear_nvram(char* optarg) {
+DRV_Error clear_nvram(const char* optarg) {
   DRV_Error err1 = HMX_NVRAM_Remove(HMX_NVRAM_PARTITION_RW,
                                     (unsigned char*)optarg);
   DRV_Error err2 = HMX_NVRAM_Remove(HMX_NVRAM_PARTITION_RO,
@@ -387,7 +389,8 @@ DRV_Error clear_nvram(char* optarg) {
 }
 
 
-int write_nvram(char* name, char* value, HMX_NVRAM_PARTITION_E desired_part) {
+int write_nvram(const char* name, const char* value,
+                HMX_NVRAM_PARTITION_E desired_part) {
   const hnvram_field_t* field = get_nvram_field(name);
   int is_field = (field != NULL);
 
@@ -400,8 +403,8 @@ int write_nvram(char* name, char* value, HMX_NVRAM_PARTITION_E desired_part) {
 
   if (strlen(value) > NVRAM_MAX_DATA) {
     fprintf(stderr, "Value length %d exceeds maximum data size of %d\n",
-      strlen(value), NVRAM_MAX_DATA);
-    return -2;
+      (int)strlen(value), NVRAM_MAX_DATA);
+    return -1;
   }
 
   unsigned char nvram_value[NVRAM_MAX_DATA];
@@ -444,18 +447,18 @@ int write_nvram(char* name, char* value, HMX_NVRAM_PARTITION_E desired_part) {
 }
 
 // Adds new variable to HNVRAM in desired_partition as STRING
-int write_nvram_new(char* name, char* value,
+int write_nvram_new(const char* name, const char* value,
                     HMX_NVRAM_PARTITION_E desired_part) {
+  if (!can_add_flag) {
+    fprintf(stderr, "Key not found in NVRAM. Add -n to allow creation %s\n",
+            name);
+    return -1;
+  }
+
   char tmp[NVRAM_MAX_DATA] = {0};
   unsigned char nvram_value[NVRAM_MAX_DATA];
   unsigned int nvram_len = sizeof(nvram_value);
   if (parse_nvram(HNVRAM_STRING, value, nvram_value, &nvram_len) == NULL) {
-    return -1;
-  }
-
-  if (!can_add_flag) {
-    fprintf(stderr, "Key not found in NVRAM. Add -n to allow creation %s\n",
-            name);
     return -2;
   }
 
@@ -472,13 +475,19 @@ int write_nvram_new(char* name, char* value,
   return 0;
 }
 
+int init_nvram() {
+  const char* location = secure_getenv("HNVRAM_LOCATION");
+  return (int)HMX_NVRAM_Init(location);
+}
+
 int hnvram_main(int argc, char* const argv[]) {
   DRV_Error err;
 
   libupgrade_verbose = 0;
 
-  if ((err = HMX_NVRAM_Init()) != DRV_OK) {
-    fprintf(stderr, "NVRAM Init failed: %d\n", err);
+  int ret = init_nvram();
+  if (ret != 0) {
+    fprintf(stderr, "NVRAM Init failed: %d\n", ret);
     exit(1);
   }
 
@@ -524,13 +533,13 @@ int hnvram_main(int argc, char* const argv[]) {
           char* value = equal + 1;
 
           int ret = write_nvram(name, value, desired_part);
-          if (ret == -3 && can_add_flag) {
-            // key not found, and we are authorized to add a new one
+          if (ret == -3) {
+            // key not found, try to add a new one
             ret = write_nvram_new(name, value, desired_part);
           }
 
           if (ret != 0) {
-            fprintf(stderr, "Unable to write %s\n", duparg);
+            fprintf(stderr, "Err %d: Unable to write %s\n", ret, duparg);
             free(duparg);
             exit(1);
           }
