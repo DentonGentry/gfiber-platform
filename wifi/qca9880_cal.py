@@ -13,7 +13,7 @@ import struct
 import experiment
 import utils
 
-NO_CAL_EXPERIMENT = 'WifiNoCalibrationPatch'
+CAL_EXPERIMENT = 'WifiCalibrationPatch'
 PLATFORM_FILE = '/etc/platform'
 CALIBRATION_DIR = '/tmp/ath10k_cal'
 CAL_PATCH_FILE = 'cal_data_patch.bin'
@@ -48,7 +48,7 @@ FCC_PATCH = ((0x0625, (0x50, 0x58, 0x5c, 0x8c, 0xbd, 0xc1, 0xcd,
                        0x6d, 0x2d, 0x62, 0x6f, 0x68, 0x64, 0x64,
                        0x68, 0x68, 0x2d, 0x5c, 0x60, 0x60, 0x66)))
 
-experiment.register(NO_CAL_EXPERIMENT)
+experiment.register(CAL_EXPERIMENT)
 
 
 def _log(msg):
@@ -264,8 +264,9 @@ def _reload_driver():
 def qca8990_calibration():
   """Main QCA8990 calibration check."""
 
-  if experiment.enabled(NO_CAL_EXPERIMENT):
-    _log('experiment {} on. Skip calibration check.'.format(NO_CAL_EXPERIMENT))
+  if not experiment.enabled(CAL_EXPERIMENT):
+    _log('experiment {} not specified. Skipping calibration check.'.
+         format(CAL_EXPERIMENT))
     return
 
   if _is_previously_calibrated():
