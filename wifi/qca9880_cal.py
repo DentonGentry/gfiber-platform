@@ -9,6 +9,7 @@
 import glob
 import os
 import os.path
+import struct
 import experiment
 import utils
 
@@ -23,8 +24,31 @@ VERSION_OFFSET = 45
 VERSION_LEN = 3
 SUSPECT_OUIS = ((0x28, 0x24, 0xff), (0x48, 0xa9, 0xd2), (0x60, 0x02, 0xb4),
                 (0xbc, 0x30, 0x7d), (0xbc, 0x30, 0x7e))
-MISCALIBRATED_VERSION_FIELD = (0x0, 0x0, 0x0)
 MODULE_PATH = '/sys/class/net/{}/device/driver/module'
+
+# Each tuple starts with an offset, followed by a list of values to be
+# patched beginning at that offset.
+CAL_PATCH = ((0x050a, (0x5c, 0x68, 0xbd, 0xcd)),
+             (0x0510, (0x5c, 0x68, 0xbd, 0xcd)),
+             (0x0516, (0x5c, 0x68, 0xbd, 0xcd)),
+             (0x051c, (0x5c, 0x68, 0xbd, 0xcd)),
+             (0x0531, (0x2a, 0x28, 0x26)),
+             (0x0535, (0x2a, 0x28, 0x26)),
+             (0x056b, (0xce, 0x8a, 0x66, 0x02, 0x68, 0x26, 0x80, 0x66)),
+             (0x05b4, (0x8a, 0x46, 0x02, 0x68, 0x24, 0x80, 0x46)),
+             (0x05c0, (0x8a, 0x46, 0x02, 0x68, 0x24, 0x80, 0x46)),
+             (0x05fc, (0x8c, 0x68, 0x02, 0x88, 0x26, 0x80)),
+             (0x0608, (0x8c, 0x68, 0x02, 0x88, 0x26, 0x80)))
+
+FCC_PATCH = ((0x0625, (0x50, 0x58, 0x5c, 0x8c, 0xbd, 0xc1, 0xcd,
+                       0x4c, 0x50, 0x58, 0x5c, 0x8c, 0xbd, 0xc1,
+                       0xcd, 0x4e, 0x56, 0x5e, 0x66, 0x8e)),
+             (0x06b4, (0x69, 0x6b, 0x6b, 0x62, 0x62, 0x6b, 0x6c,
+                       0x2d, 0x69, 0x6b, 0x6b, 0x62, 0x62, 0x6b,
+                       0x6d, 0x2d, 0x62, 0x6f, 0x68, 0x64, 0x64,
+                       0x68, 0x68, 0x2d, 0x5c, 0x60, 0x60, 0x66)))
+
+experiment.register(NO_CAL_EXPERIMENT)
 
 
 def _log(msg):
@@ -75,14 +99,23 @@ def _is_module_miscalibrated():
   """Check the QCA8990 module to see if it is improperly calibrated.
 
   There are two manufacturers of the modules, Senao and Wistron of which only
-  Wistron modules are suspect. Wistron provided a list of OUIs manufactured
-  which are listed in SUSPECT_OUIS. Modules manufactured by Winstron containing
-  V02 at offset VERSION_OFFSET have been corrected, while those containing 3
-  zero's at this offset are still suspect and will be considered mis-calibrated.
+  Wistron modules are suspect. Wistron provided a list of suspect OUIs
+  which are listed in SUSPECT_OUIS.
+
+  The version field must also be checked, starting at offset VERSION_OFFSET.
+  If this fields is all zeros, then it is an implicit indication of V01,
+  otherwise it contains a version string.
+
+  V01 -- (version field contains 0's) These modules need both calibration and
+         FCC power limits patched.
+  V02 -- Only FCC power limits need to be patched
+  V03 -- No patching required.
 
   Returns:
-    True if module is mis-calibrated, None if it can't be determined, and False
-    otherwise.
+    A tuple containing one or both of: fcc, cal. Or None.
+    'fcc' -- FCC patching required.
+    'cal' -- Calibration data patching required.
+    None  -- No patching required.
   """
 
   try:
@@ -94,7 +127,7 @@ def _is_module_miscalibrated():
       f.seek(OUI_OFFSET)
       oui = f.read(OUI_LEN)
       f.seek(VERSION_OFFSET)
-      version = f.read(VERSION_LEN)
+      version = struct.unpack('3s', f.read(VERSION_LEN))[0]
 
   except IOError as e:
     _log('unable to open cal_data {}: {}'.format(cal_data_path, e.strerror))
@@ -102,17 +135,27 @@ def _is_module_miscalibrated():
 
   if oui not in (bytearray(s) for s in SUSPECT_OUIS):
     _log('OUI {} is properly calibrated.'.format(_oui_string(oui)))
-    return False
+    # Create an empty directory so this script short-circuits if run again.
+    _create_calibration_dir()
+    return None
 
-  if version != (bytearray(MISCALIBRATED_VERSION_FIELD)):
-    _log('version field {} signals proper calibration.'.
-         format(_version_string(version)))
-    return False
+  # V01 is retroactively represented not by a string, but by 3 0 value bytes.
+  if version == '\x00\x00\x00':
+    _log('version field is V01. CAL + FCC calibration required.')
+    return ('fcc', 'cal')
 
-  _log('May be mis-calibrated. OUI: {} version: {}'.
-       format(_oui_string(oui), _version_string(version)))
+  if version == 'V02':
+    _log('version field is V02. Only FCC calibration required.')
+    return ('fcc',)
 
-  return True
+  if version == 'V03':
+    _log('version field is V03. No patching required.')
+    # Create an empty directory so this script short-circuits if run again.
+    _create_calibration_dir()
+    return None
+
+  _log('version field unknown: {}'.format(version))
+  return None
 
 
 def _is_previously_calibrated():
@@ -160,8 +203,17 @@ def _ath10k_cal_data_path():
   return glob.glob(ATH10K_CAL_DATA)[0]
 
 
-def _generate_calibration_patch():
+def _apply_patch(msg, cal_data, patch):
+  _log(msg)
+  for offset, values in patch:
+    cal_data[offset:offset + len(values)] = values
+
+
+def _generate_calibration_patch(calibration_state):
   """Create calibration patch and write to storage.
+
+  Args:
+    calibration_state: data from ath10k to be patched.
 
   Returns:
     True for success or False for failure.
@@ -174,11 +226,12 @@ def _generate_calibration_patch():
          format(_ath10k_cal_data_path(), e.strerror))
     return False
 
-  # Patch cal_data here once we get the actual calibration data.
-  # For now just return False until we get the data.
-  _log('patch not generated as data not supplied yet.')
-  # pylint: disable=unreachable
-  return False
+  # Actual calibration starts here.
+  if 'cal' in calibration_state:
+    _apply_patch('Applying CAL patch...', cal_data, CAL_PATCH)
+
+  if 'fcc' in calibration_state:
+    _apply_patch('Applying FCC patch...', cal_data, FCC_PATCH)
 
   if not _create_calibration_dir():
     return False
@@ -223,15 +276,9 @@ def qca8990_calibration():
     _log('this platform does not use ath10k.')
     return
 
-  cal_result = _is_module_miscalibrated()
-  if cal_result is None:
-    _log('unknown if miscalibrated.')
-  elif not cal_result:
-    _log('module is NOT miscalibrated.')
-    # Creating an empty directory signals that this script has already run.
-    _create_calibration_dir()
-  else:
-    if _generate_calibration_patch():
+  calibration_state = _is_module_miscalibrated()
+  if calibration_state is not None:
+    if _generate_calibration_patch(calibration_state):
       _log('generated new patch.')
       _reload_driver()
 
