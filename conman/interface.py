@@ -459,7 +459,6 @@ class Wifi(Interface):
       k, v = line.strip().split('=', 1)
       status[k] = v
 
-    self.logger.debug('wpa_status is %r', status)
     return status
 
   def update(self):
