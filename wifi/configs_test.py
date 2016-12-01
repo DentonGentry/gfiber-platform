@@ -26,6 +26,7 @@ network={{
 \t#psk="some passphrase"
 \tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
 \tscan_ssid=1
+\tfreq_list={freq_list}
 }}
 """
 
@@ -39,6 +40,7 @@ network={{
 \tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
 \tscan_ssid=1
 \tbssid=12:34:56:78:90:ab
+\tfreq_list={freq_list}
 }}
 """
 
@@ -53,6 +55,7 @@ network={{
 \tkey_mgmt=NONE
 \tscan_ssid=1
 \tbssid=12:34:56:78:90:ab
+\tfreq_list={freq_list}
 }}
 """
 

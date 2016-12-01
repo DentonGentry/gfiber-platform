@@ -370,13 +370,14 @@ def generate_wpa_supplicant_config(ssid, passphrase, opt):
   else:
     network_block_lines = wpa_network_lines(ssid, passphrase)
 
+  freq_list = ' '.join(autochannel.get_all_frequencies(opt.band))
+
   network_block_lines.append('\tscan_ssid=1')
   if opt.bssid:
     network_block_lines.append('\tbssid=%s' %
                                utils.validate_and_sanitize_bssid(opt.bssid))
+  network_block_lines.append('\tfreq_list=' + freq_list)
   network_block = make_network_block(network_block_lines)
-
-  freq_list = ' '.join(autochannel.get_all_frequencies(opt.band))
 
   lines = [
       'ctrl_interface=/var/run/wpa_supplicant',
