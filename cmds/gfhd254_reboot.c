@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -31,10 +32,28 @@ static void *mmap_(
 #endif
 }
 
-// TODO(jnewlin):  Revist this after the exact gpio being used
-// is settled on.
+uint8_t is_platform_supported() {
+  char buf[64];
+  memset(buf, 0, sizeof(buf));
+  FILE *f = fopen("/etc/platform", "r");
+  if (!f) {
+    printf("Could not open /etc/platform.\n");
+    return 0;
+  }
+  if (fread(&buf[0], 1, sizeof(buf)-1, f) <= 0) {
+    printf("No data in /etc/platform.\n");
+    return 0;
+  }
+
+  return strncmp(buf, "GFHD254", strlen("GFHD254")) == 0;
+}
 
 int main() {
+  if (!is_platform_supported()) {
+    printf("Platform not supported.\n");
+    return 1;
+  }
+
   int fd = open("/dev/mem", O_RDWR);
   volatile uint32_t* reg;
 
