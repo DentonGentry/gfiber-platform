@@ -1220,7 +1220,7 @@ def main():
 
   # handle 'ginstall -p <partition>' separately
   if not opt.drm and not opt.tar:
-    partition = GetPartition(opt, GetOs())
+    partition = GetPartition(opt.partition, GetOs())
     if SetBootPartition(GetOs(), partition) != 0:
       VerbosePrint('Unable to set boot partition\n')
       return HNVRAM_ERR
