@@ -27,6 +27,7 @@ enum BrunoPlatformTypes {
   BRUNO_GFLT110,          /* Fiber Jack */
   BRUNO_GFHD254,          /* Lockdown */
   BRUNO_GFLT300,          /* Go-Long FiberJack */
+  BRUNO_GFLT400,          /* Co-ax Jack */
   BRUNO_GFCH100,          /* Chimera mm-wave */
   BRUNO_UNKNOWN
 };
