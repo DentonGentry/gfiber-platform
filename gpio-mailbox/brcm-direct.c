@@ -102,7 +102,7 @@ struct platform_info platforms[] = {
       .offset_data = 0x6580,            // PWM_CTRL ...
       .channel = 0,
       .open_drain = 1,
-      .period = 0x63,
+      .period = 0xf0,
     },
     .temp_monitor = {
       .is_present = 1,                  // 7425 AVS_RO_REGISTERS_0
@@ -261,12 +261,12 @@ struct platform_info platforms[] = {
         .is_present = 1,                  // AON_GPIO_05
         .pinmux_offset = 0x10700,         // PIN_MUX_CTRL_0
         .pinmux_mask =  0x00f00000,
-        .pinmux_value = 0x00200000,       // LED_LD_13
-        .offset_data = 0x1701c,           // LDK_DIGIT1
-        .mask = 1<<13,                    // 1<<13
-        .shift = 13,
-        .off_value =1,
-        .on_value = 0,
+        .pinmux_value = 0x00000000,       // AON_GPIO_05
+        .offset_data = 0x17404,           // AON_DATA
+        .mask = 1<<5,
+        .shift = 5,
+        .off_value =0,
+        .on_value = 1,
         .old_val = -1,
       },
       .led_blue = {
@@ -276,12 +276,12 @@ struct platform_info platforms[] = {
         .is_present = 1,                  // AON_GPIO_04
         .pinmux_offset = 0x10700,         // PIN_MUX_CTRL_0
         .pinmux_mask = 0x000f0000,
-        .pinmux_value = 0x00020000,       // LED_LD_12
-        .offset_data = 0x1701c,           // LDK_DIGIT1
-        .mask = 1<<12,                    // 1<<12
-        .shift = 12,
-        .off_value = 1,
-        .on_value = 0,
+        .pinmux_value = 0x00000000,       // AON_GPIO_04
+        .offset_data = 0x17404,           // LDK_DIGIT1
+        .mask = 1<<4,                    // 1<<12
+        .shift = 4,
+        .off_value = 0,
+        .on_value = 1,
         .old_val = -1,
       },
       .led_standby = {
@@ -293,7 +293,7 @@ struct platform_info platforms[] = {
         .offset_data = 0x9000,          // PWM_2
         .channel = 0,
         .old_percent = -1,
-        .period = 0x63,
+        .period = 0x65,
       },
     },
     .reset_button = {
@@ -374,51 +374,8 @@ static void init_gfhd200(UNUSED struct platform_info* p) {
 /* set LED/Keypad timings to control LED brightness */
 static void init_gfhd254(struct platform_info* p) {
   volatile uint32_t* reg;
-
-  // The following comment explains how the LED controller works on <= EVT3.
-  //  For EVT4+, the LED controller was changed to control via PWM. We currently
-  //  configure both. The EVT3 specific code can be removed at a later date.
-  //
-  // The led display controller works like this:
-  //  - there are 16 gpios (we connect our leds to 2 of these)
-  //  - the controller steps through digit1-4 and then status
-  //  - bit0 in a register maps to a particular gpio
-  //     when digit1 is being displayed the controller uses digit1_bit[15:0] to
-  //     drive the gpios.  When digit 2 is displayed digit2[15:0] and so forth.
-  //  - duty_on controls how many clocks a digit is displayed
-  //  - duty_off controls number of clocks of all off time when switching
-  //    between digits
-  //
-  //  To get 100% brightness you set all of digit1-4 and status to 1 for the led
-  //  you are drivng, and set duty_off to 0.
-  //
-  //  Here we also invert the values, so a 1 means off, and 0 means on, this is
-  //  done because for unknown reasons the time between status and digit1 is on,
-  //  so we can't get the brightness to 0 unless we invert.
-  //
-  //  For simplicity we enable only one of the digits because the leds are
-  //  already insanely bright, and then to disable an led we simply toggle the
-  //  bit in that one digit register.
-  //
-  //  The red led is attached to bit 13 and blue led is attached to bit 12.
-  reg = mmap_addr + 0x17034;     // LDK_CONTROL
-  *reg = 0x01;                   // reset
-  *reg = 0x18;                   // ver=1
-
-  reg = mmap_addr + 0x17018;
-  reg[0] = 0xffff;               // LDK_DIGIT2
-  reg[1] = 0xcfff;               // LDK_DIGIT1
-  reg[2] = 0xffff;               // LDK_DIGIT4
-  reg[3] = 0xffff;               // LDK_DIGIT3
-  reg[5] = 0xffff;               // LDK_STATUS
-
-  reg = mmap_addr + 0x17008;     // LDK_PRESCHI, LO (clock divisor)
-  reg[0] = 0x00;
-  reg[1] = 0x10;                 // tick = clock / 0x0010, not sure what clock is
-
-  reg = mmap_addr + 0x17010;     // LDK_DUTYOFF, ON
-  reg[0] = 0x40;
-  reg[1] = 0xc0;                 // 0x40 off ticks then 0xc0 on ticks to dim a bit more.
+  reg = mmap_addr + 0x17408;         // AON_IODIR
+  reg[0] |= reg[0] & ~(1<<4 | 1<<5); // set gpios to be output
 
   // The fan is connected to PWM3, the register PWM3_CWORD_LSB is set to 1,
   // this is the frequency of the PWM, the other pwm register control
@@ -429,8 +386,9 @@ static void init_gfhd254(struct platform_info* p) {
 
   // LEDs are connected to PWM2. Setting CWORD_LSB to 0xf to control
   // the output freq of the var rate clock.
-  reg = mmap_addr + 0x900c;
-  reg[0] = 0xf;
+  reg = mmap_addr + 0x9008;
+  reg[0] = 0x00;
+  reg[1] = 0x57;
 
   // Default the LED brightness to 50.
   set_pwm(&p->leds.led_brightness, 50);
