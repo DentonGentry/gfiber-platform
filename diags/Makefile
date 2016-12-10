@@ -10,6 +10,9 @@ endif
 ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gflt110)
  DIRS += chameleon
 endif
+ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gflt400)
+ DIRS += chameleon
+endif
 ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfrg240)
  DIRS += prowl
 endif
