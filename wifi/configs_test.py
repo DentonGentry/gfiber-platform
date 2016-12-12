@@ -59,6 +59,18 @@ network={{
 }}
 """
 
+_WPA_SUPPLICANT_CONFIG_NO_FREQ_LIST = """ctrl_interface=/var/run/wpa_supplicant
+ap_scan=1
+autoscan=exponential:1:30
+
+network={
+\tssid="some ssid"
+\t#psk="some passphrase"
+\tpsk=41821f7ca3ea5d85beea7644ed7e0fefebd654177fa06c26fbdfdc3c599a317f
+\tscan_ssid=1
+}
+"""
+
 
 @wvtest.wvtest
 def generate_wpa_supplicant_config_test():
@@ -90,6 +102,13 @@ def generate_wpa_supplicant_config_test():
         'some ssid', None, opt)
     want = _WPA_SUPPLICANT_CONFIG_BSSID_UNSECURED.format(
         freq_list=_FREQ_LIST[band])
+    wvtest.WVPASSEQ(want, got)
+
+    opt.no_band_restriction = True
+    opt.bssid = None
+    got = configs.generate_wpa_supplicant_config(
+        'some ssid', 'some passphrase', opt)
+    want = _WPA_SUPPLICANT_CONFIG_NO_FREQ_LIST
     wvtest.WVPASSEQ(want, got)
 
 
@@ -415,6 +434,7 @@ class FakeOptDict(object):
     self.interface_suffix = ''
     self.client_isolation = False
     self.supports_provisioning = False
+    self.no_band_restriction = False
 
 
 def wpa_passphrase(ssid, passphrase):
