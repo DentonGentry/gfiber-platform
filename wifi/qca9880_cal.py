@@ -134,45 +134,45 @@ def _is_module_miscalibrated():
     return None
 
   if oui not in (bytearray(s) for s in SUSPECT_OUIS):
-    _log('OUI {} is properly calibrated.'.format(_oui_string(oui)))
-    # Create an empty directory so this script short-circuits if run again.
-    _create_calibration_dir()
+    if not _cal_dir_exists():
+      _log('OUI {} is properly calibrated.'.format(_oui_string(oui)))
     return None
 
   # V01 is retroactively represented not by a string, but by 3 0 value bytes.
   if version == '\x00\x00\x00':
-    _log('version field is V01. CAL + FCC calibration required.')
+    if not _cal_dir_exists():
+      _log('version field is V01. CAL + FCC calibration required.')
     return ('fcc', 'cal')
 
   if version == 'V02':
-    _log('version field is V02. Only FCC calibration required.')
+    if not _cal_dir_exists():
+      _log('version field is V02. Only FCC calibration required.')
     return ('fcc',)
 
   if version == 'V03':
-    _log('version field is V03. No patching required.')
-    # Create an empty directory so this script short-circuits if run again.
-    _create_calibration_dir()
+    if not _cal_dir_exists():
+      _log('version field is V03. No patching required.')
     return None
 
-  _log('version field unknown: {}'.format(version))
+  if not _cal_dir_exists():
+    _log('version field unknown: {}'.format(version))
   return None
 
 
-def _is_previously_calibrated():
-  """Check if this calibration script already ran since the last boot.
-
-  Returns:
-    True if calibration checks already ran, False otherwise.
-  """
+def _cal_dir_exists():
   return os.path.exists(CALIBRATION_DIR)
 
 
-def _create_calibration_dir():
+def _patch_exists():
+  return os.path.exists(os.path.join(CALIBRATION_DIR, CAL_PATCH_FILE))
+
+
+def _create_cal_dir():
   """Create calibration directory.
 
   Calibration directory contains the calibration patch file.
   If the directory is empty it signals that calibration checks have already
-  run.
+  completed.
 
   Returns:
     True if directory exists or is created, false if any error.
@@ -233,9 +233,6 @@ def _generate_calibration_patch(calibration_state):
   if 'fcc' in calibration_state:
     _apply_patch('Applying FCC patch...', cal_data, FCC_PATCH)
 
-  if not _create_calibration_dir():
-    return False
-
   try:
     patched_file = os.path.join(CALIBRATION_DIR, CAL_PATCH_FILE)
     open(patched_file, 'wb').write(cal_data)
@@ -264,24 +261,40 @@ def _reload_driver():
 def qca8990_calibration():
   """Main QCA8990 calibration check."""
 
-  if not experiment.enabled(CAL_EXPERIMENT):
-    _log('experiment {} not specified. Skipping calibration check.'.
-         format(CAL_EXPERIMENT))
-    return
-
-  if _is_previously_calibrated():
-    _log('calibration check completed earlier.')
-    return
-
   if not _is_ath10k('wlan1'):
-    _log('this platform does not use ath10k.')
+    if not _cal_dir_exists():
+      _log('This system does not use ath10k')
+    _create_cal_dir()
     return
+
+  if not experiment.enabled(CAL_EXPERIMENT):
+    if  _patch_exists():
+      os.remove(os.path.join(CALIBRATION_DIR, CAL_PATCH_FILE))
+      _reload_driver()
+      _log('experiment {} removed. Removed patch and reloaded driver.'.
+           format(CAL_EXPERIMENT))
+      return
+    if not _cal_dir_exists():
+      _log('experiment {} not active. Skipping calibration check.'
+           .format(CAL_EXPERIMENT))
+      _create_cal_dir()
+    return
+
+  # Experiment is enabled.
 
   calibration_state = _is_module_miscalibrated()
-  if calibration_state is not None:
+  if calibration_state is not None and not _patch_exists():
+    _create_cal_dir()
     if _generate_calibration_patch(calibration_state):
       _log('generated new patch.')
       _reload_driver()
+    return
+
+  if calibration_state is None:
+    if not _cal_dir_exists():
+      _log('This system does not need calibration.')
+    _create_cal_dir()
+    return
 
 
 if __name__ == '__main__':
