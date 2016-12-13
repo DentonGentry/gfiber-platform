@@ -244,6 +244,9 @@ def set_wifi(opt):
   if not iw.RUNNABLE_IW():
     raise utils.BinWifiException("Can't proceed without iw")
 
+  # Check for calibration errors on ath10k.
+  qca9880_cal.qca8990_calibration()
+
   # If this phy is running client mode, we need to use its width/channel.
   phy = iw.find_phy(band, channel)
   if phy is None:
@@ -256,9 +259,6 @@ def set_wifi(opt):
     raise utils.BinWifiException(
         'no wifi interface found for band=%s channel=%s suffix=%s',
         band, channel, opt.interface_suffix)
-
-  # Check for calibration errors on ath10k.
-  qca9880_cal.qca8990_calibration()
 
   found_active_config = False
   for other_interface in (set(iw.find_all_interfaces_from_phy(phy)) -
