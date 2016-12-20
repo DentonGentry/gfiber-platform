@@ -8,8 +8,11 @@ import os
 
 import utils
 
+# TODO(rofrankel):  Figure out the right way to delete old-style persisted
+# options (e.g. /config/wifi/hostapd.opts.5).
 
-def save_options(program, band, argv, tmp=False):
+
+def save_options(program, interface, argv, tmp=False):
   """Saves program options.
 
   Persistence options are stripped before saving to prevent rewriting identical
@@ -17,7 +20,7 @@ def save_options(program, band, argv, tmp=False):
 
   Args:
     program: The program for which to save options.
-    band: The band for which to save options.
+    interface: The interface for which to save options.
     argv: The options to save.
     tmp: Whether to save options to /tmp or _CONFIG_DIR.
   """
@@ -35,16 +38,17 @@ def save_options(program, band, argv, tmp=False):
         os.environ['WIFI_CLIENT_PSK'])
 
   utils.atomic_write(
-      utils.get_filename(program, utils.FILENAME_KIND.options, band, tmp=tmp),
+      utils.get_filename(program, utils.FILENAME_KIND.options, interface,
+                         tmp=tmp),
       repr(to_save))
 
 
-def load_options(program, band, tmp):
+def load_options(program, interface, tmp):
   """Loads program options, if any have been saved.
 
   Args:
     program: The program for which to load options.
-    band: The band for which to load options.
+    interface: The interface for which to load options.
     tmp: Whether to load options from /tmp (i.e. what is currently running) or
       _CONFIG_DIR (the options from last time --persist was set).
 
@@ -52,7 +56,7 @@ def load_options(program, band, tmp):
     The stored options (which can be passed to wifi._run), or None if the file
     cannot be opened.
   """
-  filename = utils.get_filename(program, utils.FILENAME_KIND.options, band,
+  filename = utils.get_filename(program, utils.FILENAME_KIND.options, interface,
                                 tmp=tmp)
   try:
     with open(filename) as options_file:
@@ -65,26 +69,26 @@ def load_options(program, band, tmp):
     raise
 
 
-def delete_options(program, band):
+def delete_options(program, interface):
   """Deletes persisted program options from _CONFIG_DIR.
 
   Args:
     program: The program for which to delete options.
-    band: The band for which to delete options.
+    interface: The interface for which to delete options.
 
   Returns:
     Whether deletion succeeded.
   """
-  filename = utils.get_filename(program, utils.FILENAME_KIND.options, band)
+  filename = utils.get_filename(program, utils.FILENAME_KIND.options, interface)
   if os.path.exists(filename):
     try:
       os.remove(filename)
-      utils.log('Removed persisted options for %s GHz %s.', band, program)
+      utils.log('Removed persisted options for %s %s.', interface, program)
     except OSError:
-      utils.log('Failed to remove persisted options for %s GHz %s.',
-                band, program)
+      utils.log('Failed to remove persisted options for %s %s.',
+                interface, program)
       return False
   else:
-    utils.log('No persisted options to remove for %s GHz %s.', band, program)
+    utils.log('No persisted options to remove for %s %s.', interface, program)
 
   return True

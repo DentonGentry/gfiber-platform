@@ -555,6 +555,28 @@ def find_all_interfaces_from_band_test():
 
 
 @wvtest.wvtest
+def find_interfaces_from_band_and_suffix_test():
+  """Test find_interfaces_from_band_and_suffix."""
+  wvtest.WVPASSEQ(set(['wlan0', 'wlan0_portal', 'wcli0']),
+                  iw.find_interfaces_from_band_and_suffix('2.4', 'ALL'))
+  wvtest.WVPASSEQ(set(['wlan0', 'wcli0']),
+                  iw.find_interfaces_from_band_and_suffix('2.4', ''))
+  wvtest.WVPASSEQ(set(['wlan0_portal']),
+                  iw.find_interfaces_from_band_and_suffix('2.4', '_portal'))
+  wvtest.WVPASSEQ(set([]),
+                  iw.find_interfaces_from_band_and_suffix('2.4', 'fake_suffix'))
+
+  wvtest.WVPASSEQ(set(['wlan0', 'wlan0_portal']),
+                  iw.find_interfaces_from_band_and_suffix('2.4', 'ALL',
+                                                          iw.INTERFACE_TYPE.ap))
+  wvtest.WVPASSEQ(set(['wcli0']),
+                  iw.find_interfaces_from_band_and_suffix(
+                      '2.4', 'ALL', iw.INTERFACE_TYPE.client))
+  wvtest.WVPASSEQ(set(['wlan1', 'wlan1_portal']),
+                  iw.find_interfaces_from_band_and_suffix('5', 'ALL'))
+
+
+@wvtest.wvtest
 def info_parsed_test():
   wvtest.WVPASSEQ({
       'wdev': '0x3',
