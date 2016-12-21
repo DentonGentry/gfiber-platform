@@ -511,7 +511,7 @@ class ConnectionManager(object):
       if ((not self.acs() or provisioning_failed) and
           not getattr(wifi, 'last_successful_bss_info', None) and
           _gettime() > wifi.last_wifi_scan_time + self._wifi_scan_period_s):
-        logger.debug('Performing scan on %s.', wifi.name)
+        logger.info('Performing scan on %s.', wifi.name)
         self._wifi_scan(wifi)
 
       # Periodically retry rejoining the WLAN.  If the WLAN configuration is
@@ -866,7 +866,7 @@ class ConnectionManager(object):
     band = wlan_configuration.band
     current = self._wlan_configuration.get(band, None)
     if current is None or wlan_configuration.command != current.command:
-      logger.debug('Received new WLAN configuration for band %s', band)
+      logger.info('Received new WLAN configuration for band %s', band)
       if current is not None:
         wlan_configuration.access_point = current.access_point
       else:
