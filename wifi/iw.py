@@ -267,10 +267,10 @@ def find_interface_from_band(band, interface_type, interface_suffix):
 
 
 def find_all_interfaces_from_band(band, interface_type=None):
-  """Finds the names of all interface on a given band.
+  """Finds the names of all interfaces on a given band.
 
   Args:
-    band: The band for which you want the interface.
+    band: The band for which you want the interface(s).
     interface_type: An INTERFACE_TYPE value (optional).
 
   Returns:
@@ -281,6 +281,32 @@ def find_all_interfaces_from_band(band, interface_type=None):
     return []
 
   return find_all_interfaces_from_phy(phy, interface_type)
+
+
+def find_interfaces_from_band_and_suffix(band, suffix, interface_type=None):
+  """Finds the names of interfaces on a given band.
+
+  Args:
+    band: The band for which you want the interface(s).
+    suffix: The interface suffix.  'ALL' is a special value that matches all
+            suffixes.
+    interface_type: An INTERFACE_TYPE value (optional).
+
+  Returns:
+    A list of all interfaces found.
+  """
+  interfaces = set()
+  if suffix == 'ALL':
+    interfaces = find_all_interfaces_from_band(band, interface_type)
+  else:
+    interface_types = interface_type or (INTERFACE_TYPE.ap,
+                                         INTERFACE_TYPE.client)
+    for ifc_type in interface_types:
+      interface = find_interface_from_band(band, ifc_type, suffix)
+      if interface:
+        interfaces.add(interface)
+
+  return interfaces
 
 
 def find_width_and_channel(interface):

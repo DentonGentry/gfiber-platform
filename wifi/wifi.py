@@ -402,7 +402,7 @@ def stop_ap_wifi(opt):
     for interface in interfaces:
       if _stop_hostapd(interface):
         if opt.persist:
-          persist.delete_options('hostapd', band)
+          persist.delete_options('hostapd', interface)
       else:
         utils.log('Failed to stop hostapd on interface %s', interface)
         success = False
@@ -411,29 +411,29 @@ def stop_ap_wifi(opt):
 
 
 @iw.requires_iw
-def _restore_wifi(band, program):
+def _restore_wifi(interface, program):
   """Restore a program from persisted settings.
 
   Args:
-    band: The band on which to restore program.
+    interface: The interface on which to restore program.
     program: The program to restore (wpa_supplicant or hostapd).
 
   Returns:
-    Whether whether restoring succeeded, but may die.
+    Whether restoring succeeded.
   """
-  argv = persist.load_options(program, band, False)
+  argv = persist.load_options(program, interface, False)
   if argv is None:
-    utils.log('No persisted options for %s GHz %s, not restoring',
-              band, program)
+    utils.log('No persisted options for %s %s, not restoring',
+              interface, program)
     return False
 
-  utils.log('Loaded persisted options for %s GHz %s', band, program)
+  utils.log('Loaded persisted options for %s %s', interface, program)
 
   if _run(argv):
-    utils.log('Restored %s for %s GHz', program, band)
+    utils.log('Restored %s for %s', program, interface)
     return True
 
-  utils.log('Failed to restore %s for %s GHz', program, band)
+  utils.log('Failed to restore %s for %s', program, interface)
   return False
 
 
@@ -450,11 +450,19 @@ def restore_wifi(opt):
   """
   # If both bands are specified, restore 5 GHz first so that STAs are more
   # likely to join it.
+  restored = set()
   for band in sorted(opt.band.split(),
                      reverse=not experiment.enabled('WifiReverseBandsteering')):
-    _restore_wifi(band, 'wpa_supplicant')
-    _restore_wifi(band, 'hostapd')
-
+    client_interface = iw.find_interface_from_band(band,
+                                                   iw.INTERFACE_TYPE.client,
+                                                   opt.interface_suffix)
+    ap_interface = iw.find_interface_from_band(band, iw.INTERFACE_TYPE.ap,
+                                               opt.interface_suffix)
+    for interface, program in ((client_interface, 'wpa_supplicant'),
+                               (ap_interface, 'hostapd')):
+      if interface and interface not in restored:
+        restored.add(interface)
+        _restore_wifi(interface, program)
   return True
 
 
@@ -834,13 +842,14 @@ def _maybe_restart_hostapd(interface, config, opt):
   return True
 
 
-def _restart_hostapd(band):
+def _restart_hostapd(interface, *overrides):
   """Restart hostapd from previous options.
 
   Only used by _set_wpa_supplicant_config, to restart hostapd after stopping it.
 
   Args:
-    band: The band on which to restart hostapd.
+    interface: The interface on which to restart hostapd.
+    *overrides:  A list of options to override the pre-existing ones.
 
   Returns:
     Whether hostapd was successfully restarted.
@@ -848,7 +857,7 @@ def _restart_hostapd(band):
   Raises:
     BinWifiException: If reading previous settings fails.
   """
-  argv = persist.load_options('hostapd', band, True)
+  argv = persist.load_options('hostapd', interface, True) + list(overrides)
 
   if argv is None:
     raise utils.BinWifiException('Failed to read previous hostapd config')
@@ -930,7 +939,7 @@ def _set_wpa_supplicant_config(interface, config, opt):
         'details.')
 
   if restart_hostapd:
-    _restart_hostapd(band)
+    _restart_hostapd(ap_interface)
 
   return True
 
@@ -1024,15 +1033,8 @@ def stop_client_wifi(opt):
     if band == '5' and quantenna.stop_client_wifi(opt):
       continue
 
-    interfaces = []
-    if opt.interface_suffix == 'ALL':
-      interfaces = iw.find_all_interfaces_from_band(
-          band, iw.INTERFACE_TYPE.client)
-    else:
-      interface = iw.find_interface_from_band(
-          band, iw.INTERFACE_TYPE.client, opt.interface_suffix)
-      if interface:
-        interfaces = [interface]
+    interfaces = iw.find_interfaces_from_band_and_suffix(
+        band, opt.interface_suffix, iw.INTERFACE_TYPE.client)
     if not interfaces:
       utils.log('No client interfaces for %s GHz; nothing to stop', band)
       continue
@@ -1040,7 +1042,7 @@ def stop_client_wifi(opt):
     for interface in interfaces:
       if _stop_wpa_supplicant(interface):
         if opt.persist:
-          persist.delete_options('wpa_supplicant', band)
+          persist.delete_options('wpa_supplicant', interface)
       else:
         utils.log('Failed to stop wpa_supplicant on interface %s', interface)
         success = False
@@ -1126,14 +1128,19 @@ def _run(argv):
 
   if success:
     if command in ('set', 'setclient'):
-      program = 'hostapd' if command == 'set' else 'wpa_supplicant'
+      if command == 'set':
+        program = 'hostapd'
+        interface_type = iw.INTERFACE_TYPE.ap
+      else:
+        program = 'wpa_supplicant'
+        interface_type = iw.INTERFACE_TYPE.client
+      interface = iw.find_interface_from_band(opt.band, interface_type,
+                                              opt.interface_suffix)
       if opt.persist:
-        phy = iw.find_phy(opt.band, opt.channel)
-        for band in iw.phy_bands(phy):
-          if band != opt.band:
-            persist.delete_options(program, band)
-        persist.save_options(program, opt.band, argv)
-      persist.save_options(program, opt.band, argv, tmp=True)
+        # Save in /config.
+        persist.save_options(program, interface, argv, False)
+      # Save in /tmp.
+      persist.save_options(program, interface, argv, True)
 
   return success
 
