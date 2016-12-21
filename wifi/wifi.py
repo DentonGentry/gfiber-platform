@@ -244,14 +244,38 @@ def set_wifi(opt):
   if not iw.RUNNABLE_IW():
     raise utils.BinWifiException("Can't proceed without iw")
 
-  # Check for calibration errors on ath10k.
-  qca9880_cal.qca8990_calibration()
-
   # If this phy is running client mode, we need to use its width/channel.
   phy = iw.find_phy(band, channel)
   if phy is None:
     raise utils.BinWifiException(
         'no wifi phy for band=%s channel=%s', band, channel)
+
+  # Check for calibration errors on ath10k.
+  qca9880_cal.qca8990_calibration()
+
+  client_interface = iw.find_interface_from_phy(
+      phy, iw.INTERFACE_TYPE.client, opt.interface_suffix)
+  if (client_interface is not None and
+      _is_wpa_supplicant_running(client_interface)):
+    # Wait up to ten seconds for interface width and channel to be available
+    # (only relevant if wpa_supplicant was started recently).
+    # TODO(rofrankel): Consider shortcutting this loop if wpa_cli shows status
+    # is SCANNING (and other values)?
+    utils.log('Client running on same band; finding its width and channel.')
+    for _ in xrange(50):
+      client_band = _get_wpa_band(client_interface)
+      client_width, client_channel = iw.find_width_and_channel(client_interface)
+
+      sys.stderr.write('.')
+      if None not in (client_band, client_width, client_channel):
+        band, width, channel = client_band, client_width, client_channel
+        utils.log('Using band=%s, channel=%s, width=%s MHz from client',
+                  band, channel, width)
+        break
+      time.sleep(0.2)
+    else:
+      utils.log("Couldn't find band, width, and channel used by client "
+                "(it may not be connected)")
 
   interface = iw.find_interface_from_phy(
       phy, iw.INTERFACE_TYPE.ap, opt.interface_suffix)
@@ -260,40 +284,23 @@ def set_wifi(opt):
         'no wifi interface found for band=%s channel=%s suffix=%s',
         band, channel, opt.interface_suffix)
 
-  found_active_config = False
-  for other_interface in (set(iw.find_all_interfaces_from_phy(phy)) -
-                          set([interface])):
-    if _is_wpa_supplicant_running(other_interface):
-      get_band = _get_wpa_band
-    elif _is_hostapd_running(other_interface):
-      get_band = _get_hostapd_band
-    else:
+  for ap_interface in iw.find_all_interfaces_from_phy(phy,
+                                                      iw.INTERFACE_TYPE.ap):
+    if not _is_hostapd_running(ap_interface):
       continue
 
-    # Wait up to ten seconds for interface width and channel to be available
-    # (only relevant if hostapd/wpa_supplicant was started recently).
-    # TODO(rofrankel): Consider shortcutting this loop if wpa_cli shows status
-    # is SCANNING (and other values)?
-    utils.log('Interface %s running on same band; finding its width and '
-              'channel.', other_interface)
-    for _ in xrange(50):
-      active_band = get_band(other_interface)
-      active_width, active_channel = iw.find_width_and_channel(other_interface)
+    if ap_interface == interface:
+      continue
 
-      sys.stderr.write('.')
-      if None not in (active_band, active_width, active_channel):
-        band, width, channel = active_band, active_width, active_channel
-        utils.log('Using band=%s, channel=%s, width=%s MHz from interface %s',
-                  band, channel, width, other_interface)
-        found_active_config = True
-        break
-      time.sleep(0.2)
+    # TODO(rofrankel):  Figure out what to do about width.  Unlike channel,
+    # there's no 'auto' default; we don't know if 20 was requested or just
+    # defaulted to.  So it's not clear whether to override the other AP's
+    # choice.
+    _, other_ap_channel = iw.find_width_and_channel(ap_interface)
+    if channel == 'auto':
+      channel = other_ap_channel
     else:
-      utils.log("Couldn't find band, width, and channel used by interface %s "
-                "(it may not be connected)", other_interface)
-
-    if found_active_config:
-      break
+      _restart_hostapd(ap_interface, '-c', channel)
 
   utils.log('interface: %s', interface)
   utils.log('Configuring cfg80211 wifi.')
