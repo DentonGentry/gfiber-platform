@@ -23,6 +23,7 @@ EXPERIMENTS = [
     'WifiShortAggTimeout',
     'WifiNoAggTimeout',
     'WifiNoAliveMonitor',
+    'MwifiexFirmwareRecovery',
 ]
 for _i in EXPERIMENTS:
   experiment.register(_i)

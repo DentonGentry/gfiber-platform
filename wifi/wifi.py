@@ -17,6 +17,7 @@ import bandsteering
 import configs
 import experiment
 import iw
+import mwifiex
 import options
 import persist
 import qca9880_cal
@@ -252,6 +253,7 @@ def set_wifi(opt):
 
   # Check for calibration errors on ath10k.
   qca9880_cal.qca8990_calibration()
+  mwifiex.set_recovery(experiment.enabled('MwifiexFirmwareRecovery'))
 
   client_interface = iw.find_interface_from_phy(
       phy, iw.INTERFACE_TYPE.client, opt.interface_suffix)
@@ -986,6 +988,8 @@ def set_client_wifi(opt):
 
   if band == '5' and quantenna.set_client_wifi(opt):
     return True
+
+  mwifiex.set_recovery(experiment.enabled('MwifiexFirmwareRecovery'))
 
   phy = iw.find_phy(band, 'auto')
   if phy is None:
