@@ -5,8 +5,6 @@
 
 __author__ = 'dgentry@google.com (Denton Gentry)'
 
-import ctypes
-import fcntl
 import os
 import os.path
 import subprocess
@@ -17,14 +15,13 @@ import py_mtd
 
 
 try:
-  import monotime  # pylint: disable-msg=unused-import,g-import-not-at-top
+  import monotime  # pylint: disable=unused-import,g-import-not-at-top
 except ImportError:
   pass
 try:
   gettime = time.monotonic
 except AttributeError:
   gettime = time.time
-
 
 
 optspec = """
@@ -38,7 +35,7 @@ r,runtime=   Number of seconds to run the test [60]
 
 def main():
   o = options.Options(optspec)
-  (opt, flags, extra) = o.parse(sys.argv[1:])  #pylint: disable-msg=W0612
+  (opt, flags, extra) = o.parse(sys.argv[1:])  # pylint: disable=W0612
   if not opt.mtd:
     o.fatal('an mtd argument is required')
   if len(extra) != 1:
@@ -95,7 +92,7 @@ def main():
 
     ecc = py_mtd.eccstats(opt.mtd)
     # Ignore ecc.corrected, they are uncommon but normal.
-    print('%s: Corrected ECC error = %d' % (opt.mtd, ecc.corrected))
+    print '%s: Corrected ECC error = %d' % (opt.mtd, ecc.corrected)
     if ecc.failed != start_ecc.failed:
       print('%s: Uncorrectable ECC error during test, %d != %d' %
             (opt.mtd, ecc.failed, start_ecc.failed))

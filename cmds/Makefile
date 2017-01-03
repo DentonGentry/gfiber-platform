@@ -3,6 +3,13 @@ default: all
 PREFIX=/
 BINDIR=$(DESTDIR)$(PREFIX)/bin
 LIBDIR=$(DESTDIR)$(PREFIX)/lib
+GPYLINT=$(shell \
+    if which gpylint >/dev/null; then \
+      echo gpylint; \
+    else \
+      echo 'echo "(gpylint-missing)" >&2'; \
+    fi \
+)
 
 PORTABLE_TARGETS=\
 	balloon \
@@ -291,8 +298,14 @@ runtests: all $(TESTS)
 		./$$d; \
 	done
 
-test: all $(TESTS)
+lint: $(filter-out options.py,$(wildcard *.py))
+	$(GPYLINT) $^
+
+test_only: all
 	./wvtest/wvtestrun $(MAKE) runtests
+
+test: all $(TESTS)
+	$(MAKE) test_only lint
 
 clean:
 	rm -f *.o $(TARGETS) \

@@ -412,6 +412,16 @@ class RcServer(object):
         raise
 
   def SendKeyCode(self, token, keycode):
+    """Send key codes to the device.
+
+    If self.autorelease is True, automatically generate a key-up event a short
+    time after each key-down event is sent.
+
+    Args:
+      token: a token for a single key event from the program's input.
+      keycode: the keycode corresponding to this token.
+    """
+
     self.Log(LOG_VERB, "Enter: %r -> 0x%x" % (token, keycode))
     self.WriteKeyCodeToDevice(keycode)
 

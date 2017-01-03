@@ -99,7 +99,7 @@ class DnsError(Error):
 
 
 try:
-  import monotime  # pylint: disable-msg=unused-import,g-import-not-at-top
+  import monotime  # pylint: disable=unused-import,g-import-not-at-top
 except ImportError:
   pass
 try:
@@ -130,9 +130,9 @@ def _DecodeAddress(value):
   family, port = struct.unpack('!HH', value[:4])
   addr = value[4:]
   if family == 0x01:  # IPv4
-    return socket.inet_ntoa(addr), port
+    return socket.inet_ntop(socket.AF_INET, addr), port
   elif family == 0x02:  # IPv6
-    return socket.inet_ntop(socket.AF_INET6), port
+    return socket.inet_ntop(socket.AF_INET6, addr), port
   else:
     raise ValueError('invalid family %d: expected 1=IPv4 or 2=IPv6' % family)
 
@@ -166,6 +166,7 @@ def _DecodeAttrs(text, transaction_id):
 
 
 def _Encode(msgtype, transaction_id, *attrs):
+  """Encode message type, transaction id, and attrs into a STUN message."""
   transaction_id = str(transaction_id)
   if len(transaction_id) != 12:
     raise ValueError('transactionid %r must be exactly 12 bytes'
@@ -179,6 +180,7 @@ def _Encode(msgtype, transaction_id, *attrs):
 
 
 def _Decode(text):
+  """Decode a STUN message into message type, transaction id, and attrs."""
   if len(text) < 20:
     raise ParseError('packet length %d must be >= 20' % len(text))
   msgtype, length, cookie = struct.unpack('!HHI', text[:8])
