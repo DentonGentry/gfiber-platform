@@ -83,10 +83,20 @@ def validate_set_options_test():
 
 @wvtest.wvtest
 def increment_mac_address_test():
-  wvtest.WVPASSEQ('12:34:56:78:91',
-                  utils.increment_mac_address('12:34:56:78:90'))
-  wvtest.WVPASSEQ('12:34:56:79:00',
-                  utils.increment_mac_address('12:34:56:78:FF'))
+  """Test increment_mac_address."""
+
+  wvtest.WVPASSEQ('12:34:56:78:90:13',
+                  utils.increment_mac_address('12:34:56:78:90:12'))
+  wvtest.WVPASSEQ('12:34:56:78:91:00',
+                  utils.increment_mac_address('12:34:56:78:90:FF'))
+
+  # b/34050122
+  wvtest.WVPASSEQ('00:0b:6b:ed:eb:ad',
+                  utils.increment_mac_address('00:0b:6b:ed:eb:ac'))
+
+  # b/34050122 (initial misunderstanding of bug, but still worth testing)
+  wvtest.WVPASSEQ('00:00:00:00:00:00',
+                  utils.increment_mac_address('ff:ff:ff:ff:ff:ff'))
 
 
 @wvtest.wvtest
