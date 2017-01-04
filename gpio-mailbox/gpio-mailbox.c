@@ -235,7 +235,7 @@ static void _signal(int sig, sighandler_t handler) {
 }
 
 
-static volatile int shutdown_sig = 0;
+static volatile sig_atomic_t shutdown_sig = 0;
 static void sig_handler(int sig) {
   shutdown_sig = sig;
 
