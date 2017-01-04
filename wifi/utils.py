@@ -120,8 +120,9 @@ def get_mac_address_for_interface(interface):
 
 def increment_mac_address(mac_address):
   numeric_mac_address = int(''.join(mac_address.split(':')), 16) + 1
-  return ':'.join(octet.encode('hex')
-                  for octet in ('%x' % numeric_mac_address).decode('hex'))
+  numeric_mac_address %= 2 ** 48
+  octets = ('%012x' % numeric_mac_address).decode('hex')
+  return ':'.join(octet.encode('hex') for octet in octets)
 
 
 def get_filename(program, kind, disambiguator, tmp=False):
