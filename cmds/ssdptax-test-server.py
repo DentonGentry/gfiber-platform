@@ -1,7 +1,5 @@
 #!/usr/bin/python
-"""Fake minissdpd for unit tests.
-
-"""
+"""Fake minissdpd for unit tests."""
 
 import BaseHTTPServer
 import socket
@@ -51,11 +49,11 @@ keep_running = [True]
 
 
 class HttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-  """Respond to an HHTP GET for SSDP DeviceInfo."""
 
-  def do_GET(self):
+  def do_GET(self):  # pylint: disable=invalid-name
+    """Respond to an HTTP GET for SSDP DeviceInfo."""
     self.send_response(200)
-    self.send_header('Content-type','text/xml')
+    self.send_header('Content-type', 'text/xml')
     self.end_headers()
     if self.path.endswith('text_device_xml'):
       self.wfile.write(text_device_xml)
@@ -67,7 +65,8 @@ class HttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
       self.wfile.write(ssdp_device_xml)
 
 
-class ThreadingHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
+class ThreadingHTTPServer(SocketServer.ThreadingMixIn,
+                          BaseHTTPServer.HTTPServer):
   pass
 
 
@@ -85,6 +84,7 @@ class UnixHandler(SocketServer.StreamRequestHandler):
 
 
 class UdpHandler(SocketServer.DatagramRequestHandler):
+
   def handle(self):
     self.request[1].sendto(bytearray(notify_text[0]), self.client_address)
 
@@ -105,7 +105,7 @@ def main():
   if testnum == 4:
     pathend = 'ssdp_device_xml'
 
-  h = ThreadingHTTPServer(("", 0), HttpHandler)
+  h = ThreadingHTTPServer(('', 0), HttpHandler)
   sn = h.socket.getsockname()
   port = sn[1]
   url = 'http://127.0.0.1:%d/%s' % (port, pathend)
@@ -126,7 +126,8 @@ def main():
 
   d = ThreadingUdpServer(('', 1900), UdpHandler)
   d.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
-      socket.inet_aton('239.255.255.250') + socket.inet_aton('0.0.0.0'))
+                      socket.inet_pton(socket.AF_INET, '239.255.255.250') +
+                      socket.inet_pton(socket.AF_INET, '0.0.0.0'))
   d_thread = threading.Thread(target=d.serve_forever)
   d_thread.daemon = True
   d_thread.start()

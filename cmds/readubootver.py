@@ -1,4 +1,5 @@
 #!/usr/bin/python
+"""readubootver: read U-Boot version."""
 
 import struct
 import sys
@@ -19,6 +20,7 @@ def ReadFile(name):
 
 
 def GetRootPartition():
+  """Identify the root partition from the kernel command line."""
   cmdline = ReadFile(CMDLINE_FILE)
   for opt in cmdline.split():
     if opt.startswith('root='):
@@ -27,12 +29,13 @@ def GetRootPartition():
         return 'kernel0'
       if rootfs == 'rootfs1':
         return 'kernel1'
-      print 'Unknown rootfs=' + rootfs0
+      print 'Unknown rootfs=' + rootfs
       sys.exit(1)
   return None
 
 
 def GetBootMtds():
+  """Get /dev file names for bootable MTDs."""
   all_mtds = ReadFile(MTD_FILE)
   boot_mtds = dict()
   for line in all_mtds.split('\n'):
@@ -46,6 +49,7 @@ def GetBootMtds():
 
 
 def ReadUbootHeader(device):
+  """Read U-Boot header from a /dev/mtd* device file."""
   try:
     with open(device, 'rb') as f:
       chunk = f.read(7*4 + 4 + 32)
@@ -86,8 +90,8 @@ def main():
     else:
       print 'ALTERNATE'
     print 'mtd: %s' % mtd
-    print 'size: %d' % header["size"]
-    print 'name: %s' % header["name"]
+    print 'size: %d' % header['size']
+    print 'name: %s' % header['name']
     print ''
 
 if __name__ == '__main__':

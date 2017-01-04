@@ -2,17 +2,23 @@
 
 """Tests for the logos program."""
 
-import random
+import os
 import select
 import signal
 import socket
 import subprocess
-import time
-from wvtest.wvtest import *
+
+from wvtest.wvtest import WVFAIL
+from wvtest.wvtest import WVPASS
+from wvtest.wvtest import WVPASSEQ
+from wvtest.wvtest import WVPASSLT
+from wvtest.wvtest import wvtest
+from wvtest.wvtest import wvtest_main
 
 
 @wvtest
-def testLogos():
+def TestLogos():
+  """spin up and test a logos server."""
   # We use a SOCK_DGRAM here rather than a normal pipe, because datagram
   # sockets are guaranteed never to merge consecutive writes into a single
   # packet.  That way we can validate the correct merging of write() calls
@@ -30,7 +36,7 @@ def testLogos():
   fd2 = sock2.fileno()
 
   def _Read():
-    r, w, x = select.select([fd2, pipe1], [], [], 30)
+    r, unused_w, unused_x = select.select([fd2, pipe1], [], [], 30)
     if pipe1 in r:
       WVFAIL('subprocess died unexpectedly')
       raise Exception('subprocess died unexpectedly with code %d' % p.wait())
@@ -42,7 +48,7 @@ def testLogos():
   os.write(fd1, 'a\nErROR: b\nw: c')
   WVPASSEQ('<7>fac: a\n', _Read())
   WVPASSEQ('<3>fac: ErROR: b\n', _Read())
-  r, w, x = select.select([fd2], [], [], 0)
+  r, unused_w, unused_x = select.select([fd2], [], [], 0)
   WVFAIL(r)
   os.write(fd1, '\n\n')
   WVPASSEQ('<4>fac: w: c\n', _Read())
@@ -54,13 +60,13 @@ def testLogos():
   WVPASSEQ('<7>fac: abba    bbb\n', _Read())
   WVPASSEQ('<7>fac: aa              b       c\n', _Read())
   os.write(fd1, ''.join(chr(i) for i in range(33)) + '\n')
-  WVPASSEQ(r'<7>fac: ' +
+  WVPASSEQ(r'<7>fac: '
            r'\x00\x01\x02\x03\x04\x05\x06\x07\x08    '
-           + '\n', _Read())
-  WVPASSEQ(r'<7>fac: ' +
-           r'\x0b\x0c\x0e\x0f' +
-           r'\x10\x11\x12\x13\x14\x15\x16\x17' +
-           r'\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f ' +
+           '\n', _Read())
+  WVPASSEQ(r'<7>fac: '
+           r'\x0b\x0c\x0e\x0f'
+           r'\x10\x11\x12\x13\x14\x15\x16\x17'
+           r'\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f '
            '\n', _Read())
 
   # very long lines should be broken, but not missing any characters
@@ -81,7 +87,7 @@ def testLogos():
   result = _Read()
   print '%r' % result
   WVPASS(result.startswith('<4>fac: W: '))
-  r, w, x = select.select([fd2], [], [], 0)
+  r, unused_w, unused_x = select.select([fd2], [], [], 0)
   WVFAIL(r)
   os.write(fd1, '\n')
   WVPASSEQ('<7>fac: booga!\n', _Read())
@@ -94,9 +100,8 @@ def testLogos():
     print repr(result)
   print 'got: %r' % result
   WVPASS('rate limiting started')
-  while 1:
-    # drain the input until it's idle
-    r, w, x = select.select([fd1], [], [], 0.1)
+  while 1:  # drain the input until it's idle
+    r, unused_w, unused_x = select.select([fd1], [], [], 0.1)
     if not r:
       break
 

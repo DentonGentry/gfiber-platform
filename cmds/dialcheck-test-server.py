@@ -1,14 +1,11 @@
 #!/usr/bin/python
-"""Fake SSDP server for unit tests.
-
-"""
+"""Fake SSDP server for unit tests."""
 
 import errno
 import os
 import signal
 import socket
 import SocketServer
-import struct
 import sys
 
 
@@ -21,6 +18,7 @@ USN: uuid:number::urn:dial-multiscreen-org:service:dial:1\r\n"""
 
 
 class SSDPHandler(SocketServer.BaseRequestHandler):
+
   def handle(self):
     self.request[1].sendto(notify, self.client_address)
 
@@ -49,10 +47,11 @@ def main():
   SocketServer.UDPServer.allow_reuse_address = True
   s = SocketServer.UDPServer(('', 0), SSDPHandler)
   s.socket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
-      socket.inet_aton('239.255.255.250') + socket.inet_aton('0.0.0.0'))
+                      socket.inet_pton(socket.AF_INET, '239.255.255.250') +
+                      socket.inet_pton(socket.AF_INET, '0.0.0.0'))
   sn = s.socket.getsockname()
   port = sn[1]
-  open(sys.argv[1], "w").write(str(port))
+  open(sys.argv[1], 'w').write(str(port))
   s.handle_request()
 
 
