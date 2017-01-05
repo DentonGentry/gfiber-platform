@@ -201,8 +201,7 @@ static void init_gfhd254(struct platform_info* p) {
 
   NEXUS_Pwm_CloseChannel(pwm);
 
-  // Default the LED brightness to 50.
-  set_pwm(&p->leds.led_brightness, 50);
+  set_pwm(&p->leds.led_brightness, 27);
 }
 
 void platform_cleanup() {
