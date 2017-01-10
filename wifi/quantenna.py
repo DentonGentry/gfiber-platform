@@ -58,11 +58,8 @@ def _ifplugd_action(hif, state):
 def _parse_scan_result(line):
   # Scan result format:
   #
-  # "Quantenna1" 00:26:86:00:11:5f 60 56 1 2 1 2 0 15 80 100 1 Infrastructure
-  # |            |                 |  |  | | | | | |  |  |   | |
-  # |            |                 |  |  | | | | | |  |  |   | Mode
-  # |            |                 |  |  | | | | | |  |  |   DTIM interval
-  # |            |                 |  |  | | | | | |  |  Beacon interval
+  # "Quantenna1" 00:26:86:00:11:5f 60 56 1 2 1 2 0 15 80
+  # |            |                 |  |  | | | | | |  |
   # |            |                 |  |  | | | | | |  Maximum bandwidth
   # |            |                 |  |  | | | | | WPS flags
   # |            |                 |  |  | | | | Qhop flags
@@ -77,7 +74,7 @@ def _parse_scan_result(line):
   #
   # The SSID may contain quotes and spaces. Split on whitespace from the right,
   # making at most 10 splits, to preserve spaces in the SSID.
-  sp = line.strip().rsplit(None, 13)
+  sp = line.strip().rsplit(None, 10)
   return sp[0][1:-1], sp[1], int(sp[2]), -float(sp[3]), int(sp[4]), int(sp[5])
 
 
