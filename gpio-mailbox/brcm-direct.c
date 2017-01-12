@@ -390,8 +390,7 @@ static void init_gfhd254(struct platform_info* p) {
   reg[0] = 0x00;
   reg[1] = 0x57;
 
-  // Default the LED brightness to 50.
-  set_pwm(&p->leds.led_brightness, 50);
+  set_pwm(&p->leds.led_brightness, 27);
 }
 
 static double get_avs_voltage_7252(struct Voltage* v) {
