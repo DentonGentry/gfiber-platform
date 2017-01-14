@@ -104,10 +104,39 @@ regression = [
   ('iPhone 7/7+', './testdata/pcaps/iPhone 7 2.4GHz OnHub iOS10.2 MN8H2LL Specific Probe.pcap'),
   ('iPhone 7/7+', './testdata/pcaps/iPhone 7 2.4GHz OnHub iOS10.2 MN8H2LL Broadcast Probe.pcap'),
   ('iPhone 7/7+', './testdata/pcaps/iPhone 7 2.4GHz Google Wifi iOS10.2 MN8H2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz OnHub iOS10.1.1 MNQJ2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 2.4GHz OnHub iOS10.1.1 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 2.4GHz GFRG210 iOS10.1.1 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz GFRG210 iOS10.1.1 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz OnHub iOS10.1.1 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz GFRG210 iOS10.2 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7 5GHz GFRG210 iOS10.2 MN8H2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 2.4GHz Google Wifi iOS10.2 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7 5GHz GFRG210 iOS10.2 MN8H2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz Google Wifi iOS10.2 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz Google Wifi iOS10.1.1 MNQJ2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7 5GHz Google Wifi iOS10.2 MN8H2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7 5GHz.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 2.4GHz OnHub iOS10.2 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 2.4GHz Google Wifi iOS10.2 MNQJ2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 2.4GHz Google Wifi iOS10.1.1 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7 5GHz Google Wifi iOS10.2 MN8H2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 2.4GHz OnHub iOS10.2 MNQJ2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7 5GHz OnHub iOS10.2 MN8H2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7 5GHz OnHub iOS10.2 MN8H2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz GFRG210 iOS10.2 MNQJ2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 2.4GHz Google Wifi iOS10.1.1 MNQJ2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz Google Wifi iOS10.1.1 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz OnHub iOS10.2 MNQJ2LL Specific Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz OnHub iOS10.2 MNQJ2LL Broadcast Probe.pcap'),
+  ('iPhone 7/7+', './testdata/pcaps/iPhone 7+ 5GHz Google Wifi iOS10.2 MNQJ2LL Broadcast Probe.pcap'),
   ('iPod Touch 1st or 2nd gen', './testdata/pcaps/iPod Touch 1st gen 2.4GHz.pcap'),
   ('Moto G or Moto X', './testdata/pcaps/Moto X 2.4GHz Specific.pcap'),
   ('Moto G or Moto X', './testdata/pcaps/Moto X 2.4GHz.pcap'),
-  ('Nest Thermostat v1 or v2', './testdata/pcaps/Nest Thermostat 2.4GHz.pcap'),
+  ('Nest Thermostat v1 or v2', './testdata/pcaps/Nest Thermostat v1 2.4GHz OnHub sw 5.6-7 hw Diamond 1.10 Broadcast Probe.pcap'),
+  ('Nest Thermostat v1 or v2', './testdata/pcaps/Nest Thermostat v1 2.4GHz GFRG210 sw 5.6-7 hw Diamond 1.10 Broadcast Probe.pcap'),
+  ('Nest Thermostat v1 or v2', './testdata/pcaps/Nest Thermostat v1 2.4GHz Google Wifi sw 5.6-7 hw Diamond 1.10 Broadcast Probe.pcap'),
   ('Roku 2 or 3 or Streaming Stick', './testdata/pcaps/Roku 3 2.4GHz 4230.pcap'),
   ('Roku 2 or 3 or Streaming Stick', './testdata/pcaps/Roku 3 5GHz 4230.pcap'),
   ('Roku 4 or TV', './testdata/pcaps/Roku 4 2.4GHz.pcap'),
@@ -168,7 +197,10 @@ if __name__ == '__main__':
   rc = 0
 
   for (expected_model, pcap) in regression:
-    pcaps.remove(pcap)
+    try:
+      pcaps.remove(pcap)
+    except ValueError as e:
+      raise ValueError('%s : %s' % (str(e), pcap))
     if check_pcap(expected_model, pcap):
       rc = 1
 

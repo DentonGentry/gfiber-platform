@@ -199,6 +199,11 @@ database = {
     'wifi4|probe:0,1,50,45,221(001018,2),221(00904c,51),htcap:186c,htagg:1a,htmcs:0000ffff|assoc:0,1,33,36,48,50,45,221(001018,2),221(00904c,51),221(0050f2,2),htcap:186c,htagg:1a,htmcs:0000ffff,txpow:1408|oui:dish':
         ('Dish Network Receiver', '', '2.4GHz'),
 
+    'wifi4|probe:0,1,45,221(001018,2),htcap:087e,htagg:17,htmcs:0000ffff|assoc:0,1,33,36,48,45,221(001018,2),221(0050f2,2),htcap:087e,htagg:17,htmcs:0000ffff,txpow:000a|oui:dish':
+        ('Dish Network Receiver', 'Hopper 3', '5GHz'),
+    'wifi4|probe:0,1,50,3,45,221(001018,2),htcap:083c,htagg:17,htmcs:0000ffff|assoc:0,1,50,33,36,48,45,221(001018,2),221(0050f2,2),htcap:083c,htagg:17,htmcs:0000ffff,txpow:120a|oui:dish':
+        ('Dish Network Receiver', 'Hopper 3', '2.4GHz'),
+
     'wifi4|probe:0,1,45,htcap:106e,htagg:01,htmcs:000000ff|assoc:0,1,45,33,36,48,221(0050f2,2),htcap:106e,htagg:01,htmcs:000000ff,txpow:0e00|oui:dropcam':
         ('Dropcam', '', '5GHz'),
     'wifi4|probe:0,1,50,45,htcap:002c,htagg:01,htmcs:000000ff|assoc:0,1,50,45,48,221(0050f2,2),htcap:002c,htagg:01,htmcs:000000ff|oui:dropcam':
@@ -650,21 +655,33 @@ database = {
         ('iPhone 6s/6s+', '', '2.4GHz'),
 
     'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:000000ff,vhtcap:0f807032,vhtrxmcs:0000fffe,vhttxmcs:0000fffe,extcap:00000884|assoc:0,1,33,36,48,70,54,45,127,191,199,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:000008|os:ios':
-        ('iPhone 7', '', '5GHz'),
+        ('iPhone 7/7+', '', '5GHz'),
     'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:00000884|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:000008|os:ios':
-        ('iPhone 7', '', '5GHz'),
+        ('iPhone 7/7+', '', '5GHz'),
     'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f817032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:00000884|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:000008|os:ios':
-        ('iPhone 7', '', '5GHz'),
+        ('iPhone 7/7+', '', '5GHz'),
     'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:000000ff,vhtcap:0f801032,vhtrxmcs:0000fffe,vhttxmcs:0000fffe,extcap:00000884|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f813032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:000008|os:ios':
-        ('iPhone 7', '', '5GHz'),
+        ('iPhone 7/7+', '', '5GHz'),
     'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:000000ff,vhtcap:0f807032,vhtrxmcs:0000fffe,vhttxmcs:0000fffe,extcap:00000884|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f813032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:000008|os:ios':
-        ('iPhone 7', '', '5GHz'),
+        ('iPhone 7/7+', '', '5GHz'),
     'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:000000ff,vhtcap:0f803032,vhtrxmcs:0000fffe,vhttxmcs:0000fffe,extcap:00000884|assoc:0,1,33,36,48,70,45,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9|os:ios':
-        ('iPhone 7', '', '5GHz'),
+        ('iPhone 7/7+', '', '5GHz'),
     'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:000000ff,vhtcap:0f807032,vhtrxmcs:0000fffe,vhttxmcs:0000fffe,extcap:00000884|assoc:0,1,33,36,48,70,45,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9|os:ios':
-        ('iPhone 7', '', '5GHz'),
+        ('iPhone 7/7+', '', '5GHz'),
     'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f817032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:00000884|assoc:0,1,33,36,48,45,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f817032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9|os:ios':
-        ('iPhone 7+', '', '5GHz'),
+        ('iPhone 7/7+', '', '5GHz'),
+    'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:0000088400000040|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f813032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:0000080000000040|os:ios':
+        ('iPhone 7/7+', '', '5GHz'),
+    'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f813032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:0000088400000040|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:0000080000000040|os:ios':
+        ('iPhone 7/7+', '', '5GHz'),
+    'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f817032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:0000088400000040|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:0000080000000040|os:ios':
+        ('iPhone 7/7+', '', '5GHz'),
+    'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f817032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:00000884|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f813032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:000008|os:ios':
+        ('iPhone 7/7+', '', '5GHz'),
+    'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f811032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:00000884|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f813032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:000008|os:ios':
+        ('iPhone 7/7+', '', '5GHz'),
+    'wifi4|probe:0,1,45,127,107,191,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f817032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,extcap:0000088400000040|assoc:0,1,33,36,48,45,127,191,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:006f,htagg:17,htmcs:0000ffff,vhtcap:0f813032,vhtrxmcs:0000fffa,vhttxmcs:0000fffa,txpow:13f9,extcap:0000080000000040|os:ios':
+        ('iPhone 7/7+', '', '5GHz'),
     'wifi4|probe:0,1,50,3,45,127,107,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:002d,htagg:17,htmcs:0000ffff,extcap:00000884|assoc:0,1,50,33,36,48,45,127,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:002d,htagg:17,htmcs:0000ffff,txpow:13f9,extcap:000008|os:ios':
         ('iPhone 7/7+', '', '2.4GHz'),
     'wifi4|probe:0,1,50,3,45,127,107,221(0017f2,10),221(0050f2,8),221(001018,2),htcap:002d,htagg:17,htmcs:000000ff,extcap:00000884|assoc:0,1,50,33,36,48,45,127,221(0017f2,10),221(001018,2),221(0050f2,2),htcap:002d,htagg:17,htmcs:0000ffff,txpow:13f9,extcap:000008|os:ios':

@@ -53,6 +53,7 @@ database = {
 
     '58:67:1a': ['barnes&noble'],
 
+    '04:c9:d9': ['dish'],
     '2c:b0:5d': ['dish'],
 
     '30:8c:fb': ['dropcam'],
