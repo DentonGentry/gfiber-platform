@@ -2,14 +2,16 @@
 
 """Utils for hostapd and wpa_supplicant configuration."""
 
+import ctypes
 import subprocess
-
-import Crypto.Protocol.KDF
 
 # pylint: disable=g-bad-import-order
 import autochannel
 import experiment
 import utils
+
+
+crypto = ctypes.CDLL('libcrypto.so')
 
 
 EXPERIMENTS = [
@@ -357,8 +359,11 @@ def wpa_network_lines(ssid, passphrase):
   if len(clean_passphrase) == 64:
     network_lines += ['\tpsk=%s' % clean_passphrase]
   else:
-    raw_psk = Crypto.Protocol.KDF.PBKDF2(clean_passphrase, clean_ssid, 32, 4096)
-    hex_psk = ''.join(ch.encode('hex') for ch in raw_psk)
+    psk_buf = ctypes.create_string_buffer(32)
+    crypto.PKCS5_PBKDF2_HMAC_SHA1(clean_passphrase, len(clean_passphrase),
+                                  clean_ssid, len(clean_ssid),
+                                  4096, 32, psk_buf)
+    hex_psk = ''.join(ch.encode('hex') for ch in psk_buf.raw)
     network_lines += ['\t#psk="%s"' % clean_passphrase, '\tpsk=%s' % hex_psk]
 
   return network_lines
