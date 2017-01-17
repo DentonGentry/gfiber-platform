@@ -41,7 +41,8 @@
 
 
 typedef std::set<std::string> ResultsSet;
-int timeout_secs = 10;
+int ssdp_timeout_secs = 10;
+int alarm_timeout_secs = 15;
 
 
 /* SSDP Discover packet */
@@ -247,7 +248,7 @@ ResultsSet listen_for_responses(int s4, int s6)
   int maxfd = (s4 > s6) ? s4 : s6;
 
   memset(&tv, 0, sizeof(tv));
-  tv.tv_sec = timeout_secs;
+  tv.tv_sec = ssdp_timeout_secs;
   tv.tv_usec = 0;
 
   FD_ZERO(&rfds);
@@ -290,12 +291,12 @@ int main(int argc, char **argv)
   int s4, s6;
 
   setlinebuf(stdout);
-  alarm(10);
+  alarm(alarm_timeout_secs);
 
   while ((c = getopt(argc, argv, "t:")) != -1) {
     switch(c) {
       case 't':
-        timeout_secs = 1;
+        ssdp_timeout_secs = 1;
         ssdp_port = atoi(optarg);
         ssdp_loop = 1;
         break;
