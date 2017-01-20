@@ -108,7 +108,7 @@ def WLANConfigurationParseTest():  # pylint: disable=invalid-name
       '--bridge=br0', '-s', 'my ssid=1', '--interface-suffix', '_suffix',
   ])
   config = connection_manager.WLANConfiguration(
-      '5', interface_test.Wifi('wcli0', 20), cmd)
+      '5', interface_test.Wifi('wcli0', 20), cmd, 10)
 
   wvtest.WVPASSEQ('my ssid=1', config.ssid)
   wvtest.WVPASSEQ('abcdWIFI_PSK=qwer', config.passphrase)
@@ -270,20 +270,21 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
         # Test that missing directories are created by ConnectionManager.
         shutil.rmtree(tmp_dir)
 
-        c = ConnectionManager(tmp_dir=tmp_dir,
-                              config_dir=config_dir,
-                              moca_tmp_dir=moca_tmp_dir,
-                              run_duration_s=run_duration_s,
-                              interface_update_period=interface_update_period,
-                              wlan_retry_s=0,
-                              wifi_scan_period_s=wifi_scan_period_s,
-                              associate_wait_s=associate_wait_s,
-                              dhcp_wait_s=dhcp_wait_s,
-                              acs_connection_check_wait_s=acs_cc_wait_s,
-                              acs_start_wait_s=acs_start_wait_s,
-                              acs_finish_wait_s=acs_finish_wait_s,
-                              bssid_cycle_length_s=1,
-                              **cm_kwargs)
+        kwargs = dict(tmp_dir=tmp_dir,
+                      config_dir=config_dir,
+                      moca_tmp_dir=moca_tmp_dir,
+                      run_duration_s=run_duration_s,
+                      interface_update_period=interface_update_period,
+                      wlan_retry_s=0,
+                      wifi_scan_period_s=wifi_scan_period_s,
+                      associate_wait_s=associate_wait_s,
+                      dhcp_wait_s=dhcp_wait_s,
+                      acs_connection_check_wait_s=acs_cc_wait_s,
+                      acs_start_wait_s=acs_start_wait_s,
+                      acs_finish_wait_s=acs_finish_wait_s,
+                      bssid_cycle_length_s=1)
+        kwargs.update(cm_kwargs)
+        c = ConnectionManager(**kwargs)
 
         f(c)
       except Exception:
@@ -680,7 +681,7 @@ def connection_manager_test_generic(c, band):
   wvtest.WVPASSEQ(last_bss_info.ssid, 's3')
   wvtest.WVPASSEQ(last_bss_info.bssid, 'ff:ee:dd:cc:bb:aa')
   # Attempt to interrupt provisioning, make sure it doesn't work.
-  c._try_wlan_after[band] = 0
+  c._wlan_configuration[band].try_after = 0
   # Second iteration: check that we try s3 again since there's no gateway yet.
   c.run_once()
   last_bss_info = c.wifi_for_band(band).last_attempted_bss_info
@@ -1101,6 +1102,21 @@ def connection_manager_conman_no_2g_wlan(c):
   subprocess.mock('cwmp', '2.4', ssid=ssid, psk=psk, write_now=True)
   c.run_once()
   wvtest.WVFAIL(c.client_up('2.4'))
+
+
+@test_common.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897,
+                         wlan_configs={'5': False}, wlan_retry_s=30,
+                         __test_interfaces_already_up=[])
+def test_regression_b29364958(c):
+  def count_setclient_calls():
+    return len([1 for cmd, _ in subprocess.CALL_HISTORY
+                if 'wifi' in cmd and 'setclient' in cmd])
+
+  wvtest.WVPASSEQ(1, count_setclient_calls())
+  for _ in range(10):
+    c.run_once()
+  wvtest.WVPASSEQ(1, count_setclient_calls())
 
 
 if __name__ == '__main__':

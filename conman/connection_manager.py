@@ -76,11 +76,13 @@ class WLANConfiguration(object):
   WIFI_SETCLIENT = ['wifi', 'setclient', '--persist']
   WIFI_STOPCLIENT = ['wifi', 'stopclient', '--persist']
 
-  def __init__(self, band, wifi, command_lines):
+  def __init__(self, band, wifi, command_lines, retry_s):
     self.band = band
     self.wifi = wifi
     self.logger = self.wifi.logger.getChild(self.band)
     self.command = command_lines.splitlines()
+    self.retry_s = retry_s
+    self.try_after = 0
     self.access_point_up = False
     self.ssid = None
     self.passphrase = None
@@ -155,6 +157,11 @@ class WLANConfiguration(object):
       self.logger.info('WifiNo2GClient enabled; not starting 2.4 GHz client.')
       return
 
+    now = _gettime()
+    if now <= self.try_after:
+      self.logger.debug('Not retrying for another %.2fs', self.try_after - now)
+      return
+
     up = self.client_up
     if up:
       self.logger.debug('Wifi client already started on %s GHz', self.band)
@@ -163,6 +170,9 @@ class WLANConfiguration(object):
     if self._actually_start_client():
       self.wifi.status.connected_to_wlan = True
       self.logger.info('Started wifi client on %s GHz', self.band)
+      self.try_after = now
+    else:
+      self.try_after = now + self.retry_s
 
   def _actually_start_client(self):
     """Actually run wifi setclient.
@@ -345,7 +355,6 @@ class ConnectionManager(object):
         self._stop_wifi(wifi.bands[0], True, True)
 
     self._interface_update_counter = 0
-    self._try_wlan_after = {'5': 0, '2.4': 0}
 
     for wifi in self.wifi:
       ratchet_name = '%s provisioning' % wifi.name
@@ -521,18 +530,16 @@ class ConnectionManager(object):
       # case 5 is unavailable for some reason.
       for band in wifi.bands:
         wlan_configuration = self._wlan_configuration.get(band, None)
-        if wlan_configuration and _gettime() >= self._try_wlan_after[band]:
+        if wlan_configuration:
           logger.info('Trying to join WLAN on %s.', wifi.name)
           wlan_configuration.start_client()
           if self._connected_to_wlan(wifi):
             logger.info('Joined WLAN on %s.', wifi.name)
             wifi.status.connected_to_wlan = True
-            self._try_wlan_after[band] = 0
             break
           else:
             logger.error('Failed to connect to WLAN on %s.', wifi.name)
             wifi.status.connected_to_wlan = False
-            self._try_wlan_after[band] = _gettime() + self._wlan_retry_s
       else:
         # If we are aren't on the WLAN, can ping the ACS, and haven't gotten a
         # new WLAN configuration yet, there are two possibilities:
@@ -556,9 +563,8 @@ class ConnectionManager(object):
           if self._wlan_configuration:
             logger.info('ACS has not updated WLAN configuration; will retry '
                         ' with old config.')
-            for w in self.wifi:
-              for b in w.bands:
-                self._try_wlan_after[b] = now
+            for wlan_configuration in self._wlan_configuration.itervalues():
+              wlan_configuration.try_after = now
             continue
           # We don't want to want to log this spammily, so do exponential
           # backoff.
@@ -713,7 +719,8 @@ class ConnectionManager(object):
           wifi = self.wifi_for_band(band)
           if wifi:
             self._update_wlan_configuration(
-                self.WLANConfiguration(band, wifi, contents))
+                self.WLANConfiguration(band, wifi, contents,
+                                       self._wlan_retry_s))
       elif filename.startswith(self.ACCESS_POINT_FILE_PREFIX):
         match = re.match(self.ACCESS_POINT_FILE_REGEXP, filename)
         if match:
