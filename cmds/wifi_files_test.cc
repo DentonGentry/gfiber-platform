@@ -16,7 +16,7 @@ static time_t monotime(void)
 const char *stations_dir;
 #define STATIONS_DIR stations_dir
 #define WIFIINFO_DIR STATIONS_DIR
-#include "wifi_files.c"
+#include "wifi_files.cc"
 
 
 int exit_code = 0;
@@ -80,7 +80,7 @@ void testFrequencyToChannel()
 }
 
 
-static char *expected_json = "{\n"
+static const char *expected_json = "{\n"
 "  \"addr\": \"00:11:22:33:44:55\",\n"
 "  \"inactive since\": 0.000,\n"
 "  \"inactive msec\": 0,\n"
@@ -134,17 +134,17 @@ void testClientStateToJson()
   TEST_ASSERT(ieee80211_frequency_to_channel(2484) == 14);
   memset(&state, 0, sizeof(client_state_t));
   snprintf(state.macstr, sizeof(state.macstr), "00:11:22:33:44:55");
-  state.rx_bytes64 = 1ULL;
-  state.rx_drop64 = 2ULL;
-  state.rx_bitrate = 47;
-  state.authorized = 0;
-  state.authenticated = 1;
-  state.preamble_length = 0;
-  state.expected_mbps = 7009;
-  ClientStateToJson((gpointer)(&state.macstr), (gpointer)&state, NULL);
+  state.s.rx_bytes64 = 1ULL;
+  state.s.rx_drop64 = 2ULL;
+  state.s.rx_bitrate = 47;
+  state.s.authorized = 0;
+  state.s.authenticated = 1;
+  state.s.preamble_length = 0;
+  state.s.expected_mbps = 7009;
+  ClientStateToJson(&state);
 
   #define SIZ 65536
-  TEST_ASSERT((buf = malloc(SIZ)) != NULL);
+  TEST_ASSERT((buf = (char *)malloc(SIZ)) != NULL);
   memset(buf, 0, SIZ);
   snprintf(filename, sizeof(filename), "%s/%s", STATIONS_DIR, state.macstr);
   TEST_ASSERT((fd = open(filename, O_RDONLY)) >= 0);
@@ -170,15 +170,15 @@ void testAgeOutClients()
   mac[5] = 0x02;
   state = FindClientState(mac);
   state->last_seen = 10000;
-  TEST_ASSERT(g_hash_table_size(clients) == 2);
+  TEST_ASSERT(clients.size() == 2);
 
   now = 1000 + MAX_CLIENT_AGE_SECS + 1;
   ConsolidateAssociatedDevices();
-  TEST_ASSERT(g_hash_table_size(clients) == 1);
+  TEST_ASSERT(clients.size() == 1);
 
   now = 10000 + MAX_CLIENT_AGE_SECS + 1;
   ConsolidateAssociatedDevices();
-  TEST_ASSERT(g_hash_table_size(clients) == 0);
+  TEST_ASSERT(clients.size() == 0);
   printf("! %s:%d\t%s\tok\n", __FILE__, __LINE__, __FUNCTION__);
 }
 
@@ -189,7 +189,6 @@ int main(int argc, char** argv)
 
   stations_dir = mkdtemp(strdup("/tmp/wifi_files_test_XXXXXX"));
   printf("stations_dir = %s\n", stations_dir);
-  clients = g_hash_table_new(g_str_hash, g_str_equal);
 
   testPrintSsidEscaped();
   testPrintSsidEscapedQuoteBackslash();

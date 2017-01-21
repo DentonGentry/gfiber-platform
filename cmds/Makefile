@@ -252,9 +252,9 @@ host-dir-monitor dir-monitor: LIBS+=-lstdc++
 netusage: CFLAGS += -Wno-sign-compare
 host-netusage_test: host-netusage_test.o
 wifi_files: wifi_files.o
-wifi_files: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
+wifi_files: LIBS += -lnl-3 -lnl-genl-3 -lstdc++ -lm
 host-wifi_files_test: host-wifi_files_test.o
-host-wifi_files_test: LIBS += -lnl-3 -lnl-genl-3 -lglib-2.0
+host-wifi_files_test: LIBS += -lnl-3 -lnl-genl-3 -lstdc++ -lm
 dhcpvendortax: dhcpvendortax.o dhcpvendorlookup.tmp.o
 dhcpvendorlookup.tmp.c: dhcpvendorlookup.gperf
 	$(GPERF) -G -C -t -L ANSI-C -N exact_match -K vendor_class \
