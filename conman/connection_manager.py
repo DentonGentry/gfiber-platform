@@ -231,7 +231,7 @@ class ConnectionManager(object):
   def __init__(self,
                bridge_interface='br0',
                tmp_dir='/tmp/conman',
-               config_dir='/config/conman',
+               config_dir='/fiber/config/conman',
                moca_tmp_dir='/tmp/cwmp/monitoring/moca2',
                run_duration_s=1, interface_update_period=5,
                wifi_scan_period_s=120, wlan_retry_s=120, associate_wait_s=15,

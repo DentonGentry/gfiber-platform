@@ -133,7 +133,7 @@ def Experiment(name):
       _experiment_warned.add(name)
       sys.stderr.write('Warning: experiment %r not registered\n' % name)
   else:
-    enabled = os.path.exists(os.path.join('/config/experiments',
+    enabled = os.path.exists(os.path.join('/fiber/config/experiments',
                                           name + '.active'))
     if enabled and name not in _experiment_enabled:
       _experiment_enabled.add(name)

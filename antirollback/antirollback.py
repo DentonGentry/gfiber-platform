@@ -26,7 +26,7 @@ optspec = """
 antirollback [options...]
 --
 i,interval=   seconds between updates [28800]
-p,persist=    path to persistent file [/config/ar_clock]
+p,persist=    path to persistent file [/fiber/config/ar_clock]
 u,user=       setuid to this user to run
 """
 

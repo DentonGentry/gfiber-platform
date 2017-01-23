@@ -38,7 +38,7 @@ ConfigResult LoadConfig(ConfigOptions options) {
   }
 
   http::Url config_url(options.region_url);
-  config_url.set_path("/config");
+  config_url.set_path("/fiber/config");
   if (options.verbose) {
     std::cout << "Loading config from " << config_url.url() << "\n";
   }

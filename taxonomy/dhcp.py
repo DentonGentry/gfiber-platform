@@ -18,8 +18,8 @@
 """
 
 # Unit tests can override these.
-DHCP_LEASES_FILE = '/config/dhcp.leases'
-DHCP_SIGNATURE_FILE = '/config/dhcp.fingerprints'
+DHCP_LEASES_FILE = '/fiber/config/dhcp.leases'
+DHCP_SIGNATURE_FILE = '/fiber/config/dhcp.fingerprints'
 
 
 # There is an enormous database of DHCP fingerprints at fingerbank.org.

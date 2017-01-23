@@ -15,7 +15,7 @@ import time
 import unicodedata
 
 
-_CONFIG_DIR = '/config/wifi'
+_CONFIG_DIR = '/fiber/config/wifi'
 FILENAME_KIND = collections.namedtuple(
     'FilenameKind', ('options', 'config', 'pid', 'alive'))(
         options='opts', config='conf', pid='pid', alive='alive')

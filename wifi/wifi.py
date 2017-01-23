@@ -1148,7 +1148,7 @@ def _run(argv):
       interface = iw.find_interface_from_band(opt.band, interface_type,
                                               opt.interface_suffix)
       if opt.persist:
-        # Save in /config.
+        # Save in /fiber/config.
         persist.save_options(program, interface, argv, False)
       # Save in /tmp.
       persist.save_options(program, interface, argv, True)

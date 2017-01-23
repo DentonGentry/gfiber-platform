@@ -562,7 +562,7 @@ class CraftUI(object):
     data['cpu_temperature'] = self.ReadFile(sim + '/tmp/gpio/cpu_temperature')
     data['peer_up'] = os.path.exists(sim + '/tmp/peer-up')
     data['cpss_ready'] = os.path.exists(sim + '/tmp/cpss_ready')
-    cs = '/config/settings/'
+    cs = '/fiber/config/settings/'
     data['craft_ipaddr'] = self.ReadFile(sim + cs + 'craft_ipaddr')
     data['link_ipaddr'] = self.ReadFile(sim + cs + 'local_ipaddr')
     data['peer_ipaddr'] = self.ReadFile(sim + cs + 'peer_ipaddr')

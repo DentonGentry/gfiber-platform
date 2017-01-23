@@ -9,7 +9,7 @@ import os
 import utils
 
 # TODO(rofrankel):  Figure out the right way to delete old-style persisted
-# options (e.g. /config/wifi/hostapd.opts.5).
+# options (e.g. /fiber/config/wifi/hostapd.opts.5).
 
 
 def save_options(program, interface, argv, tmp=False):

@@ -71,7 +71,7 @@ RegionResult LoadRegions(RegionOptions options) {
   }
 
   http::Url config_url(options.global_url);
-  config_url.set_path("/config");
+  config_url.set_path("/fiber/config");
   if (options.verbose) {
     std::cout << "Loading regions from " << config_url.url() << "\n";
   }
