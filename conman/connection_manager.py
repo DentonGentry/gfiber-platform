@@ -160,7 +160,10 @@ class WLANConfiguration(object):
       self.logger.debug('Wifi client already started on %s GHz', self.band)
       return
 
-    if self._actually_start_client():
+    # /bin/wifi will return 0 if the config hasn't changed, even if it is not
+    # /currently associated, so we need to check self.client_up as well as
+    # /checking that /bin/wifi succeeded.
+    if self._actually_start_client() and self.client_up:
       self.wifi.status.connected_to_wlan = True
       self.logger.info('Started wifi client on %s GHz', self.band)
 
