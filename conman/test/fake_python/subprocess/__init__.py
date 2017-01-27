@@ -28,6 +28,7 @@ _COMMAND_NAMES = {
     'upload_logs_and_wait': 'upload-logs-and-wait',
     'wifi': None,
     'wpa_cli': None,
+    'hotplug': None,
 }
 _COMMANDS = {v or k: importlib.import_module('.' + k, __name__)
              for k, v in _COMMAND_NAMES.iteritems()}
@@ -116,7 +117,8 @@ def reset():
       reload(command)
 
 
-def set_conman_paths(tmp_path=None, config_path=None, cwmp_path=None):
+def set_conman_paths(tmp_path=None, config_path=None, cwmp_path=None,
+                     interface_path=None):
   for command in ('run-dhclient', '/etc/ifplugd/ifplugd.action'):
     _COMMANDS[command].CONMAN_PATH = tmp_path
 
@@ -125,6 +127,9 @@ def set_conman_paths(tmp_path=None, config_path=None, cwmp_path=None):
 
   for command in ('cwmp',):
     _COMMANDS[command].CWMP_PATH = cwmp_path
+
+  for command in ('hotplug',):
+    _COMMANDS[command].INTERFACE_PATH = interface_path
 
   # Make sure <tmp_path>/interfaces exists.
   tmp_interfaces_path = os.path.join(tmp_path, 'interfaces')

@@ -260,8 +260,10 @@ def connection_manager_test(radio_config, wlan_configs=None, **cm_kwargs):
         wpa_control_interface = tempfile.mkdtemp()
         subprocess.mock('wifi', 'wpa_path', wpa_control_interface)
         connection_manager.CWMP_PATH = tempfile.mkdtemp()
+        connection_manager.INTERFACE_PATH = tempfile.mkdtemp()
         subprocess.set_conman_paths(tmp_dir, config_dir,
-                                    connection_manager.CWMP_PATH)
+                                    connection_manager.CWMP_PATH,
+                                    connection_manager.INTERFACE_PATH)
 
         for band, access_point in wlan_configs.iteritems():
           subprocess.mock('cwmp', band, ssid='initial ssid', psk='initial psk',
@@ -1117,6 +1119,25 @@ def test_regression_b29364958(c):
   for _ in range(10):
     c.run_once()
   wvtest.WVPASSEQ(1, count_setclient_calls())
+
+
+@test_common.wvtest
+@connection_manager_test(WIFI_SHOW_OUTPUT_MARVELL8897)
+def test_regression_b34040473(c):
+  ssid = 'my ssid'
+  psk = 'my passphrase'
+  band = '5'
+
+  subprocess.mock('cwmp', band, ssid=ssid, psk=psk, write_now=True)
+  subprocess.mock('wifi', 'remote_ap', band=band, ssid=ssid, psk=psk,
+                  bssid='00:00:00:00:00:00')
+  c.run_once()
+  wvtest.WVPASS(c.client_up(band))
+
+  subprocess.mock('wifi', 'mwifiex_reset', c.wifi_for_band(band).name, band)
+  wvtest.WVFAIL(c.client_up(band))
+  c.run_once()
+  wvtest.WVPASS(c.client_up(band))
 
 
 if __name__ == '__main__':
