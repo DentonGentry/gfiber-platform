@@ -23,7 +23,7 @@ verbose = False
 TOP_N = 50
 FETCH_INTERVAL = 60  # seconds
 UDP_SERVER_PATH = '/tmp/dns_query_log_socket'
-HOSTS_JSON_PATH = '/config/cache_warming_hosts.json'
+HOSTS_JSON_PATH = '/fiber/config/cache_warming_hosts.json'
 
 
 def save_hosts(log):

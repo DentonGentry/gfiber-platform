@@ -484,7 +484,7 @@ int main(int argc, char **argv) {
       "W: SIGUSR1: rate limit disabled.";
   static uint8_t now_limited[] =
       "W: SIGUSR2: rate limit re-enabled.";
-  const char *disable_limits_file = "/config/disable-log-limits";
+  const char *disable_limits_file = "/fiber/config/disable-log-limits";
   uint8_t buf[MAX_LINE_LENGTH], *header;
   ssize_t used = 0, got, headerlen;
   int overlong = 0;

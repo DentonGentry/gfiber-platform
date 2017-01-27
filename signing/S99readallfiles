@@ -28,7 +28,7 @@ case "$1" in
   start)
     (
       if is-fiberjack; then
-        nice -n 19 readallfiles -q /config && clear_failure_count
+        nice -n 19 readallfiles -q /fiber/config && clear_failure_count
       else
         nice -n 19 readallfiles -q / && clear_failure_count
       fi

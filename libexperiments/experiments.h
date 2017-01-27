@@ -11,7 +11,7 @@
 //
 // C++ example:
 // ====================================
-//   const char* kConfigFolderPath[] = "/config/experiments";
+//   const char* kConfigFolderPath[] = "/fiber/config/experiments";
 //   int64_t kMinTimeBetweenRefreshUs = 60 * 1000 * 1000;  // 60 secs
 //   e = new Experiments();
 //   if (!e->Initialize(kConfigFolderPath, kMinTimeBetweenRefreshUs,
@@ -27,7 +27,7 @@
 //
 // C example:
 // ===================================
-//   const char* kConfigFolderPath[] = "/config/experiments";
+//   const char* kConfigFolderPath[] = "/fiber/config/experiments";
 //   int64_t kMinTimeBetweenRefreshUs = 60 * 1000 * 1000;  // 60 secs
 //   if (!experiments_initialize(kConfigFolderPath, kMinTimeBetweenRefreshUs,
 //                               NULL);  // use default register function

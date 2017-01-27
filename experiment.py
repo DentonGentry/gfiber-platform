@@ -9,7 +9,7 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 EXPERIMENTS_TMP_DIR = '/tmp/experiments'
-EXPERIMENTS_DIR = '/config/experiments'
+EXPERIMENTS_DIR = '/fiber/config/experiments'
 
 _experiment_warned = set()
 _experiment_enabled = set()

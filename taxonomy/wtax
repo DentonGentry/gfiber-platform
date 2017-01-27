@@ -15,7 +15,7 @@ dhcpname() {
     if contains "$leasemac" "$mac"; then
       echo "$name"
     fi
-  done </config/dhcp.leases
+  done </fiber/config/dhcp.leases
 }
 
 dhcpsig() {
@@ -24,7 +24,7 @@ dhcpsig() {
     if contains "$leasemac" "$mac"; then
       echo "$sig"
     fi
-  done </config/dhcp.fingerprints
+  done </fiber/config/dhcp.fingerprints
 }
 
 stations24=""
