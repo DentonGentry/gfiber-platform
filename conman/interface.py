@@ -82,7 +82,7 @@ class Interface(object):
     if 'default' not in self.current_routes():
       return False
 
-    cmd = [self.CONNECTION_CHECK, '-I', self.name]
+    cmd = ['timeout', '5', self.CONNECTION_CHECK, '-I', self.name]
     if check_acs:
       cmd.append('-a')
 
