@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 #define RESOLV_CONF "/etc/resolv.conf"
 #define RESOLV_CONF_EXTERNAL "/tmp/resolv.conf.external"
@@ -265,18 +266,37 @@ void free_servers(const char *servers[], size_t nservers)
     free((char *)servers[i]);
 }
 
-int main(int argc, const char *argv[])
+void usage(const char *progname)
+{
+  fprintf(stderr, "usage: %s [-i interface]\nwhere:\n", progname);
+  fprintf(stderr, "\t-i : name of interface to SO_BINDTODEVICE, like br0\n");
+  exit(1);
+}
+
+int main(int argc, char * const argv[])
 {
   ares_channel channel;
   const char *servers[MAX_SERVERS];
   size_t count;
-  int rc;
+  const char *interface = NULL;
+  int rc, c;
 
   struct ares_options options = {
     .flags = ARES_FLAG_NOCHECKRESP,
     .timeout = 3000, /* milliseconds */
     .tries = 1,
   };
+
+  while ((c = getopt(argc, argv, "i:")) != -1) {
+    switch (c) {
+    case 'i':
+      interface = optarg;
+      break;
+    default:
+      usage(argv[0]);
+      break;
+    }
+  }
 
   rc = ares_library_init(ARES_LIB_INIT_NONE);
   if (rc)
@@ -287,6 +307,10 @@ int main(int argc, const char *argv[])
   if (rc)
     ares_error_die(ares_strerror(rc));
 
+  if (interface) {
+    ares_set_local_dev(channel, interface);
+  }
+
   count = read_resolv_conf(servers, MAX_SERVERS);
   resolve_array(channel, servers, count);
   free_servers(servers, count);
@@ -295,8 +319,8 @@ int main(int argc, const char *argv[])
   resolve_array(channel, servers, count);
   free_servers(servers, count);
 
-  if (argc > 1)
-    resolve_array(channel, argv + 1, argc - 1);
+  if (optind > 0)
+    resolve_array(channel, (const char **)&argv[optind], argc - optind);
 
   printf("\n");
   ares_destroy(channel);
