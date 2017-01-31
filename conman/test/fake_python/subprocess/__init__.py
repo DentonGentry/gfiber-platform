@@ -11,6 +11,8 @@ logger = logging.getLogger('subprocess')
 logger.setLevel(logging.DEBUG)
 
 
+CALL_HISTORY = []
+
 # Values are only for when the module name does not match the command name.
 _COMMAND_NAMES = {
     'connection_check': None,
@@ -50,6 +52,8 @@ class CalledProcessError(Exception):
 
 def _call(command, **kwargs):
   """Fake subprocess call."""
+  CALL_HISTORY.append((command, kwargs))
+
   if type(command) not in (tuple, list):
     raise Exception('Fake subprocess.call only supports list/tuple commands, '
                     'got: %s', command)
@@ -104,7 +108,9 @@ def mock(command, *args, **kwargs):
 
 
 def reset():
-  """Reset any module-level state."""
+  """Reset all state."""
+  global CALL_HISTORY
+  CALL_HISTORY = []
   for command in _COMMANDS.itervalues():
     if isinstance(command, types.ModuleType):
       reload(command)
