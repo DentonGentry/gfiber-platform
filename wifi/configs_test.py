@@ -352,6 +352,32 @@ ieee80211n=1
 
 
 
+
+ht_capab=[HT20][RX-STBC1]
+
+"""
+
+_HOSTAPD_CONFIG_WDS = """ctrl_interface=/var/run/hostapd
+interface=wlan0
+
+ssid=TEST_SSID
+utf8_ssid=1
+auth_algs=1
+hw_mode=g
+channel=1
+country_code=US
+ieee80211d=1
+ieee80211h=1
+ieee80211n=1
+
+
+
+
+
+
+wds_sta=1
+
+
 ht_capab=[HT20][RX-STBC1]
 
 """
@@ -368,6 +394,7 @@ country_code=US
 ieee80211d=1
 ieee80211h=1
 ieee80211n=1
+
 
 
 
@@ -397,6 +424,7 @@ ieee80211n=1
 
 
 ignore_broadcast_ssid=1
+
 
 vendor_elements=dd04f4f5e801dd0df4f5e803544553545f53534944
 
@@ -435,6 +463,7 @@ class FakeOptDict(object):
     self.client_isolation = False
     self.supports_provisioning = False
     self.no_band_restriction = False
+    self.wds = False
 
 
 def wpa_passphrase(ssid, passphrase):
@@ -504,6 +533,17 @@ def generate_hostapd_config_test():
                              '# Experiments: ()\n')),
                   config)
   opt.bridge = default_bridge
+
+  # Test WDS.
+  default_wds, opt.wds = opt.wds, True
+  config = configs.generate_hostapd_config(
+      _PHY_INFO, 'wlan0', '2.4', '1', '20', set(('a', 'b', 'g', 'n', 'ac')),
+      'asdfqwer', opt)
+  wvtest.WVPASSEQ('\n'.join((_HOSTAPD_CONFIG_WDS,
+                             _HOSTAPD_CONFIG_WPA,
+                             '# Experiments: ()\n')),
+                  config)
+  opt.wds = default_wds
 
   # Test provisioning IEs.
   default_hidden_mode, opt.hidden_mode = opt.hidden_mode, True

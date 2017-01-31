@@ -421,3 +421,11 @@ def phy_bands(which_phy):
 def scan(interface, scan_args):
   """Return 'iw scan' output for printing."""
   return _scan(interface, scan_args)
+
+
+def set_4address_mode(interface, on):
+  try:
+    setting = 'on' if on else 'off'
+    subprocess.check_output(['iw', 'dev', interface, 'set', '4addr', setting])
+  except subprocess.CalledProcessError as e:
+    raise utils.BinWifiException('Failed to set 4addr mode %s: %s', setting, e)

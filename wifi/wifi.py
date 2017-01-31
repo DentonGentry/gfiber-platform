@@ -27,7 +27,7 @@ import utils
 
 _OPTSPEC_FORMAT = """
 {bin} set           Enable or modify access points.  Takes all options unless otherwise specified.
-{bin} setclient     Enable or modify wifi clients.  Takes -b, -P, -s, --bssid, -S.
+{bin} setclient     Enable or modify wifi clients.  Takes -b, -P, -s, --bssid, -S, --wds.
 {bin} stop|off      Disable access points and clients.  Takes -b, -P, -S.
 {bin} stopap        Disable access points.  Takes -b, -P, -S.
 {bin} stopclient    Disable wifi clients.  Takes -b, -P, -S.
@@ -53,6 +53,7 @@ X,extra-short-timeouts            Use shorter key rotations; 1=rotate PTK, 2=rot
 Y,yottasecond-timeouts            Don't rotate any keys: PTK, GTK, or GMK
 P,persist                         For set commands, persist options so we can restore them with 'wifi restore'.  For stop commands, remove persisted options.
 S,interface-suffix=               Interface suffix (defaults to ALL for stop commands; use NONE to specify no suffix) []
+W,wds                             Enable WDS mode (nl80211 only)
 lock-timeout=                     How long, in seconds, to wait for another /bin/wifi process to finish before giving up. [60]
 scan-ap-force                     (Scan only) scan when in AP mode
 scan-passive                      (Scan only) do not probe, scan passively
@@ -228,8 +229,7 @@ def set_wifi(opt):
   autotype = opt.autotype
   protocols = set(opt.protocols.split('/'))
 
-  utils.validate_set_wifi_options(
-      band, width, autotype, protocols, opt.encryption)
+  utils.validate_set_wifi_options(opt)
 
   psk = None
   if opt.encryption == 'WEP' or '_PSK_' in opt.encryption:
@@ -839,6 +839,10 @@ def _maybe_restart_hostapd(interface, config, opt):
 
   if not _stop_hostapd(interface):
     raise utils.BinWifiException("Couldn't stop hostapd")
+
+  # Set or unset 4-address mode.  This has to be done while hostapd is down.
+  utils.log('%s 4-address mode', 'Enabling' if opt.wds else 'Disabling')
+  iw.set_4address_mode(interface, opt.wds)
 
   # We don't want to try to rewrite this file if this is just a forced restart.
   if not forced:
