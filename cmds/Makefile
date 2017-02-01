@@ -184,7 +184,7 @@ host-%.pb.cc: %.proto
 	echo "Building .pb.cc"
 	$(HOST_PROTOC) --cpp_out=. $<
 
-host-isoping isoping: LIBS+=$(RT) -lm -lstdc++ -lcrypto
+host-isoping isoping: LIBS+=$(RT) -lm -lstdc++ -lcrypto -lpthread
 host-isoping: host-isoping.o host-isoping_main.o
 host-isoping_test.o: CXXFLAGS += -D WVTEST_CONFIGURED -I ../wvtest/cpp
 host-isoping_test.o: isoping.cc
