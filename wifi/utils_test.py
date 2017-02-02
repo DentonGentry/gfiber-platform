@@ -2,13 +2,13 @@
 
 """Tests for utils.py."""
 
-import collections
 import multiprocessing
 import os
 import shutil
 import sys
 import tempfile
 
+import configs_test
 import utils
 from wvtest import wvtest
 
@@ -18,8 +18,9 @@ _VALIDATION_PASS = (
     {'band': '5'},
     {'width': '40'},
     {'autotype': 'ANY'},
-    {'protocols': ('a', 'b', 'ac')},
+    {'protocols': 'a/b/ac'},
     {'encryption': 'NONE'},
+    {'wds': True, 'bridge': 'br0'},
 )
 
 _VALIDATION_FAIL = (
@@ -32,25 +33,23 @@ _VALIDATION_FAIL = (
     {'band': '2.4', 'autotype': 'DFS'},
     {'band': '5', 'autotype': 'OVERLAP'},
     # Invalid protocols
-    {'protocols': set('abc')},
-    {'protocols': set()},
+    {'protocols': 'a/b/c'},
+    {'protocols': ''},
     # Invalid width
     {'width': '25'},
     # Invalid width/protocols
-    {'width': '40', 'protocols': set('abg')},
-    {'width': '80', 'protocols': set('abgn')},
+    {'width': '40', 'protocols': 'a/b/g'},
+    {'width': '80', 'protocols': 'a/b/g/n'},
+    {'wds': True, 'bridge': ''},
 )
 
 
-_DEFAULTS = collections.OrderedDict((('band', '2.4'), ('width', '20'),
-                                     ('autotype', 'NONDFS'),
-                                     ('protocols', ('a', 'b', 'g', 'n', 'ac')),
-                                     ('encryption', 'WPA2_PSK_AES')))
-
-
-def modify_defaults(**kwargs):
-  result = collections.OrderedDict(_DEFAULTS)
-  result.update(kwargs)
+def make_optdict(**kwargs):
+  result = configs_test.FakeOptDict()
+  # This is the default band for 'wifi set'.
+  result.band = '2.4'
+  for k, v in kwargs.iteritems():
+    setattr(result, k, v)
   return result
 
 
@@ -62,23 +61,24 @@ def validate_set_options_test():
 
   for case in _VALIDATION_PASS:
     try:
-      utils.validate_set_wifi_options(*modify_defaults(**case).values())
+      utils.validate_set_wifi_options(make_optdict(**case))
+      wvtest.WVPASS(True)  # Make WvTest count this as a test.
     except utils.BinWifiException:
       wvtest.WVFAIL('Test failed.')
 
   for case in _VALIDATION_FAIL:
     wvtest.WVEXCEPT(
         utils.BinWifiException, utils.validate_set_wifi_options,
-        *modify_defaults(**case).values())
+        make_optdict(**case))
 
   # Test failure when WIFI_PSK is missing
   del os.environ['WIFI_PSK']
   wvtest.WVEXCEPT(
       utils.BinWifiException, utils.validate_set_wifi_options,
-      *_DEFAULTS.values())
+      make_optdict(**_VALIDATION_PASS[0]))
   wvtest.WVEXCEPT(
       utils.BinWifiException, utils.validate_set_wifi_options,
-      *modify_defaults(encryption='WEP').values())
+      make_optdict(encryption='WEP'))
 
 
 @wvtest.wvtest

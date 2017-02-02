@@ -196,19 +196,20 @@ def read_or_empty(filename):
     return ''
 
 
-def validate_set_wifi_options(band, width, autotype, protocols, encryption):
+def validate_set_wifi_options(opt):
   """Validates options to set_wifi.
 
   Args:
-    band: The specified band, as a string; '2.4' or '5'.
-    width: The specified channel width.
-    autotype: The specified autotype.
-    protocols: The specified 802.11 levels, as a collection of strings.
-    encryption: The specified encryption type.
+    opt: The options to validate.
 
   Raises:
     BinWifiException: if anything is not valid.
   """
+  band = opt.band
+  width = opt.width
+  autotype = opt.autotype
+  protocols = set(opt.protocols.split('/'))
+
   if band not in ('2.4', '5'):
     raise BinWifiException('You must specify band with -b2.4 or -b5')
 
@@ -240,10 +241,13 @@ def validate_set_wifi_options(band, width, autotype, protocols, encryption):
   elif width == '80' and 'ac' not in protocols:
     raise BinWifiException('-p ac is needed for 40 MHz channels')
 
-  if encryption == 'WEP' or '_PSK_' in encryption:
+  if opt.encryption == 'WEP' or '_PSK_' in opt.encryption:
     if 'WIFI_PSK' not in os.environ:
       raise BinWifiException(
           'Encryption enabled; use WIFI_PSK=whatever wifi set ...')
+
+  if opt.wds and not opt.bridge:
+    raise BinWifiException('WDS mode enabled; must specify a bridge.')
 
 
 def sanitize_ssid(ssid):
