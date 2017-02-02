@@ -269,6 +269,7 @@ def set_wifi(opt):
       client_width, client_channel = iw.find_width_and_channel(client_interface)
 
       sys.stderr.write('.')
+      sys.stderr.flush()
       if None not in (client_band, client_width, client_channel):
         band, width, channel = client_band, client_width, client_channel
         utils.log('Using band=%s, channel=%s, width=%s MHz from client',
@@ -670,28 +671,32 @@ def _start_hostapd(interface, config_filename, band, ssid):
                 'hostapd-%s' % interface, 10, pid_filename)
 
   # Wait for hostapd to start, and return False if it doesn't.
-  for _ in xrange(40):
+  i = j = 0
+  for i in xrange(100):
     if utils.check_pid(pid_filename):
       break
     sys.stderr.write('.')
+    sys.stderr.flush()
     time.sleep(0.1)
   else:
     return False
 
-  # hostapd_cli returns success on command timeouts.  If we time this
-  # perfectly and manage to connect but then wpa_supplicant dies right after,
-  # we'd think it succeeded.  So sleep a bit to try to give wpa_supplicant a
-  # chance to die from its error before we try to connect to it.
+  # hostapd_cli returns success on command timeouts.  If we time this perfectly
+  # and manage to connect but then hostapd dies right after, we'd think it
+  # succeeded.  So sleep a bit to try to give hostapd a chance to die from its
+  # error before we try to connect to it.
   time.sleep(0.5)
-  for _ in xrange(10):
+  for j in xrange(100):
     if not utils.check_pid(pid_filename):
       break
     if _is_hostapd_running(interface):
-      utils.log('ok')
+      utils.log('started after %.1fs', (i + j) / 10.0)
       return True
     sys.stderr.write('.')
+    sys.stderr.flush()
     time.sleep(0.1)
 
+  utils.log('failed after %.1fs', (i + j) / 10.0)
   return False
 
 
@@ -728,14 +733,16 @@ def _wait_for_wpa_supplicant_to_associate(interface):
     Whether wpa_supplicant associated within the timeout.
   """
   utils.log('Waiting for wpa_supplicant to connect')
-  for _ in xrange(100):
+  i = 0
+  for i in xrange(100):
     if _get_wpa_state(interface) == 'COMPLETED':
-      utils.log('ok')
+      utils.log('wpa_supplicant associated after %.1fs', i / 10.0)
       return True
     sys.stderr.write('.')
+    sys.stderr.flush()
     time.sleep(0.1)
 
-  utils.log('wpa_supplicant did not connect.')
+  utils.log('wpa_supplicant did not connect after %.1fs.', i / 10.0)
   if not _stop_wpa_supplicant(interface):
     raise utils.BinWifiException(
         "Couldn't stop wpa_supplicant after it failed to connect.  "
@@ -770,10 +777,12 @@ def _start_wpa_supplicant(interface, config_filename):
                 'wpa_supplicant-%s' % interface, 10, pid_filename)
 
   # Wait for wpa_supplicant to start, and return False if it doesn't.
-  for _ in xrange(10):
+  i = j = 0
+  for i in xrange(100):
     if utils.check_pid(pid_filename):
       break
     sys.stderr.write('.')
+    sys.stderr.flush()
     time.sleep(0.1)
   else:
     return False
@@ -784,15 +793,18 @@ def _start_wpa_supplicant(interface, config_filename):
   # chance to die from its error before we try to connect to it.
   time.sleep(0.5)
 
-  for _ in xrange(50):
+  for j in xrange(50):
     if not utils.check_pid(pid_filename):
       utils.log('wpa_supplicant process died.')
       return False
     if _is_wpa_supplicant_running(interface):
+      utils.log('wpa_supplicant process started after %.1fs', (i + j) / 10.0)
       break
     sys.stderr.write('.')
+    sys.stderr.flush()
     time.sleep(0.1)
   else:
+    utils.log('failed after %.1fs', (i + j) / 10.0)
     return False
 
   return _wait_for_wpa_supplicant_to_associate(interface)
