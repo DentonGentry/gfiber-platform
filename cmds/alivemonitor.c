@@ -16,6 +16,9 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
+#ifdef __ANDROID__
+#include <libgen.h>  // For basename() on Android.
+#endif
 #include <limits.h>
 #include <signal.h>
 #include <stdio.h>
