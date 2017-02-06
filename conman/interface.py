@@ -427,6 +427,10 @@ class Wifi(Interface):
   def __init__(self, *args, **kwargs):
     self.bands = kwargs.pop('bands', [])
     super(Wifi, self).__init__(*args, **kwargs)
+    # When the interface is reset (e.g. due to a firmware crash), we need to
+    # force-restart wpa_supplicant next time we run "wifi setclient", even if
+    # the config hasn't changed.
+    self.recently_reset = False
 
   @property
   def wpa_supplicant(self):

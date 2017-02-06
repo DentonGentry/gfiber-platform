@@ -8,6 +8,7 @@ import random
 
 import connection_check
 import get_quantenna_interfaces
+import hotplug
 import ifplugd_action
 import ifup
 import qcsapi
@@ -71,6 +72,7 @@ class AccessPoint(object):
                    'vendor_ies', 'connection_check_result', 'hidden')
     for attr in self._attrs:
       setattr(self, attr, kwargs.get(attr, None))
+    self.stuck = False
 
   def scan_str(self):
     security_strs = {
@@ -136,7 +138,8 @@ def _setclient(args, env=None):
 
   band = _get_flag(args, ('-b', '--band'))
   bssid = _get_flag(args, ('--bssid',))
-  ssid = _get_flag(args, ('S', '--ssid',))
+  ssid = _get_flag(args, ('-S', '--ssid',))
+  force_restart = '--force-restart' in args
 
   if band not in INTERFACE_FOR_BAND:
     raise ValueError('No interface for band %r' % band)
@@ -166,7 +169,7 @@ def _setclient(args, env=None):
     return 1, 'Wrong PSK, got %r, expected %r' % (psk, ap.psk)
 
   _setclient_success(interface_name, ssid, bssid, psk, interface.driver, ap,
-                     band)
+                     band, force_restart)
 
   return 0, ''
 
@@ -197,10 +200,22 @@ def _setclient_error_auth(interface_name, ssid, driver):
   CLIENT_ASSOCIATIONS[interface_name] = None
 
 
-def _setclient_success(interface_name, ssid, bssid, psk, driver, ap, band):
-  if CLIENT_ASSOCIATIONS.get(interface_name, None):
+def _setclient_success(interface_name, ssid, bssid, psk, driver, ap, band,
+                       force_restart):
+  same_ap = False
+  current_association = CLIENT_ASSOCIATIONS.get(interface_name, None)
+  if current_association:
+    same_ap = current_association == ap
+  else:
     _disconnected_event(band)
   if driver == 'cfg80211':
+    if same_ap and not force_restart:
+      return
+
+    # Make sure the association is unstuck after a firmware reset.
+    if current_association:
+      current_association.stuck = False
+
     # Make sure the wpa_supplicant socket exists.
     open(os.path.join(WPA_PATH, interface_name), 'w')
 
@@ -264,8 +279,8 @@ def _stopclient(args, env=None):
 
     CLIENT_ASSOCIATIONS[interface_name] = None
 
-  # Call ifplugd.action for the interface going down (wifi/quantenna.py does this
-  # manually).
+  # Call ifplugd.action for the interface going down (wifi/quantenna.py does
+  # this manually).
   ifplugd_action.call(interface_name, 'down')
 
   return 0, ''
@@ -296,7 +311,8 @@ def _scan(args, **unused_kwargs):
 
 
 def _show(unused_args, **unused_kwargs):
-  return 0, '\n\n'.join(WIFI_SHOW_TPL.format(band=band, **interface._asdict()) if interface
+  return 0, '\n\n'.join(WIFI_SHOW_TPL.format(band=band, **interface._asdict())
+                        if interface
                         else WIFI_SHOW_NO_RADIO_TPL.format(band)
                         for band, interface in INTERFACE_FOR_BAND.iteritems())
 
@@ -329,3 +345,11 @@ def mock(command, *args, **kwargs):
     _disconnected_event(args[0])
   elif command == 'kill_wpa_supplicant':
     _kill_wpa_supplicant(args[0])
+  elif command == 'mwifiex_reset':
+    interface_name, band = args[0:2]
+    print CLIENT_ASSOCIATIONS
+    association = CLIENT_ASSOCIATIONS.get(interface_name, None)
+    association.stuck = True
+    wpa_cli.mock(interface_name, wpa_state='SCANNING')
+    hotplug.call([], env={'SUBSYSTEM': 'net', 'ACTION': 'add',
+                          'INTERFACE': args[0]})

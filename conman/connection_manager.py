@@ -41,6 +41,7 @@ except AttributeError:
 HOSTNAME = socket.gethostname()
 TMP_HOSTS = '/tmp/hosts'
 CWMP_PATH = '/tmp/cwmp'
+INTERFACE_PATH = '/tmp/interface'
 
 experiment.register('WifiNo2GClient')
 
@@ -186,6 +187,9 @@ class WLANConfiguration(object):
     self.wifi.set_gateway_ip(None)
     self.wifi.set_subnet(None)
     command = self.WIFI_SETCLIENT + ['--ssid', self.ssid, '--band', self.band]
+    if self.wifi.recently_reset:
+      command += ['--force-restart']
+      self.wifi.recently_reset = False
     env = dict(os.environ)
     if self.passphrase:
       env['WIFI_CLIENT_PSK'] = self.passphrase
@@ -302,6 +306,8 @@ class ConnectionManager(object):
     wm.add_watch(self._interface_status_dir,
                  pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO)
     wm.add_watch(self._moca_tmp_dir,
+                 pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO)
+    wm.add_watch(INTERFACE_PATH,
                  pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO)
     self.notifier = pyinotify.Notifier(wm, FileChangeHandler(self), timeout=0)
 
@@ -771,6 +777,10 @@ class ConnectionManager(object):
         has_moca = self.bridge.moca
         if had_moca != has_moca:
           self.ifplugd_action('moca0', has_moca)
+
+    elif path == INTERFACE_PATH:
+      ifc = self.interface_by_name(filename)
+      ifc.recently_reset = True
 
   def interface_by_name(self, interface_name):
     for ifc in self.interfaces():
