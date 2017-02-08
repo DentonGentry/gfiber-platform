@@ -70,9 +70,6 @@ bool Experiments::Initialize(
   if (!names_to_register.empty()) {
     if (!Register_Locked(names_to_register))
       return false;
-
-    // initial read of registered experiments states
-    Refresh();
   }
 
   return true;
@@ -104,6 +101,13 @@ bool Experiments::Register_Locked(const std::vector<std::string> &names) {
 
     registered_experiments_.insert(name);
     log("experiments:Registered '%s'", name.c_str());
+
+    // check if experiment is active
+    std::string file_active = config_dir_ + "/" + name + ".active";
+    if (file_exists(file_active.c_str())) {
+      enabled_experiments_.insert(name);
+      log("experiments:'%s' is now enabled", name.c_str());
+    }
   }
   return true;
 }
@@ -138,15 +142,29 @@ void Experiments::UpdateState(const std::string &name) {
     return;
   }
 
-  std::string file_path = config_dir_ + "/" + name + ".active";
-  bool was_enabled = IsInEnabledList(name);
-  bool is_enabled = file_exists(file_path.c_str());
-  if (is_enabled && !was_enabled) {
-    log("experiments:'%s' is now enabled", name.c_str());
-    enabled_experiments_.insert(name);
-  } else if (!is_enabled && was_enabled) {
-    log("experiments:'%s' is now disabled", name.c_str());
-    enabled_experiments_.erase(name);
+  std::string experiments_path = config_dir_ + "/" + name;
+
+  if (IsInEnabledList(name)) {
+    // currently enabled, check if it was set to ".unrequested"
+    std::string file_unrequested = experiments_path + ".unrequested";
+    if (file_exists(file_unrequested.c_str())) {
+      // deactivate experiment
+      std::string file_active = experiments_path + ".active";
+      rm_file(file_active.c_str());
+      rm_file(file_unrequested.c_str());
+      enabled_experiments_.erase(name);
+      log("experiments:'%s' is now disabled", name.c_str());
+    }
+  } else {
+    // currently not enabled, check if it is requested
+    std::string file_requested = experiments_path + ".requested";
+    if (file_exists(file_requested.c_str())) {
+      // activate experiment
+      std::string file_active = experiments_path + ".active";
+      mv_file(file_requested.c_str(), file_active.c_str());
+      enabled_experiments_.insert(name);
+      log("experiments:'%s' is now enabled", name.c_str());
+    }
   }
 }
 

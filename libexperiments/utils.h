@@ -1,6 +1,7 @@
 #ifndef _LIBEXPERIMENTS_UTILS_H_
 #define _LIBEXPERIMENTS_UTILS_H_
 
+#include <fcntl.h>
 #include <stdint.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -51,6 +52,42 @@ static inline bool directory_exists(const char *path) {
     return false;
   }
   return S_ISDIR(dir_stat.st_mode);
+}
+
+static inline bool touch_file(const char *name) {
+  if (!name)
+    return false;
+
+  int fd = open(name, O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  if (fd < 0) {
+    log_perror(errno, "Cannot create file '%s':", name);
+    return false;
+  }
+  close(fd);
+  return true;
+}
+
+static inline bool rm_file(const char *name) {
+  if (!name)
+    return false;
+
+  if (remove(name) < 0) {
+    log_perror(errno, "Cannot rm file '%s':", name);
+    return false;
+  }
+  return true;
+}
+
+static inline bool mv_file(const char *from_name, const char *to_name) {
+  if (!from_name || !to_name)
+    return false;
+
+  // Note this uses rename() and hence only works on the same filesystem.
+  if (rename(from_name, to_name) < 0) {
+    log_perror(errno, "Cannot mv file '%s' to '%s':", from_name, to_name);
+    return false;
+  }
+  return true;
 }
 
 // This function runs the command cmd (but not in a shell), providing the
