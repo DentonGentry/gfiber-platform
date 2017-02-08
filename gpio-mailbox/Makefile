@@ -40,9 +40,7 @@ else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfmn100)
 else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfch100)
   CFLAGS += -DGFCH100
 else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),gfrg240)
-  # stub out gpio mailbox on gfrg240
-  CFLAGS += -DSTUB
-  LDFLAGS += -lm
+  CFLAGS += -DGFRG240
 else ifeq ($(BR2_TARGET_GENERIC_PLATFORM_NAME),kvm)
   CFLAGS += -DSTUB
   LDFLAGS += -lm
