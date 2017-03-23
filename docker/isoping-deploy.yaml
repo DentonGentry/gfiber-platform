@@ -1,0 +1,14 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: isoping
+spec:
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        app: isoping
+    spec:
+      containers:
+      - name: isoping
+        image: gcr.io/gfiber-isoping/isoping
