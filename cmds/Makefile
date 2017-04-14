@@ -56,7 +56,7 @@ TARGETS=\
 	wait-until-created \
 	watch-dir
 
-HOST_TARGETS=$(addprefix host-,$(TARGETS))
+HOST_TARGETS=$(addprefix host-,$(TARGETS)) host-isoping_fuzz
 LIB_TARGETS=\
 	stdoutline.so
 HOST_TEST_TARGETS=\
@@ -188,8 +188,9 @@ host-isoping isoping: LIBS+=$(RT) -lm -lstdc++ -lcrypto -lpthread
 host-isoping: host-isoping.o host-isoping_main.o
 host-isoping_test.o: CXXFLAGS += -D WVTEST_CONFIGURED -I ../wvtest/cpp
 host-isoping_test.o: isoping.cc
-host-isoping_test: LIBS+=$(HOST_LIBS) -lm -lstdc++ -lcrypto
+host-isoping_test host-isoping_fuzz: LIBS+=$(HOST_LIBS) -lm -lstdc++ -lcrypto
 host-isoping_test: host-isoping_test.o host-isoping.o host-wvtestmain.o host-wvtest.o
+host-isoping_fuzz: host-isoping.o host-isoping_fuzz.o
 host-isostream isostream: LIBS+=$(RT)
 host-diskbench diskbench: LIBS+=-lpthread $(RT)
 host-dnsck: LIBS+=$(HOST_LIBS) -lcares $(RT)
